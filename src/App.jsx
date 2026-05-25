@@ -7,9 +7,9 @@ import Jarvis from './pages/Jarvis'
 import JournalPage from './pages/Journal'
 import TraningPage from './pages/Traning'
 import EkonomiPage from './pages/Ekonomi'
+import HalsaPage from './pages/Halsa'
 import {
-  HalsaPage, KostPage,
-  PluggPage, JobbPage, SocialtPage,
+  KostPage, PluggPage, JobbPage, SocialtPage,
   ResorPage, InsightsPage
 } from './pages/Placeholders'
 
