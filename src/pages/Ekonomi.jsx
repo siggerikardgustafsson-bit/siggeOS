@@ -137,11 +137,23 @@ export default function EkonomiPage() {
   }
 
   // Calculations
-  const totalIncome = incomes.reduce((sum, i) => sum + i.amount, 0)
+  // Sources that are taxed 30% — gross logged, net received
+  const TAXED_SOURCES = ['PA-jobb']
+  const TAX_RATE = 0.30
+
+  // Net income = what actually lands in your account
+  const totalIncomeNet = incomes.reduce((sum, i) => {
+    const isGross = TAXED_SOURCES.includes(i.source)
+    return sum + (isGross ? i.amount * (1 - TAX_RATE) : i.amount)
+  }, 0)
+
+  // Gross income = what counts toward CSN (already stored as gross in DB)
+  const totalIncomeGross = incomes.reduce((sum, i) => sum + i.amount, 0)
+
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
   const fixedTotal = fixedCosts.reduce((sum, f) => sum + f.amount, 0)
-  const balance = totalIncome - totalExpenses - fixedTotal
-  const csnPct = (csnUsage / 110000) * 100
+  const balance = totalIncomeNet - totalExpenses - fixedTotal
+  const csnPct = (csnUsage / 114500) * 100
   const csnWarn = csnPct >= 80
 
   // Group expenses by category for donut
@@ -192,22 +204,45 @@ export default function EkonomiPage() {
         <>
           {/* Balance cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
-            {[
-              { label: 'Inkomst', value: totalIncome, color: '#10b981', icon: TrendingUp },
-              { label: 'Utgifter', value: totalExpenses + fixedTotal, color: '#ef4444', icon: TrendingDown },
-              { label: 'Balans', value: balance, color: balance >= 0 ? '#10b981' : '#ef4444', icon: DollarSign },
-            ].map(({ label, value, color, icon: Icon }) => (
-              <div key={label} className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{label}</span>
-                  <Icon size={14} color={color} />
-                </div>
-                <div className="mono" style={{ fontSize: '22px', fontWeight: '600', color }}>
-                  {value.toLocaleString('sv-SE')}
-                  <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}> kr</span>
-                </div>
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Inkomst (netto)</span>
+                <TrendingUp size={14} color="#10b981" />
               </div>
-            ))}
+              <div className="mono" style={{ fontSize: '22px', fontWeight: '600', color: '#10b981' }}>
+                {Math.round(totalIncomeNet).toLocaleString('sv-SE')}
+                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}> kr</span>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
+                Brutto: {Math.round(totalIncomeGross).toLocaleString('sv-SE')} kr
+              </div>
+            </div>
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Utgifter</span>
+                <TrendingDown size={14} color="#ef4444" />
+              </div>
+              <div className="mono" style={{ fontSize: '22px', fontWeight: '600', color: '#ef4444' }}>
+                {Math.round(totalExpenses + fixedTotal).toLocaleString('sv-SE')}
+                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}> kr</span>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
+                Fasta: {fixedTotal.toLocaleString('sv-SE')} kr
+              </div>
+            </div>
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Balans</span>
+                <DollarSign size={14} color={balance >= 0 ? '#10b981' : '#ef4444'} />
+              </div>
+              <div className="mono" style={{ fontSize: '22px', fontWeight: '600', color: balance >= 0 ? '#10b981' : '#ef4444' }}>
+                {Math.round(balance).toLocaleString('sv-SE')}
+                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}> kr</span>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
+                Netto − utgifter
+              </div>
+            </div>
           </div>
 
           {/* CSN */}
@@ -218,12 +253,12 @@ export default function EkonomiPage() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <span className="mono" style={{ fontSize: '15px', fontWeight: '600' }}>{Math.round(csnUsage).toLocaleString('sv-SE')} kr</span>
-              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{Math.round(110000 - csnUsage).toLocaleString('sv-SE')} kr kvar</span>
+              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{Math.round(114500 - csnUsage).toLocaleString('sv-SE')} kr kvar</span>
             </div>
             <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${Math.min(csnPct, 100)}%`, background: csnWarn ? '#f59e0b' : '#10b981', borderRadius: '3px', transition: 'width 0.6s' }} />
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '5px' }}>{csnPct.toFixed(1)}% av 110 000 kr förbrukat detta halvår</div>
+            <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '5px' }}>{csnPct.toFixed(1)}% av 114 500 kr förbrukat detta halvår</div>
           </div>
 
           {/* Donut + categories */}
@@ -287,9 +322,19 @@ export default function EkonomiPage() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className="mono" style={{ fontSize: '13px', fontWeight: '500', color: tx.type === 'income' ? '#10b981' : '#ef4444' }}>
-                          {tx.type === 'income' ? '+' : '-'}{tx.amount.toLocaleString('sv-SE')} kr
-                        </span>
+                        <div style={{ textAlign: 'right' }}>
+                          <div className="mono" style={{ fontSize: '13px', fontWeight: '500', color: tx.type === 'income' ? '#10b981' : '#ef4444' }}>
+                            {tx.type === 'income' ? '+' : '-'}
+                            {tx.type === 'income' && TAXED_SOURCES.includes(tx.source)
+                              ? Math.round(tx.amount * (1 - TAX_RATE)).toLocaleString('sv-SE')
+                              : tx.amount.toLocaleString('sv-SE')} kr
+                          </div>
+                          {tx.type === 'income' && TAXED_SOURCES.includes(tx.source) && (
+                            <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                              brutto {tx.amount.toLocaleString('sv-SE')} kr
+                            </div>
+                          )}
+                        </div>
                         <button onClick={() => deleteEntry(tx.type === 'income' ? 'income_logs' : 'expense_logs', tx.id)}
                           style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: '2px' }}>
                           <X size={12} />
@@ -359,8 +404,18 @@ export default function EkonomiPage() {
           {logType === 'income' && (
             <>
               <div style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Belopp (kr)</label>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>
+                  Belopp (kr)
+                  {incomeForm.source === 'PA-jobb' && (
+                    <span style={{ color: '#f59e0b', marginLeft: '6px' }}>— logga bruttolön (före skatt)</span>
+                  )}
+                </label>
                 <input className="input" type="number" placeholder="0" value={incomeForm.amount} onChange={e => setIncomeForm(f => ({ ...f, amount: e.target.value }))} style={{ fontSize: '20px', padding: '12px 14px' }} />
+                {incomeForm.source === 'PA-jobb' && incomeForm.amount && (
+                  <div style={{ fontSize: '12px', color: '#10b981', marginTop: '6px' }}>
+                    Netto (70%): {Math.round(parseFloat(incomeForm.amount) * 0.7).toLocaleString('sv-SE')} kr
+                  </div>
+                )}
               </div>
               <div style={{ marginBottom: '14px' }}>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Källa</label>

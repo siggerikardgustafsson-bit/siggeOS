@@ -113,7 +113,7 @@ export default function Dashboard() {
     : 0
 
   const peakMode = CATEGORIES.filter(c => (scores?.[`score_${c.key}`] || 0) >= 70).length >= 4
-  const csnPct = (csnUsage / 110000) * 100
+  const csnPct = (csnUsage / 114500) * 100
   const csnWarn = csnPct >= 80
 
   const momentumTrend = weekScores.length >= 2
@@ -268,7 +268,7 @@ export default function Dashboard() {
           <div className="mono" style={{ fontSize: '20px', fontWeight: '600', marginBottom: '6px' }}>
             {Math.round(csnUsage).toLocaleString('sv-SE')} kr
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '10px' }}>av 110 000 kr</div>
+          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '10px' }}>av 114 500 kr</div>
           <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
             <div style={{
               height: '100%',
@@ -279,7 +279,7 @@ export default function Dashboard() {
             }} />
           </div>
           <div style={{ fontSize: '11px', color: csnWarn ? '#f59e0b' : 'var(--muted)', marginTop: '6px' }}>
-            {csnPct.toFixed(0)}% förbrukat · {Math.round(110000 - csnUsage).toLocaleString('sv-SE')} kvar
+            {csnPct.toFixed(0)}% förbrukat · {Math.round(114500 - csnUsage).toLocaleString('sv-SE')} kvar
           </div>
         </div>
 

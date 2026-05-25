@@ -11,7 +11,7 @@ Du är inte en generisk AI. Du är Sigges personliga Jarvis. Du känner honom p�
 
 VEM SIGGE ÄR:
 - 21 år, läkarstudent termin 3 på KI, bor i Täby centrum (hyr för 11 000 kr/mån)
-- Inkomst: ~25k/mån (CSN 13 500 + PA-jobb 10-13k). Fribelopp 110 000 kr/halvår.
+- Inkomst: ~25k/mån (CSN 13 500 + PA-jobb 10-13k). Fribelopp 114 500 kr/halvår.
 - Jobbar som personlig assistent (nattpass), sidojobb åt Erik Norling (Nils pappa, tygbutiker/fastigheter)
 - Karriärsmål: anestesiolog, konsultjobb i Norge, 100k/mån efter skatt
 - Bor på lång sikt: Göteborg
@@ -122,7 +122,7 @@ AKTIVA ERIK-UPPDRAG:
 ${JSON.stringify(tasksRes.data, null, 2)}
 
 CSN-FRIBELOPP:
-Förbrukat: ${Math.round(csnRes.data || 0)} kr av 110 000 kr (${((csnRes.data || 0) / 110000 * 100).toFixed(1)}%)
+Förbrukat: ${Math.round(csnRes.data || 0)} kr av 114 500 kr (${((csnRes.data || 0) / 114500 * 100).toFixed(1)}%)
 `
     setContext(ctx)
   }
