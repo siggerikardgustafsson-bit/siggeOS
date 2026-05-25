@@ -168,6 +168,21 @@ export default function JobbPage() {
     } catch { setCalendarConnected(false) }
   }
 
+  async function connectGoogleCalendar() {
+    const clientId = '891411567089-bia7jceedhri8lhf5aa6hqnmuq9crv3n.apps.googleusercontent.com'
+    const redirectUri = `${window.location.origin}/auth/callback`
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'https://www.googleapis.com/auth/calendar.readonly',
+      access_type: 'offline',
+      prompt: 'consent',
+      state: 'google_calendar',
+    })
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`
+  }
+
   async function syncCalendar() {
     setLoadingCalendar(true)
     try {
