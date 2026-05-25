@@ -7,13 +7,19 @@ import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, Chevro
 
 const EXERCISE_LIBRARY = {
   'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Pushups'],
-  'Rygg': ['Marklyft', 'Latsdrag', 'Rodd', 'Pullups', 'Hyperextensions'],
+  'Rygg': ['Marklyft', 'Latsdrag', 'Rodd', 'Weighted pull-up', 'Pullups', 'Hyperextensions'],
   'Ben': ['Knäböj', 'Benpress', 'Utfall', 'Leg curl', 'Leg extension', 'Kalvhävningar'],
   'Axlar': ['Militärpress', 'Sidolyft', 'Framåtlyft', 'Face pulls', 'Shrugs'],
   'Armar': ['Bicepscurl', 'Hammercurl', 'Tryckkpress', 'Skullcrusher', 'Kabeldrag'],
   'Core': ['Plankan', 'Situps', 'Crunches', 'Russian twist', 'Bäckenlyft'],
   'Övrigt': [],
 }
+
+const RUN_PR_DISTANCES = [
+  { label: '5 km',       meters: 5000 },
+  { label: '10 km',      meters: 10000 },
+  { label: 'Halvmaraton', meters: 21097 },
+]
 
 const SESSION_TYPES = [
   { id: 'gym', label: 'Gym', icon: Dumbbell, color: '#3b82f6' },
@@ -83,18 +89,19 @@ export default function TraningPage() {
   const [exercises, setExercises] = useState([
     { name: '', sets: [{ reps: '', weight: '' }] }
   ])
-  const [gymForm, setGymForm] = useState({ duration: '', feeling: 7, notes: '' })
+  const [gymForm, setGymForm] = useState({ duration: '', feeling: 7, notes: '', date: format(new Date(), 'yyyy-MM-dd') })
 
   // Run form
   const [runForm, setRunForm] = useState({
-    distance: '', hours: '', minutes: '', seconds: '', feeling: 7, notes: '', steps: ''
+    distance: '', hours: '', minutes: '', seconds: '', feeling: 7, notes: '', steps: '', date: format(new Date(), 'yyyy-MM-dd')
   })
 
   // Other form
-  const [otherForm, setOtherForm] = useState({ activity: '', duration: '', feeling: 7, notes: '', steps: '' })
+  const [otherForm, setOtherForm] = useState({ activity: '', duration: '', feeling: 7, notes: '', steps: '', date: format(new Date(), 'yyyy-MM-dd') })
+  const [runPRs, setRunPRs] = useState([])
 
   useEffect(() => {
-    if (user) { fetchSessions(); fetchPRs() }
+    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs() }
   }, [user])
 
   async function fetchSessions() {
@@ -114,6 +121,31 @@ export default function TraningPage() {
       .eq('user_id', user.id)
       .order('exercise_name')
     setPrs(data || [])
+  }
+
+  async function fetchRunPRs() {
+    // Get best time for each standard distance from run sessions
+    const { data } = await supabase
+      .from('training_sessions')
+      .select('distance_km, time_seconds, date')
+      .eq('user_id', user.id)
+      .eq('session_type', 'run')
+      .not('distance_km', 'is', null)
+      .not('time_seconds', 'is', null)
+      .order('time_seconds')
+
+    if (!data) return
+
+    const bests = RUN_PR_DISTANCES.map(({ label, meters }) => {
+      const kmTarget = meters / 1000
+      // Find runs at or very close to this distance (within 5%)
+      const matching = data.filter(r => Math.abs(r.distance_km - kmTarget) / kmTarget < 0.05)
+      if (matching.length === 0) return { label, time: null, date: null }
+      const best = matching.reduce((a, b) => a.time_seconds < b.time_seconds ? a : b)
+      return { label, time: best.time_seconds, date: best.date }
+    })
+
+    setRunPRs(bests)
   }
 
   function addExercise(name = '') {
@@ -152,13 +184,13 @@ export default function TraningPage() {
 
   async function saveGymSession() {
     setSaving(true)
-    const today = format(new Date(), 'yyyy-MM-dd')
+    const sessionDate = gymForm.date || format(new Date(), 'yyyy-MM-dd')
 
     const { data: session, error } = await supabase
       .from('training_sessions')
       .insert({
         user_id: user.id,
-        date: today,
+        date: sessionDate,
         session_type: 'gym',
         duration_minutes: gymForm.duration ? parseInt(gymForm.duration) : null,
         feeling: gymForm.feeling,
@@ -194,20 +226,18 @@ export default function TraningPage() {
               user_id: user.id,
               exercise_name: ex.name,
               weight_kg: maxWeight,
-              date: today,
+              date: sessionDate,
             }, { onConflict: 'user_id,exercise_name' })
           }
         }
       }
 
-      // Update training score
-      await updateTrainingScore(today, gymForm.feeling)
+      await updateTrainingScore(sessionDate, gymForm.feeling)
       await fetchSessions()
       await fetchPRs()
 
-      // Reset form
       setExercises([{ name: '', sets: [{ reps: '', weight: '' }] }])
-      setGymForm({ duration: '', feeling: 7, notes: '' })
+      setGymForm({ duration: '', feeling: 7, notes: '', date: format(new Date(), 'yyyy-MM-dd') })
       setView('overview')
     }
     setSaving(false)
@@ -215,14 +245,14 @@ export default function TraningPage() {
 
   async function saveRunSession() {
     setSaving(true)
-    const today = format(new Date(), 'yyyy-MM-dd')
+    const sessionDate = runForm.date || format(new Date(), 'yyyy-MM-dd')
     const totalSeconds = (parseInt(runForm.hours || 0) * 3600) + (parseInt(runForm.minutes || 0) * 60) + parseInt(runForm.seconds || 0)
     const distanceKm = parseFloat(runForm.distance)
     const pacePerKm = distanceKm > 0 && totalSeconds > 0 ? Math.round(totalSeconds / distanceKm) : null
 
     await supabase.from('training_sessions').insert({
       user_id: user.id,
-      date: today,
+      date: sessionDate,
       session_type: 'run',
       duration_minutes: Math.round(totalSeconds / 60),
       feeling: runForm.feeling,
@@ -233,20 +263,21 @@ export default function TraningPage() {
       source: 'manual',
     })
 
-    await updateTrainingScore(today, runForm.feeling)
+    await updateTrainingScore(sessionDate, runForm.feeling)
     await fetchSessions()
-    setRunForm({ distance: '', hours: '', minutes: '', seconds: '', feeling: 7, notes: '', steps: '' })
+    await fetchRunPRs()
+    setRunForm({ distance: '', hours: '', minutes: '', seconds: '', feeling: 7, notes: '', steps: '', date: format(new Date(), 'yyyy-MM-dd') })
     setView('overview')
     setSaving(false)
   }
 
   async function saveOtherSession() {
     setSaving(true)
-    const today = format(new Date(), 'yyyy-MM-dd')
+    const sessionDate = otherForm.date || format(new Date(), 'yyyy-MM-dd')
 
     await supabase.from('training_sessions').insert({
       user_id: user.id,
-      date: today,
+      date: sessionDate,
       session_type: 'other',
       duration_minutes: otherForm.duration ? parseInt(otherForm.duration) : null,
       feeling: otherForm.feeling,
@@ -254,18 +285,17 @@ export default function TraningPage() {
       source: 'manual',
     })
 
-    // Log steps to health if provided
     if (otherForm.steps) {
       await supabase.from('health_logs').upsert({
         user_id: user.id,
-        date: today,
+        date: sessionDate,
         steps: parseInt(otherForm.steps),
       }, { onConflict: 'user_id,date' })
     }
 
-    await updateTrainingScore(today, otherForm.feeling)
+    await updateTrainingScore(sessionDate, otherForm.feeling)
     await fetchSessions()
-    setOtherForm({ activity: '', duration: '', feeling: 7, notes: '', steps: '' })
+    setOtherForm({ activity: '', duration: '', feeling: 7, notes: '', steps: '', date: format(new Date(), 'yyyy-MM-dd') })
     setView('overview')
     setSaving(false)
   }
@@ -330,11 +360,11 @@ export default function TraningPage() {
             </div>
           </div>
 
-          {/* PRs */}
+          {/* Strength PRs */}
           {prs.length > 0 && (
             <div className="card" style={{ marginBottom: '16px' }}>
               <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Trophy size={12} color="#f59e0b" /> PERSONLIGA REKORD
+                <Trophy size={12} color="#f59e0b" /> STYRKA — PERSONLIGA REKORD
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
                 {prs.map(pr => (
@@ -349,6 +379,36 @@ export default function TraningPage() {
               </div>
             </div>
           )}
+
+          {/* Run PRs */}
+          <div className="card" style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Trophy size={12} color="#10b981" /> LÖPNING — PERSONLIGA REKORD
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+              {RUN_PR_DISTANCES.map(({ label }) => {
+                const pr = runPRs.find(r => r.label === label)
+                const hasTime = pr?.time
+                return (
+                  <div key={label} className="card-sm">
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
+                    {hasTime ? (
+                      <>
+                        <div className="mono" style={{ fontSize: '16px', fontWeight: '600', color: '#10b981' }}>
+                          {formatDuration(pr.time)}
+                        </div>
+                        <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>
+                          {format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ej loggat</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
 
           {/* Recent sessions */}
           <div>
@@ -549,6 +609,10 @@ export default function TraningPage() {
                   <input type="range" min="1" max="10" value={gymForm.feeling} onChange={e => setGymForm(f => ({ ...f, feeling: parseInt(e.target.value) }))} style={{ width: '100%', accentColor: '#3b82f6', marginTop: '8px' }} />
                 </div>
               </div>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Datum</label>
+                <input className="input" type="date" value={gymForm.date} onChange={e => setGymForm(f => ({ ...f, date: e.target.value }))} />
+              </div>
               <input className="input" placeholder="Anteckningar (valfritt)" value={gymForm.notes} onChange={e => setGymForm(f => ({ ...f, notes: e.target.value }))} style={{ marginBottom: '16px' }} />
               <button onClick={saveGymSession} className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
                 {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={14} /> Spara gympass</>}
@@ -587,6 +651,10 @@ export default function TraningPage() {
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Känsla {runForm.feeling}/10</label>
                 <input type="range" min="1" max="10" value={runForm.feeling} onChange={e => setRunForm(f => ({ ...f, feeling: parseInt(e.target.value) }))} style={{ width: '100%', accentColor: '#10b981' }} />
               </div>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Datum</label>
+                <input className="input" type="date" value={runForm.date} onChange={e => setRunForm(f => ({ ...f, date: e.target.value }))} />
+              </div>
               <input className="input" placeholder="Anteckningar (valfritt)" value={runForm.notes} onChange={e => setRunForm(f => ({ ...f, notes: e.target.value }))} style={{ marginBottom: '16px' }} />
               <button onClick={saveRunSession} className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center', background: '#10b981' }}>
                 {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={14} /> Spara löppass</>}
@@ -614,6 +682,10 @@ export default function TraningPage() {
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Känsla {otherForm.feeling}/10</label>
                 <input type="range" min="1" max="10" value={otherForm.feeling} onChange={e => setOtherForm(f => ({ ...f, feeling: parseInt(e.target.value) }))} style={{ width: '100%', accentColor: '#ec4899' }} />
+              </div>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Datum</label>
+                <input className="input" type="date" value={otherForm.date} onChange={e => setOtherForm(f => ({ ...f, date: e.target.value }))} />
               </div>
               <input className="input" placeholder="Anteckningar (valfritt)" value={otherForm.notes} onChange={e => setOtherForm(f => ({ ...f, notes: e.target.value }))} style={{ marginBottom: '16px' }} />
               <button onClick={saveOtherSession} className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
