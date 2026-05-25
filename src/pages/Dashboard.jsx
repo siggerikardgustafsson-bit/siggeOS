@@ -86,20 +86,33 @@ export default function Dashboard() {
     fetchAll()
   }, [user])
 
+  function getHalfYearStart() {
+    const now = new Date()
+    const month = now.getMonth() // 0-indexed
+    const year = now.getFullYear()
+    return month < 6
+      ? `${year}-01-01`
+      : `${year}-07-01`
+  }
+
   async function fetchAll() {
     setLoading(true)
+    const halfStart = getHalfYearStart()
+
     const [scoresRes, weekRes, csnRes, examsRes, tasksRes, journalRes] = await Promise.all([
       supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).single(),
       supabase.from('daily_scores').select('*').eq('user_id', user.id).gte('date', format(subDays(new Date(), 6), 'yyyy-MM-dd')).order('date'),
-      supabase.rpc('get_csn_usage', { p_user_id: user.id }),
+      supabase.from('income_logs').select('amount').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', today),
       supabase.from('courses').select('name, exam_date').eq('user_id', user.id).eq('active', true).not('exam_date', 'is', null).gte('exam_date', today).order('exam_date').limit(3),
       supabase.from('erik_tasks').select('*').eq('user_id', user.id).neq('status', 'klart').order('deadline').limit(5),
       supabase.from('journal_entries').select('mood, energy, sleep_hours').eq('user_id', user.id).eq('date', today).single(),
     ])
 
+    const totalCsn = (csnRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0)
+
     setScores(scoresRes.data)
     setWeekScores(weekRes.data || [])
-    setCsnUsage(csnRes.data || 0)
+    setCsnUsage(totalCsn)
     setUpcomingExams(examsRes.data || [])
     setErikTasks(tasksRes.data || [])
     setTodayJournal(journalRes.data)

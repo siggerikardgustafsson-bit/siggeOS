@@ -87,19 +87,28 @@ export default function EkonomiPage() {
     const start = format(startOfMonth(selectedMonth), 'yyyy-MM-dd')
     const end = format(endOfMonth(selectedMonth), 'yyyy-MM-dd')
 
+    // Half-year start for CSN
+    const now = new Date()
+    const halfStart = now.getMonth() < 6
+      ? `${now.getFullYear()}-01-01`
+      : `${now.getFullYear()}-07-01`
+    const halfEnd = format(now, 'yyyy-MM-dd')
+
     const [incomesRes, expensesRes, fixedRes, tripsRes, csnRes] = await Promise.all([
       supabase.from('income_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date', { ascending: false }),
       supabase.from('expense_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date', { ascending: false }),
       supabase.from('fixed_costs').select('*').eq('user_id', user.id).eq('active', true),
       supabase.from('trips').select('*').eq('user_id', user.id).in('status', ['planerad', 'pågående']).order('start_date'),
-      supabase.rpc('get_csn_usage', { p_user_id: user.id }),
+      supabase.from('income_logs').select('amount').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', halfEnd),
     ])
+
+    const totalCsn = (csnRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0)
 
     setIncomes(incomesRes.data || [])
     setExpenses(expensesRes.data || [])
     setFixedCosts(fixedRes.data || [])
     setTrips(tripsRes.data || [])
-    setCsnUsage(csnRes.data || 0)
+    setCsnUsage(totalCsn)
   }
 
   async function saveExpense() {

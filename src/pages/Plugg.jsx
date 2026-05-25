@@ -39,17 +39,20 @@ function HoursPerDayCalc({ examDate, goalHours }) {
 export default function PluggPage() {
   const { user } = useAuth()
   const pdfRef = useRef()
-  const [activeTab, setActiveTab] = useState('aktiva') // aktiva | session | arkiv
+  const [activeTab, setActiveTab] = useState('aktiva')
   const [courses, setCourses] = useState([])
   const [archivedCourses, setArchivedCourses] = useState([])
   const [studySessions, setStudySessions] = useState([])
+  const [exams, setExams] = useState({}) // courseId -> exams[]
   const [expandedCourse, setExpandedCourse] = useState(null)
+  const [expandedExam, setExpandedExam] = useState(null)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showNewCourse, setShowNewCourse] = useState(false)
   const [showNewSession, setShowNewSession] = useState(false)
   const [showNewArchive, setShowNewArchive] = useState(false)
-  const [selectedCourseForSession, setSelectedCourseForSession] = useState(null)
+  const [addingExamTo, setAddingExamTo] = useState(null)
+  const [examForm, setExamForm] = useState({ name: '', exam_date: '', notes: '' })
 
   // Course form
   const [courseForm, setCourseForm] = useState({
@@ -94,20 +97,26 @@ export default function PluggPage() {
     setCourses(active || [])
     setArchivedCourses(archived || [])
 
-    // Fetch goals for all courses
     const allIds = [...(active || []), ...(archived || [])].map(c => c.id)
     if (allIds.length > 0) {
-      const { data: goalData } = await supabase
-        .from('learning_goals')
-        .select('*')
-        .in('course_id', allIds)
-        .order('created_at')
-      const grouped = {}
-      for (const g of goalData || []) {
-        if (!grouped[g.course_id]) grouped[g.course_id] = []
-        grouped[g.course_id].push(g)
+      const [goalData, examData] = await Promise.all([
+        supabase.from('learning_goals').select('*').in('course_id', allIds).order('created_at'),
+        supabase.from('course_exams').select('*').in('course_id', allIds).order('exam_date'),
+      ])
+
+      const groupedGoals = {}
+      for (const g of goalData.data || []) {
+        if (!groupedGoals[g.course_id]) groupedGoals[g.course_id] = []
+        groupedGoals[g.course_id].push(g)
       }
-      setGoals(grouped)
+      setGoals(groupedGoals)
+
+      const groupedExams = {}
+      for (const e of examData.data || []) {
+        if (!groupedExams[e.course_id]) groupedExams[e.course_id] = []
+        groupedExams[e.course_id].push(e)
+      }
+      setExams(groupedExams)
     }
   }
 
@@ -153,6 +162,32 @@ export default function PluggPage() {
 
   async function archiveCourse(courseId, grade) {
     await supabase.from('courses').update({ active: false }).eq('id', courseId)
+    await fetchCourses()
+  }
+
+  async function saveExam(courseId) {
+    if (!examForm.name.trim()) return
+    setSaving(true)
+    await supabase.from('course_exams').insert({
+      user_id: user.id,
+      course_id: courseId,
+      name: examForm.name,
+      exam_date: examForm.exam_date || null,
+      notes: examForm.notes,
+    })
+    setExamForm({ name: '', exam_date: '', notes: '' })
+    setAddingExamTo(null)
+    await fetchCourses()
+    setSaving(false)
+  }
+
+  async function updateExamGrade(examId, grade) {
+    await supabase.from('course_exams').update({ grade }).eq('id', examId)
+    await fetchCourses()
+  }
+
+  async function deleteExam(examId) {
+    await supabase.from('course_exams').delete().eq('id', examId)
     await fetchCourses()
   }
 
@@ -208,17 +243,23 @@ export default function PluggPage() {
   }
 
   // Generate Claude Pro study prompt
-  function generateStudyPrompt(course) {
+  function generateStudyPrompt(course, specificExam = null) {
     const courseGoals = goals[course.id] || []
+    const courseExams = exams[course.id] || []
+    const targetExam = specificExam || courseExams.find(e => e.exam_date && differenceInDays(parseISO(e.exam_date), new Date()) >= 0) || courseExams[0]
     const remaining = courseGoals.filter(g => !g.completed)
     const mastered = courseGoals.filter(g => g.completed)
-    const daysLeft = course.exam_date ? differenceInDays(parseISO(course.exam_date), new Date()) : null
+    const daysLeft = targetExam?.exam_date ? differenceInDays(parseISO(targetExam.exam_date), new Date()) : null
     const recentSessions = studySessions.filter(s => s.course_id === course.id).slice(0, 3)
 
     const prompt = `Du är Jarvis, Sigges personliga AI-assistent och studiecoach. Du hjälper honom plugga inför ${course.name}.
 
 KURS: ${course.name} (${course.term})
-${daysLeft !== null ? `DAGAR TILL TENTA: ${daysLeft}` : ''}
+${targetExam ? `EXAMINATION: ${targetExam.name}${daysLeft !== null ? ` — ${daysLeft} dagar kvar` : ''}` : ''}
+${targetExam?.notes ? `TENTAANTECKNINGAR: ${targetExam.notes}` : ''}
+
+EXAMINATIONER I KURSEN:
+${courseExams.map(e => `- ${e.name}${e.exam_date ? ` (${format(parseISO(e.exam_date), 'd MMM yyyy', { locale: sv })})` : ''}${e.grade ? ` — Betyg: ${e.grade}` : ''}`).join('\n') || 'Inga registrerade'}
 
 LÄRANDEMÅL DU INTE BEHÄRSKAR ÄNNU (${remaining.length} st):
 ${remaining.map((g, i) => `${i + 1}. ${g.description}`).join('\n') || 'Inga kvar — bra jobbat!'}
@@ -257,9 +298,8 @@ Börja nu. Hälsa honom välkommen och fråga var han vill börja.`
     setTimeout(() => setCopied(null), 2000)
   }
 
-  function openClaudePro(course) {
-    const prompt = generateStudyPrompt(course)
-    // Open claude.ai with prompt pre-filled via URL (claude.ai supports this)
+  function openClaudePro(course, specificExam = null) {
+    const prompt = generateStudyPrompt(course, specificExam)
     const encoded = encodeURIComponent(prompt)
     window.open(`https://claude.ai/new?q=${encoded}`, '_blank')
   }
@@ -473,6 +513,94 @@ Börja nu. Hälsa honom välkommen och fråga var han vill börja.`
                             </div>
                           </div>
                         )}
+
+                        {/* Examinationer */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>EXAMINATIONER</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                            {(exams[course.id] || []).length === 0 && (
+                              <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Inga examinationer registrerade</div>
+                            )}
+                            {(exams[course.id] || []).map(exam => {
+                              const daysLeft = exam.exam_date ? differenceInDays(parseISO(exam.exam_date), new Date()) : null
+                              const isExpanded = expandedExam === exam.id
+                              return (
+                                <div key={exam.id} style={{ background: 'var(--surface2)', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                  <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                                    onClick={() => setExpandedExam(isExpanded ? null : exam.id)}>
+                                    <div>
+                                      <div style={{ fontSize: '13px', fontWeight: '500' }}>{exam.name}</div>
+                                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
+                                        {exam.exam_date && format(parseISO(exam.exam_date), 'd MMM yyyy', { locale: sv })}
+                                        {daysLeft !== null && daysLeft >= 0 && (
+                                          <span style={{ color: daysLeft <= 7 ? '#ef4444' : '#f59e0b', marginLeft: '8px' }}>{daysLeft}d kvar</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      {exam.grade && (
+                                        <span className="mono" style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px',
+                                          background: exam.grade === 'VG' ? 'rgba(16,185,129,0.15)' : exam.grade === 'G' ? 'rgba(59,130,246,0.15)' : 'rgba(239,68,68,0.15)',
+                                          color: exam.grade === 'VG' ? '#10b981' : exam.grade === 'G' ? '#3b82f6' : '#ef4444',
+                                        }}>{exam.grade}</span>
+                                      )}
+                                      <button onClick={e => { e.stopPropagation(); openClaudePro(course, exam) }}
+                                        style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '6px', padding: '4px 8px', color: '#a78bfa', cursor: 'pointer', fontSize: '11px', fontFamily: 'DM Sans, sans-serif', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Zap size={11} /> Plugga
+                                      </button>
+                                      <button onClick={e => { e.stopPropagation(); deleteExam(exam.id) }}
+                                        style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4 }}>
+                                        <X size={12} />
+                                      </button>
+                                      {isExpanded ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
+                                    </div>
+                                  </div>
+                                  {isExpanded && (
+                                    <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)' }}>
+                                      {exam.notes && <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>{exam.notes}</div>}
+                                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>Sätt betyg:</div>
+                                      <div style={{ display: 'flex', gap: '6px' }}>
+                                        {GRADES.filter(g => g !== '—').map(g => (
+                                          <button key={g} onClick={() => updateExamGrade(exam.id, g)} style={{
+                                            padding: '5px 12px', borderRadius: '6px', cursor: 'pointer',
+                                            border: `1px solid ${exam.grade === g ? (g === 'VG' ? '#10b981' : g === 'G' ? '#3b82f6' : '#ef4444') : 'var(--border)'}`,
+                                            background: exam.grade === g ? (g === 'VG' ? 'rgba(16,185,129,0.15)' : g === 'G' ? 'rgba(59,130,246,0.15)' : 'rgba(239,68,68,0.15)') : 'transparent',
+                                            color: exam.grade === g ? (g === 'VG' ? '#10b981' : g === 'G' ? '#3b82f6' : '#ef4444') : 'var(--muted)',
+                                            fontSize: '13px', fontFamily: 'DM Sans, sans-serif', fontWeight: '600',
+                                          }}>{g}</button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          {/* Add exam */}
+                          {addingExamTo === course.id ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: 'var(--surface2)', borderRadius: '8px' }}>
+                              <input className="input" placeholder="Tentanamn, t.ex. Delexamination 1" value={examForm.name}
+                                onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))} autoFocus style={{ fontSize: '13px' }} />
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                <input className="input" type="date" value={examForm.exam_date}
+                                  onChange={e => setExamForm(f => ({ ...f, exam_date: e.target.value }))} style={{ fontSize: '13px' }} />
+                                <input className="input" placeholder="Anteckningar (valfritt)" value={examForm.notes}
+                                  onChange={e => setExamForm(f => ({ ...f, notes: e.target.value }))} style={{ fontSize: '13px' }} />
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button onClick={() => saveExam(course.id)} className="btn btn-primary" style={{ fontSize: '12px' }} disabled={saving || !examForm.name}>
+                                  {saving ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={12} />} Spara
+                                </button>
+                                <button onClick={() => { setAddingExamTo(null); setExamForm({ name: '', exam_date: '', notes: '' }) }} className="btn btn-ghost" style={{ fontSize: '12px' }}>Avbryt</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button onClick={() => setAddingExamTo(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+                              <Plus size={12} /> Lägg till examination
+                            </button>
+                          )}
+                        </div>
 
                         {/* Archive button */}
                         <button onClick={() => archiveCourse(course.id)} className="btn btn-ghost" style={{ fontSize: '12px', color: 'var(--muted)' }}>
