@@ -54,6 +54,9 @@ Om användaren skriver något i stil med:
 - "åt lunch med Viktoria, pizza 800 kcal" → bekräfta loggning av måltid och socialt
 - "drack 4 enheter igår kväll" → logga alkohol
 - "väger X kg idag" → logga vikt
+- "skapa uppdrag: [titel], tagg: [tagg], deadline: [datum]" → returnera JSON i formatet:
+  {"action": "create_erik_task", "title": "...", "description": "...", "tag": "...", "deadline": "YYYY-MM-DD"}
+  Tillgängliga taggar: Hotell Vänersborg, Brålanda Vandrarhem, Tygladan, Vargöns Varuhus, Övriga fastigheter, Övrig verksamhet, Personal
 
 Bekräfta alltid vad du loggat och ge en kort kommentar.
 
@@ -143,6 +146,10 @@ Förbrukat: ${Math.round(csnRes.data || 0)} kr av 114 500 kr (${((csnRes.data ||
       content: userMsg.content,
     })
 
+    // Check if user wants to create an Erik task
+    const taskKeywords = ['skapa uppdrag', 'lägg till uppdrag', 'nytt uppdrag', 'create task', 'lägg till en uppgift']
+    const wantsTask = taskKeywords.some(k => userMsg.content.toLowerCase().includes(k))
+
     try {
       // Call Supabase Edge Function (which calls Anthropic)
       const { data, error } = await supabase.functions.invoke('jarvis-chat', {
@@ -156,6 +163,26 @@ Förbrukat: ${Math.round(csnRes.data || 0)} kr av 114 500 kr (${((csnRes.data ||
       if (error) throw error
 
       const assistantMsg = { role: 'assistant', content: data.content }
+
+      // Check if Jarvis wants to create an Erik task
+      if (data.content.includes('"action": "create_erik_task"')) {
+        try {
+          const jsonMatch = data.content.match(/\{[^}]*"action":\s*"create_erik_task"[^}]*\}/s)
+          if (jsonMatch) {
+            const taskData = JSON.parse(jsonMatch[0])
+            await supabase.from('erik_tasks').insert({
+              user_id: user.id,
+              title: taskData.title,
+              description: taskData.description || '',
+              deadline: taskData.deadline || null,
+              tag: taskData.tag || 'Övrig verksamhet',
+              status: 'ej_påbörjat',
+              priority: 'medium',
+            })
+          }
+        } catch (e) { console.error('Task creation failed:', e) }
+      }
+
       setMessages(prev => [...prev, assistantMsg])
 
       // Save assistant response

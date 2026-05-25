@@ -9,8 +9,9 @@ import TraningPage from './pages/Traning'
 import EkonomiPage from './pages/Ekonomi'
 import HalsaPage from './pages/Halsa'
 import PluggPage from './pages/Plugg'
+import JobbPage from './pages/Jobb'
 import {
-  JobbPage, UpplevelserPage, InsightsPage
+  UpplevelserPage, InsightsPage
 } from './pages/Placeholders'
 
 function ProtectedRoute({ children }) {
