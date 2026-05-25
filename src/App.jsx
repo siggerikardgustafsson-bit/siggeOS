@@ -10,8 +10,7 @@ import EkonomiPage from './pages/Ekonomi'
 import HalsaPage from './pages/Halsa'
 import PluggPage from './pages/Plugg'
 import {
-  KostPage, JobbPage, SocialtPage,
-  ResorPage, InsightsPage
+  JobbPage, UpplevelserPage, InsightsPage
 } from './pages/Placeholders'
 
 function ProtectedRoute({ children }) {
@@ -30,18 +29,16 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-        <Route path="/"        element={<Dashboard />} />
-        <Route path="/jarvis"  element={<Jarvis />} />
-        <Route path="/journal" element={<JournalPage />} />
-        <Route path="/traning" element={<TraningPage />} />
-        <Route path="/halsa"   element={<HalsaPage />} />
-        <Route path="/kost"    element={<KostPage />} />
-        <Route path="/ekonomi" element={<EkonomiPage />} />
-        <Route path="/plugg"   element={<PluggPage />} />
-        <Route path="/jobb"    element={<JobbPage />} />
-        <Route path="/socialt" element={<SocialtPage />} />
-        <Route path="/resor"   element={<ResorPage />} />
-        <Route path="/insights" element={<InsightsPage />} />
+        <Route path="/"             element={<Dashboard />} />
+        <Route path="/jarvis"       element={<Jarvis />} />
+        <Route path="/journal"      element={<JournalPage />} />
+        <Route path="/traning"      element={<TraningPage />} />
+        <Route path="/halsa"        element={<HalsaPage />} />
+        <Route path="/ekonomi"      element={<EkonomiPage />} />
+        <Route path="/plugg"        element={<PluggPage />} />
+        <Route path="/jobb"         element={<JobbPage />} />
+        <Route path="/upplevelser"  element={<UpplevelserPage />} />
+        <Route path="/insights"     element={<InsightsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

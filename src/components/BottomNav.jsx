@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, MessageSquare, BookOpen, Dumbbell, DollarSign, MoreHorizontal
+  LayoutDashboard, MessageSquare, BookOpen, Dumbbell, DollarSign
 } from 'lucide-react'
 
 const mobileNavItems = [

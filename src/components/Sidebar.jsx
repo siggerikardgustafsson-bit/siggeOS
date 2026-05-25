@@ -1,24 +1,22 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
-  LayoutDashboard, BookOpen, Dumbbell, Heart, Utensils,
-  DollarSign, GraduationCap, Briefcase, Users, Map,
-  BarChart2, MessageSquare, LogOut
+  LayoutDashboard, BookOpen, Dumbbell, Heart,
+  DollarSign, GraduationCap, Briefcase, Map,
+  BarChart2, MessageSquare, LogOut, Compass
 } from 'lucide-react'
 
 const navItems = [
-  { to: '/',          icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/jarvis',    icon: MessageSquare,   label: 'Jarvis' },
-  { to: '/journal',   icon: BookOpen,        label: 'Journal' },
-  { to: '/traning',   icon: Dumbbell,        label: 'Träning' },
-  { to: '/halsa',     icon: Heart,           label: 'Hälsa' },
-  { to: '/kost',      icon: Utensils,        label: 'Kost' },
-  { to: '/ekonomi',   icon: DollarSign,      label: 'Ekonomi' },
-  { to: '/plugg',     icon: GraduationCap,   label: 'Plugg' },
-  { to: '/jobb',      icon: Briefcase,       label: 'Jobb' },
-  { to: '/socialt',   icon: Users,           label: 'Socialt' },
-  { to: '/resor',     icon: Map,             label: 'Resor' },
-  { to: '/insights',  icon: BarChart2,       label: 'Insights' },
+  { to: '/',            icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/jarvis',      icon: MessageSquare,   label: 'Jarvis' },
+  { to: '/journal',     icon: BookOpen,        label: 'Journal' },
+  { to: '/traning',     icon: Dumbbell,        label: 'Träning' },
+  { to: '/halsa',       icon: Heart,           label: 'Hälsa' },
+  { to: '/ekonomi',     icon: DollarSign,      label: 'Ekonomi' },
+  { to: '/plugg',       icon: GraduationCap,   label: 'Plugg' },
+  { to: '/jobb',        icon: Briefcase,       label: 'Jobb' },
+  { to: '/upplevelser', icon: Compass,         label: 'Upplevelser' },
+  { to: '/insights',    icon: BarChart2,       label: 'Insights' },
 ]
 
 export default function Sidebar() {

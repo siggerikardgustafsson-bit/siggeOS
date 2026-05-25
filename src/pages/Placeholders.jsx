@@ -1,6 +1,3 @@
-// Placeholder component used for modules not yet built
-// Replace one by one as we build each module
-
 export function PlaceholderPage({ title, description, color = '#3b82f6' }) {
   return (
     <div style={{ padding: '32px', maxWidth: '800px', margin: '0 auto' }}>
@@ -20,40 +17,12 @@ export function PlaceholderPage({ title, description, color = '#3b82f6' }) {
   )
 }
 
-export function JournalPage() {
-  return <PlaceholderPage title="Journal" description="Daglig loggning av tankar, humör, energi och sömn" color="#06b6d4" />
-}
-
-export function TraningPage() {
-  return <PlaceholderPage title="Träning" description="Gympass, löpning, progressionsgraf och PRs" color="#3b82f6" />
-}
-
-export function HalsaPage() {
-  return <PlaceholderPage title="Hälsa" description="Vikt, sömn, steg, retatrutide, alkohol och skärmtid" color="#10b981" />
-}
-
-export function KostPage() {
-  return <PlaceholderPage title="Kost" description="Protein, kalorier, vatten och måltidslogg" color="#f97316" />
-}
-
-export function EkonomiPage() {
-  return <PlaceholderPage title="Ekonomi" description="Inkomster, utgifter och CSN-fribelopp" color="#8b5cf6" />
-}
-
-export function PluggPage() {
-  return <PlaceholderPage title="Plugg" description="Kurser, tentor, lärandemål och Jarvis-förhör" color="#f59e0b" />
-}
-
 export function JobbPage() {
   return <PlaceholderPage title="Jobb" description="PA-pass och Erik Norling CRM" color="#f97316" />
 }
 
-export function SocialtPage() {
-  return <PlaceholderPage title="Socialt" description="Vänner, interaktioner och socialt score" color="#ec4899" />
-}
-
-export function ResorPage() {
-  return <PlaceholderPage title="Resor" description="Resehistorik, planerade resor och budget" color="#06b6d4" />
+export function UpplevelserPage() {
+  return <PlaceholderPage title="Upplevelser" description="Resor, äventyr och minnen" color="#06b6d4" />
 }
 
 export function InsightsPage() {
