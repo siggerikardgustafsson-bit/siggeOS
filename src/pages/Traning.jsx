@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
+import ExerciseModal from '../components/ExerciseModal'
 
 const EXERCISE_LIBRARY = {
   'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Pushups'],
@@ -100,6 +101,7 @@ export default function TraningPage() {
   const [otherForm, setOtherForm] = useState({ activity: '', duration: '', feeling: 7, notes: '', steps: '', date: format(new Date(), 'yyyy-MM-dd') })
   const [runPRs, setRunPRs] = useState([])
   const [calendarMonth, setCalendarMonth] = useState(new Date())
+  const [selectedExercise, setSelectedExercise] = useState(null)
 
   useEffect(() => {
     if (user) { fetchSessions(); fetchPRs(); fetchRunPRs() }
@@ -374,12 +376,18 @@ export default function TraningPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
                 {prs.map(pr => (
-                  <div key={pr.id} className="card-sm">
+                  <div key={pr.id} className="card-sm" onClick={() => setSelectedExercise(pr.exercise_name)}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                     <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{pr.exercise_name}</div>
                     <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
                       {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
                     </div>
                     {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
+                    <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <TrendingUp size={10} /> Se historik
+                    </div>
                   </div>
                 ))}
               </div>
@@ -469,11 +477,17 @@ export default function TraningPage() {
                               return acc
                             }, {})
                           ).map(([name, sets]) => (
-                            <div key={name} style={{ marginBottom: '8px' }}>
-                              <div style={{ fontSize: '13px', fontWeight: '500', marginBottom: '4px' }}>{name}</div>
+                            <div key={name} style={{ marginBottom: '10px' }}>
+                              <div
+                                onClick={e => { e.stopPropagation(); setSelectedExercise(name) }}
+                                style={{ fontSize: '13px', fontWeight: '600', marginBottom: '5px', color: 'var(--accent)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                {name}
+                                <TrendingUp size={11} />
+                              </div>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                                 {sets.map((s, i) => (
-                                  <span key={i} className="mono" style={{ fontSize: '12px', padding: '3px 8px', background: 'rgba(59,130,246,0.1)', borderRadius: '4px', color: '#93c5fd' }}>
+                                  <span key={i} className="mono" style={{ fontSize: '12px', padding: '3px 8px', background: 'var(--accent-soft)', borderRadius: '5px', color: 'var(--accent)' }}>
                                     {s.reps}×{s.weight_kg}kg
                                   </span>
                                 ))}
@@ -534,30 +548,78 @@ export default function TraningPage() {
                     const hasGym = daySessions.some(s => s.session_type === 'gym')
                     const hasRun = daySessions.some(s => s.session_type === 'run')
                     const hasOther = daySessions.some(s => s.session_type !== 'gym' && s.session_type !== 'run')
+                    const gymSession = daySessions.find(s => s.session_type === 'gym')
+                    const gymExercises = gymSession?.training_exercises || []
+                    const [showDayDetail, setShowDayDetail] = useState(false)
 
                     return (
                       <div key={dateStr} style={{
                         minHeight: '64px', padding: '6px', borderRadius: '8px',
-                        background: isToday ? 'rgba(59,130,246,0.1)' : daySessions.length > 0 ? 'rgba(255,255,255,0.03)' : 'transparent',
-                        border: `1px solid ${isToday ? 'rgba(59,130,246,0.3)' : daySessions.length > 0 ? 'var(--border)' : 'transparent'}`,
+                        background: isToday ? 'var(--accent-soft)' : daySessions.length > 0 ? 'rgba(255,255,255,0.03)' : 'transparent',
+                        border: `1px solid ${isToday ? 'var(--accent-border)' : daySessions.length > 0 ? 'var(--border)' : 'transparent'}`,
                         opacity: isCurrentMonth ? 1 : 0.3,
-                      }}>
-                        <div style={{ fontSize: '11px', fontWeight: isToday ? '700' : '400', color: isToday ? '#3b82f6' : 'var(--muted)', marginBottom: '4px' }}>
+                        cursor: daySessions.length > 0 ? 'pointer' : 'default',
+                      }} onClick={() => daySessions.length > 0 && setExpandedSession(expandedSession === dateStr ? null : dateStr)}>
+                        <div style={{ fontSize: '11px', fontWeight: isToday ? '700' : '400', color: isToday ? 'var(--accent)' : 'var(--muted)', marginBottom: '4px' }}>
                           {format(day, 'd')}
                         </div>
                         {daySessions.length > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            {hasGym && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(59,130,246,0.2)', color: '#93c5fd', fontWeight: '500' }}>💪 Gym</div>}
-                            {hasRun && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(16,185,129,0.2)', color: '#6ee7b7', fontWeight: '500' }}>
+                            {hasGym && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: '500' }}>💪 Gym</div>}
+                            {hasRun && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(16,185,129,0.15)', color: '#34d399', fontWeight: '500' }}>
                               🏃 {daySessions.find(s => s.session_type === 'run')?.distance_km ? `${daySessions.find(s => s.session_type === 'run').distance_km}km` : 'Löp'}
                             </div>}
-                            {hasOther && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(236,72,153,0.2)', color: '#f9a8d4', fontWeight: '500' }}>⚡ Aktivitet</div>}
+                            {hasOther && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(236,72,153,0.15)', color: '#f472b6', fontWeight: '500' }}>⚡ Aktivitet</div>}
                           </div>
                         )}
                       </div>
                     )
                   })}
                 </div>
+
+                {/* Day detail — shows when a calendar day is clicked */}
+                {expandedSession && (() => {
+                  const dayStr = expandedSession
+                  const daySess = sessions.filter(s => s.date === dayStr)
+                  if (daySess.length === 0) return null
+                  const gymSess = daySess.find(s => s.session_type === 'gym')
+                  return (
+                    <div className="card" style={{ marginTop: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div style={{ fontWeight: '600', fontSize: '14px', textTransform: 'capitalize' }}>
+                          {format(parseISO(dayStr), 'EEEE d MMMM', { locale: sv })}
+                        </div>
+                        <button onClick={() => setExpandedSession(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={14} /></button>
+                      </div>
+                      {gymSess && gymSess.training_exercises?.length > 0 && (
+                        <>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>ÖVNINGAR — klicka för historik</div>
+                          {Object.entries(gymSess.training_exercises.reduce((acc, ex) => {
+                            if (!acc[ex.exercise_name]) acc[ex.exercise_name] = []
+                            acc[ex.exercise_name].push(ex)
+                            return acc
+                          }, {})).map(([name, sets]) => (
+                            <div key={name} style={{ marginBottom: '10px' }}>
+                              <div onClick={() => setSelectedExercise(name)} style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent)', cursor: 'pointer', marginBottom: '5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                {name} <TrendingUp size={11} />
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                                {sets.sort((a,b) => a.set_number - b.set_number).map((s, i) => (
+                                  <span key={i} className="mono" style={{ fontSize: '12px', padding: '3px 8px', background: 'var(--accent-soft)', borderRadius: '5px', color: 'var(--accent)' }}>
+                                    {s.reps}×{s.weight_kg}kg
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                      {daySess.filter(s => s.session_type === 'run').map(s => (
+                        <div key={s.id} style={{ fontSize: '13px', color: '#34d399' }}>🏃 {s.distance_km}km {s.duration_minutes && `· ${s.duration_minutes}min`}</div>
+                      ))}
+                    </div>
+                  )
+                })()}
 
                 {/* Month summary */}
                 {(() => {
@@ -800,6 +862,10 @@ export default function TraningPage() {
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+
+      {selectedExercise && (
+        <ExerciseModal exerciseName={selectedExercise} onClose={() => setSelectedExercise(null)} />
+      )}
     </div>
   )
 }
