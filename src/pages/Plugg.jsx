@@ -80,7 +80,7 @@ export default function PluggPage() {
     const [eRes, gRes, efRes, afRes] = await Promise.all([
       supabase.from('course_exams').select('*').in('course_id', allIds).order('exam_date'),
       supabase.from('learning_goals').select('*').in('course_id', allIds).order('created_at'),
-      supabase.from('exam_old_files').select('*').order('created_at'),
+      supabase.from('exam_old_files').select('*').eq('user_id', user.id).order('created_at'),
       supabase.from('archived_exam_files').select('*').in('course_id', allIds).order('created_at'),
     ])
 
