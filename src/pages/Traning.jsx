@@ -186,6 +186,12 @@ export default function TraningPage() {
     const lines = text.split('\n').filter(l => l.trim())
     const headers = parseCSVLine(lines[0])
 
+    // Build index map — use FIRST occurrence of duplicate headers
+    const headerIndex = {}
+    headers.forEach((h, idx) => {
+      if (!(h in headerIndex)) headerIndex[h] = idx
+    })
+
     const typeMap = {
       'Run': 'run', 'Trail Run': 'run', 'Virtual Run': 'run',
       'Ride': 'other', 'Virtual Ride': 'other', 'EBikeRide': 'other',
@@ -207,7 +213,8 @@ export default function TraningPage() {
     for (let i = 1; i < lines.length; i++) {
       const vals = parseCSVLine(lines[i])
       const row = {}
-      headers.forEach((h, idx) => { row[h] = vals[idx] || '' })
+      // Use first occurrence index for each unique header
+      Object.entries(headerIndex).forEach(([h, idx]) => { row[h] = vals[idx] || '' })
 
       const activityType = row['Activity Type'] || ''
       const sessionType = typeMap[activityType] || 'other'
@@ -232,7 +239,7 @@ export default function TraningPage() {
         if (existing) { skipped++; continue }
       }
 
-      // Distance is already in km in Strava CSV
+      // Distance in col 6 is already in km (col 17 is meters — we skip it via first-occurrence logic)
       const distanceKm = parseFloat(row['Distance'] || '0') || null
       const movingSec = parseInt(row['Moving Time'] || '0')
       const durationMin = movingSec > 0 ? Math.round(movingSec / 60) : null
@@ -263,7 +270,10 @@ export default function TraningPage() {
     }
 
     setStravaResult({ synced: imported, skipped, total: lines.length - 1 })
-    if (imported > 0) await fetchSessions()
+    if (imported > 0) {
+      await fetchSessions()
+      await fetchRunPRs() // Update run PRs with new data
+    }
     setCsvImporting(false)
     e.target.value = ''
   }
