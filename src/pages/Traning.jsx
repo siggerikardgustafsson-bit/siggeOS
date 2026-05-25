@@ -5,6 +5,7 @@ import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfMont
 import { sv } from 'date-fns/locale'
 import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import ExerciseModal from '../components/ExerciseModal'
+import RunModal from '../components/RunModal'
 
 const EXERCISE_LIBRARY = {
   'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Pushups'],
@@ -109,6 +110,7 @@ export default function TraningPage() {
   const [runPRs, setRunPRs] = useState([])
   const [calendarMonth, setCalendarMonth] = useState(new Date())
   const [selectedExercise, setSelectedExercise] = useState(null)
+  const [showRunModal, setShowRunModal] = useState(false)
 
   useEffect(() => {
     if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus() }
@@ -163,7 +165,7 @@ export default function TraningPage() {
     setCsvImporting(true)
     const text = await file.text()
 
-    // Proper CSV parser that handles quoted fields with commas inside
+    // Robust CSV parser handling quoted fields with commas/newlines
     function parseCSVLine(line) {
       const result = []
       let current = ''
@@ -173,24 +175,25 @@ export default function TraningPage() {
         if (ch === '"') {
           inQuotes = !inQuotes
         } else if (ch === ',' && !inQuotes) {
-          result.push(current.trim())
+          result.push(current)
           current = ''
         } else {
           current += ch
         }
       }
-      result.push(current.trim())
+      result.push(current)
       return result
     }
 
     const lines = text.split('\n').filter(l => l.trim())
     const headers = parseCSVLine(lines[0])
 
-    // Build index map — use FIRST occurrence of duplicate headers
-    const headerIndex = {}
-    headers.forEach((h, idx) => {
-      if (!(h in headerIndex)) headerIndex[h] = idx
-    })
+    // Find column indices — for duplicates, take FIRST occurrence
+    const idx = {}
+    headers.forEach((h, i) => { if (!(h in idx)) idx[h] = i })
+
+    // Log what we found for debugging
+    console.log('Distance col index:', idx['Distance'], 'Moving Time col index:', idx['Moving Time'])
 
     const typeMap = {
       'Run': 'run', 'Trail Run': 'run', 'Virtual Run': 'run',
@@ -199,29 +202,33 @@ export default function TraningPage() {
       'Weight Training': 'gym', 'Workout': 'gym', 'CrossFit': 'gym',
     }
 
-    // First clear bad imports (strava passes with 0 distance from previous bad import)
+    // Clear previous bad strava imports
     await supabase.from('training_sessions')
       .delete()
       .eq('user_id', user.id)
       .eq('source', 'strava')
-      .is('distance_km', null)
-      .lt('duration_minutes', 1)
 
     let imported = 0
     let skipped = 0
 
     for (let i = 1; i < lines.length; i++) {
       const vals = parseCSVLine(lines[i])
-      const row = {}
-      // Use first occurrence index for each unique header
-      Object.entries(headerIndex).forEach(([h, idx]) => { row[h] = vals[idx] || '' })
+      if (vals.length < 7) continue
 
-      const activityType = row['Activity Type'] || ''
+      // Use explicit column indices to avoid duplicate-column confusion
+      const stravaId    = vals[idx['Activity ID']]?.trim() || null
+      const dateStr     = vals[idx['Activity Date']]?.trim() || ''
+      const name        = vals[idx['Activity Name']]?.trim() || ''
+      const activityType = vals[idx['Activity Type']]?.trim() || ''
+      const movingTimeSec = parseInt(vals[idx['Moving Time']] || '0')
+      const distanceKm  = parseFloat(vals[idx['Distance']] || '0') || null  // col 6 = km
+      const elevationM  = parseFloat(vals[idx['Elevation Gain']] || '0') || null
+      const avgHr       = parseFloat(vals[idx['Average Heart Rate']] || '0') || null
+
+      if (!dateStr || !activityType) continue
+
       const sessionType = typeMap[activityType] || 'other'
-      const dateStr = row['Activity Date'] || ''
-      if (!dateStr) continue
 
-      // Parse "May 6, 2026, 1:28:07 PM" format
       let date
       try {
         const parsed = new Date(dateStr)
@@ -229,24 +236,8 @@ export default function TraningPage() {
         date = parsed.toISOString().slice(0, 10)
       } catch { skipped++; continue }
 
-      const stravaId = row['Activity ID'] || null
-
-      // Skip duplicates
-      if (stravaId) {
-        const { data: existing } = await supabase
-          .from('training_sessions').select('id')
-          .eq('user_id', user.id).eq('strava_id', stravaId).single()
-        if (existing) { skipped++; continue }
-      }
-
-      // Distance in col 6 is already in km (col 17 is meters — we skip it via first-occurrence logic)
-      const distanceKm = parseFloat(row['Distance'] || '0') || null
-      const movingSec = parseInt(row['Moving Time'] || '0')
-      const durationMin = movingSec > 0 ? Math.round(movingSec / 60) : null
-      const pacePerKm = distanceKm && movingSec ? Math.round(movingSec / distanceKm) : null
-      const elevationM = parseFloat(row['Elevation Gain'] || '0') || null
-      const avgHr = parseFloat(row['Average Heart Rate'] || '0') || null
-      const name = row['Activity Name'] || activityType
+      const durationMin = movingTimeSec > 0 ? Math.round(movingTimeSec / 60) : null
+      const pacePerKm = distanceKm && movingTimeSec ? Math.round(movingTimeSec / distanceKm) : null
 
       const notes = [
         name,
@@ -270,10 +261,7 @@ export default function TraningPage() {
     }
 
     setStravaResult({ synced: imported, skipped, total: lines.length - 1 })
-    if (imported > 0) {
-      await fetchSessions()
-      await fetchRunPRs() // Update run PRs with new data
-    }
+    if (imported > 0) { await fetchSessions(); await fetchRunPRs() }
     setCsvImporting(false)
     e.target.value = ''
   }
@@ -591,15 +579,21 @@ export default function TraningPage() {
 
           {/* Run PRs */}
           <div className="card" style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Trophy size={12} color="#10b981" /> LÖPNING — PERSONLIGA REKORD
+            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Trophy size={12} color="#10b981" /> LÖPNING — PERSONLIGA REKORD</span>
+              <button onClick={() => setShowRunModal(true)} style={{ fontSize: '11px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                Se all löphistorik →
+              </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
               {RUN_PR_DISTANCES.map(({ label }) => {
                 const pr = runPRs.find(r => r.label === label)
                 const hasTime = pr?.time
                 return (
-                  <div key={label} className="card-sm">
+                  <div key={label} className="card-sm" onClick={() => setShowRunModal(true)}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                     <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
                     {hasTime ? (
                       <>
@@ -613,6 +607,9 @@ export default function TraningPage() {
                     ) : (
                       <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ej loggat</div>
                     )}
+                    <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <TrendingUp size={10} /> Se historik
+                    </div>
                   </div>
                 )
               })}
@@ -1059,6 +1056,10 @@ export default function TraningPage() {
 
       {selectedExercise && (
         <ExerciseModal exerciseName={selectedExercise} onClose={() => setSelectedExercise(null)} />
+      )}
+
+      {showRunModal && (
+        <RunModal onClose={() => setShowRunModal(false)} />
       )}
     </div>
   )
