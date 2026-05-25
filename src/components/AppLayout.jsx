@@ -15,7 +15,8 @@ export default function AppLayout() {
         flex: 1,
         overflowY: 'auto',
         background: 'transparent',
-        paddingBottom: '80px',
+        paddingBottom: '0',
+        minHeight: 0,
       }}>
         <Outlet />
       </main>
