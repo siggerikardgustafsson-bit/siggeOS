@@ -14,8 +14,8 @@ export default function AppLayout() {
       <main style={{
         flex: 1,
         overflowY: 'auto',
-        background: 'var(--bg)',
-        paddingBottom: '80px', /* space for mobile bottom nav */
+        background: 'transparent',
+        paddingBottom: '80px',
       }}>
         <Outlet />
       </main>

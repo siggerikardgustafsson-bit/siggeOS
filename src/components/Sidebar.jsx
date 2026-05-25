@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, BookOpen, Dumbbell, Heart,
-  DollarSign, GraduationCap, Briefcase, Map,
+  DollarSign, GraduationCap, Briefcase,
   BarChart2, MessageSquare, LogOut, Compass
 } from 'lucide-react'
 
@@ -30,26 +30,53 @@ export default function Sidebar() {
 
   return (
     <aside style={{
-      width: '200px',
-      minWidth: '200px',
+      width: '210px',
+      minWidth: '210px',
       height: '100vh',
-      background: 'var(--surface)',
-      borderRight: '1px solid var(--border)',
+      background: 'rgba(255,255,255,0.03)',
+      backdropFilter: 'blur(24px)',
+      WebkitBackdropFilter: 'blur(24px)',
+      borderRight: '1px solid rgba(255,255,255,0.07)',
       display: 'flex',
       flexDirection: 'column',
-      padding: '20px 0',
+      padding: '0',
       position: 'sticky',
       top: 0,
+      boxShadow: '1px 0 0 rgba(255,255,255,0.04)',
     }}>
+
       {/* Logo */}
-      <div style={{ padding: '0 20px 20px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontSize: '20px', fontWeight: '600', letterSpacing: '-0.3px' }}>
-          Sigge<span style={{ color: 'var(--blue)' }}>OS</span>
+      <div style={{
+        padding: '22px 20px 18px',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}>
+        <div style={{
+          fontSize: '19px',
+          fontWeight: '700',
+          letterSpacing: '-0.5px',
+          color: 'rgba(255,255,255,0.95)',
+        }}>
+          Sigge<span style={{
+            background: 'linear-gradient(135deg, #4f8ef7, #a78bfa)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}>OS</span>
+        </div>
+        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '2px', letterSpacing: '0.02em' }}>
+          Personal OS
         </div>
       </div>
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: '12px 10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+      <nav style={{
+        flex: 1,
+        padding: '10px 10px',
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1px',
+      }}>
         {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
@@ -59,43 +86,84 @@ export default function Sidebar() {
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              padding: '9px 10px',
-              borderRadius: '8px',
+              padding: '8px 10px',
+              borderRadius: '10px',
               textDecoration: 'none',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: isActive ? 'var(--blue)' : 'var(--muted)',
-              background: isActive ? 'rgba(59,130,246,0.08)' : 'transparent',
-              transition: 'all 0.15s',
+              fontSize: '13.5px',
+              fontWeight: isActive ? '500' : '400',
+              color: isActive ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.38)',
+              background: isActive
+                ? 'rgba(255,255,255,0.08)'
+                : 'transparent',
+              border: isActive
+                ? '1px solid rgba(255,255,255,0.10)'
+                : '1px solid transparent',
+              boxShadow: isActive
+                ? '0 2px 8px rgba(0,0,0,0.2), 0 1px 0 rgba(255,255,255,0.06) inset'
+                : 'none',
+              transition: 'all 0.18s',
+              position: 'relative',
             })}
           >
-            <Icon size={16} />
-            {label}
+            {({ isActive }) => (
+              <>
+                <span style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: isActive ? '#4f8ef7' : 'inherit',
+                  transition: 'color 0.18s',
+                }}>
+                  <Icon size={15} />
+                </span>
+                {label}
+                {isActive && (
+                  <span style={{
+                    marginLeft: 'auto',
+                    width: '4px',
+                    height: '4px',
+                    borderRadius: '50%',
+                    background: '#4f8ef7',
+                    boxShadow: '0 0 6px rgba(79,142,247,0.8)',
+                  }} />
+                )}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
 
       {/* Sign out */}
-      <div style={{ padding: '12px 10px', borderTop: '1px solid var(--border)' }}>
+      <div style={{ padding: '10px 10px 16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <button
           onClick={handleSignOut}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
-            padding: '9px 10px',
-            borderRadius: '8px',
+            padding: '8px 10px',
+            borderRadius: '10px',
             background: 'transparent',
-            border: 'none',
-            color: 'var(--muted)',
-            fontSize: '14px',
-            fontWeight: '500',
+            border: '1px solid transparent',
+            color: 'rgba(255,255,255,0.3)',
+            fontSize: '13.5px',
+            fontWeight: '400',
             cursor: 'pointer',
             width: '100%',
-            transition: 'color 0.15s',
+            transition: 'all 0.18s',
+            fontFamily: 'Inter, sans-serif',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.color = 'rgba(248,113,113,0.8)'
+            e.currentTarget.style.background = 'rgba(248,113,113,0.08)'
+            e.currentTarget.style.borderColor = 'rgba(248,113,113,0.15)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.color = 'rgba(255,255,255,0.3)'
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.borderColor = 'transparent'
           }}
         >
-          <LogOut size={16} />
+          <LogOut size={15} />
           Logga ut
         </button>
       </div>
