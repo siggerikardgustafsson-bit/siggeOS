@@ -14,6 +14,7 @@ import InsightsPage from './pages/Insights'
 import UpplevelserPage from './pages/Upplevelser'
 import SettingsPage from './pages/Settings'
 import AuthCallback from './pages/AuthCallback'
+import StravaCallback from './pages/StravaCallback'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -31,6 +32,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/strava-callback" element={<StravaCallback />} />
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="/"             element={<Dashboard />} />
         <Route path="/jarvis"       element={<Jarvis />} />

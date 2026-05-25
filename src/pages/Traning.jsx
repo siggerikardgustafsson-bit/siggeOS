@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from 'date-fns'
@@ -86,6 +86,13 @@ export default function TraningPage() {
   const [showExercisePicker, setShowExercisePicker] = useState(false)
   const [customExercise, setCustomExercise] = useState('')
 
+  // Strava
+  const [stravaConnected, setStravaConnected] = useState(false)
+  const [stravaSyncing, setStravaSyncing] = useState(false)
+  const [stravaResult, setStravaResult] = useState(null)
+  const [csvImporting, setCsvImporting] = useState(false)
+  const csvRef = useRef(null)
+
   // Gym form
   const [exercises, setExercises] = useState([
     { name: '', sets: [{ reps: '', weight: '' }] }
@@ -104,8 +111,121 @@ export default function TraningPage() {
   const [selectedExercise, setSelectedExercise] = useState(null)
 
   useEffect(() => {
-    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs() }
+    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus() }
   }, [user])
+
+  async function checkStravaStatus() {
+    try {
+      const { data, error } = await supabase.functions.invoke('strava-sync', {
+        body: null, headers: { 'x-action': 'status' }
+      })
+      // Use query param approach instead
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/strava-sync?action=status`, {
+        headers: {
+          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        }
+      })
+      const json = await res.json()
+      setStravaConnected(json.connected)
+    } catch (e) { console.error(e) }
+  }
+
+  async function connectStrava() {
+    const redirectUri = `${window.location.origin}/strava-callback`
+    const scope = 'activity:read_all'
+    const url = `https://www.strava.com/oauth/authorize?client_id=250984&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}`
+    window.location.href = url
+  }
+
+  async function syncStrava() {
+    setStravaSyncing(true)
+    setStravaResult(null)
+    try {
+      const session = (await supabase.auth.getSession()).data.session
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/strava-sync?action=sync`, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        }
+      })
+      const json = await res.json()
+      setStravaResult(json)
+      if (json.synced > 0) await fetchSessions()
+    } catch (e) { console.error(e) }
+    setStravaSyncing(false)
+  }
+
+  // CSV Import from Strava export
+  async function handleCsvImport(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setCsvImporting(true)
+    const text = await file.text()
+    const lines = text.split('\n').filter(l => l.trim())
+    const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim())
+
+    const typeMap: Record<string, string> = {
+      'Run': 'run', 'Trail Run': 'run', 'Virtual Run': 'run',
+      'Ride': 'other', 'Virtual Ride': 'other',
+      'Swim': 'other', 'Walk': 'walk', 'Hike': 'walk',
+      'Weight Training': 'gym', 'Workout': 'gym', 'CrossFit': 'gym',
+    }
+
+    let imported = 0
+    for (let i = 1; i < lines.length; i++) {
+      const vals = lines[i].split(',').map(v => v.replace(/"/g, '').trim())
+      const row: Record<string, string> = {}
+      headers.forEach((h, idx) => row[h] = vals[idx] || '')
+
+      const activityType = row['Activity Type'] || row['Type'] || ''
+      const sessionType = typeMap[activityType] || 'other'
+      const dateStr = row['Activity Date'] || row['Date'] || ''
+      if (!dateStr) continue
+
+      // Parse date — Strava CSV uses "Jan 1, 2024, 12:00:00 PM" format
+      let date: string
+      try {
+        const parsed = new Date(dateStr)
+        if (isNaN(parsed.getTime())) continue
+        date = parsed.toISOString().slice(0, 10)
+      } catch { continue }
+
+      const distanceM = parseFloat(row['Distance'] || '0')
+      const distanceKm = distanceM > 0 ? Math.round(distanceM / 10) / 100 : null
+      const movingSec = parseInt(row['Moving Time'] || '0')
+      const durationMin = movingSec > 0 ? Math.round(movingSec / 60) : null
+      const elevationM = parseFloat(row['Elevation Gain'] || '0') || null
+      const avgHr = parseFloat(row['Average Heart Rate'] || '0') || null
+      const name = row['Activity Name'] || row['Name'] || activityType
+      const stravaId = row['Activity ID'] || row['ID'] || null
+
+      // Skip duplicates
+      if (stravaId) {
+        const { data: existing } = await supabase.from('training_sessions').select('id').eq('user_id', user.id).eq('strava_id', stravaId).single()
+        if (existing) continue
+      }
+
+      const notes = [name, elevationM ? `${Math.round(elevationM)}m↑` : '', avgHr ? `❤️ ${Math.round(avgHr)}bpm` : ''].filter(Boolean).join(' · ')
+
+      await supabase.from('training_sessions').insert({
+        user_id: user.id,
+        date,
+        session_type: sessionType,
+        duration_minutes: durationMin,
+        distance_km: distanceKm,
+        notes,
+        source: 'strava',
+        strava_id: stravaId,
+      })
+      imported++
+    }
+
+    setStravaResult({ synced: imported, skipped: lines.length - 1 - imported, total: lines.length - 1 })
+    if (imported > 0) await fetchSessions()
+    setCsvImporting(false)
+    e.target.value = ''
+  }
 
   async function fetchSessions() {
     const { data } = await supabase
@@ -330,7 +450,21 @@ export default function TraningPage() {
           <div style={{ fontSize: '22px', fontWeight: '600' }}>Träning</div>
           <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{thisWeekSessions.length} pass denna vecka</div>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {/* Strava */}
+          <input ref={csvRef} type="file" accept=".csv" onChange={handleCsvImport} style={{ display: 'none' }} />
+          {stravaConnected ? (
+            <button onClick={syncStrava} disabled={stravaSyncing} className="btn btn-ghost" style={{ fontSize: '12px', color: '#fc4c02', borderColor: 'rgba(252,76,2,0.25)' }}>
+              {stravaSyncing ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Synkar...</> : '🟠 Synka Strava'}
+            </button>
+          ) : (
+            <button onClick={connectStrava} className="btn btn-ghost" style={{ fontSize: '12px', color: '#fc4c02', borderColor: 'rgba(252,76,2,0.25)' }}>
+              🟠 Koppla Strava
+            </button>
+          )}
+          <button onClick={() => csvRef.current?.click()} disabled={csvImporting} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+            {csvImporting ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : '📥 CSV-import'}
+          </button>
           <button onClick={() => setView(view === 'calendar' ? 'overview' : 'calendar')} className="btn btn-ghost" style={{ fontSize: '13px' }}>
             <Calendar size={14} /> {view === 'calendar' ? 'Översikt' : 'Kalender'}
           </button>
@@ -339,6 +473,16 @@ export default function TraningPage() {
           </button>
         </div>
       </div>
+
+      {/* Strava result */}
+      {stravaResult && (
+        <div style={{ padding: '12px 16px', background: 'rgba(252,76,2,0.08)', border: '1px solid rgba(252,76,2,0.2)', borderRadius: '10px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', color: '#fc4c02' }}>
+            ✓ Importerade {stravaResult.synced} pass ({stravaResult.skipped} redan synkade av {stravaResult.total} totalt)
+          </span>
+          <button onClick={() => setStravaResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={14} /></button>
+        </div>
+      )}
 
       {view === 'overview' && (
         <>
