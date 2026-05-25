@@ -41,7 +41,7 @@ async function fetchCalendarEvents(accessToken: string, monthsBack = 2): Promise
 function isPaShift(event: any): boolean {
   const title = (event.summary || '').toLowerCase()
   const desc = (event.description || '').toLowerCase()
-  const keywords = ['pa', 'personlig assistent', 'nattpass', 'pass', 'pa-pass', 'jobb natt', 'natt pass']
+  const keywords = ['assistanstid', 'pa', 'personlig assistent', 'nattpass', 'pa-pass']
   return keywords.some(k => title.includes(k) || desc.includes(k))
 }
 
