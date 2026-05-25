@@ -103,6 +103,8 @@ export default function JournalPage() {
     mood: 7,
     energy: 7,
     sleep_hours: 7.5,
+    sleep_type: 'normal',
+    sleep_note: '',
     social_score: 7,
     is_travel_entry: false,
   })
@@ -151,6 +153,8 @@ export default function JournalPage() {
         mood: form.mood,
         energy: form.energy,
         sleep_hours: form.sleep_hours,
+        sleep_type: form.sleep_type,
+        sleep_note: form.sleep_note,
         social_score: form.social_score,
         is_travel_entry: form.is_travel_entry,
       })
@@ -158,16 +162,24 @@ export default function JournalPage() {
       .single()
 
     if (!error && data) {
-      // Update daily score for journal
+      // Journal is master for sleep — always write to health_logs
+      await supabase.from('health_logs').upsert({
+        user_id: user.id,
+        date: dateStr,
+        sleep_hours: form.sleep_hours,
+        sleep_quality: form.sleep_type === 'normal' ? 8 : form.sleep_type === 'uppdelad' ? 5 : 6,
+        sleep_type: form.sleep_type,
+        sleep_note: form.sleep_note,
+        energy: form.energy,
+        source: 'journal',
+      }, { onConflict: 'user_id,date' })
+
       await updateJournalScore(dateStr, form)
-      
-      // Run AI analysis in background
       runAIAnalysis(data.id, form.content)
-      
       await fetchSelectedEntries()
       await fetchMonthEntries()
       setShowForm(false)
-      setForm({ content: '', mood: 7, energy: 7, sleep_hours: 7.5, social_score: 7, is_travel_entry: false })
+      setForm({ content: '', mood: 7, energy: 7, sleep_hours: 7.5, sleep_type: 'normal', sleep_note: '', social_score: 7, is_travel_entry: false })
     }
 
     setSaving(false)
@@ -393,6 +405,36 @@ export default function JournalPage() {
                     <span>3h</span><span>12h</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Sleep type */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>Sömntyp</div>
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                  {[
+                    { id: 'normal',   label: '😴 Normal',   desc: 'Ett sammanhängande pass' },
+                    { id: 'uppdelad', label: '✂️ Uppdelad', desc: 'Flera korta pass' },
+                    { id: 'nattjobb', label: '🌙 Nattjobb', desc: 'Sov under/efter pass' },
+                  ].map(t => (
+                    <button key={t.id} onClick={() => setForm(f => ({ ...f, sleep_type: t.id }))} style={{
+                      flex: 1, padding: '7px 6px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                      background: form.sleep_type === t.id ? 'rgba(6,182,212,0.15)' : 'var(--surface2)',
+                      color: form.sleep_type === t.id ? '#06b6d4' : 'var(--muted)',
+                      fontSize: '12px', fontFamily: 'DM Sans, sans-serif', fontWeight: '500',
+                      outline: form.sleep_type === t.id ? '1px solid rgba(6,182,212,0.4)' : '1px solid transparent',
+                      transition: 'all 0.15s',
+                    }}>{t.label}</button>
+                  ))}
+                </div>
+                {form.sleep_type !== 'normal' && (
+                  <input
+                    className="input"
+                    placeholder={form.sleep_type === 'uppdelad' ? 'T.ex. 3h hemma + 3h på tåget' : 'T.ex. somnade 05:00 efter nattpass, sov till 11:00'}
+                    value={form.sleep_note}
+                    onChange={e => setForm(f => ({ ...f, sleep_note: e.target.value }))}
+                    style={{ fontSize: '13px' }}
+                  />
+                )}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>

@@ -311,6 +311,14 @@ export default function HalsaPage() {
 
           {/* Sleep */}
           <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px', letterSpacing: '0.05em' }}>SÖMN</div>
+          {todayLog?.source === 'journal' && (
+            <div style={{ padding: '8px 12px', background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: '8px', marginBottom: '12px', fontSize: '12px', color: '#06b6d4', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              💤 Sömndata hämtad från journal
+              {todayLog.sleep_type && todayLog.sleep_type !== 'normal' && (
+                <span style={{ color: 'var(--muted)' }}>· {todayLog.sleep_type === 'uppdelad' ? '✂️ Uppdelad' : '🌙 Nattjobb'}{todayLog.sleep_note ? ` — ${todayLog.sleep_note}` : ''}</span>
+              )}
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
             <div>
               <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Timmar</label>
@@ -470,7 +478,7 @@ export default function HalsaPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                 <thead>
                   <tr style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
-                    {['Datum', 'Vikt', 'Sömn', 'Energi', 'Alkohol', 'Nikotin', 'Ret.'].map(h => (
+                    {['Datum', 'Vikt', 'Sömn', 'Typ', 'Energi', 'Alkohol', 'Ret.'].map(h => (
                       <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '500' }}>{h}</th>
                     ))}
                   </tr>
@@ -481,6 +489,9 @@ export default function HalsaPage() {
                       <td style={{ padding: '8px', color: 'var(--muted)' }}>{format(parseISO(log.date), 'd MMM', { locale: sv })}</td>
                       <td className="mono" style={{ padding: '8px', color: '#10b981' }}>{log.weight_kg ? `${log.weight_kg}` : '—'}</td>
                       <td className="mono" style={{ padding: '8px', color: '#06b6d4' }}>{log.sleep_hours ? `${log.sleep_hours}h` : '—'}</td>
+                      <td style={{ padding: '8px', fontSize: '11px', color: 'var(--muted)' }} title={log.sleep_note || ''}>
+                        {log.sleep_type === 'uppdelad' ? '✂️' : log.sleep_type === 'nattjobb' ? '🌙' : log.sleep_hours ? '😴' : '—'}
+                      </td>
                       <td className="mono" style={{ padding: '8px' }}>{log.energy ? `${log.energy}/10` : '—'}</td>
                       <td className="mono" style={{ padding: '8px', color: log.alcohol_units > 0 ? '#ef4444' : 'var(--muted)' }}>{log.alcohol_units > 0 ? log.alcohol_units : '—'}</td>
                       <td style={{ padding: '8px' }}>{log.nicotine ? '✓' : '—'}</td>
