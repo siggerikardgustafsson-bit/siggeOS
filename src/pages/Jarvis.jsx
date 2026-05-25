@@ -57,6 +57,8 @@ Om användaren skriver något i stil med:
 - "skapa uppdrag: [titel], tagg: [tagg], deadline: [datum]" → returnera JSON i formatet:
   {"action": "create_erik_task", "title": "...", "description": "...", "tag": "...", "deadline": "YYYY-MM-DD"}
   Tillgängliga taggar: Hotell Vänersborg, Brålanda Vandrarhem, Tygladan, Vargöns Varuhus, Övriga fastigheter, Övrig verksamhet, Personal
+- "logga äventyr: [titel]" eller "jag var på/åt/upplevde [något]" → returnera JSON:
+  {"action": "create_adventure", "title": "...", "description": "...", "date": "YYYY-MM-DD", "location": "...", "category": "mat|musik|natur|spontant|socialt|kultur|övrigt", "rating": 1-5}
 
 Bekräfta alltid vad du loggat och ge en kort kommentar.
 
@@ -181,6 +183,25 @@ Förbrukat: ${Math.round(csnRes.data || 0)} kr av 114 500 kr (${((csnRes.data ||
             })
           }
         } catch (e) { console.error('Task creation failed:', e) }
+      }
+
+      // Check if Jarvis wants to log an adventure
+      if (data.content.includes('"action": "create_adventure"')) {
+        try {
+          const jsonMatch = data.content.match(/\{[^}]*"action":\s*"create_adventure"[^}]*\}/s)
+          if (jsonMatch) {
+            const advData = JSON.parse(jsonMatch[0])
+            await supabase.from('adventures').insert({
+              user_id: user.id,
+              title: advData.title,
+              description: advData.description || '',
+              date: advData.date || format(new Date(), 'yyyy-MM-dd'),
+              location: advData.location || '',
+              category: advData.category || 'övrigt',
+              rating: advData.rating || null,
+            })
+          }
+        } catch (e) { console.error('Adventure creation failed:', e) }
       }
 
       setMessages(prev => [...prev, assistantMsg])

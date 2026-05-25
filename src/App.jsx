@@ -11,10 +11,8 @@ import HalsaPage from './pages/Halsa'
 import PluggPage from './pages/Plugg'
 import JobbPage from './pages/Jobb'
 import InsightsPage from './pages/Insights'
+import UpplevelserPage from './pages/Upplevelser'
 import AuthCallback from './pages/AuthCallback'
-import {
-  UpplevelserPage
-} from './pages/Placeholders'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
