@@ -162,66 +162,107 @@ export default function TraningPage() {
     if (!file) return
     setCsvImporting(true)
     const text = await file.text()
+
+    // Proper CSV parser that handles quoted fields with commas inside
+    function parseCSVLine(line) {
+      const result = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') {
+          inQuotes = !inQuotes
+        } else if (ch === ',' && !inQuotes) {
+          result.push(current.trim())
+          current = ''
+        } else {
+          current += ch
+        }
+      }
+      result.push(current.trim())
+      return result
+    }
+
     const lines = text.split('\n').filter(l => l.trim())
-    const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim())
+    const headers = parseCSVLine(lines[0])
 
     const typeMap = {
       'Run': 'run', 'Trail Run': 'run', 'Virtual Run': 'run',
-      'Ride': 'other', 'Virtual Ride': 'other',
+      'Ride': 'other', 'Virtual Ride': 'other', 'EBikeRide': 'other',
       'Swim': 'other', 'Walk': 'walk', 'Hike': 'walk',
       'Weight Training': 'gym', 'Workout': 'gym', 'CrossFit': 'gym',
     }
 
-    let imported = 0
-    for (let i = 1; i < lines.length; i++) {
-      const vals = lines[i].split(',').map(v => v.replace(/"/g, '').trim())
-      const row = {}
-      headers.forEach((h, idx) => row[h] = vals[idx] || '')
+    // First clear bad imports (strava passes with 0 distance from previous bad import)
+    await supabase.from('training_sessions')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('source', 'strava')
+      .is('distance_km', null)
+      .lt('duration_minutes', 1)
 
-      const activityType = row['Activity Type'] || row['Type'] || ''
+    let imported = 0
+    let skipped = 0
+
+    for (let i = 1; i < lines.length; i++) {
+      const vals = parseCSVLine(lines[i])
+      const row = {}
+      headers.forEach((h, idx) => { row[h] = vals[idx] || '' })
+
+      const activityType = row['Activity Type'] || ''
       const sessionType = typeMap[activityType] || 'other'
-      const dateStr = row['Activity Date'] || row['Date'] || ''
+      const dateStr = row['Activity Date'] || ''
       if (!dateStr) continue
 
-      // Parse date — Strava CSV uses "Jan 1, 2024, 12:00:00 PM" format
+      // Parse "May 6, 2026, 1:28:07 PM" format
       let date
       try {
         const parsed = new Date(dateStr)
-        if (isNaN(parsed.getTime())) continue
+        if (isNaN(parsed.getTime())) { skipped++; continue }
         date = parsed.toISOString().slice(0, 10)
-      } catch { continue }
+      } catch { skipped++; continue }
 
-      const distanceM = parseFloat(row['Distance'] || '0')
-      const distanceKm = distanceM > 0 ? Math.round(distanceM / 10) / 100 : null
-      const movingSec = parseInt(row['Moving Time'] || '0')
-      const durationMin = movingSec > 0 ? Math.round(movingSec / 60) : null
-      const elevationM = parseFloat(row['Elevation Gain'] || '0') || null
-      const avgHr = parseFloat(row['Average Heart Rate'] || '0') || null
-      const name = row['Activity Name'] || row['Name'] || activityType
-      const stravaId = row['Activity ID'] || row['ID'] || null
+      const stravaId = row['Activity ID'] || null
 
       // Skip duplicates
       if (stravaId) {
-        const { data: existing } = await supabase.from('training_sessions').select('id').eq('user_id', user.id).eq('strava_id', stravaId).single()
-        if (existing) continue
+        const { data: existing } = await supabase
+          .from('training_sessions').select('id')
+          .eq('user_id', user.id).eq('strava_id', stravaId).single()
+        if (existing) { skipped++; continue }
       }
 
-      const notes = [name, elevationM ? `${Math.round(elevationM)}m↑` : '', avgHr ? `❤️ ${Math.round(avgHr)}bpm` : ''].filter(Boolean).join(' · ')
+      // Distance is already in km in Strava CSV
+      const distanceKm = parseFloat(row['Distance'] || '0') || null
+      const movingSec = parseInt(row['Moving Time'] || '0')
+      const durationMin = movingSec > 0 ? Math.round(movingSec / 60) : null
+      const pacePerKm = distanceKm && movingSec ? Math.round(movingSec / distanceKm) : null
+      const elevationM = parseFloat(row['Elevation Gain'] || '0') || null
+      const avgHr = parseFloat(row['Average Heart Rate'] || '0') || null
+      const name = row['Activity Name'] || activityType
 
-      await supabase.from('training_sessions').insert({
+      const notes = [
+        name,
+        elevationM ? `${Math.round(elevationM)}m↑` : '',
+        avgHr ? `❤️ ${Math.round(avgHr)}bpm` : ''
+      ].filter(Boolean).join(' · ')
+
+      const { error } = await supabase.from('training_sessions').insert({
         user_id: user.id,
         date,
         session_type: sessionType,
         duration_minutes: durationMin,
         distance_km: distanceKm,
+        pace_per_km: pacePerKm,
         notes,
         source: 'strava',
         strava_id: stravaId,
       })
-      imported++
+      if (!error) imported++
+      else skipped++
     }
 
-    setStravaResult({ synced: imported, skipped: lines.length - 1 - imported, total: lines.length - 1 })
+    setStravaResult({ synced: imported, skipped, total: lines.length - 1 })
     if (imported > 0) await fetchSessions()
     setCsvImporting(false)
     e.target.value = ''
