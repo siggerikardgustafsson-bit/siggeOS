@@ -19,6 +19,88 @@ const ERIK_TAGS = [
   'Personal',
 ]
 
+// ===== LÖNEMODELL (Humana / Vårdföretagarna 2025-2027) =====
+const PAY = {
+  timlön:       149.00,
+  ob_kväll:      25.87,  // 18:00–22:00
+  ob_natt:       52.41,  // 22:00–06:00
+  ob_helg:       64.64,  // lör/sön alla timmar
+  ob_storhelg:  129.39,  // storhelger
+  jour:          41.08,  // sovpass 22:00–06:00
+}
+
+// Storhelger (röda dagar + dagar som räknas som storhelg)
+const STORHELGER = [
+  '01-01','01-06','12-24','12-25','12-26','12-31',
+  '04-18','04-19','04-20','04-21', // Påsk 2025 (uppdatera varje år)
+  '05-01','05-29','06-06','06-21', // Valborg, Kristi, Nationaldagen, Midsommarafton
+]
+
+function isStorhelg(date) {
+  const mmdd = format(date, 'MM-dd')
+  return STORHELGER.includes(mmdd)
+}
+
+function isHelg(date) {
+  const day = date.getDay()
+  return day === 0 || day === 6
+}
+
+// Beräkna OB-tillägg för ett specifikt klockslag-intervall
+function calcOBForHour(hourStart, date, shiftType) {
+  const h = hourStart
+  const isNatt = h >= 22 || h < 6
+  const isKväll = h >= 18 && h < 22
+  const storhelg = isStorhelg(date)
+  const helg = isHelg(date)
+
+  let ob = 0
+  if (storhelg) ob += PAY.ob_storhelg
+  else if (helg) ob += PAY.ob_helg
+
+  if (isNatt && !storhelg) ob += PAY.ob_natt
+  else if (isKväll && !storhelg) ob += PAY.ob_kväll
+
+  return ob
+}
+
+// Huvudfunktion — beräkna estimerad bruttolön för ett pass
+function calculateShiftPay(startTime, endTime, shiftType) {
+  if (!startTime || !endTime) return null
+  const start = new Date(startTime)
+  const end = new Date(endTime)
+  if (end <= start) return null
+
+  let totalPay = 0
+  let current = new Date(start)
+
+  while (current < end) {
+    const next = new Date(current)
+    next.setMinutes(0, 0, 0)
+    next.setHours(next.getHours() + 1)
+    const sliceEnd = next < end ? next : end
+    const fraction = (sliceEnd - current) / 3600000 // timmar som decimal
+    const h = current.getHours()
+    const isNatt = h >= 22 || h < 6
+
+    let rate
+    if (shiftType === 'sov' && isNatt) {
+      // Sovpass: jourersättning under nattimmarna (22-06)
+      rate = PAY.jour
+    } else {
+      // Vaken eller dag-del av sovpass: full timlön
+      rate = PAY.timlön
+    }
+
+    // OB ovanpå
+    const ob = calcOBForHour(h, current, shiftType)
+    totalPay += (rate + ob) * fraction
+    current = next
+  }
+
+  return Math.round(totalPay)
+}
+
 const TASK_STATUSES = [
   { id: 'ej_påbörjat', label: 'Ej påbörjat', color: '#6b7280' },
   { id: 'pågående',    label: 'Pågående',    color: '#f59e0b' },
@@ -110,6 +192,7 @@ export default function JobbPage() {
     end_time: '07:00',
     client_name: '',
     notes: '',
+    shift_type: 'sov',
   })
 
   // Erik state
@@ -215,7 +298,6 @@ export default function JobbPage() {
     setSaving(true)
     const startDt = new Date(`${shiftForm.date}T${shiftForm.start_time}`)
     let endDate = shiftForm.date
-    // If end time is earlier than start, it's next day
     if (shiftForm.end_time < shiftForm.start_time) {
       const next = new Date(shiftForm.date)
       next.setDate(next.getDate() + 1)
@@ -223,6 +305,7 @@ export default function JobbPage() {
     }
     const endDt = new Date(`${endDate}T${shiftForm.end_time}`)
     const hours = (endDt - startDt) / 3600000
+    const estimatedPay = calculateShiftPay(startDt.toISOString(), endDt.toISOString(), shiftForm.shift_type)
 
     await supabase.from('pa_shifts').insert({
       user_id: user.id,
@@ -232,11 +315,13 @@ export default function JobbPage() {
       hours_worked: Math.round(hours * 100) / 100,
       client_name: shiftForm.client_name,
       notes: shiftForm.notes,
+      shift_type: shiftForm.shift_type,
+      estimated_pay: estimatedPay,
       is_night_shift: shiftForm.start_time >= '20:00' || shiftForm.start_time <= '06:00',
     })
 
     await fetchAll()
-    setShiftForm({ date: format(new Date(), 'yyyy-MM-dd'), start_time: '22:00', end_time: '07:00', client_name: '', notes: '' })
+    setShiftForm({ date: format(new Date(), 'yyyy-MM-dd'), start_time: '22:00', end_time: '07:00', client_name: '', notes: '', shift_type: 'sov' })
     setShowNewShift(false)
     setSaving(false)
   }
@@ -373,15 +458,19 @@ export default function JobbPage() {
       {activeTab === 'pa' && (
         <>
           {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
             {[
               { label: 'Pass', value: paShifts.length, color: '#3b82f6' },
               { label: 'Timmar', value: `${totalHours.toFixed(1)}h`, color: '#10b981' },
               { label: 'Nattpass', value: paShifts.filter(s => s.is_night_shift).length, color: '#8b5cf6' },
+              { label: 'Est. bruttolön', value: (() => {
+                const total = paShifts.reduce((sum, s) => sum + (s.estimated_pay || calculateShiftPay(s.start_time, s.end_time, s.shift_type || 'sov') || 0), 0)
+                return total > 0 ? `~${Math.round(total).toLocaleString('sv-SE')} kr` : '—'
+              })(), color: '#f59e0b' },
             ].map(({ label, value, color }) => (
               <div key={label} className="card">
                 <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
-                <div className="mono" style={{ fontSize: '22px', fontWeight: '600', color }}>{value}</div>
+                <div className="mono" style={{ fontSize: '20px', fontWeight: '600', color }}>{value}</div>
               </div>
             ))}
           </div>
@@ -430,33 +519,76 @@ export default function JobbPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {paShifts.map(shift => (
-                <div key={shift.id} className="card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '3px' }}>
-                        {shift.is_night_shift ? '🌙 ' : '☀️ '}
-                        {format(parseISO(shift.date), 'EEEE d MMM', { locale: sv })}
-                        {shift.client_name && ` · ${shift.client_name}`}
+              {paShifts.map(shift => {
+                // Calculate on the fly if not stored
+                const pay = shift.estimated_pay || calculateShiftPay(shift.start_time, shift.end_time, shift.shift_type || 'sov')
+                const isSov = shift.shift_type === 'sov'
+                return (
+                  <div key={shift.id} className="card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {isSov ? '😴' : '👁️'}
+                          {format(parseISO(shift.date), 'EEEE d MMM', { locale: sv })}
+                          {shift.client_name && ` · ${shift.client_name}`}
+                          <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px',
+                            background: isSov ? 'rgba(139,92,246,0.15)' : 'rgba(59,130,246,0.15)',
+                            color: isSov ? '#a78bfa' : '#60a5fa' }}>
+                            {isSov ? 'Sovpass' : 'Vakenpass'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                          {shift.start_time && format(parseISO(shift.start_time), 'HH:mm')} –{' '}
+                          {shift.end_time && format(parseISO(shift.end_time), 'HH:mm')}
+                        </div>
+                        {shift.notes && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '3px', fontStyle: 'italic' }}>{shift.notes}</div>}
                       </div>
-                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                        {shift.start_time && format(parseISO(shift.start_time), 'HH:mm')} –{' '}
-                        {shift.end_time && format(parseISO(shift.end_time), 'HH:mm')}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <div className="mono" style={{ fontSize: '16px', fontWeight: '600', color: '#10b981' }}>
+                            {shift.hours_worked?.toFixed(1)}h
+                          </div>
+                          {pay && (
+                            <div className="mono" style={{ fontSize: '12px', color: '#f59e0b' }}>
+                              ~{pay.toLocaleString('sv-SE')} kr
+                            </div>
+                          )}
+                        </div>
+                        <button onClick={() => deleteShift(shift.id)}
+                          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4 }}>
+                          <X size={14} />
+                        </button>
+                        <button onClick={async () => {
+                          const newType = isSov ? 'vaken' : 'sov'
+                          const newPay = calculateShiftPay(shift.start_time, shift.end_time, newType)
+                          await supabase.from('pa_shifts').update({ shift_type: newType, estimated_pay: newPay }).eq('id', shift.id)
+                          await fetchAll()
+                        }} style={{
+                          fontSize: '10px', padding: '3px 8px', borderRadius: '5px', cursor: 'pointer',
+                          border: '1px solid var(--border)', background: 'transparent',
+                          color: 'var(--muted)', fontFamily: 'DM Sans, sans-serif',
+                        }}>
+                          {isSov ? '→ Vaken' : '→ Sov'}
+                        </button>
                       </div>
-                      {shift.notes && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '3px', fontStyle: 'italic' }}>{shift.notes}</div>}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div className="mono" style={{ fontSize: '16px', fontWeight: '600', color: '#10b981' }}>
-                        {shift.hours_worked?.toFixed(1)}h
-                      </div>
-                      <button onClick={() => deleteShift(shift.id)}
-                        style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4 }}>
-                        <X size={14} />
-                      </button>
                     </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
+
+              {/* Monthly pay summary */}
+              {(() => {
+                const totalPay = paShifts.reduce((sum, s) => {
+                  const pay = s.estimated_pay || calculateShiftPay(s.start_time, s.end_time, s.shift_type || 'sov') || 0
+                  return sum + pay
+                }, 0)
+                return totalPay > 0 ? (
+                  <div style={{ padding: '12px 16px', background: 'rgba(245,158,11,0.08)', borderRadius: '8px', border: '1px solid rgba(245,158,11,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Estimerad bruttolön denna månad</div>
+                    <div className="mono" style={{ fontSize: '16px', fontWeight: '700', color: '#f59e0b' }}>~{Math.round(totalPay).toLocaleString('sv-SE')} kr</div>
+                  </div>
+                ) : null
+              })()}
             </div>
           )}
         </>
@@ -679,26 +811,32 @@ export default function JobbPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
-                    {['Datum', 'Start', 'Slut', 'Timmar', 'Typ', 'Brukare'].map(h => (
+                    {['Datum', 'Start', 'Slut', 'Timmar', 'Typ', 'Est. lön'].map(h => (
                       <th key={h} style={{ padding: '8px', textAlign: 'left', fontWeight: '500' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {[...paShifts].reverse().map(shift => (
-                    <tr key={shift.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <td style={{ padding: '10px 8px' }}>{format(parseISO(shift.date), 'd MMM', { locale: sv })}</td>
-                      <td className="mono" style={{ padding: '10px 8px' }}>{shift.start_time ? format(parseISO(shift.start_time), 'HH:mm') : '—'}</td>
-                      <td className="mono" style={{ padding: '10px 8px' }}>{shift.end_time ? format(parseISO(shift.end_time), 'HH:mm') : '—'}</td>
-                      <td className="mono" style={{ padding: '10px 8px', color: '#10b981', fontWeight: '600' }}>{shift.hours_worked?.toFixed(1)}</td>
-                      <td style={{ padding: '10px 8px' }}>{shift.is_night_shift ? '🌙 Natt' : '☀️ Dag'}</td>
-                      <td style={{ padding: '10px 8px', color: 'var(--muted)' }}>{shift.client_name || '—'}</td>
-                    </tr>
-                  ))}
+                  {[...paShifts].reverse().map(shift => {
+                    const pay = shift.estimated_pay || calculateShiftPay(shift.start_time, shift.end_time, shift.shift_type || 'sov')
+                    return (
+                      <tr key={shift.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <td style={{ padding: '10px 8px' }}>{format(parseISO(shift.date), 'd MMM', { locale: sv })}</td>
+                        <td className="mono" style={{ padding: '10px 8px' }}>{shift.start_time ? format(parseISO(shift.start_time), 'HH:mm') : '—'}</td>
+                        <td className="mono" style={{ padding: '10px 8px' }}>{shift.end_time ? format(parseISO(shift.end_time), 'HH:mm') : '—'}</td>
+                        <td className="mono" style={{ padding: '10px 8px', color: '#10b981', fontWeight: '600' }}>{shift.hours_worked?.toFixed(1)}</td>
+                        <td style={{ padding: '10px 8px' }}>{shift.shift_type === 'sov' ? '😴 Sov' : '👁️ Vaken'}</td>
+                        <td className="mono" style={{ padding: '10px 8px', color: '#f59e0b' }}>{pay ? `~${pay.toLocaleString('sv-SE')} kr` : '—'}</td>
+                      </tr>
+                    )
+                  })}
                   <tr style={{ borderTop: '2px solid var(--border)', fontWeight: '600' }}>
                     <td colSpan={3} style={{ padding: '10px 8px' }}>Totalt</td>
                     <td className="mono" style={{ padding: '10px 8px', color: '#10b981' }}>{totalHours.toFixed(1)}h</td>
-                    <td colSpan={2}></td>
+                    <td></td>
+                    <td className="mono" style={{ padding: '10px 8px', color: '#f59e0b' }}>
+                      ~{Math.round(paShifts.reduce((sum, s) => sum + (s.estimated_pay || calculateShiftPay(s.start_time, s.end_time, s.shift_type || 'sov') || 0), 0)).toLocaleString('sv-SE')} kr
+                    </td>
                   </tr>
                 </tbody>
               </table>

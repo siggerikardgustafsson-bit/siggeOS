@@ -79,7 +79,7 @@ export default function Dashboard() {
     const halfStart = getHalfYearStart()
 
     const [scoresRes, weekRes, csnRes, examsRes, tasksRes, journalRes, weightRes,
-           paRes, nextPaRes, studyRes, incomeRes, sleepRes] = await Promise.all([
+           paRes, nextPaRes, studyRes, incomeRes, paWeekRes, sleepRes] = await Promise.all([
       supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).single(),
       supabase.from('daily_scores').select('*').eq('user_id', user.id).gte('date', weekAgo).order('date'),
       supabase.from('income_logs').select('amount').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', today),
@@ -91,6 +91,7 @@ export default function Dashboard() {
       supabase.from('pa_shifts').select('date, start_time, end_time, hours_worked').eq('user_id', user.id).gte('date', today).order('date').limit(1).single(),
       supabase.from('study_sessions').select('hours').eq('user_id', user.id).gte('date', weekAgo),
       supabase.from('income_logs').select('amount').eq('user_id', user.id).gte('date', weekAgo).lte('date', today),
+      supabase.from('pa_shifts').select('start_time, end_time, shift_type, estimated_pay').eq('user_id', user.id).gte('date', weekAgo).lte('date', today),
       supabase.from('journal_entries').select('sleep_hours').eq('user_id', user.id).gte('date', weekAgo).not('sleep_hours', 'is', null).gt('sleep_hours', 0),
     ])
 
@@ -104,7 +105,16 @@ export default function Dashboard() {
     setPaThisMonth((paRes.data || []).reduce((sum, s) => sum + (s.hours_worked || 0), 0))
     setNextPaShift(nextPaRes.data)
     setStudyThisWeek((studyRes.data || []).reduce((sum, s) => sum + (s.hours || 0), 0))
-    setIncomeThisWeek((incomeRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0))
+
+    // Förtjänat denna vecka = Erik-inkomster + estimerad PA-lön
+    const erikWeek = (incomeRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0)
+    const paWeekPay = (paWeekRes.data || []).reduce((sum, s) => {
+      if (s.estimated_pay) return sum + s.estimated_pay
+      // Enkel uppskattning om estimated_pay saknas: 149 kr/tim
+      return sum
+    }, 0)
+    setIncomeThisWeek(Math.round(erikWeek + paWeekPay))
+
     const sleepEntries = (sleepRes.data || []).filter(e => e.sleep_hours > 0)
     setAvgSleepWeek(sleepEntries.length ? sleepEntries.reduce((sum, e) => sum + e.sleep_hours, 0) / sleepEntries.length : 0)
     setLoading(false)
