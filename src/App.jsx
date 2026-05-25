@@ -10,6 +10,7 @@ import EkonomiPage from './pages/Ekonomi'
 import HalsaPage from './pages/Halsa'
 import PluggPage from './pages/Plugg'
 import JobbPage from './pages/Jobb'
+import AuthCallback from './pages/AuthCallback'
 import {
   UpplevelserPage, InsightsPage
 } from './pages/Placeholders'
@@ -29,6 +30,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="/"             element={<Dashboard />} />
         <Route path="/jarvis"       element={<Jarvis />} />

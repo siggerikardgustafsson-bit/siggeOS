@@ -160,62 +160,68 @@ export default function JobbPage() {
   }
 
   async function checkCalendarConnection() {
-    const { data } = await supabase
-      .from('google_calendar_tokens')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
-    setCalendarConnected(!!data)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const resp = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-sync`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ action: 'check' }),
+        }
+      )
+      const data = await resp.json()
+      setCalendarConnected(data.connected || false)
+      if (data.last_sync) {
+        // store last sync time
+      }
+    } catch { setCalendarConnected(false) }
   }
 
   async function connectGoogleCalendar() {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        scopes: 'https://www.googleapis.com/auth/calendar.readonly',
-        redirectTo: window.location.href,
-        queryParams: { access_type: 'offline', prompt: 'consent' },
-      },
+    // Build OAuth URL manually to get refresh_token
+    const clientId = '891411567089-bia7jceedhri8lhf5aa6hqnmuq9crv3n.apps.googleusercontent.com'
+    const redirectUri = `${window.location.origin}/auth/callback`
+    const scope = 'https://www.googleapis.com/auth/calendar.readonly'
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope,
+      access_type: 'offline',
+      prompt: 'consent',
+      state: 'google_calendar',
     })
-    if (error) console.error(error)
+    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`
   }
 
-  async function fetchCalendarEvents() {
+  async function syncCalendar() {
     setLoadingCalendar(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      const providerToken = session?.provider_token
-
-      if (!providerToken) {
-        alert('Koppla Google Calendar först')
-        setLoadingCalendar(false)
-        return
-      }
-
-      const start = new Date(startOfMonth(selectedMonth)).toISOString()
-      const end = new Date(endOfMonth(selectedMonth)).toISOString()
-
       const resp = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${start}&timeMax=${end}&singleEvents=true&orderBy=startTime`,
-        { headers: { Authorization: `Bearer ${providerToken}` } }
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-sync`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ action: 'sync' }),
+        }
       )
       const data = await resp.json()
-
-      if (data.items) {
-        // Filter PA-related events
-        const paEvents = data.items.filter(e => {
-          const title = (e.summary || '').toLowerCase()
-          return title.includes('pa') || title.includes('natt') || title.includes('pass') || title.includes('jobb')
-        })
-        setCalendarEvents(data.items)
-
-        // Auto-suggest PA shifts from calendar
-        if (paEvents.length > 0) {
-          alert(`Hittade ${paEvents.length} möjliga PA-pass i kalendern. De visas nu i listan nedan.`)
-        }
+      if (data.error === 'not_connected') {
+        alert('Koppla Google Calendar först')
+      } else if (data.success) {
+        await fetchAll()
+        alert(`✓ Synkade ${data.synced} PA-pass från Google Kalender (av ${data.pa_events} hittade)`)
       }
     } catch (err) {
-      console.error('Calendar fetch failed:', err)
+      console.error(err)
     }
     setLoadingCalendar(false)
   }
@@ -399,96 +405,37 @@ export default function JobbPage() {
           <div className="card" style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: '500' }}>Google Calendar</div>
-                <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                  {calendarConnected ? 'Kopplad — hämta pass från din kalender' : 'Koppla för att importera pass automatiskt'}
+                <div style={{ fontSize: '13px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Calendar size={14} color={calendarConnected ? '#10b981' : 'var(--muted)'} />
+                  Google Calendar
+                  {calendarConnected && <span style={{ fontSize: '11px', color: '#10b981' }}>● Kopplad</span>}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
+                  {calendarConnected
+                    ? 'Synkar PA-pass automatiskt från din kalender'
+                    : 'Koppla för att hämta pass direkt från Google Kalender'}
                 </div>
               </div>
-              {calendarConnected ? (
-                <button onClick={fetchCalendarEvents} className="btn btn-ghost" style={{ fontSize: '12px' }} disabled={loadingCalendar}>
-                  {loadingCalendar ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Hämtar...</> : <><Calendar size={13} /> Hämta pass</>}
-                </button>
-              ) : (
-                <button onClick={connectGoogleCalendar} className="btn btn-primary" style={{ fontSize: '12px' }}>
-                  <ExternalLink size={13} /> Koppla Google
-                </button>
-              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {calendarConnected ? (
+                  <button onClick={syncCalendar} className="btn btn-ghost" style={{ fontSize: '12px' }} disabled={loadingCalendar}>
+                    {loadingCalendar
+                      ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Synkar...</>
+                      : <><Calendar size={13} /> Synka nu</>}
+                  </button>
+                ) : (
+                  <button onClick={connectGoogleCalendar} className="btn btn-primary" style={{ fontSize: '12px' }}>
+                    <ExternalLink size={13} /> Koppla Google
+                  </button>
+                )}
+              </div>
             </div>
-
-            {/* Calendar events */}
-            {calendarEvents.length > 0 && (
-              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-                <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px', fontWeight: '600' }}>
-                  HÄNDELSER DENNA MÅNAD ({calendarEvents.length})
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '200px', overflowY: 'auto' }}>
-                  {calendarEvents.map(event => (
-                    <div key={event.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'var(--surface2)', borderRadius: '6px', fontSize: '12px' }}>
-                      <span>{event.summary}</span>
-                      <span style={{ color: 'var(--muted)' }}>
-                        {event.start?.dateTime ? format(parseISO(event.start.dateTime), 'd MMM HH:mm', { locale: sv }) : event.start?.date}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+            {calendarConnected && (
+              <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--muted)', padding: '8px 10px', background: 'rgba(16,185,129,0.06)', borderRadius: '6px' }}>
+                💡 Pass som innehåller "PA", "nattpass" eller "pass" i titeln importeras automatiskt. Synka varannan vecka för att hålla listan uppdaterad.
               </div>
             )}
           </div>
-
-          {/* New shift button */}
-          <button onClick={() => setShowNewShift(true)} className="btn btn-primary" style={{ marginBottom: '16px' }}>
-            <Plus size={14} /> Logga pass
-          </button>
-
-          {showNewShift && (
-            <div className="card" style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <div style={{ fontWeight: '600' }}>Logga PA-pass</div>
-                <button onClick={() => setShowNewShift(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={16} /></button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Datum</label>
-                  <input className="input" type="date" value={shiftForm.date} onChange={e => setShiftForm(f => ({ ...f, date: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Brukare (valfritt)</label>
-                  <input className="input" placeholder="Namn..." value={shiftForm.client_name} onChange={e => setShiftForm(f => ({ ...f, client_name: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Starttid</label>
-                  <input className="input" type="time" value={shiftForm.start_time} onChange={e => setShiftForm(f => ({ ...f, start_time: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Sluttid</label>
-                  <input className="input" type="time" value={shiftForm.end_time} onChange={e => setShiftForm(f => ({ ...f, end_time: e.target.value }))} />
-                </div>
-              </div>
-
-              {/* Calculated hours */}
-              {shiftForm.start_time && shiftForm.end_time && (() => {
-                const s = new Date(`${shiftForm.date}T${shiftForm.start_time}`)
-                let e = new Date(`${shiftForm.date}T${shiftForm.end_time}`)
-                if (shiftForm.end_time < shiftForm.start_time) e.setDate(e.getDate() + 1)
-                const h = (e - s) / 3600000
-                return h > 0 ? (
-                  <div style={{ padding: '8px 12px', background: 'rgba(16,185,129,0.08)', borderRadius: '6px', marginBottom: '12px', fontSize: '13px', color: '#10b981' }}>
-                    ⏱ {h.toFixed(1)} timmar
-                    {shiftForm.start_time >= '20:00' || shiftForm.start_time <= '06:00' ? ' · 🌙 Nattpass' : ''}
-                  </div>
-                ) : null
-              })()}
-
-              <input className="input" placeholder="Anteckningar (valfritt)" value={shiftForm.notes}
-                onChange={e => setShiftForm(f => ({ ...f, notes: e.target.value }))} style={{ marginBottom: '12px' }} />
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button onClick={() => setShowNewShift(false)} className="btn btn-ghost">Avbryt</button>
-                <button onClick={saveShift} className="btn btn-primary" disabled={saving}>
-                  {saving ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />} Spara
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Shifts list */}
           {paShifts.length === 0 ? (
