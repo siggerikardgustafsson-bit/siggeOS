@@ -90,7 +90,7 @@ export default function Dashboard() {
       supabase.from('pa_shifts').select('hours_worked').eq('user_id', user.id).gte('date', monthStart).lte('date', today),
       supabase.from('pa_shifts').select('date, start_time, end_time, hours_worked').eq('user_id', user.id).gte('date', today).order('date').limit(1).single(),
       supabase.from('study_sessions').select('hours').eq('user_id', user.id).gte('date', weekAgo),
-      supabase.from('income_logs').select('amount').eq('user_id', user.id).gte('date', weekAgo).lte('date', today),
+      supabase.from('erik_payments').select('amount').eq('user_id', user.id).gte('date', weekAgo).lte('date', today),
       supabase.from('pa_shifts').select('start_time, end_time, shift_type, estimated_pay').eq('user_id', user.id).gte('date', weekAgo).lte('date', today),
       supabase.from('journal_entries').select('sleep_hours').eq('user_id', user.id).gte('date', weekAgo).not('sleep_hours', 'is', null).gt('sleep_hours', 0),
     ])
@@ -106,14 +106,11 @@ export default function Dashboard() {
     setNextPaShift(nextPaRes.data)
     setStudyThisWeek((studyRes.data || []).reduce((sum, s) => sum + (s.hours || 0), 0))
 
-    // Förtjänat denna vecka = Erik-inkomster + estimerad PA-lön
+    // Förtjänat denna vecka = Erik-betalningar + estimerad PA nettolön (brutto × 0.70)
     const erikWeek = (incomeRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0)
-    const paWeekPay = (paWeekRes.data || []).reduce((sum, s) => {
-      if (s.estimated_pay) return sum + s.estimated_pay
-      // Enkel uppskattning om estimated_pay saknas: 149 kr/tim
-      return sum
-    }, 0)
-    setIncomeThisWeek(Math.round(erikWeek + paWeekPay))
+    const paWeekPay = (paWeekRes.data || []).reduce((sum, s) => sum + (s.estimated_pay || 0), 0)
+    const paWeekNet = Math.round(paWeekPay * 0.70) // ~30% skatt
+    setIncomeThisWeek(Math.round(erikWeek + paWeekNet))
 
     const sleepEntries = (sleepRes.data || []).filter(e => e.sleep_hours > 0)
     setAvgSleepWeek(sleepEntries.length ? sleepEntries.reduce((sum, e) => sum + e.sleep_hours, 0) / sleepEntries.length : 0)
@@ -224,8 +221,8 @@ export default function Dashboard() {
             sub: todayJournal?.sleep_type === 'nattjobb' ? '🌙 Nattjobb idag' : todayJournal?.sleep_type === 'uppdelad' ? '✂️ Uppdelad idag' : null,
           },
           {
-            label: 'Inkomst denna vecka',
-            value: incomeThisWeek > 0 ? `${Math.round(incomeThisWeek).toLocaleString('sv-SE')} kr` : '—',
+            label: 'Förtjänat denna vecka (netto)',
+            value: incomeThisWeek > 0 ? `${incomeThisWeek.toLocaleString('sv-SE')} kr` : '—',
             icon: DollarSign, color: '#10b981',
             sub: null,
           },
