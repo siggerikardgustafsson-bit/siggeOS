@@ -10,9 +10,10 @@ import EkonomiPage from './pages/Ekonomi'
 import HalsaPage from './pages/Halsa'
 import PluggPage from './pages/Plugg'
 import JobbPage from './pages/Jobb'
+import InsightsPage from './pages/Insights'
 import AuthCallback from './pages/AuthCallback'
 import {
-  UpplevelserPage, InsightsPage
+  UpplevelserPage
 } from './pages/Placeholders'
 
 function ProtectedRoute({ children }) {
