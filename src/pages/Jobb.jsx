@@ -161,67 +161,31 @@ export default function JobbPage() {
 
   async function checkCalendarConnection() {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-sync`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({ action: 'check' }),
-        }
-      )
-      const data = await resp.json()
-      setCalendarConnected(data.connected || false)
-      if (data.last_sync) {
-        // store last sync time
-      }
+      const { data, error } = await supabase.functions.invoke('google-calendar-sync', {
+        body: { action: 'check' },
+      })
+      setCalendarConnected(data?.connected || false)
     } catch { setCalendarConnected(false) }
-  }
-
-  async function connectGoogleCalendar() {
-    // Build OAuth URL manually to get refresh_token
-    const clientId = '891411567089-bia7jceedhri8lhf5aa6hqnmuq9crv3n.apps.googleusercontent.com'
-    const redirectUri = `${window.location.origin}/auth/callback`
-    const scope = 'https://www.googleapis.com/auth/calendar.readonly'
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope,
-      access_type: 'offline',
-      prompt: 'consent',
-      state: 'google_calendar',
-    })
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`
   }
 
   async function syncCalendar() {
     setLoadingCalendar(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const resp = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-sync`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({ action: 'sync' }),
-        }
-      )
-      const data = await resp.json()
-      if (data.error === 'not_connected') {
+      const { data, error } = await supabase.functions.invoke('google-calendar-sync', {
+        body: { action: 'sync' },
+      })
+      if (error) throw error
+      if (data?.error === 'not_connected') {
         alert('Koppla Google Calendar först')
-      } else if (data.success) {
+      } else if (data?.success) {
         await fetchAll()
         alert(`✓ Synkade ${data.synced} PA-pass från Google Kalender (av ${data.pa_events} hittade)`)
+      } else {
+        alert('Något gick fel: ' + (data?.error || 'okänt'))
       }
     } catch (err) {
       console.error(err)
+      alert('Fel: ' + err.message)
     }
     setLoadingCalendar(false)
   }
@@ -432,7 +396,7 @@ export default function JobbPage() {
             </div>
             {calendarConnected && (
               <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--muted)', padding: '8px 10px', background: 'rgba(16,185,129,0.06)', borderRadius: '6px' }}>
-                💡 Pass som innehåller "PA", "nattpass" eller "pass" i titeln importeras automatiskt. Synka varannan vecka för att hålla listan uppdaterad.
+                💡 Pass som innehåller "assistanstid" eller "hos hw" i titeln importeras automatiskt. Synka varannan vecka för att hålla listan uppdaterad.
               </div>
             )}
           </div>

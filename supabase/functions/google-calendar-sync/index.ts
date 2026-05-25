@@ -41,7 +41,7 @@ async function fetchCalendarEvents(accessToken: string, monthsBack = 2): Promise
 function isPaShift(event: any): boolean {
   const title = (event.summary || '').toLowerCase()
   const desc = (event.description || '').toLowerCase()
-  const keywords = ['assistanstid', 'pa', 'personlig assistent', 'nattpass', 'pa-pass']
+  const keywords = ['assistanstid', 'hos hw', 'pa', 'personlig assistent', 'nattpass', 'pa-pass']
   return keywords.some(k => title.includes(k) || desc.includes(k))
 }
 
@@ -75,7 +75,7 @@ serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      Deno.env.get('SERVICE_ROLE_KEY') ?? '',
     )
 
     // Get user from token
