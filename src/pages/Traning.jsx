@@ -548,18 +548,17 @@ export default function TraningPage() {
                     const hasGym = daySessions.some(s => s.session_type === 'gym')
                     const hasRun = daySessions.some(s => s.session_type === 'run')
                     const hasOther = daySessions.some(s => s.session_type !== 'gym' && s.session_type !== 'run')
-                    const gymSession = daySessions.find(s => s.session_type === 'gym')
-                    const gymExercises = gymSession?.training_exercises || []
-                    const [showDayDetail, setShowDayDetail] = useState(false)
+                    const isSelected = expandedSession === dateStr
 
                     return (
                       <div key={dateStr} style={{
                         minHeight: '64px', padding: '6px', borderRadius: '8px',
-                        background: isToday ? 'var(--accent-soft)' : daySessions.length > 0 ? 'rgba(255,255,255,0.03)' : 'transparent',
-                        border: `1px solid ${isToday ? 'var(--accent-border)' : daySessions.length > 0 ? 'var(--border)' : 'transparent'}`,
+                        background: isSelected ? 'var(--accent-soft)' : isToday ? 'rgba(79,142,247,0.08)' : daySessions.length > 0 ? 'rgba(255,255,255,0.03)' : 'transparent',
+                        border: `1px solid ${isSelected ? 'var(--accent-border)' : isToday ? 'var(--accent-border)' : daySessions.length > 0 ? 'var(--border)' : 'transparent'}`,
                         opacity: isCurrentMonth ? 1 : 0.3,
                         cursor: daySessions.length > 0 ? 'pointer' : 'default',
-                      }} onClick={() => daySessions.length > 0 && setExpandedSession(expandedSession === dateStr ? null : dateStr)}>
+                        transition: 'all 0.15s',
+                      }} onClick={() => daySessions.length > 0 && setExpandedSession(isSelected ? null : dateStr)}>
                         <div style={{ fontSize: '11px', fontWeight: isToday ? '700' : '400', color: isToday ? 'var(--accent)' : 'var(--muted)', marginBottom: '4px' }}>
                           {format(day, 'd')}
                         </div>
