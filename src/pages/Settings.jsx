@@ -128,8 +128,9 @@ export default function SettingsPage() {
   function handleBgUpload(e) {
     const file = e.target.files[0]
     if (!file) return
-    const url = URL.createObjectURL(file)
-    setBgImage(url)
+    const reader = new FileReader()
+    reader.onload = (ev) => setBgImage(ev.target.result)
+    reader.readAsDataURL(file)
   }
 
   async function exportData() {

@@ -6,6 +6,18 @@ export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
   const [accent, setAccent] = useState(() => localStorage.getItem('accent') || 'blue')
   const [bgImage, setBgImage] = useState(() => localStorage.getItem('bgImage') || '')
+
+  // Applicera sparad bakgrund direkt vid mount
+  useEffect(() => {
+    const saved = localStorage.getItem('bgImage')
+    if (saved) {
+      const bgEl = document.getElementById('bg-image')
+      if (bgEl) {
+        bgEl.style.backgroundImage = `url("${saved}")`
+        bgEl.style.opacity = '1'
+      }
+    }
+  }, [])
   const [compact, setCompact] = useState(() => localStorage.getItem('compact') === 'true')
 
   useEffect(() => {
@@ -20,13 +32,22 @@ export function ThemeProvider({ children }) {
     const bgEl = document.getElementById('bg-image')
     if (bgEl) {
       if (bgImage) {
-        bgEl.style.backgroundImage = `url(${bgImage})`
+        bgEl.style.backgroundImage = `url("${bgImage}")`
         bgEl.style.opacity = '1'
       } else {
+        bgEl.style.backgroundImage = 'none'
         bgEl.style.opacity = '0'
       }
     }
-    localStorage.setItem('bgImage', bgImage)
+    if (bgImage && bgImage.startsWith('http')) {
+      // Preset — spara URL direkt
+      localStorage.setItem('bgImage', bgImage)
+    } else if (bgImage && bgImage.startsWith('data:')) {
+      // Base64 — spara
+      try { localStorage.setItem('bgImage', bgImage) } catch(e) { console.warn('bgImage too large for localStorage') }
+    } else {
+      localStorage.removeItem('bgImage')
+    }
   }, [bgImage])
 
   useEffect(() => {
