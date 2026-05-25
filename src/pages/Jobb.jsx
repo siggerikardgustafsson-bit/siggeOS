@@ -161,8 +161,11 @@ export default function JobbPage() {
 
   async function checkCalendarConnection() {
     try {
-      const { data, error } = await supabase.functions.invoke('google-calendar-sync', {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const { data } = await supabase.functions.invoke('google-calendar-sync', {
         body: { action: 'check' },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       })
       setCalendarConnected(data?.connected || false)
     } catch { setCalendarConnected(false) }
@@ -186,8 +189,11 @@ export default function JobbPage() {
   async function syncCalendar() {
     setLoadingCalendar(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { alert('Inte inloggad'); setLoadingCalendar(false); return }
       const { data, error } = await supabase.functions.invoke('google-calendar-sync', {
         body: { action: 'sync' },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       })
       if (error) throw error
       if (data?.error === 'not_connected') {
