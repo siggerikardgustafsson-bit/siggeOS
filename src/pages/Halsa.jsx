@@ -225,15 +225,15 @@ export default function HalsaPage() {
     e.target.value = ''
   }
 
-  // Chart data — sorted ascending, weight null (not 0) for missing days
+  // Chart data — null and 0 both treated as missing (never show 0 as a data point)
   const chartData = logs.slice().reverse().map(l => ({
     date: l.date,
-    weight: l.weight_kg ?? null,
-    sleep: l.sleep_hours ?? null,
-    steps: l.steps ?? null,
-    screen: l.screen_time_minutes ? Math.round(l.screen_time_minutes / 60 * 10) / 10 : null,
-    alcohol: l.alcohol_units ?? null,
-    energy: l.energy ?? null,
+    weight: l.weight_kg > 0 ? l.weight_kg : null,
+    sleep: l.sleep_hours > 0 ? l.sleep_hours : null,
+    steps: l.steps > 0 ? l.steps : null,
+    screen: l.screen_time_minutes > 0 ? Math.round(l.screen_time_minutes / 60 * 10) / 10 : null,
+    alcohol: l.alcohol_units > 0 ? l.alcohol_units : null,
+    energy: l.energy > 0 ? l.energy : null,
   }))
 
   // Latest stats

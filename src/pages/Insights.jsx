@@ -93,15 +93,15 @@ export default function InsightsPage() {
       supabase.from('personal_records').select('*').eq('user_id', user.id).order('date', { ascending: false }),
     ])
 
-    // Weight trend (weekly avg)
-    const weightByWeek = groupByWeek(healthRes.data || [], 'weight_kg')
+    // Weight trend (weekly avg) — ignore 0 values
+    const weightByWeek = groupByWeek((healthRes.data || []).filter(l => l.weight_kg > 0), 'weight_kg')
     const weightData = Object.entries(weightByWeek).map(([week, vals]) => ({
       week: format(parseISO(week), 'd MMM', { locale: sv }),
       vikt: avg(vals),
     })).slice(-12)
 
-    // Steps trend (weekly avg)
-    const stepsByWeek = groupByWeek(healthRes.data || [], 'steps')
+    // Steps trend (weekly avg) — ignore 0 values
+    const stepsByWeek = groupByWeek((healthRes.data || []).filter(l => l.steps > 0), 'steps')
     const stepsData = Object.entries(stepsByWeek).map(([week, vals]) => ({
       week: format(parseISO(week), 'd MMM', { locale: sv }),
       steg: Math.round(avg(vals)),
@@ -109,7 +109,7 @@ export default function InsightsPage() {
 
     // Sleep trend (weekly avg from journal or health)
     const allSleepEntries = [...(journalRes.data || []), ...(healthRes.data || [])]
-      .filter(e => e.sleep_hours)
+      .filter(e => e.sleep_hours > 0)
       .sort((a, b) => a.date.localeCompare(b.date))
     const sleepByWeek = groupByWeek(allSleepEntries, 'sleep_hours')
     const sleepData = Object.entries(sleepByWeek).map(([week, vals]) => ({
