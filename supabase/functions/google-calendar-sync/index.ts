@@ -211,6 +211,80 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    // ===== SYNC MANDATORY SESSIONS =====
+    if (action === 'mandatory') {
+      const { data: tokenRow } = await supabase.from('google_tokens').select('*').eq('user_id', user.id).single()
+      if (!tokenRow?.refresh_token) {
+        return new Response(JSON.stringify({ error: 'not_connected' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
+      let accessToken = tokenRow.access_token
+      if (!accessToken || new Date(tokenRow.expires_at) < new Date()) {
+        accessToken = await refreshAccessToken(tokenRow.refresh_token)
+        if (!accessToken) throw new Error('Could not refresh token')
+        await supabase.from('google_tokens').update({ access_token: accessToken, expires_at: new Date(Date.now() + 3600000).toISOString() }).eq('user_id', user.id)
+      }
+
+      // Fetch all events from all calendars (12 months back, 6 forward)
+      const events = await fetchCalendarEvents(accessToken, 12)
+
+      // Filter events containing "obligatorisk" anywhere in title or description
+      const mandatoryEvents = events.filter((e: any) => {
+        const title = (e.summary || '').toLowerCase()
+        const desc = (e.description || '').toLowerCase()
+        return title.includes('obligatorisk') || desc.includes('obligatorisk')
+      })
+
+      // Fetch user's active courses for matching
+      const { data: courses } = await supabase
+        .from('courses')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .eq('active', true)
+
+      // Try to match event to a course by looking for course name/code in title
+      function matchCourse(eventTitle: string, eventDesc: string) {
+        if (!courses?.length) return null
+        const text = (eventTitle + ' ' + eventDesc).toLowerCase()
+        for (const course of courses) {
+          const courseName = course.name.toLowerCase()
+          // Match on course name or course code (e.g. "2LAO04")
+          const words = courseName.split(/[\s,]+/).filter((w: string) => w.length > 3)
+          if (words.some((w: string) => text.includes(w))) return course.id
+          // Also try matching course code pattern like "2LA004"
+          const codeMatch = courseName.match(/\d[a-z]{2,4}\d{2,4}/i)
+          if (codeMatch && text.includes(codeMatch[0].toLowerCase())) return course.id
+        }
+        return null
+      }
+
+      let synced = 0
+      for (const event of mandatoryEvents) {
+        const startStr = event.start?.dateTime || event.start?.date
+        const endStr = event.end?.dateTime || event.end?.date
+        if (!startStr) continue
+
+        const date = startStr.slice(0, 10)
+        const courseId = matchCourse(event.summary || '', event.description || '')
+
+        await supabase.from('mandatory_sessions').upsert({
+          user_id: user.id,
+          google_event_id: event.id,
+          title: event.summary,
+          date,
+          start_time: event.start?.dateTime || null,
+          end_time: event.end?.dateTime || null,
+          course_id: courseId,
+          course_hint: event.description || null,
+        }, { onConflict: 'google_event_id' })
+        synced++
+      }
+
+      return new Response(JSON.stringify({ success: true, synced, total: mandatoryEvents.length }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     throw new Error('Unknown action')
 
   } catch (error) {

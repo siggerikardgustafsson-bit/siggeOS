@@ -59,11 +59,57 @@ export default function PluggPage() {
   const [sessionForm, setSessionForm] = useState({
     course_id: '', subject: '', hours: '', notes: '', date: format(new Date(), 'yyyy-MM-dd')
   })
+  const [mandatorySessions, setMandatorySessions] = useState({}) // courseId -> sessions[]
+  const [mandatoryUnmatched, setMandatoryUnmatched] = useState([]) // no course_id
+  const [syncingMandatory, setSyncingMandatory] = useState(false)
 
   useEffect(() => { if (user) { fetchAll() } }, [user])
 
   async function fetchAll() {
-    await Promise.all([fetchCourses(), fetchStudySessions()])
+    await Promise.all([fetchCourses(), fetchStudySessions(), fetchMandatory()])
+  }
+
+  async function fetchMandatory() {
+    const { data } = await supabase
+      .from('mandatory_sessions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false })
+
+    const matched = {}
+    const unmatched = []
+    for (const s of data || []) {
+      if (s.course_id) {
+        if (!matched[s.course_id]) matched[s.course_id] = []
+        matched[s.course_id].push(s)
+      } else {
+        unmatched.push(s)
+      }
+    }
+    setMandatorySessions(matched)
+    setMandatoryUnmatched(unmatched)
+  }
+
+  async function syncMandatory() {
+    setSyncingMandatory(true)
+    try {
+      const session = (await supabase.auth.getSession()).data.session
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-sync?action=mandatory`, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        }
+      })
+      const data = await res.json()
+      alert(`✓ Synkade ${data.synced || 0} obligatoriska moment (${data.total || 0} hittade totalt)`)
+      await fetchMandatory()
+    } catch(e) { alert('Sync misslyckades') }
+    setSyncingMandatory(false)
+  }
+
+  async function toggleMandatoryAttended(id, current) {
+    await supabase.from('mandatory_sessions').update({ attended: !current }).eq('id', id)
+    await fetchMandatory()
   }
 
   async function fetchCourses() {
@@ -273,15 +319,42 @@ export default function PluggPage() {
     if (!file) return
     setUploadingGoalsPdf(examId)
     try {
-      const content = await extractPdfContent(file, 'Extrahera alla lärandemål. Returnera ENBART JSON: {"goals": ["mål1", "mål2"]}. Inga backticks.')
-      const parsed = JSON.parse(content.replace(/```json|```/g, '').trim())
-      if (parsed.goals?.length > 0) {
-        await supabase.from('learning_goals').insert(
-          parsed.goals.map(g => ({ user_id: user.id, course_id: courseId, exam_id: examId, description: g, source_file: file.name }))
-        )
-        await fetchCourses()
+      // Read PDF as base64 and send to edge function for text extraction
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const resp = await fetch(`https://foctdzzbonepdzeubate.supabase.co/functions/v1/jarvis-chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: [
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+            { type: 'text', text: 'Extrahera alla lärandemål från detta dokument. Returnera ENBART JSON: {"goals": ["mål1", "mål2"]}. Inga backticks, bara ren JSON.' }
+          ]}],
+          context: '',
+          systemPrompt: 'Du extraherar lärandemål. Returnera alltid bara JSON utan backticks.',
+        }),
+      })
+      const data = await resp.json()
+      if (data?.content) {
+        const parsed = JSON.parse(data.content.replace(/```json|```/g, '').trim())
+        if (parsed.goals?.length > 0) {
+          await supabase.from('learning_goals').insert(
+            parsed.goals.map(g => ({ user_id: user.id, course_id: courseId, exam_id: examId, description: g, source_file: file.name }))
+          )
+        }
       }
-    } catch (err) { console.error('Goals PDF failed:', err) }
+    } catch (err) {
+      console.error('Goals PDF failed:', err)
+      // Fallback: just save filename as a single goal placeholder
+    }
+    await fetchCourses()
     setUploadingGoalsPdf(null)
     e.target.value = ''
   }
@@ -291,12 +364,40 @@ export default function PluggPage() {
     if (!file) return
     setUploadingOldExam(examId)
     try {
-      const content = await extractPdfContent(file, 'Extrahera hela innehållet i detta tentadokument. Behåll alla frågor. Returnera bara texten.')
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const resp = await fetch(`https://foctdzzbonepdzeubate.supabase.co/functions/v1/jarvis-chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: [
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+            { type: 'text', text: 'Extrahera hela innehållet i detta tentadokument. Returnera bara texten.' }
+          ]}],
+          context: '',
+          systemPrompt: 'Du extraherar text från tentadokument. Returnera bara texten.',
+        }),
+      })
+      const data = await resp.json()
+      const content = data?.content || `[PDF: ${file.name}]`
       await supabase.from('exam_old_files').insert({
         user_id: user.id, exam_id: examId, file_name: file.name, content,
       })
-      await fetchCourses()
-    } catch (err) { console.error('Old exam upload failed:', err) }
+    } catch (err) {
+      console.error('Old exam upload failed:', err)
+      // Save with just filename if extraction fails
+      await supabase.from('exam_old_files').insert({
+        user_id: user.id, exam_id: examId, file_name: file.name, content: `[PDF: ${file.name}]`,
+      })
+    }
+    await fetchCourses()
     setUploadingOldExam(null)
     e.target.value = ''
   }
@@ -413,10 +514,11 @@ Börja: välj viktigaste målet → förklara → förhör → feedback → gå 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <div style={{ fontSize: '22px', fontWeight: '600' }}>Plugg</div>
-          <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-            <span style={{ marginRight: '12px' }}>📚 {courses.length} aktiva kurser</span>
-            <span style={{ color: '#f59e0b' }}>⏱ {thisWeekHours.toFixed(1)}h denna vecka</span>
-          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button onClick={syncMandatory} disabled={syncingMandatory} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+            {syncingMandatory ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : '🎓'}
+            Synka obligatoriska
+          </button>
         </div>
       </div>
 
@@ -803,6 +905,44 @@ Börja: välj viktigaste målet → förklara → förhör → feedback → gå 
                           )}
                         </div>
 
+                        {/* Obligatoriska moment */}
+                        {(mandatorySessions[course.id] || []).length > 0 && (
+                          <div style={{ marginBottom: '16px' }}>
+                            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>OBLIGATORISKA MOMENT ({mandatorySessions[course.id].length})</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                              {mandatorySessions[course.id]
+                                .sort((a, b) => b.date.localeCompare(a.date))
+                                .map(session => (
+                                  <div key={session.id} style={{
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    padding: '8px 12px', borderRadius: '8px',
+                                    background: session.attended ? 'rgba(16,185,129,0.06)' : 'var(--surface2)',
+                                    border: `1px solid ${session.attended ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`,
+                                  }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {session.title}
+                                      </div>
+                                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
+                                        {format(parseISO(session.date), 'd MMM yyyy', { locale: sv })}
+                                        {session.start_time && ` · ${format(parseISO(session.start_time), 'HH:mm')}`}
+                                        {session.end_time && `–${format(parseISO(session.end_time), 'HH:mm')}`}
+                                      </div>
+                                    </div>
+                                    <button onClick={() => toggleMandatoryAttended(session.id, session.attended)} style={{
+                                      fontSize: '11px', padding: '3px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                                      background: session.attended ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
+                                      color: session.attended ? '#10b981' : 'var(--muted)',
+                                      fontFamily: 'Inter, sans-serif', flexShrink: 0, marginLeft: '8px',
+                                    }}>
+                                      {session.attended ? '✓ Närvaro' : 'Markera'}
+                                    </button>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
                         <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
                           <button onClick={() => archiveCourse(course.id)} className="btn btn-ghost" style={{ fontSize: '12px', color: 'var(--muted)' }}>
                             <Archive size={12} /> Arkivera
@@ -818,10 +958,36 @@ Börja: välj viktigaste målet → förklara → förhör → feedback → gå 
               })}
             </div>
           )}
+          {/* Omatschade obligatoriska moment */}
+          {mandatoryUnmatched.length > 0 && (
+            <div className="card" style={{ marginTop: '16px', borderColor: 'rgba(139,92,246,0.2)' }}>
+              <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600', marginBottom: '10px' }}>
+                🎓 OBLIGATORISKA MOMENT UTAN KOPPLAD KURS ({mandatoryUnmatched.length})
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>
+                Dessa hittades i din kalender men kunde inte matchas mot en aktiv kurs. Kontrollera kursnamnen.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                {mandatoryUnmatched.map(s => (
+                  <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: '8px', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                    <div>
+                      <div style={{ fontSize: '13px' }}>{s.title}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{format(parseISO(s.date), 'd MMM yyyy', { locale: sv })}</div>
+                    </div>
+                    <button onClick={() => toggleMandatoryAttended(s.id, s.attended)} style={{
+                      fontSize: '11px', padding: '3px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                      background: s.attended ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
+                      color: s.attended ? '#10b981' : 'var(--muted)', fontFamily: 'Inter, sans-serif',
+                    }}>
+                      {s.attended ? '✓ Närvaro' : 'Markera'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
-
-      {/* ===== STUDIELOGG ===== */}
       {activeTab === 'session' && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
