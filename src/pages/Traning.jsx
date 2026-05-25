@@ -165,7 +165,7 @@ export default function TraningPage() {
     const lines = text.split('\n').filter(l => l.trim())
     const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim())
 
-    const typeMap: Record<string, string> = {
+    const typeMap = {
       'Run': 'run', 'Trail Run': 'run', 'Virtual Run': 'run',
       'Ride': 'other', 'Virtual Ride': 'other',
       'Swim': 'other', 'Walk': 'walk', 'Hike': 'walk',
@@ -175,7 +175,7 @@ export default function TraningPage() {
     let imported = 0
     for (let i = 1; i < lines.length; i++) {
       const vals = lines[i].split(',').map(v => v.replace(/"/g, '').trim())
-      const row: Record<string, string> = {}
+      const row = {}
       headers.forEach((h, idx) => row[h] = vals[idx] || '')
 
       const activityType = row['Activity Type'] || row['Type'] || ''
@@ -184,7 +184,7 @@ export default function TraningPage() {
       if (!dateStr) continue
 
       // Parse date — Strava CSV uses "Jan 1, 2024, 12:00:00 PM" format
-      let date: string
+      let date
       try {
         const parsed = new Date(dateStr)
         if (isNaN(parsed.getTime())) continue
