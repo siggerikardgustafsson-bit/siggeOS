@@ -64,6 +64,7 @@ export default function InsightsPage() {
   const [data, setData] = useState({
     weightData: [],
     sleepData: [],
+    stepsData: [],
     studyData: [],
     trainingData: [],
     incomeData: [],
@@ -93,10 +94,17 @@ export default function InsightsPage() {
     ])
 
     // Weight trend (weekly avg)
-    const weightByWeek = groupByWeek(healthRes.data || [], 'weight')
+    const weightByWeek = groupByWeek(healthRes.data || [], 'weight_kg')
     const weightData = Object.entries(weightByWeek).map(([week, vals]) => ({
       week: format(parseISO(week), 'd MMM', { locale: sv }),
       vikt: avg(vals),
+    })).slice(-12)
+
+    // Steps trend (weekly avg)
+    const stepsByWeek = groupByWeek(healthRes.data || [], 'steps')
+    const stepsData = Object.entries(stepsByWeek).map(([week, vals]) => ({
+      week: format(parseISO(week), 'd MMM', { locale: sv }),
+      steg: Math.round(avg(vals)),
     })).slice(-12)
 
     // Sleep trend (weekly avg from journal or health)
@@ -190,7 +198,7 @@ export default function InsightsPage() {
     // PRs
     const prData = (prRes.data || []).slice(0, 6)
 
-    setData({ weightData, sleepData, studyData, trainingData, incomeData, paData, examProgress, prData })
+    setData({ weightData, sleepData, stepsData, studyData, trainingData, incomeData, paData, examProgress, prData })
     setLoading(false)
   }
 
@@ -269,7 +277,6 @@ export default function InsightsPage() {
         </div>
       )}
 
-      {/* Top stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '28px' }}>
         <StatCard label="Vikt nu" value={latestWeight ? `${latestWeight}kg` : '—'} sub={weightDelta ? `${weightDelta > 0 ? '+' : ''}${weightDelta}kg senaste 90d` : null} color={COLORS.blue} trend={weightDelta < 0 ? 'down' : weightDelta > 0 ? 'up' : 'flat'} />
         <StatCard label="Sömn (snitt)" value={avgSleep ? `${avgSleep}h` : '—'} sub="senaste 90 dagarna" color={COLORS.purple} />
@@ -314,11 +321,31 @@ export default function InsightsPage() {
                 <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} domain={[0, 12]} />
                 <Tooltip content={<CustomTooltip unit="h" />} />
                 <Bar dataKey="sömn" fill={COLORS.purple} radius={[3, 3, 0, 0]} name="Sömn" />
-                {/* 8h reference line */}
-                <CartesianGrid horizontal={false} />
               </BarChart>
             </ResponsiveContainer>
           ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Inte tillräckligt med data</div>}
+        </div>
+
+        {/* Steps */}
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>STEG PER VECKA (snitt)</div>
+          {data.stepsData && data.stepsData.length > 1 ? (
+            <ResponsiveContainer width="100%" height={120}>
+              <AreaChart data={data.stepsData} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id="stepsGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={COLORS.amber} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={COLORS.amber} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="week" tick={{ fontSize: 10, fill: 'var(--muted)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} tickFormatter={v => `${Math.round(v/1000)}k`} />
+                <Tooltip content={<CustomTooltip unit=" steg" />} />
+                <Area type="monotone" dataKey="steg" stroke={COLORS.amber} fill="url(#stepsGrad)" strokeWidth={2} dot={false} name="Steg" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>Ingen stegdata — importera från Apple Health</div>}
         </div>
       </div>
 

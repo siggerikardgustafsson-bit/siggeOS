@@ -222,6 +222,7 @@ export default function HalsaPage() {
     date: l.date,
     weight: l.weight_kg,
     sleep: l.sleep_hours,
+    steps: l.steps || null,
     screen: l.screen_time_minutes ? Math.round(l.screen_time_minutes / 60 * 10) / 10 : null,
     alcohol: l.alcohol_units,
     energy: l.energy,
@@ -229,8 +230,10 @@ export default function HalsaPage() {
 
   // Latest stats
   const latestWeight = logs.find(l => l.weight_kg)?.weight_kg
+  const latestSteps = logs.find(l => l.steps)?.steps
   const avgSleep = logs.slice(0, 7).filter(l => l.sleep_hours).reduce((s, l, _, a) => s + l.sleep_hours / a.length, 0)
   const avgAlcohol = logs.slice(0, 7).filter(l => l.alcohol_units).reduce((s, l, _, a) => s + l.alcohol_units / a.length, 0)
+  const avgSteps = logs.slice(0, 7).filter(l => l.steps).reduce((s, l, _, a) => s + l.steps / a.length, 0)
 
   const tabs = [
     { id: 'log',         label: 'Logga' },
@@ -248,6 +251,7 @@ export default function HalsaPage() {
           <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
             {latestWeight && <span style={{ color: '#10b981', marginRight: '12px' }}>⚖️ {latestWeight} kg</span>}
             {avgSleep > 0 && <span style={{ color: '#06b6d4', marginRight: '12px' }}>💤 {avgSleep.toFixed(1)}h snitt</span>}
+            {avgSteps > 0 && <span style={{ color: '#f59e0b' }}>👟 {Math.round(avgSteps).toLocaleString('sv-SE')} steg/dag</span>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -441,7 +445,8 @@ export default function HalsaPage() {
           {[
             { label: 'Vikt', dataKey: 'weight', color: '#10b981', unit: ' kg', refLine: 75, refLabel: 'Mål 75kg' },
             { label: 'Sömn', dataKey: 'sleep', color: '#06b6d4', unit: 'h', refLine: 7.5, refLabel: 'Mål 7.5h' },
-            { label: 'Skärmtid', dataKey: 'screen', color: '#f59e0b', unit: 'h', refLine: 6, refLabel: 'Mål 6h' },
+            { label: 'Steg', dataKey: 'steps', color: '#f59e0b', unit: ' steg', refLine: 8000, refLabel: 'Mål 8 000' },
+            { label: 'Skärmtid', dataKey: 'screen', color: '#8b5cf6', unit: 'h', refLine: 6, refLabel: 'Mål 6h' },
             { label: 'Alkohol (enheter)', dataKey: 'alcohol', color: '#ef4444', unit: ' enh' },
             { label: 'Energi', dataKey: 'energy', color: '#f59e0b', unit: '/10' },
           ].map(({ label, dataKey, color, unit, refLine, refLabel }) => {
@@ -478,7 +483,7 @@ export default function HalsaPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                 <thead>
                   <tr style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
-                    {['Datum', 'Vikt', 'Sömn', 'Typ', 'Energi', 'Alkohol', 'Ret.'].map(h => (
+                    {['Datum', 'Vikt', 'Sömn', 'Typ', 'Steg', 'Energi', 'Alkohol', 'Ret.'].map(h => (
                       <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '500' }}>{h}</th>
                     ))}
                   </tr>
@@ -492,6 +497,7 @@ export default function HalsaPage() {
                       <td style={{ padding: '8px', fontSize: '11px', color: 'var(--muted)' }} title={log.sleep_note || ''}>
                         {log.sleep_type === 'uppdelad' ? '✂️' : log.sleep_type === 'nattjobb' ? '🌙' : log.sleep_hours ? '😴' : '—'}
                       </td>
+                      <td className="mono" style={{ padding: '8px', color: '#f59e0b' }}>{log.steps ? log.steps.toLocaleString('sv-SE') : '—'}</td>
                       <td className="mono" style={{ padding: '8px' }}>{log.energy ? `${log.energy}/10` : '—'}</td>
                       <td className="mono" style={{ padding: '8px', color: log.alcohol_units > 0 ? '#ef4444' : 'var(--muted)' }}>{log.alcohol_units > 0 ? log.alcohol_units : '—'}</td>
                       <td style={{ padding: '8px' }}>{log.nicotine ? '✓' : '—'}</td>
