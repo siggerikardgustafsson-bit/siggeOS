@@ -286,25 +286,44 @@ export default function TraningPage() {
   }
 
   async function fetchRunPRs() {
-    // Get best time for each standard distance from run sessions
     const { data } = await supabase
       .from('training_sessions')
-      .select('distance_km, time_seconds, date')
+      .select('distance_km, duration_minutes, pace_per_km, time_seconds, date')
       .eq('user_id', user.id)
       .eq('session_type', 'run')
       .not('distance_km', 'is', null)
-      .not('time_seconds', 'is', null)
-      .order('time_seconds')
+      .order('date')
 
     if (!data) return
 
     const bests = RUN_PR_DISTANCES.map(({ label, meters }) => {
       const kmTarget = meters / 1000
-      // Find runs at or very close to this distance (within 5%)
-      const matching = data.filter(r => Math.abs(r.distance_km - kmTarget) / kmTarget < 0.05)
-      if (matching.length === 0) return { label, time: null, date: null }
-      const best = matching.reduce((a, b) => a.time_seconds < b.time_seconds ? a : b)
-      return { label, time: best.time_seconds, date: best.date }
+
+      // Accept runs that are at least 95% of the target distance
+      const eligible = data.filter(r => r.distance_km >= kmTarget * 0.95)
+      if (eligible.length === 0) return { label, time: null, date: null }
+
+      // Calculate estimated time for target distance using pace_per_km
+      const withTime = eligible.map(r => {
+        let seconds = null
+        if (r.time_seconds && Math.abs(r.distance_km - kmTarget) / kmTarget < 0.05) {
+          // Exact distance match — use real time
+          seconds = r.time_seconds
+        } else if (r.pace_per_km) {
+          // Estimate time from pace × target distance
+          seconds = Math.round(r.pace_per_km * kmTarget)
+        } else if (r.duration_minutes && r.distance_km) {
+          // Derive pace from duration and use it
+          const pacePerKm = (r.duration_minutes * 60) / r.distance_km
+          seconds = Math.round(pacePerKm * kmTarget)
+        }
+        return { ...r, estSeconds: seconds }
+      }).filter(r => r.estSeconds)
+
+      if (!withTime.length) return { label, time: null, date: null }
+
+      const best = withTime.reduce((a, b) => a.estSeconds < b.estSeconds ? a : b)
+      return { label, time: best.estSeconds, date: best.date }
     })
 
     setRunPRs(bests)
