@@ -5,8 +5,9 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Jarvis from './pages/Jarvis'
 import JournalPage from './pages/Journal'
+import TraningPage from './pages/Traning'
 import {
-  TraningPage, HalsaPage, KostPage,
+  HalsaPage, KostPage,
   EkonomiPage, PluggPage, JobbPage, SocialtPage,
   ResorPage, InsightsPage
 } from './pages/Placeholders'
