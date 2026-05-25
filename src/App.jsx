@@ -8,8 +8,9 @@ import JournalPage from './pages/Journal'
 import TraningPage from './pages/Traning'
 import EkonomiPage from './pages/Ekonomi'
 import HalsaPage from './pages/Halsa'
+import PluggPage from './pages/Plugg'
 import {
-  KostPage, PluggPage, JobbPage, SocialtPage,
+  KostPage, JobbPage, SocialtPage,
   ResorPage, InsightsPage
 } from './pages/Placeholders'
 
