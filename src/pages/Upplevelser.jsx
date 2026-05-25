@@ -4,10 +4,27 @@ import { supabase } from '../lib/supabase'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import {
-  Plus, X, Save, Loader, Map, Zap, Star, Check,
-  ChevronDown, ChevronUp, Globe, Compass, Flame,
-  SkipForward, RefreshCw, Calendar
+  Plus, X, Save, Loader, Check, ChevronDown, ChevronUp,
+  Compass, Flame, SkipForward, Edit2
 } from 'lucide-react'
+
+const COUNTRIES = [
+  'Sverige','Spanien','Danmark','Serbien','Bosnien','UAE','Polen','Cypern',
+  'Tjeckien','Kroatien','Turkiet','Norge','Tyskland','Frankrike','Italien',
+  'Japan','Portugal','Grekland','Ungern','Rumänien','Albanien','Montenegro',
+  'Nordmakedonien','Kosovo','Slovenien','Österrike','Schweiz','Belgien',
+  'Nederländerna','USA','Marocko','Thailand','Vietnam','Indien','Mexiko',
+]
+const FLAGS = {
+  'Sverige':'🇸🇪','Spanien':'🇪🇸','Danmark':'🇩🇰','Serbien':'🇷🇸','Bosnien':'🇧🇦',
+  'UAE':'🇦🇪','Polen':'🇵🇱','Cypern':'🇨🇾','Tjeckien':'🇨🇿','Kroatien':'🇭🇷',
+  'Turkiet':'🇹🇷','Norge':'🇳🇴','Tyskland':'🇩🇪','Frankrike':'🇫🇷','Italien':'🇮🇹',
+  'Japan':'🇯🇵','Portugal':'🇵🇹','Grekland':'🇬🇷','Ungern':'🇭🇺','Rumänien':'🇷🇴',
+  'Albanien':'🇦🇱','Montenegro':'🇲🇪','Nordmakedonien':'🇲🇰','Kosovo':'🇽🇰',
+  'Slovenien':'🇸🇮','Österrike':'🇦🇹','Schweiz':'🇨🇭','Belgien':'🇧🇪',
+  'Nederländerna':'🇳🇱','USA':'🇺🇸','Marocko':'🇲🇦','Thailand':'🇹🇭',
+  'Vietnam':'🇻🇳','Indien':'🇮🇳','Mexiko':'🇲🇽',
+}
 
 const ADVENTURE_CATEGORIES = ['mat', 'musik', 'natur', 'spontant', 'socialt', 'kultur', 'övrigt']
 const TRIP_STATUSES = [
@@ -20,6 +37,11 @@ const DIFFICULTIES = [
   { id: 'medel', label: 'Medel', color: '#f59e0b' },
   { id: 'galen', label: 'Galen', color: '#ef4444' },
 ]
+
+const EMPTY_TRIP = {
+  title: '', country: '', countries: [], city: '', start_date: '', end_date: '',
+  highlights: '', rating: 0, status: 'completed', budget_sek: '', notes: ''
+}
 
 function StarRating({ value, onChange }) {
   return (
@@ -34,14 +56,114 @@ function StarRating({ value, onChange }) {
   )
 }
 
-function CountryFlag({ country }) {
-  const flags = {
-    'Sverige': '🇸🇪', 'Spanien': '🇪🇸', 'Danmark': '🇩🇰', 'Serbien': '🇷🇸',
-    'Bosnien': '🇧🇦', 'UAE': '🇦🇪', 'Polen': '🇵🇱', 'Cypern': '🇨🇾',
-    'Tjeckien': '🇨🇿', 'Kroatien': '🇭🇷', 'Turkiet': '🇹🇷', 'Norge': '🇳🇴',
-    'Tyskland': '🇩🇪', 'Frankrike': '🇫🇷', 'Italien': '🇮🇹', 'Japan': '🇯🇵',
+function CountryPicker({ selected, onChange }) {
+  const [open, setOpen] = useState(false)
+  const toggle = (c) => {
+    if (selected.includes(c)) onChange(selected.filter(x => x !== c))
+    else onChange([...selected, c])
   }
-  return <span style={{ fontSize: '20px' }}>{flags[country] || '🌍'}</span>
+  return (
+    <div style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(!open)} style={{
+        width: '100%', padding: '10px 12px', borderRadius: '8px',
+        border: '1px solid var(--border)', background: 'var(--surface)',
+        color: selected.length ? 'var(--text)' : 'var(--muted)',
+        cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif',
+        fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span>
+          {selected.length === 0 ? 'Välj länder...' :
+           selected.map(c => (FLAGS[c] || '🌍') + ' ' + c).join(', ')}
+        </span>
+        <ChevronDown size={14} color="var(--muted)" />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+          background: 'var(--surface2)', border: '1px solid var(--border)',
+          borderRadius: '8px', maxHeight: '220px', overflowY: 'auto', marginTop: '4px',
+        }}>
+          {COUNTRIES.map(c => (
+            <button key={c} onClick={() => toggle(c)} style={{
+              width: '100%', padding: '8px 12px', background: 'none', border: 'none',
+              cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif',
+              fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px',
+              color: selected.includes(c) ? 'var(--text)' : 'var(--muted)',
+              background: selected.includes(c) ? 'rgba(59,130,246,0.08)' : 'transparent',
+            }}>
+              <span>{FLAGS[c] || '🌍'}</span>
+              <span style={{ flex: 1 }}>{c}</span>
+              {selected.includes(c) && <Check size={12} color="#3b82f6" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TripForm({ initial, onSave, onCancel, saving }) {
+  const [form, setForm] = useState(initial)
+  const f = (key, val) => setForm(prev => ({ ...prev, [key]: val }))
+
+  return (
+    <div className="card" style={{ marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px' }}>
+        <div style={{ fontWeight: '600' }}>{initial.id ? 'Redigera resa' : 'Lägg till resa'}</div>
+        <button onClick={onCancel} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={16} /></button>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+        <div>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Titel</label>
+          <input className="input" placeholder="t.ex. Lissabon" value={form.title} onChange={e => f('title', e.target.value)} />
+        </div>
+        <div>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Status</label>
+          <select className="input" value={form.status} onChange={e => f('status', e.target.value)}>
+            {TRIP_STATUSES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Länder</label>
+          <CountryPicker selected={form.countries || []} onChange={v => f('countries', v)} />
+        </div>
+        <div>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Stad / Region</label>
+          <input className="input" placeholder="t.ex. Lissabon" value={form.city} onChange={e => f('city', e.target.value)} />
+        </div>
+        <div>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Budget (kr)</label>
+          <input className="input" type="number" placeholder="t.ex. 8000" value={form.budget_sek} onChange={e => f('budget_sek', e.target.value)} />
+        </div>
+        <div>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Startdatum</label>
+          <input className="input" type="date" value={form.start_date} onChange={e => f('start_date', e.target.value)} />
+        </div>
+        <div>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Slutdatum</label>
+          <input className="input" type="date" value={form.end_date} onChange={e => f('end_date', e.target.value)} />
+        </div>
+        <div>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Betyg</label>
+          <StarRating value={form.rating} onChange={v => f('rating', v)} />
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Highlights</label>
+          <textarea className="input" rows={2} placeholder="Vad var bäst?" value={form.highlights} onChange={e => f('highlights', e.target.value)} style={{ resize: 'vertical' }} />
+        </div>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Anteckningar / Planering</label>
+          <textarea className="input" rows={2} placeholder="Idéer, planering, tankar..." value={form.notes} onChange={e => f('notes', e.target.value)} style={{ resize: 'vertical' }} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+        <button onClick={onCancel} className="btn btn-ghost">Avbryt</button>
+        <button onClick={() => onSave(form)} className="btn btn-primary" disabled={saving || !form.title}>
+          {saving ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />} Spara
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export default function UpplevelserPage() {
@@ -54,13 +176,10 @@ export default function UpplevelserPage() {
   const [saving, setSaving] = useState(false)
   const [generatingQuests, setGeneratingQuests] = useState(false)
   const [showNewTrip, setShowNewTrip] = useState(false)
+  const [editingTrip, setEditingTrip] = useState(null)
   const [showNewAdventure, setShowNewAdventure] = useState(false)
-  const [tripFilter, setTripFilter] = useState('all') // all | completed | planned | idea
+  const [tripFilter, setTripFilter] = useState('all')
 
-  const [tripForm, setTripForm] = useState({
-    title: '', country: '', city: '', start_date: '', end_date: '',
-    highlights: '', rating: 0, status: 'completed', budget_sek: '', notes: ''
-  })
   const [adventureForm, setAdventureForm] = useState({
     title: '', description: '', date: format(new Date(), 'yyyy-MM-dd'),
     location: '', category: 'spontant', rating: 0
@@ -80,50 +199,56 @@ export default function UpplevelserPage() {
   }
 
   async function seedHistoricalTrips() {
-    // Check if already seeded
     const { data: existing } = await supabase.from('trips').select('id').eq('user_id', user.id).limit(1)
     if (existing && existing.length > 0) return
-
     const historicalTrips = [
-      { title: 'Barcelona NYE', country: 'Spanien', city: 'Barcelona', start_date: '2022-12-30', end_date: '2023-01-02', status: 'completed', rating: 5, highlights: 'Nyår i Barcelona med gänget' },
-      { title: 'Köpenhamn', country: 'Danmark', city: 'Köpenhamn', start_date: '2023-02-01', end_date: '2023-02-04', status: 'completed', rating: 4, highlights: '' },
-      { title: 'Belgrad', country: 'Serbien', city: 'Belgrad', start_date: '2023-02-10', end_date: '2023-02-14', status: 'completed', rating: 5, highlights: 'Med hela gänget' },
-      { title: 'Sarajevo → Dubai', country: 'UAE', city: 'Dubai', start_date: '2023-04-01', end_date: '2023-04-14', status: 'completed', rating: 5, highlights: 'Sarajevo, Abu Dhabi, Dubai' },
-      { title: 'Polen', country: 'Polen', city: '', start_date: '2023-06-01', end_date: '2023-06-10', status: 'completed', rating: 3, highlights: '' },
-      { title: 'Cypern / Ayia Napa', country: 'Cypern', city: 'Ayia Napa', start_date: '2023-08-01', end_date: '2023-08-10', status: 'completed', rating: 4, highlights: 'Studentresa' },
-      { title: 'Prag', country: 'Tjeckien', city: 'Prag', start_date: '2023-09-01', end_date: '2023-09-05', status: 'completed', rating: 5, highlights: 'Skolresa, favorit' },
-      { title: 'Banja Luka', country: 'Bosnien', city: 'Banja Luka', start_date: '2024-12-20', end_date: '2024-12-27', status: 'completed', rating: 4, highlights: 'Med Sara' },
-      { title: 'Malmö → Kroatien (cykling)', country: 'Kroatien', city: '', start_date: '2025-08-01', end_date: '2025-08-31', status: 'completed', rating: 5, highlights: 'Med Zinedin, en månad på cykel' },
-      { title: 'Belgrad (Viktorias födelsedag)', country: 'Serbien', city: 'Belgrad', start_date: '2026-03-01', end_date: '2026-03-05', status: 'completed', rating: 5, highlights: 'Viktorias födelsedag' },
-      { title: 'Istanbul', country: 'Turkiet', city: 'Istanbul', start_date: '2026-05-20', end_date: '2026-05-24', status: 'completed', rating: 5, highlights: 'Åt hela resan, helt sjukt matlandskap' },
-      { title: 'Balkanroad trip', country: 'Serbien', city: '', start_date: '2026-08-01', end_date: '2026-08-31', status: 'planned', rating: 0, notes: 'Road trip med bil genom Balkan 2026' },
+      { title: 'Barcelona NYE', countries: ['Spanien'], city: 'Barcelona', start_date: '2022-12-30', end_date: '2023-01-02', status: 'completed', rating: 5, highlights: 'Nyår i Barcelona med gänget' },
+      { title: 'Köpenhamn', countries: ['Danmark'], city: 'Köpenhamn', start_date: '2023-02-01', end_date: '2023-02-04', status: 'completed', rating: 4 },
+      { title: 'Belgrad', countries: ['Serbien'], city: 'Belgrad', start_date: '2023-02-10', end_date: '2023-02-14', status: 'completed', rating: 5, highlights: 'Med hela gänget' },
+      { title: 'Sarajevo → Abu Dhabi → Dubai', countries: ['Bosnien', 'UAE'], city: '', start_date: '2023-04-01', end_date: '2023-04-14', status: 'completed', rating: 5, highlights: 'Sarajevo, Abu Dhabi, Dubai' },
+      { title: 'Polen', countries: ['Polen'], city: '', start_date: '2023-06-01', end_date: '2023-06-10', status: 'completed', rating: 3 },
+      { title: 'Cypern / Ayia Napa', countries: ['Cypern'], city: 'Ayia Napa', start_date: '2023-08-01', end_date: '2023-08-10', status: 'completed', rating: 4, highlights: 'Studentresa' },
+      { title: 'Prag', countries: ['Tjeckien'], city: 'Prag', start_date: '2023-09-01', end_date: '2023-09-05', status: 'completed', rating: 5, highlights: 'Skolresa, favorit' },
+      { title: 'Banja Luka', countries: ['Bosnien'], city: 'Banja Luka', start_date: '2024-12-20', end_date: '2024-12-27', status: 'completed', rating: 4, highlights: 'Med Sara' },
+      { title: 'Malmö → Kroatien (cykling)', countries: ['Sverige', 'Danmark', 'Tyskland', 'Österrike', 'Kroatien'], city: '', start_date: '2025-08-01', end_date: '2025-08-31', status: 'completed', rating: 5, highlights: 'Med Zinedin, en månad på cykel genom Europa' },
+      { title: 'Belgrad (Viktorias födelsedag)', countries: ['Serbien'], city: 'Belgrad', start_date: '2026-03-01', end_date: '2026-03-05', status: 'completed', rating: 5, highlights: 'Viktorias födelsedag' },
+      { title: 'Istanbul', countries: ['Turkiet'], city: 'Istanbul', start_date: '2026-05-20', end_date: '2026-05-24', status: 'completed', rating: 5, highlights: 'Åt hela resan, helt sjukt matlandskap' },
+      { title: 'Balkanroad trip', countries: ['Serbien', 'Bosnien', 'Montenegro', 'Albanien', 'Nordmakedonien'], city: '', start_date: '2026-08-01', end_date: '2026-08-31', status: 'planned', rating: 0, notes: 'Road trip med bil genom Balkan 2026' },
     ]
-
-    await supabase.from('trips').insert(
-      historicalTrips.map(t => ({ ...t, user_id: user.id }))
-    )
+    await supabase.from('trips').insert(historicalTrips.map(t => ({ ...t, user_id: user.id })))
     await fetchAll()
   }
 
-  async function saveTrip() {
+  async function saveTrip(form) {
     setSaving(true)
-    await supabase.from('trips').insert({
-      user_id: user.id, ...tripForm,
-      rating: tripForm.rating || null,
-      budget_sek: tripForm.budget_sek ? parseInt(tripForm.budget_sek) : null,
-    })
+    const payload = {
+      user_id: user.id,
+      title: form.title,
+      country: form.countries?.[0] || '',
+      countries: form.countries || [],
+      city: form.city,
+      start_date: form.start_date || null,
+      end_date: form.end_date || null,
+      highlights: form.highlights,
+      rating: form.rating || null,
+      status: form.status,
+      budget_sek: form.budget_sek ? parseInt(form.budget_sek) : null,
+      notes: form.notes,
+    }
+    if (form.id) {
+      await supabase.from('trips').update(payload).eq('id', form.id)
+    } else {
+      await supabase.from('trips').insert(payload)
+    }
     await fetchAll()
-    setTripForm({ title: '', country: '', city: '', start_date: '', end_date: '', highlights: '', rating: 0, status: 'completed', budget_sek: '', notes: '' })
     setShowNewTrip(false)
+    setEditingTrip(null)
     setSaving(false)
   }
 
   async function saveAdventure() {
     setSaving(true)
-    await supabase.from('adventures').insert({
-      user_id: user.id, ...adventureForm,
-      rating: adventureForm.rating || null,
-    })
+    await supabase.from('adventures').insert({ user_id: user.id, ...adventureForm, rating: adventureForm.rating || null })
     await fetchAll()
     setAdventureForm({ title: '', description: '', date: format(new Date(), 'yyyy-MM-dd'), location: '', category: 'spontant', rating: 0 })
     setShowNewAdventure(false)
@@ -151,27 +276,21 @@ export default function UpplevelserPage() {
     try {
       const completedTrips = trips.filter(t => t.status === 'completed').slice(0, 5).map(t => t.title).join(', ')
       const completedQuests = sideQuests.filter(q => q.status === 'done').map(q => q.title).join(', ')
-      
       const { data } = await supabase.functions.invoke('jarvis-chat', {
         body: {
-          messages: [{ role: 'user', content: `Generera 5 side quests för Sigge. Han är 21, medicinsstudent i Stockholm/Täby, jobbar natt som PA, har rest till: ${completedTrips}. Gillar: resor, mat, musik (Håkan Hellström/Cornelis), filosofi, träning, spontana äventyr. Drömmål: 100k/mån, bo i Göteborg, resa överallt. Tidigare quests: ${completedQuests || 'inga ännu'}.
+          messages: [{ role: 'user', content: `Generera 5 side quests för Sigge. Han är 21, medicinsstudent i Stockholm/Täby, jobbar natt som PA, har rest till: ${completedTrips}. Gillar: resor, mat, musik (Håkan Hellström/Cornelis), filosofi, träning, spontana äventyr. Drömmål: 100k/mån, bo i Göteborg, resa överallt. Tidigare avklarade quests: ${completedQuests || 'inga ännu'}.
 
-Quests ska vara konkreta, lite galna, pushande — inte "drick mer vatten". Tänk: spontanresor, sociala utmaningar, kreativa projekt, matäventyr, fysiska utmaningar, intellektuella utmaningar.
+Quests ska vara konkreta, lite galna, pushande — inte "drick mer vatten". Tänk: spontanresor, sociala utmaningar, kreativa projekt, matäventyr, fysiska utmaningar, intellektuella utmaningar. Var specifik och kreativ.
 
 Returnera ENBART JSON utan backticks:
-{"quests": [{"title": "...", "description": "...", "category": "...", "difficulty": "lätt|medel|galen"}]}`
-          }],
-          context: '',
-          systemPrompt: 'Du genererar side quests för en ambitiös ung man. Returnera bara JSON.',
+{"quests": [{"title": "...", "description": "...", "category": "...", "difficulty": "lätt|medel|galen"}]}` }],
+          context: '', systemPrompt: 'Du genererar side quests. Returnera bara JSON.',
         },
       })
-
       if (data?.content) {
         const parsed = JSON.parse(data.content.replace(/```json|```/g, '').trim())
         if (parsed.quests?.length > 0) {
-          await supabase.from('side_quests').insert(
-            parsed.quests.map(q => ({ user_id: user.id, ...q, suggested_by: 'jarvis' }))
-          )
+          await supabase.from('side_quests').insert(parsed.quests.map(q => ({ user_id: user.id, ...q, suggested_by: 'jarvis' })))
           await fetchAll()
         }
       }
@@ -179,9 +298,8 @@ Returnera ENBART JSON utan backticks:
     setGeneratingQuests(false)
   }
 
-  // Stats
   const completedTrips = trips.filter(t => t.status === 'completed')
-  const countries = [...new Set(completedTrips.map(t => t.country).filter(Boolean))]
+  const allCountries = [...new Set(completedTrips.flatMap(t => t.countries || (t.country ? [t.country] : [])))]
   const activeQuests = sideQuests.filter(q => q.status === 'active')
   const doneQuests = sideQuests.filter(q => q.status === 'done')
   const filteredTrips = tripFilter === 'all' ? trips : trips.filter(t => t.status === tripFilter)
@@ -194,19 +312,16 @@ Returnera ENBART JSON utan backticks:
 
   return (
     <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
-
-      {/* Header */}
       <div style={{ marginBottom: '20px' }}>
         <div style={{ fontSize: '22px', fontWeight: '600' }}>Upplevelser</div>
         <div style={{ fontSize: '13px', color: 'var(--muted)', display: 'flex', gap: '16px', marginTop: '4px' }}>
-          <span>🌍 {countries.length} länder</span>
+          <span>🌍 {allCountries.length} länder</span>
           <span>✈️ {completedTrips.length} resor</span>
           <span>⚡ {activeQuests.length} aktiva quests</span>
           <span>🏆 {doneQuests.length} quests avklarade</span>
         </div>
       </div>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
@@ -221,7 +336,6 @@ Returnera ENBART JSON utan backticks:
       {/* ===== RESOR ===== */}
       {activeTab === 'resor' && (
         <>
-          {/* Filter + ny resa */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ display: 'flex', gap: '6px' }}>
               {[{ id: 'all', label: 'Alla' }, ...TRIP_STATUSES].map(({ id, label }) => (
@@ -233,76 +347,21 @@ Returnera ENBART JSON utan backticks:
                 }}>{label}</button>
               ))}
             </div>
-            <button onClick={() => setShowNewTrip(true)} className="btn btn-primary" style={{ fontSize: '13px' }}>
+            <button onClick={() => { setShowNewTrip(true); setEditingTrip(null) }} className="btn btn-primary" style={{ fontSize: '13px' }}>
               <Plus size={14} /> Ny resa
             </button>
           </div>
 
-          {/* New trip form */}
-          {showNewTrip && (
-            <div className="card" style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <div style={{ fontWeight: '600' }}>Lägg till resa</div>
-                <button onClick={() => setShowNewTrip(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={16} /></button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Titel</label>
-                  <input className="input" placeholder="t.ex. Lissabon" value={tripForm.title} onChange={e => setTripForm(f => ({ ...f, title: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Land</label>
-                  <input className="input" placeholder="t.ex. Portugal" value={tripForm.country} onChange={e => setTripForm(f => ({ ...f, country: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Stad</label>
-                  <input className="input" placeholder="t.ex. Lissabon" value={tripForm.city} onChange={e => setTripForm(f => ({ ...f, city: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Status</label>
-                  <select className="input" value={tripForm.status} onChange={e => setTripForm(f => ({ ...f, status: e.target.value }))}>
-                    {TRIP_STATUSES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Startdatum</label>
-                  <input className="input" type="date" value={tripForm.start_date} onChange={e => setTripForm(f => ({ ...f, start_date: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Slutdatum</label>
-                  <input className="input" type="date" value={tripForm.end_date} onChange={e => setTripForm(f => ({ ...f, end_date: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Budget (kr)</label>
-                  <input className="input" type="number" placeholder="t.ex. 8000" value={tripForm.budget_sek} onChange={e => setTripForm(f => ({ ...f, budget_sek: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Betyg</label>
-                  <StarRating value={tripForm.rating} onChange={v => setTripForm(f => ({ ...f, rating: v }))} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Highlights</label>
-                  <textarea className="input" rows={2} placeholder="Vad var bäst?" value={tripForm.highlights} onChange={e => setTripForm(f => ({ ...f, highlights: e.target.value }))} style={{ resize: 'vertical' }} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Anteckningar / Planering</label>
-                  <textarea className="input" rows={2} placeholder="Idéer, planering, tankar..." value={tripForm.notes} onChange={e => setTripForm(f => ({ ...f, notes: e.target.value }))} style={{ resize: 'vertical' }} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button onClick={() => setShowNewTrip(false)} className="btn btn-ghost">Avbryt</button>
-                <button onClick={saveTrip} className="btn btn-primary" disabled={saving || !tripForm.title}>
-                  {saving ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />} Spara
-                </button>
-              </div>
-            </div>
+          {(showNewTrip && !editingTrip) && (
+            <TripForm initial={EMPTY_TRIP} onSave={saveTrip} onCancel={() => setShowNewTrip(false)} saving={saving} />
           )}
 
-          {/* Trips list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {filteredTrips.map(trip => {
               const isExpanded = expandedTrip === trip.id
+              const isEditing = editingTrip === trip.id
               const status = TRIP_STATUSES.find(s => s.id === trip.status)
+              const tripCountries = trip.countries?.length ? trip.countries : (trip.country ? [trip.country] : [])
               const days = trip.start_date && trip.end_date
                 ? differenceInDays(parseISO(trip.end_date), parseISO(trip.start_date)) + 1
                 : null
@@ -310,15 +369,28 @@ Returnera ENBART JSON utan backticks:
                 ? differenceInDays(parseISO(trip.start_date), new Date())
                 : null
 
+              if (isEditing) {
+                return (
+                  <TripForm
+                    key={trip.id}
+                    initial={{ ...trip, budget_sek: trip.budget_sek || '', countries: tripCountries, rating: trip.rating || 0 }}
+                    onSave={saveTrip}
+                    onCancel={() => setEditingTrip(null)}
+                    saving={saving}
+                  />
+                )
+              }
+
               return (
                 <div key={trip.id} className="card" style={{
                   borderColor: trip.status === 'planned' ? 'rgba(59,130,246,0.3)' : trip.status === 'idea' ? 'rgba(139,92,246,0.2)' : 'var(--border)',
-                  background: trip.status === 'idea' ? 'rgba(139,92,246,0.03)' : 'var(--surface2)',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }}
                     onClick={() => setExpandedTrip(isExpanded ? null : trip.id)}>
-                    <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flex: 1 }}>
-                      <CountryFlag country={trip.country} />
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1 }}>
+                      <div style={{ fontSize: '22px', letterSpacing: '-2px' }}>
+                        {tripCountries.slice(0, 4).map(c => FLAGS[c] || '🌍').join('')}
+                      </div>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
                           <div style={{ fontSize: '15px', fontWeight: '600' }}>{trip.title}</div>
@@ -330,17 +402,22 @@ Returnera ENBART JSON utan backticks:
                             <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600' }}>om {daysUntil}d</span>
                           )}
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '10px' }}>
-                          {trip.city && <span>{trip.city}</span>}
+                        <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                          {tripCountries.length > 0 && <span>{tripCountries.join(' · ')}</span>}
+                          {trip.city && <span>📍 {trip.city}</span>}
                           {trip.start_date && <span>{format(parseISO(trip.start_date), 'MMM yyyy', { locale: sv })}</span>}
                           {days && <span>{days} dagar</span>}
                           {trip.rating > 0 && <span style={{ color: '#f59e0b' }}>{'★'.repeat(trip.rating)}</span>}
                         </div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      <button onClick={e => { e.stopPropagation(); setEditingTrip(trip.id); setExpandedTrip(null) }}
+                        style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', opacity: 0.6 }}>
+                        <Edit2 size={13} />
+                      </button>
                       <button onClick={e => { e.stopPropagation(); deleteTrip(trip.id) }}
-                        style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: '2px' }}>
+                        style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: '4px' }}>
                         <X size={13} />
                       </button>
                       {isExpanded ? <ChevronUp size={14} color="var(--muted)" /> : <ChevronDown size={14} color="var(--muted)" />}
@@ -350,17 +427,22 @@ Returnera ENBART JSON utan backticks:
                   {isExpanded && (trip.highlights || trip.notes) && (
                     <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
                       {trip.highlights && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>HIGHLIGHTS</div>
+                        <div style={{ marginBottom: trip.notes ? '10px' : '0' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px', fontWeight: '600' }}>HIGHLIGHTS</div>
                           <div style={{ fontSize: '13px', lineHeight: '1.6' }}>{trip.highlights}</div>
                         </div>
                       )}
                       {trip.notes && (
                         <div>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px', fontWeight: '600' }}>
                             {trip.status === 'planned' || trip.status === 'idea' ? 'PLANERING' : 'ANTECKNINGAR'}
                           </div>
                           <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6', fontStyle: 'italic' }}>{trip.notes}</div>
+                        </div>
+                      )}
+                      {trip.budget_sek && (
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--muted)' }}>
+                          💰 Budget: <span style={{ color: 'var(--text)' }}>{trip.budget_sek.toLocaleString('sv-SE')} kr</span>
                         </div>
                       )}
                     </div>
@@ -370,14 +452,13 @@ Returnera ENBART JSON utan backticks:
             })}
           </div>
 
-          {/* Countries visited */}
-          {countries.length > 0 && (
+          {allCountries.length > 0 && (
             <div className="card" style={{ marginTop: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px', fontWeight: '600' }}>BESÖKTA LÄNDER ({countries.length})</div>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px', fontWeight: '600' }}>BESÖKTA LÄNDER ({allCountries.length})</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {countries.map(c => (
+                {allCountries.map(c => (
                   <div key={c} style={{ padding: '4px 10px', background: 'var(--surface)', borderRadius: '6px', fontSize: '13px', border: '1px solid var(--border)' }}>
-                    <CountryFlag country={c} /> {c}
+                    {FLAGS[c] || '🌍'} {c}
                   </div>
                 ))}
               </div>
@@ -446,20 +527,16 @@ Returnera ENBART JSON utan backticks:
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {adventures.map(adv => (
                 <div key={adv.id} className="card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
-                        <div style={{ fontSize: '14px', fontWeight: '500' }}>{adv.title}</div>
-                        <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>{adv.category}</span>
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '10px', marginBottom: adv.description ? '8px' : '0' }}>
-                        {adv.date && <span>{format(parseISO(adv.date), 'd MMM yyyy', { locale: sv })}</span>}
-                        {adv.location && <span>📍 {adv.location}</span>}
-                        {adv.rating > 0 && <span style={{ color: '#f59e0b' }}>{'★'.repeat(adv.rating)}</span>}
-                      </div>
-                      {adv.description && <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.5', fontStyle: 'italic' }}>{adv.description}</div>}
-                    </div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: '500' }}>{adv.title}</div>
+                    <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>{adv.category}</span>
                   </div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '10px', marginBottom: adv.description ? '8px' : '0' }}>
+                    {adv.date && <span>{format(parseISO(adv.date), 'd MMM yyyy', { locale: sv })}</span>}
+                    {adv.location && <span>📍 {adv.location}</span>}
+                    {adv.rating > 0 && <span style={{ color: '#f59e0b' }}>{'★'.repeat(adv.rating)}</span>}
+                  </div>
+                  {adv.description && <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.5', fontStyle: 'italic' }}>{adv.description}</div>}
                 </div>
               ))}
             </div>
@@ -471,9 +548,7 @@ Returnera ENBART JSON utan backticks:
       {activeTab === 'quests' && (
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-              {activeQuests.length} aktiva · {doneQuests.length} avklarade
-            </div>
+            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{activeQuests.length} aktiva · {doneQuests.length} avklarade</div>
             <button onClick={generateSideQuests} disabled={generatingQuests} style={{
               display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px',
               borderRadius: '8px', border: '1px solid rgba(239,68,68,0.3)',
@@ -485,7 +560,6 @@ Returnera ENBART JSON utan backticks:
             </button>
           </div>
 
-          {/* Active quests */}
           {activeQuests.length > 0 && (
             <div style={{ marginBottom: '24px' }}>
               <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>AKTIVA</div>
@@ -494,39 +568,24 @@ Returnera ENBART JSON utan backticks:
                   const diff = DIFFICULTIES.find(d => d.id === quest.difficulty)
                   return (
                     <div key={quest.id} className="card" style={{ borderColor: diff?.color + '30' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
-                            <div style={{ fontSize: '14px', fontWeight: '600' }}>{quest.title}</div>
-                            {diff && (
-                              <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px',
-                                background: diff.color + '20', color: diff.color, fontWeight: '600' }}>
-                                {diff.label}
-                              </span>
-                            )}
-                          </div>
-                          {quest.description && (
-                            <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.5', marginBottom: '10px' }}>{quest.description}</div>
-                          )}
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button onClick={() => completeQuest(quest.id)} style={{
-                              display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px',
-                              borderRadius: '6px', border: '1px solid rgba(16,185,129,0.3)',
-                              background: 'rgba(16,185,129,0.08)', color: '#10b981',
-                              cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif',
-                            }}>
-                              <Check size={12} /> Avklarad
-                            </button>
-                            <button onClick={() => skipQuest(quest.id)} style={{
-                              display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 10px',
-                              borderRadius: '6px', border: '1px solid var(--border)',
-                              background: 'transparent', color: 'var(--muted)',
-                              cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif',
-                            }}>
-                              <SkipForward size={12} /> Skippa
-                            </button>
-                          </div>
-                        </div>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: '600' }}>{quest.title}</div>
+                        {diff && <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', background: diff.color + '20', color: diff.color, fontWeight: '600' }}>{diff.label}</span>}
+                      </div>
+                      {quest.description && <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.5', marginBottom: '10px' }}>{quest.description}</div>}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => completeQuest(quest.id)} style={{
+                          display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px',
+                          borderRadius: '6px', border: '1px solid rgba(16,185,129,0.3)',
+                          background: 'rgba(16,185,129,0.08)', color: '#10b981',
+                          cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif',
+                        }}><Check size={12} /> Avklarad</button>
+                        <button onClick={() => skipQuest(quest.id)} style={{
+                          display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 10px',
+                          borderRadius: '6px', border: '1px solid var(--border)',
+                          background: 'transparent', color: 'var(--muted)',
+                          cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif',
+                        }}><SkipForward size={12} /> Skippa</button>
                       </div>
                     </div>
                   )
@@ -535,7 +594,6 @@ Returnera ENBART JSON utan backticks:
             </div>
           )}
 
-          {/* Done quests */}
           {doneQuests.length > 0 && (
             <div>
               <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>AVKLARADE 🏆</div>
@@ -543,11 +601,7 @@ Returnera ENBART JSON utan backticks:
                 {doneQuests.map(quest => (
                   <div key={quest.id} style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.06)', borderRadius: '8px', border: '1px solid rgba(16,185,129,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontSize: '13px', color: '#10b981' }}>✓ {quest.title}</div>
-                    {quest.completed_at && (
-                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                        {format(parseISO(quest.completed_at), 'd MMM', { locale: sv })}
-                      </div>
-                    )}
+                    {quest.completed_at && <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{format(parseISO(quest.completed_at), 'd MMM', { locale: sv })}</div>}
                   </div>
                 ))}
               </div>
