@@ -170,9 +170,11 @@ export default function PluggPage() {
 
   async function saveExam(courseId) {
     if (!examForm.name.trim()) return
+    // Strip arc- prefix if present (used for UI state only)
+    const realCourseId = courseId.toString().replace('arc-', '')
     setSaving(true)
     await supabase.from('course_exams').insert({
-      user_id: user.id, course_id: courseId, name: examForm.name,
+      user_id: user.id, course_id: realCourseId, name: examForm.name,
       exam_date: examForm.exam_date || null, notes: examForm.notes,
     })
     setExamForm({ name: '', exam_date: '', notes: '' })
@@ -927,15 +929,12 @@ Börja: välj viktigaste målet → förklara → förhör → feedback → gå 
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Betyg</label>
-                  <select className="input" value={archiveForm.grade} onChange={e => setArchiveForm(f => ({ ...f, grade: e.target.value }))}>
-                    {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div>
                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Slutdatum</label>
                   <input className="input" type="date" value={archiveForm.end_date} onChange={e => setArchiveForm(f => ({ ...f, end_date: e.target.value }))} />
                 </div>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px' }}>
+                💡 Lägg till examinationer med betyg och poäng efter att kursen skapats
               </div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button onClick={() => setShowNewArchive(false)} className="btn btn-ghost">Avbryt</button>
@@ -958,78 +957,207 @@ Börja: välj viktigaste målet → förklara → förhör → feedback → gå 
               return acc
             }, {})
           ).sort(([a], [b]) => a.localeCompare(b)).map(([term, termCourses]) => (
-            <div key={term} style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>{term.toUpperCase()}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div key={term} style={{ marginBottom: '24px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>{term.toUpperCase()}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {termCourses.map(course => {
-                  const courseArchivedFiles = archivedFiles[course.id] || []
+                  const courseExamList = exams[course.id] || []
                   const isExpanded = expandedCourse === `archive-${course.id}`
+                  const doneExams = courseExamList.filter(e => e.grade).length
+                  const totalPoints = courseExamList.reduce((sum, e) => sum + (e.points_earned || 0), 0)
+                  const maxPoints = courseExamList.reduce((sum, e) => sum + (e.points_max || 0), 0)
+
                   return (
-                    <div key={course.id} className="card-sm">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                    <div key={course.id} className="card">
+                      {/* Course header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }}
                         onClick={() => setExpandedCourse(isExpanded ? null : `archive-${course.id}`)}>
-                        <div>
-                          <div style={{ fontSize: '14px', fontWeight: '500' }}>{course.name}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '8px' }}>
-                            {course.exam_date && <span>{format(parseISO(course.exam_date), 'd MMM yyyy', { locale: sv })}</span>}
-                            {courseArchivedFiles.length > 0 && <span style={{ color: '#10b981' }}>📄 {courseArchivedFiles.length} fil{courseArchivedFiles.length > 1 ? 'er' : ''}</span>}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '4px' }}>{course.name}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                            {course.exam_date && <span>Slutade: {format(parseISO(course.exam_date), 'd MMM yyyy', { locale: sv })}</span>}
+                            {courseExamList.length > 0 && <span style={{ color: doneExams === courseExamList.length ? '#10b981' : 'var(--muted)' }}>✓ {doneExams}/{courseExamList.length} tentor</span>}
+                            {maxPoints > 0 && <span style={{ color: '#f59e0b' }} className="mono">{totalPoints}/{maxPoints}p totalt</span>}
                           </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div className="mono" style={{
-                            fontSize: '14px', fontWeight: '600', padding: '4px 10px', borderRadius: '6px',
-                            background: course.grade === 'G' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-                            color: course.grade === 'G' ? '#10b981' : '#ef4444',
-                          }}>{course.grade || '—'}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <button onClick={e => { e.stopPropagation(); deleteCourse(course.id) }}
-                            style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4 }}>
+                            style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: '2px' }}>
                             <Trash2 size={13} />
                           </button>
-                          {isExpanded ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
+                          {isExpanded ? <ChevronUp size={15} color="var(--muted)" /> : <ChevronDown size={15} color="var(--muted)" />}
                         </div>
                       </div>
 
                       {isExpanded && (
-                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>BIFOGADE FILER</div>
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                            <input type="file" accept=".pdf" style={{ display: 'none' }} id={`arc-goals-${course.id}`}
-                              onChange={e => handleArchivePdfUpload(e, course.id, 'learning_goals')} />
-                            <label htmlFor={`arc-goals-${course.id}`} style={{
-                              padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)',
-                              color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
-                            }}>
-                              {uploadingArchivePdf === `${course.id}-learning_goals`
-                                ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</>
-                                : <><Upload size={11} /> Lärandemål (PDF)</>}
-                            </label>
+                        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
 
-                            <input type="file" accept=".pdf" style={{ display: 'none' }} id={`arc-exam-${course.id}`}
-                              onChange={e => handleArchivePdfUpload(e, course.id, 'old_exam')} />
-                            <label htmlFor={`arc-exam-${course.id}`} style={{
-                              padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)',
-                              color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
-                            }}>
-                              {uploadingArchivePdf === `${course.id}-old_exam`
-                                ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</>
-                                : <><Upload size={11} /> Gammal tenta (PDF)</>}
-                            </label>
-                          </div>
+                          {/* Examinationer */}
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>EXAMINATIONER</div>
 
-                          {courseArchivedFiles.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              {courseArchivedFiles.map(f => (
-                                <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 8px', background: 'rgba(16,185,129,0.06)', borderRadius: '5px', border: '1px solid rgba(16,185,129,0.15)' }}>
-                                  <FileText size={11} color="#10b981" />
-                                  <span style={{ fontSize: '12px', flex: 1, color: '#10b981' }}>{f.file_name}</span>
-                                  <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{f.file_type === 'learning_goals' ? 'Lärandemål' : 'Gammal tenta'}</span>
-                                  <button onClick={() => deleteArchivedFile(f.id)}
-                                    style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.5, padding: '2px' }}>
-                                    <Trash2 size={11} />
-                                  </button>
+                          {courseExamList.length === 0 && (
+                            <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '10px' }}>Inga examinationer — lägg till nedan</div>
+                          )}
+
+                          {courseExamList.map(exam => {
+                            const isExamExpanded = expandedExam === `arc-${exam.id}`
+                            const examFilesForExam = examFiles[exam.id] || []
+                            const examGoalList = goals[exam.id] || []
+
+                            return (
+                              <div key={exam.id} style={{
+                                marginBottom: '8px', borderRadius: '8px', overflow: 'hidden',
+                                border: `1px solid ${exam.grade === 'G' ? 'rgba(16,185,129,0.25)' : exam.grade === 'IG' ? 'rgba(239,68,68,0.25)' : 'var(--border)'}`,
+                                background: exam.grade === 'G' ? 'rgba(16,185,129,0.03)' : 'var(--surface2)',
+                              }}>
+                                <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                                  onClick={() => setExpandedExam(isExamExpanded ? null : `arc-${exam.id}`)}>
+                                  <div>
+                                    <div style={{ fontSize: '13px', fontWeight: '500' }}>{exam.name}</div>
+                                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '8px' }}>
+                                      {exam.exam_date && <span>{format(parseISO(exam.exam_date), 'd MMM yyyy', { locale: sv })}</span>}
+                                      {examGoalList.length > 0 && <span>{examGoalList.filter(g => g.completed).length}/{examGoalList.length} mål</span>}
+                                      {examFilesForExam.length > 0 && <span style={{ color: '#10b981' }}>📄 {examFilesForExam.length} fil{examFilesForExam.length > 1 ? 'er' : ''}</span>}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    {exam.grade && (
+                                      <span className="mono" style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px',
+                                        background: exam.grade === 'G' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                                        color: exam.grade === 'G' ? '#10b981' : '#ef4444',
+                                      }}>
+                                        {exam.grade}{exam.points_earned && exam.points_max ? ` · ${exam.points_earned}/${exam.points_max}p` : ''}
+                                      </span>
+                                    )}
+                                    <button onClick={e => { e.stopPropagation(); deleteExam(exam.id) }}
+                                      style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.35 }}>
+                                      <X size={12} />
+                                    </button>
+                                    {isExamExpanded ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
+                                  </div>
                                 </div>
-                              ))}
+
+                                {isExamExpanded && (
+                                  <div style={{ padding: '12px', borderTop: '1px solid var(--border)' }}>
+                                    {/* Betyg + poäng */}
+                                    <div style={{ marginBottom: '12px' }}>
+                                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>BETYG & POÄNG</div>
+                                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        {GRADES.map(g => (
+                                          <button key={g} onClick={() => updateExamGrade(exam.id, g)} style={{
+                                            padding: '5px 14px', borderRadius: '6px', cursor: 'pointer',
+                                            border: `1px solid ${exam.grade === g ? (g === 'G' ? '#10b981' : '#ef4444') : 'var(--border)'}`,
+                                            background: exam.grade === g ? (g === 'G' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)') : 'transparent',
+                                            color: exam.grade === g ? (g === 'G' ? '#10b981' : '#ef4444') : 'var(--muted)',
+                                            fontSize: '13px', fontFamily: 'DM Sans, sans-serif', fontWeight: '600',
+                                          }}>{g}</button>
+                                        ))}
+                                        {editingExamPoints === `arc-${exam.id}` ? (
+                                          <>
+                                            <input className="input" type="number" placeholder="Poäng" value={examPointsForm.points_earned}
+                                              onChange={e => setExamPointsForm(f => ({ ...f, points_earned: e.target.value }))}
+                                              style={{ width: '70px', padding: '5px 8px', fontSize: '12px' }} />
+                                            <span style={{ color: 'var(--muted)', fontSize: '12px' }}>av</span>
+                                            <input className="input" type="number" placeholder="Max" value={examPointsForm.points_max}
+                                              onChange={e => setExamPointsForm(f => ({ ...f, points_max: e.target.value }))}
+                                              style={{ width: '70px', padding: '5px 8px', fontSize: '12px' }} />
+                                            <button onClick={() => saveExamPoints(exam.id)} className="btn btn-primary" style={{ fontSize: '12px', padding: '5px 10px' }}>✓</button>
+                                            <button onClick={() => setEditingExamPoints(null)} className="btn btn-ghost" style={{ fontSize: '12px', padding: '5px 8px' }}>✕</button>
+                                          </>
+                                        ) : (
+                                          <button onClick={() => { setEditingExamPoints(`arc-${exam.id}`); setExamPointsForm({ points_earned: exam.points_earned || '', points_max: exam.points_max || '' }) }}
+                                            style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '6px', padding: '5px 10px', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif' }}>
+                                            {exam.points_earned && exam.points_max ? `✏️ ${exam.points_earned}/${exam.points_max}p` : '+ Poäng'}
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* PDF-filer */}
+                                    <div style={{ marginBottom: '12px' }}>
+                                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>BIFOGADE FILER</div>
+                                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`arc-goals-${exam.id}`}
+                                          onChange={e => handleGoalsPdfUpload(e, exam.id, exam.course_id)} />
+                                        <label htmlFor={`arc-goals-${exam.id}`} style={{
+                                          padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)',
+                                          color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
+                                        }}>
+                                          {uploadingGoalsPdf === exam.id
+                                            ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</>
+                                            : <><Upload size={11} /> Lärandemål (PDF)</>}
+                                        </label>
+                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`arc-oldexam-${exam.id}`}
+                                          onChange={e => handleOldExamUpload(e, exam.id)} />
+                                        <label htmlFor={`arc-oldexam-${exam.id}`} style={{
+                                          padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)',
+                                          color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
+                                        }}>
+                                          {uploadingOldExam === exam.id
+                                            ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</>
+                                            : <><Upload size={11} /> Gammal tenta (PDF)</>}
+                                        </label>
+                                      </div>
+                                      {examFilesForExam.length > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                          {examFilesForExam.map(f => (
+                                            <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 8px', background: 'rgba(16,185,129,0.06)', borderRadius: '5px', border: '1px solid rgba(16,185,129,0.15)' }}>
+                                              <FileText size={11} color="#10b981" />
+                                              <span style={{ fontSize: '12px', flex: 1, color: '#10b981' }}>{f.file_name}</span>
+                                              <button onClick={() => deleteExamFile(f.id)}
+                                                style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.5, padding: '2px' }}>
+                                                <Trash2 size={11} />
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Lärandemål */}
+                                    {examGoalList.length > 0 && (
+                                      <div>
+                                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>LÄRANDEMÅL ({examGoalList.length})</div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                          {examGoalList.map(goal => (
+                                            <div key={goal.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: goal.completed ? '#10b981' : 'var(--muted)', flexShrink: 0, marginTop: '6px' }} />
+                                              <span style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: '1.5' }}>{goal.description}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+
+                          {/* Lägg till examination */}
+                          {addingExamTo === `arc-${course.id}` ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: 'var(--surface2)', borderRadius: '8px', marginTop: '6px' }}>
+                              <input className="input" placeholder="t.ex. Delexamination 1" value={examForm.name}
+                                onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))} autoFocus />
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                <div>
+                                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Tentadatum</label>
+                                  <input className="input" type="date" value={examForm.exam_date} onChange={e => setExamForm(f => ({ ...f, exam_date: e.target.value }))} />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Anteckningar</label>
+                                  <input className="input" placeholder="Valfritt" value={examForm.notes} onChange={e => setExamForm(f => ({ ...f, notes: e.target.value }))} />
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button onClick={() => saveExam(course.id)} className="btn btn-primary" disabled={saving || !examForm.name}><Save size={12} /> Spara</button>
+                                <button onClick={() => { setAddingExamTo(null); setExamForm({ name: '', exam_date: '', notes: '' }) }} className="btn btn-ghost">Avbryt</button>
+                              </div>
                             </div>
+                          ) : (
+                            <button onClick={() => setAddingExamTo(`arc-${course.id}`)} className="btn btn-ghost" style={{ fontSize: '12px', marginTop: '6px' }}>
+                              <Plus size={12} /> Lägg till examination
+                            </button>
                           )}
                         </div>
                       )}
