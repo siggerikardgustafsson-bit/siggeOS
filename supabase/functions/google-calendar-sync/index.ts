@@ -30,19 +30,32 @@ async function fetchCalendarEvents(accessToken: string, monthsBack = 2): Promise
   const start = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1).toISOString()
   const end = new Date(now.getFullYear(), now.getMonth() + 2, 1).toISOString()
 
-  const resp = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${start}&timeMax=${end}&singleEvents=true&orderBy=startTime&maxResults=500`,
+  // First get all calendars
+  const calListResp = await fetch(
+    'https://www.googleapis.com/calendar/v3/users/me/calendarList',
     { headers: { Authorization: `Bearer ${accessToken}` } }
   )
-  const data = await resp.json()
-  return data.items || []
+  const calList = await calListResp.json()
+  const calendars = calList.items || []
+  console.log('Calendars found:', calendars.map((c: any) => c.summary).join(', '))
+
+  // Fetch events from all calendars
+  const allEvents: any[] = []
+  for (const cal of calendars) {
+    const resp = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?timeMin=${start}&timeMax=${end}&singleEvents=true&orderBy=startTime&maxResults=500`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    const data = await resp.json()
+    if (data.items) allEvents.push(...data.items)
+  }
+
+  return allEvents
 }
 
 function isPaShift(event: any): boolean {
   const title = (event.summary || '').toLowerCase()
-  const desc = (event.description || '').toLowerCase()
-  const keywords = ['assistanstid', 'hos hw', 'pa', 'personlig assistent', 'nattpass', 'pa-pass']
-  return keywords.some(k => title.includes(k) || desc.includes(k))
+  return title.includes('assistanstid') || title.includes('hos hw')
 }
 
 function parseShiftHours(event: any): { start: string; end: string; hours: number; isNight: boolean } | null {
@@ -118,12 +131,16 @@ serve(async (req) => {
 
     // ===== SYNC CALENDAR =====
     if (action === 'sync') {
-      // Get stored tokens
       const { data: tokenRow } = await supabase
         .from('google_tokens')
         .select('*')
         .eq('user_id', user.id)
         .single()
+
+      console.log('Token row found:', !!tokenRow)
+      console.log('Has refresh_token:', !!tokenRow?.refresh_token)
+      console.log('Expires at:', tokenRow?.expires_at)
+      console.log('Is expired:', tokenRow?.expires_at ? new Date(tokenRow.expires_at) < new Date() : 'unknown')
 
       if (!tokenRow?.refresh_token) {
         return new Response(JSON.stringify({ error: 'not_connected', message: 'Google Calendar inte kopplat' }), {
@@ -131,10 +148,11 @@ serve(async (req) => {
         })
       }
 
-      // Refresh token if expired
       let accessToken = tokenRow.access_token
       if (!accessToken || new Date(tokenRow.expires_at) < new Date()) {
+        console.log('Refreshing access token...')
         accessToken = await refreshAccessToken(tokenRow.refresh_token)
+        console.log('New access token received:', !!accessToken)
         if (!accessToken) throw new Error('Could not refresh token')
 
         await supabase.from('google_tokens').update({
@@ -144,9 +162,13 @@ serve(async (req) => {
         }).eq('user_id', user.id)
       }
 
-      // Fetch events
       const events = await fetchCalendarEvents(accessToken)
+      console.log('Total events fetched:', events.length)
       const paEvents = events.filter(isPaShift)
+      console.log('PA events found:', paEvents.length)
+      if (paEvents.length > 0) {
+        console.log('PA event titles:', paEvents.map((e: any) => e.summary).join(', '))
+      }
 
       // Upsert PA shifts
       let synced = 0
