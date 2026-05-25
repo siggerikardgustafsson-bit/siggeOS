@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns'
+import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame } from 'lucide-react'
+import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const EXERCISE_LIBRARY = {
   'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Pushups'],
@@ -99,6 +99,7 @@ export default function TraningPage() {
   // Other form
   const [otherForm, setOtherForm] = useState({ activity: '', duration: '', feeling: 7, notes: '', steps: '', date: format(new Date(), 'yyyy-MM-dd') })
   const [runPRs, setRunPRs] = useState([])
+  const [calendarMonth, setCalendarMonth] = useState(new Date())
 
   useEffect(() => {
     if (user) { fetchSessions(); fetchPRs(); fetchRunPRs() }
@@ -327,9 +328,14 @@ export default function TraningPage() {
           <div style={{ fontSize: '22px', fontWeight: '600' }}>Träning</div>
           <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{thisWeekSessions.length} pass denna vecka</div>
         </div>
-        <button onClick={() => setView(view === 'log' ? 'overview' : 'log')} className="btn btn-primary">
-          {view === 'log' ? <><X size={15} /> Avbryt</> : <><Plus size={15} /> Logga pass</>}
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={() => setView(view === 'calendar' ? 'overview' : 'calendar')} className="btn btn-ghost" style={{ fontSize: '13px' }}>
+            <Calendar size={14} /> {view === 'calendar' ? 'Översikt' : 'Kalender'}
+          </button>
+          <button onClick={() => setView(view === 'log' ? 'overview' : 'log')} className="btn btn-primary">
+            {view === 'log' ? <><X size={15} /> Avbryt</> : <><Plus size={15} /> Logga pass</>}
+          </button>
+        </div>
       </div>
 
       {view === 'overview' && (
@@ -483,6 +489,103 @@ export default function TraningPage() {
             )}
           </div>
         </>
+      )}
+
+      {view === 'calendar' && (
+        <div>
+          {/* Month navigation */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <button onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}>
+              <ChevronLeft size={15} />
+            </button>
+            <div style={{ fontSize: '15px', fontWeight: '600', textTransform: 'capitalize' }}>
+              {format(calendarMonth, 'MMMM yyyy', { locale: sv })}
+            </div>
+            <button onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}>
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
+          {/* Calendar grid */}
+          {(() => {
+            const monthStart = startOfMonth(calendarMonth)
+            const monthEnd = endOfMonth(calendarMonth)
+            const calStart = startOfWeek(monthStart, { weekStartsOn: 1 })
+            const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
+            const days = eachDayOfInterval({ start: calStart, end: calEnd })
+            const dayHeaders = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön']
+
+            return (
+              <div className="card">
+                {/* Day headers */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' }}>
+                  {dayHeaders.map(d => (
+                    <div key={d} style={{ fontSize: '11px', color: 'var(--muted)', textAlign: 'center', fontWeight: '600', padding: '4px 0' }}>{d}</div>
+                  ))}
+                </div>
+
+                {/* Day cells */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                  {days.map(day => {
+                    const dateStr = format(day, 'yyyy-MM-dd')
+                    const daySessions = sessions.filter(s => s.date === dateStr)
+                    const isCurrentMonth = isSameMonth(day, calendarMonth)
+                    const isToday = format(new Date(), 'yyyy-MM-dd') === dateStr
+                    const hasGym = daySessions.some(s => s.session_type === 'gym')
+                    const hasRun = daySessions.some(s => s.session_type === 'run')
+                    const hasOther = daySessions.some(s => s.session_type !== 'gym' && s.session_type !== 'run')
+
+                    return (
+                      <div key={dateStr} style={{
+                        minHeight: '64px', padding: '6px', borderRadius: '8px',
+                        background: isToday ? 'rgba(59,130,246,0.1)' : daySessions.length > 0 ? 'rgba(255,255,255,0.03)' : 'transparent',
+                        border: `1px solid ${isToday ? 'rgba(59,130,246,0.3)' : daySessions.length > 0 ? 'var(--border)' : 'transparent'}`,
+                        opacity: isCurrentMonth ? 1 : 0.3,
+                      }}>
+                        <div style={{ fontSize: '11px', fontWeight: isToday ? '700' : '400', color: isToday ? '#3b82f6' : 'var(--muted)', marginBottom: '4px' }}>
+                          {format(day, 'd')}
+                        </div>
+                        {daySessions.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            {hasGym && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(59,130,246,0.2)', color: '#93c5fd', fontWeight: '500' }}>💪 Gym</div>}
+                            {hasRun && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(16,185,129,0.2)', color: '#6ee7b7', fontWeight: '500' }}>
+                              🏃 {daySessions.find(s => s.session_type === 'run')?.distance_km ? `${daySessions.find(s => s.session_type === 'run').distance_km}km` : 'Löp'}
+                            </div>}
+                            {hasOther && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(236,72,153,0.2)', color: '#f9a8d4', fontWeight: '500' }}>⚡ Aktivitet</div>}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Month summary */}
+                {(() => {
+                  const monthSessions = sessions.filter(s => s.date >= format(monthStart, 'yyyy-MM-dd') && s.date <= format(monthEnd, 'yyyy-MM-dd'))
+                  const gymCount = monthSessions.filter(s => s.session_type === 'gym').length
+                  const runCount = monthSessions.filter(s => s.session_type === 'run').length
+                  const totalKm = monthSessions.filter(s => s.session_type === 'run').reduce((sum, s) => sum + (s.distance_km || 0), 0)
+                  return monthSessions.length > 0 ? (
+                    <div style={{ display: 'flex', gap: '16px', marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                        <span className="mono" style={{ color: '#3b82f6', fontWeight: '600' }}>{gymCount}</span> gympass
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                        <span className="mono" style={{ color: '#10b981', fontWeight: '600' }}>{runCount}</span> löppass
+                      </div>
+                      {totalKm > 0 && <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                        <span className="mono" style={{ color: '#10b981', fontWeight: '600' }}>{totalKm.toFixed(1)}</span> km totalt
+                      </div>}
+                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                        <span className="mono" style={{ color: 'var(--text)', fontWeight: '600' }}>{monthSessions.length}</span> pass totalt
+                      </div>
+                    </div>
+                  ) : null
+                })()}
+              </div>
+            )
+          })()}
+        </div>
       )}
 
       {view === 'log' && (

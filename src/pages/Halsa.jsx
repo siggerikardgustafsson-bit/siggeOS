@@ -69,17 +69,25 @@ export default function HalsaPage() {
     notes: '',
   })
 
+  const [timeWindow, setTimeWindow] = useState('90') // days, or 'all'
+
   useEffect(() => {
     if (user) { fetchLogs(); fetchTodayLog() }
-  }, [user])
+  }, [user, timeWindow])
 
   async function fetchLogs() {
-    const { data } = await supabase
+    let query = supabase
       .from('health_logs')
       .select('*')
       .eq('user_id', user.id)
       .order('date', { ascending: false })
-      .limit(90)
+
+    if (timeWindow !== 'all') {
+      const since = format(subDays(new Date(), parseInt(timeWindow)), 'yyyy-MM-dd')
+      query = query.gte('date', since)
+    }
+
+    const { data } = await query
     setLogs(data || [])
   }
 
@@ -217,15 +225,15 @@ export default function HalsaPage() {
     e.target.value = ''
   }
 
-  // Chart data
+  // Chart data — sorted ascending, weight null (not 0) for missing days
   const chartData = logs.slice().reverse().map(l => ({
     date: l.date,
-    weight: l.weight_kg,
-    sleep: l.sleep_hours,
-    steps: l.steps || null,
+    weight: l.weight_kg ?? null,
+    sleep: l.sleep_hours ?? null,
+    steps: l.steps ?? null,
     screen: l.screen_time_minutes ? Math.round(l.screen_time_minutes / 60 * 10) / 10 : null,
-    alcohol: l.alcohol_units,
-    energy: l.energy,
+    alcohol: l.alcohol_units ?? null,
+    energy: l.energy ?? null,
   }))
 
   // Latest stats
@@ -442,17 +450,38 @@ export default function HalsaPage() {
       {/* GRAPHS TAB */}
       {activeTab === 'graphs' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+          {/* Time window selector */}
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {[
+              { label: '4v', value: '28' },
+              { label: '3 mån', value: '90' },
+              { label: '6 mån', value: '180' },
+              { label: '1 år', value: '365' },
+              { label: 'Allt', value: 'all' },
+            ].map(({ label, value }) => (
+              <button key={value} onClick={() => setTimeWindow(value)} style={{
+                padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                background: timeWindow === value ? 'var(--blue)' : 'var(--surface2)',
+                color: timeWindow === value ? 'white' : 'var(--muted)',
+                fontSize: '12px', fontFamily: 'DM Sans, sans-serif', fontWeight: '500',
+                transition: 'all 0.15s',
+              }}>{label}</button>
+            ))}
+          </div>
           {[
-            { label: 'Vikt', dataKey: 'weight', color: '#10b981', unit: ' kg', refLine: 75, refLabel: 'Mål 75kg' },
-            { label: 'Sömn', dataKey: 'sleep', color: '#06b6d4', unit: 'h', refLine: 7.5, refLabel: 'Mål 7.5h' },
+            { label: 'Vikt', dataKey: 'weight', color: '#10b981', unit: ' kg', refLine: 75, refLabel: 'Mål 75kg', connectNulls: true },
             { label: 'Steg', dataKey: 'steps', color: '#f59e0b', unit: ' steg', refLine: 8000, refLabel: 'Mål 8 000' },
+            { label: 'Sömn', dataKey: 'sleep', color: '#06b6d4', unit: 'h', refLine: 7.5, refLabel: 'Mål 7.5h' },
             { label: 'Skärmtid', dataKey: 'screen', color: '#8b5cf6', unit: 'h', refLine: 6, refLabel: 'Mål 6h' },
             { label: 'Alkohol (enheter)', dataKey: 'alcohol', color: '#ef4444', unit: ' enh' },
             { label: 'Energi', dataKey: 'energy', color: '#f59e0b', unit: '/10' },
-          ].map(({ label, dataKey, color, unit, refLine, refLabel }) => {
+          ].map(({ label, dataKey, color, unit, refLine, refLabel, connectNulls }) => {
             const filtered = chartData.filter(d => d[dataKey] != null)
             if (filtered.length === 0) return null
             const latest = filtered[filtered.length - 1]?.[dataKey]
+            // For weight: use full chartData with connectNulls to draw line between measurements
+            const graphData = connectNulls ? chartData : filtered
             return (
               <div key={dataKey} className="card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -460,14 +489,14 @@ export default function HalsaPage() {
                   {latest && <div className="mono" style={{ fontSize: '13px', color }}>{latest}{unit}</div>}
                 </div>
                 <ResponsiveContainer width="100%" height={80}>
-                  <LineChart data={filtered}>
-                    <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} dot={false} />
+                  <LineChart data={graphData}>
+                    <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} dot={false} connectNulls={!!connectNulls} />
                     <XAxis dataKey="date" hide />
                     <YAxis hide domain={['auto', 'auto']} />
                     {refLine && <ReferenceLine y={refLine} stroke={color} strokeDasharray="3 3" opacity={0.4} label={{ value: refLabel, fontSize: 10, fill: color, opacity: 0.6 }} />}
                     <Tooltip
                       contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12px' }}
-                      formatter={v => [`${v}${unit}`, label]}
+                      formatter={v => v != null ? [`${v}${unit}`, label] : null}
                       labelFormatter={l => format(parseISO(l), 'd MMM', { locale: sv })}
                     />
                   </LineChart>
