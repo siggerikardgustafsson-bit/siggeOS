@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays } from 'date-fns'
-import { Send, Zap, Sun, Moon, RefreshCw } from 'lucide-react'
+import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp } from 'lucide-react'
 
 const JARVIS_SYSTEM = `Du är Jarvis – Sigges personliga AI-assistent inbyggd i hans livs-OS kallat Sigge OS.
 
@@ -17,55 +17,41 @@ VEM SIGGE ÄR:
 - Bor på lång sikt: Göteborg
 - Träning: mål 4-5 ggr/vecka, nu 1-2. PR: bänk 120, knäböj 130, marklyft 170 (peak vintern 2022). Milen sub-45min, halvmaraton 1h50 (peak våren 2025).
 - Vikt: nu ~77kg, mål 75kg, sedan muskelbyggande. På retatrutide sedan feb 2026 (2.5mg/vecka).
-- Skärmtidsmål: 6h/dag (nu ~11h/dag senaste mätt)
 - Peak-period: våren 2025 – strict diet, 4-5x träning/vecka, låg i fas med studierna, sparade pengar
-- Historisk peak styrka: vintern 2022
 
 NÄRA VÄNNER:
 - Zinedin: bästa vän sedan 13, pluggar sjuksköterska
 - Viktoria: närmaste i Stockholm, pluggpartner
-- Benjamin, Nils, Leo, William, Teddy, Daris – gänget från Vänersborg
-- Erik Norling: Nils pappa, arbetsgivare för sidojobb, betalar kontant
-- Sara: ex-flickvän (feb 2024 – höst 2025), Göteborg
+- Benjamin, Nils, Leo, William, Teddy – gänget från Vänersborg
+- Erik Norling: Nils pappa, arbetsgivare
+- Sara: ex-flickvän (feb 2024 – höst 2025)
 
-PERSONLIGHET & BETEENDEMöNSTER:
+PERSONLIGHET:
 - Hedonistisk men strukturkänslig
 - Progressionsdriven – mår dåligt utan framåtrörelse
 - Socialt beroende – mår bättre med folk runt sig
-- Går i faser: intensiv period → passiv period
-- Ogillar konflikter, kan undvika dem
-- Rationell beslutsfattare, följer sällan andras råd utan att ha tänkt igenom det
-- Rädd för att slösa bort livet mer än döden i sig
+- Går i faser: intensiv → passiv
+- Rädd för att slösa bort livet
 
-INTRESSEN: Resor (favoriter: Prag, Belgrad), filosofi, religion, historia, språk (svenska, engelska, serbokroatiska, passiv spanska, lite tyska), gitarr (Håkan Hellström, Cornelis Vreeswijk), podcasts: Tombola, Modern Wisdom, Joe Rogan
+INTRESSEN: Resor, filosofi, religion, historia, språk, gitarr (Håkan Hellström, Cornelis Vreeswijk)
 
 DIN PERSONLIGHET SOM JARVIS:
-- Läser av läget och anpassar ton – om han mår dåligt är du direkt men omtänksam, om han är på hugget är du energisk
-- Konfronterar och utmanar dåliga beslut – du är inte hans nickedocka
+- Läser av läget och anpassar ton
+- Konfronterar och utmanar dåliga beslut
 - Analytisk: data först, sedan slutsats
-- Pratar ALLTID svenska
-- Aldrig sycophantisk – du säger sanningen även om det är obekvämt
+- Aldrig sycophantisk – sanningen även om det är obekvämt
 - Refererar naturligt till hans vänner, historia och mål
-- Du känner hans nätverk och hans mönster
+- Du har VERKTYG för att hämta data — använd dem proaktivt utan att fråga om lov
 
-SNABBKOMMANDON (parsa och bekräfta):
-Om användaren skriver något i stil med:
-- "tränade idag: bänk 4x8x80kg" → bekräfta att du loggat träningen
-- "åt lunch med Viktoria, pizza 800 kcal" → bekräfta loggning av måltid och socialt
-- "drack 4 enheter igår kväll" → logga alkohol
-- "väger X kg idag" → logga vikt
-- "skapa uppdrag: [titel], tagg: [tagg], deadline: [datum]" → returnera JSON i formatet:
-  {"action": "create_erik_task", "title": "...", "description": "...", "tag": "...", "deadline": "YYYY-MM-DD"}
-  Tillgängliga taggar: Hotell Vänersborg, Brålanda Vandrarhem, Tygladan, Vargöns Varuhus, Övriga fastigheter, Övrig verksamhet, Personal
-- "logga äventyr: [titel]" eller "jag var på/åt/upplevde [något]" → returnera JSON:
-  {"action": "create_adventure", "title": "...", "description": "...", "date": "YYYY-MM-DD", "location": "...", "category": "mat|musik|natur|spontant|socialt|kultur|övrigt", "rating": 1-5}
+SNABBKOMMANDON:
+- "skapa uppdrag: [titel], tagg: [tagg], deadline: [datum]" → JSON: {"action": "create_erik_task", "title": "...", "tag": "...", "deadline": "YYYY-MM-DD"}
+- "logga äventyr: [titel]" → JSON: {"action": "create_adventure", "title": "...", "description": "...", "date": "YYYY-MM-DD", "category": "mat|musik|natur|spontant|socialt|kultur|övrigt", "rating": 1-5}
+- "spara insikt: [text]" → JSON: {"action": "save_insight", "insight": "...", "category": "hälsa|träning|plugg|socialt|mönster|mål"}
 
-Bekräfta alltid vad du loggat och ge en kort kommentar.
-
-KONTEXT (injiceras nedan med aktuell data):
+KONTEXT (injiceras nedan):
 {CONTEXT}
 
-Svara alltid på svenska. Håll svar kortfattade om inte Sigge ber om en lång analys.`
+Svara alltid på svenska. Kortfattat om inte Sigge ber om lång analys.`
 
 export default function Jarvis() {
   const { user } = useAuth()
@@ -73,20 +59,25 @@ export default function Jarvis() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [context, setContext] = useState('')
+  const [insights, setInsights] = useState([])
+  const [showInsights, setShowInsights] = useState(false)
+  const [convSummaries, setConvSummaries] = useState([])
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
   useEffect(() => {
     if (!user) return
-    loadHistory()
+    loadTodayHistory()
     buildContext()
+    loadInsights()
+    loadConvSummaries()
   }, [user])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function loadHistory() {
+  async function loadTodayHistory() {
     const today = format(new Date(), 'yyyy-MM-dd')
     const { data } = await supabase
       .from('jarvis_conversations')
@@ -95,132 +86,190 @@ export default function Jarvis() {
       .gte('created_at', today + 'T00:00:00')
       .order('created_at')
       .limit(50)
+    if (data?.length) setMessages(data.map(d => ({ role: d.role, content: d.content })))
+  }
 
-    if (data && data.length > 0) {
-      setMessages(data.map(d => ({ role: d.role, content: d.content })))
-    }
+  async function loadInsights() {
+    const { data } = await supabase
+      .from('jarvis_insights')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(20)
+    setInsights(data || [])
+  }
+
+  async function loadConvSummaries() {
+    const { data } = await supabase
+      .from('jarvis_conversations')
+      .select('summary, key_points, created_at')
+      .eq('user_id', user.id)
+      .not('summary', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    setConvSummaries(data || [])
   }
 
   async function buildContext() {
     const today = format(new Date(), 'yyyy-MM-dd')
-    const weekAgo = format(subDays(new Date(), 7), 'yyyy-MM-dd')
 
-    const [scoresRes, healthRes, journalRes, tasksRes, csnRes] = await Promise.all([
+    const [scoresRes, healthRes, journalRes, tasksRes, csnRes, insightsRes, summariesRes] = await Promise.all([
       supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).single(),
       supabase.from('health_logs').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(3),
-      supabase.from('journal_entries').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(3),
+      supabase.from('journal_entries').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(2),
       supabase.from('erik_tasks').select('*').eq('user_id', user.id).neq('status', 'klart').limit(5),
       supabase.rpc('get_csn_usage', { p_user_id: user.id }),
+      supabase.from('jarvis_insights').select('insight, category, updated_at').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(15),
+      supabase.from('jarvis_conversations').select('summary, key_points, created_at').eq('user_id', user.id).not('summary', 'is', null).order('created_at', { ascending: false }).limit(4),
     ])
+
+    const insightsBlock = (insightsRes.data || []).length > 0
+      ? `\nLONG-TERM INSIKTER (vad Jarvis lärt sig om Sigge):\n${insightsRes.data.map(i => `[${i.category}] ${i.insight}`).join('\n')}`
+      : ''
+
+    const summariesBlock = (summariesRes.data || []).length > 0
+      ? `\nTIDIGARE KONVERSATIONER (sammanfattningar):\n${summariesRes.data.map(s => `${format(new Date(s.created_at), 'yyyy-MM-dd')}: ${s.summary}${s.key_points?.length ? '\n  Nyckelp: ' + s.key_points.join(', ') : ''}`).join('\n')}`
+      : ''
 
     const ctx = `
 DAGENS SCORE (${today}):
-${scoresRes.data ? JSON.stringify(scoresRes.data, null, 2) : 'Inga scores loggade ännu idag'}
+${scoresRes.data ? `Träning:${scoresRes.data.score_training||0} Hälsa:${scoresRes.data.score_health||0} Plugg:${scoresRes.data.score_study||0} Ekonomi:${scoresRes.data.score_economy||0} Journal:${scoresRes.data.score_journal||0} Jobb:${scoresRes.data.score_work||0}` : 'Inga scores idag'}
 
 SENASTE HÄLSODATA:
-${JSON.stringify(healthRes.data, null, 2)}
+${(healthRes.data||[]).map(h => `${h.date}: vikt${h.weight_kg||'-'}kg sömn${h.sleep_hours||'-'}h steg${h.steps||'-'} energi${h.energy||'-'}/10`).join('\n')}
 
 SENASTE JOURNAL:
-${JSON.stringify(journalRes.data, null, 2)}
+${(journalRes.data||[]).map(j => `${j.date}: humör${j.mood||'-'}/10 energi${j.energy||'-'}/10 ${j.highlights||''}`).join('\n')}
 
 AKTIVA ERIK-UPPDRAG:
-${JSON.stringify(tasksRes.data, null, 2)}
+${(tasksRes.data||[]).map(t => `${t.title} [${t.tag}]${t.deadline ? ' deadline:'+t.deadline : ''}`).join('\n') || 'Inga aktiva uppdrag'}
 
-CSN-FRIBELOPP:
-Förbrukat: ${Math.round(csnRes.data || 0)} kr av 114 500 kr (${((csnRes.data || 0) / 114500 * 100).toFixed(1)}%)
-`
+CSN: ${Math.round(csnRes.data||0)} kr av 114 500 kr förbrukat (${((csnRes.data||0)/114500*100).toFixed(1)}%)
+${insightsBlock}
+${summariesBlock}`
+
     setContext(ctx)
+  }
+
+  async function summarizeAndSave() {
+    if (messages.length < 4) return
+    try {
+      const { data } = await supabase.functions.invoke('jarvis-chat', {
+        body: {
+          messages: [{
+            role: 'user',
+            content: `Sammanfatta denna konversation i max 2 meningar och lista 3-5 nyckelpoäng. Returnera BARA JSON:
+{"summary": "...", "key_points": ["...", "..."], "insights": [{"insight": "...", "category": "hälsa|träning|plugg|socialt|mönster|mål"}]}`
+          }],
+          context: messages.map(m => `${m.role}: ${m.content}`).join('\n'),
+          systemPrompt: 'Du sammanfattar konversationer. Returnera bara JSON.',
+        },
+      })
+
+      if (data?.content) {
+        const clean = data.content.replace(/```json|```/g, '').trim()
+        const parsed = JSON.parse(clean)
+
+        // Save conversation summary to today's last message
+        const today = format(new Date(), 'yyyy-MM-dd')
+        await supabase.from('jarvis_conversations').update({
+          summary: parsed.summary,
+          key_points: parsed.key_points,
+        }).eq('user_id', user.id).gte('created_at', today + 'T00:00:00').eq('role', 'assistant')
+          .order('created_at', { ascending: false }).limit(1)
+
+        // Save long-term insights
+        if (parsed.insights?.length) {
+          for (const ins of parsed.insights) {
+            if (!ins.insight || ins.insight.length < 10) continue
+            // Check if similar insight exists
+            const { data: existing } = await supabase
+              .from('jarvis_insights')
+              .select('id')
+              .eq('user_id', user.id)
+              .ilike('insight', `%${ins.insight.slice(0, 30)}%`)
+              .single()
+
+            if (existing) {
+              await supabase.from('jarvis_insights').update({
+                insight: ins.insight,
+                updated_at: new Date().toISOString(),
+              }).eq('id', existing.id)
+            } else {
+              await supabase.from('jarvis_insights').insert({
+                user_id: user.id,
+                insight: ins.insight,
+                category: ins.category || 'mönster',
+                confidence: 75,
+              })
+            }
+          }
+        }
+        await loadInsights()
+        await loadConvSummaries()
+      }
+    } catch (e) { console.error('Summary failed:', e) }
   }
 
   async function sendMessage() {
     if (!input.trim() || loading) return
-
     const userMsg = { role: 'user', content: input.trim() }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setInput('')
     setLoading(true)
 
-    // Save to DB
-    await supabase.from('jarvis_conversations').insert({
-      user_id: user.id,
-      role: 'user',
-      content: userMsg.content,
-    })
-
-    // Check if user wants to create an Erik task
-    const taskKeywords = ['skapa uppdrag', 'lägg till uppdrag', 'nytt uppdrag', 'create task', 'lägg till en uppgift']
-    const wantsTask = taskKeywords.some(k => userMsg.content.toLowerCase().includes(k))
+    await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'user', content: userMsg.content })
 
     try {
-      // Call Supabase Edge Function (which calls Anthropic)
       const { data, error } = await supabase.functions.invoke('jarvis-chat', {
-        body: {
-          messages: newMessages,
-          context,
-          systemPrompt: JARVIS_SYSTEM,
-        },
+        body: { messages: newMessages, context, systemPrompt: JARVIS_SYSTEM },
       })
-
       if (error) throw error
 
       const assistantMsg = { role: 'assistant', content: data.content }
 
-      // Check if Jarvis wants to create an Erik task
+      // Parse actions
       if (data.content.includes('"action": "create_erik_task"')) {
         try {
-          const jsonMatch = data.content.match(/\{[^}]*"action":\s*"create_erik_task"[^}]*\}/s)
-          if (jsonMatch) {
-            const taskData = JSON.parse(jsonMatch[0])
-            await supabase.from('erik_tasks').insert({
-              user_id: user.id,
-              title: taskData.title,
-              description: taskData.description || '',
-              deadline: taskData.deadline || null,
-              tag: taskData.tag || 'Övrig verksamhet',
-              status: 'ej_påbörjat',
-              priority: 'medium',
-            })
+          const m = data.content.match(/\{"action":\s*"create_erik_task"[^}]*\}/s)
+          if (m) {
+            const d = JSON.parse(m[0])
+            await supabase.from('erik_tasks').insert({ user_id: user.id, title: d.title, description: d.description||'', deadline: d.deadline||null, tag: d.tag||'Övrig verksamhet', status: 'ej_påbörjat', priority: 'medium' })
           }
-        } catch (e) { console.error('Task creation failed:', e) }
+        } catch(e) {}
       }
 
-      // Check if Jarvis wants to log an adventure
       if (data.content.includes('"action": "create_adventure"')) {
         try {
-          const jsonMatch = data.content.match(/\{[^}]*"action":\s*"create_adventure"[^}]*\}/s)
-          if (jsonMatch) {
-            const advData = JSON.parse(jsonMatch[0])
-            await supabase.from('adventures').insert({
-              user_id: user.id,
-              title: advData.title,
-              description: advData.description || '',
-              date: advData.date || format(new Date(), 'yyyy-MM-dd'),
-              location: advData.location || '',
-              category: advData.category || 'övrigt',
-              rating: advData.rating || null,
-            })
+          const m = data.content.match(/\{"action":\s*"create_adventure"[^}]*\}/s)
+          if (m) {
+            const d = JSON.parse(m[0])
+            await supabase.from('adventures').insert({ user_id: user.id, title: d.title, description: d.description||'', date: d.date||format(new Date(),'yyyy-MM-dd'), location: d.location||'', category: d.category||'övrigt', rating: d.rating||null })
           }
-        } catch (e) { console.error('Adventure creation failed:', e) }
+        } catch(e) {}
+      }
+
+      if (data.content.includes('"action": "save_insight"')) {
+        try {
+          const m = data.content.match(/\{"action":\s*"save_insight"[^}]*\}/s)
+          if (m) {
+            const d = JSON.parse(m[0])
+            await supabase.from('jarvis_insights').insert({ user_id: user.id, insight: d.insight, category: d.category||'mönster' })
+            await loadInsights()
+          }
+        } catch(e) {}
       }
 
       setMessages(prev => [...prev, assistantMsg])
+      await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: data.content })
 
-      // Save assistant response
-      await supabase.from('jarvis_conversations').insert({
-        user_id: user.id,
-        role: 'assistant',
-        content: data.content,
-      })
+      // Auto-summarize every 10 messages
+      if (newMessages.length % 10 === 0) summarizeAndSave()
 
     } catch (err) {
-      console.error(err)
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: 'Något gick fel. Kolla att Edge Function är deployad och att ANTHROPIC_API_KEY är satt i Supabase.'
-      }])
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Något gick fel. Försök igen.' }])
     }
-
     setLoading(false)
     inputRef.current?.focus()
   }
@@ -228,132 +277,130 @@ Förbrukat: ${Math.round(csnRes.data || 0)} kr av 114 500 kr (${((csnRes.data ||
   async function generateBrief(type) {
     setLoading(true)
     const prompt = type === 'morning'
-      ? 'Ge mig en morning brief för idag. Analysera mina senaste data och ge mig de 3 viktigaste sakerna jag bör fokusera på idag, vad jag bör vara uppmärksam på, och ett konkret mål för dagen.'
-      : 'Ge mig en kvällssammanfattning. Summera vad som hände idag baserat på min data, lyft fram något bra och något att ta med sig till imorgon.'
-
-    setInput('')
+      ? 'Ge mig en morning brief. Analysera mina senaste data och ge mig de 3 viktigaste sakerna att fokusera på idag.'
+      : 'Ge mig en kvällssummering. Vad hände idag? Lyft fram något bra och något att ta med till imorgon.'
     const fakeMsg = { role: 'user', content: prompt }
     setMessages(prev => [...prev, fakeMsg])
-
-    await supabase.from('jarvis_conversations').insert({
-      user_id: user.id,
-      role: 'user',
-      content: prompt,
-    })
-
+    await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'user', content: prompt })
     try {
       const { data } = await supabase.functions.invoke('jarvis-chat', {
         body: { messages: [...messages, fakeMsg], context, systemPrompt: JARVIS_SYSTEM },
       })
-
       const assistantMsg = { role: 'assistant', content: data.content }
       setMessages(prev => [...prev, assistantMsg])
-
-      await supabase.from('jarvis_conversations').insert({
-        user_id: user.id,
-        role: 'assistant',
-        content: data.content,
-      })
-
-      // Save brief
-      await supabase.from('jarvis_briefs').upsert({
-        user_id: user.id,
-        date: format(new Date(), 'yyyy-MM-dd'),
-        brief_type: type,
-        content: data.content,
-      })
-    } catch (err) {
-      console.error(err)
-    }
-
+      await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: data.content })
+      await supabase.from('jarvis_briefs').upsert({ user_id: user.id, date: format(new Date(), 'yyyy-MM-dd'), brief_type: type, content: data.content })
+    } catch(e) {}
     setLoading(false)
   }
 
-  async function clearToday() {
-    const today = format(new Date(), 'yyyy-MM-dd')
-    await supabase.from('jarvis_conversations')
-      .delete()
-      .eq('user_id', user.id)
-      .gte('created_at', today + 'T00:00:00')
-    setMessages([])
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
+  const hour = new Date().getHours()
+
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', maxWidth: '800px', margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', maxHeight: '100vh', overflow: 'hidden' }}>
 
       {/* Header */}
-      <div style={{ padding: '20px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'var(--surface)', backdropFilter: 'blur(20px)' }}>
         <div>
-          <div style={{ fontSize: '18px', fontWeight: '600' }}>
-            Jarvis<span style={{ color: 'var(--blue)' }}>_</span>
+          <div style={{ fontSize: '18px', fontWeight: '700', letterSpacing: '-0.3px' }}>Jarvis</div>
+          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+            {insights.length > 0 ? `${insights.length} insikter sparade` : 'Personlig AI'}
           </div>
-          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Din personliga AI-assistent</div>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={() => generateBrief('morning')} className="btn btn-ghost" style={{ fontSize: '12px', padding: '7px 12px' }}>
-            <Sun size={13} /> Morning brief
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button onClick={() => setShowInsights(!showInsights)} style={{
+            display: 'flex', alignItems: 'center', gap: '5px', padding: '7px 12px',
+            borderRadius: '8px', border: '1px solid var(--border)', background: showInsights ? 'var(--accent-soft)' : 'var(--surface2)',
+            color: showInsights ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
+          }}>
+            <Brain size={13} />
+            Minne
+            {showInsights ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
           </button>
-          <button onClick={() => generateBrief('evening')} className="btn btn-ghost" style={{ fontSize: '12px', padding: '7px 12px' }}>
-            <Moon size={13} /> Kvällssummering
-          </button>
-          <button onClick={clearToday} className="btn btn-ghost" style={{ fontSize: '12px', padding: '7px 10px' }} title="Rensa dagens konversation">
-            <RefreshCw size={13} />
+          {hour < 12 && (
+            <button onClick={() => generateBrief('morning')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.25)', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
+              <Sun size={13} /> Morning brief
+            </button>
+          )}
+          {hour >= 18 && (
+            <button onClick={() => generateBrief('evening')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: '1px solid rgba(139,92,246,0.25)', background: 'rgba(139,92,246,0.08)', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
+              <Moon size={13} /> Kvällssummering
+            </button>
+          )}
+          <button onClick={summarizeAndSave} disabled={messages.length < 4 || loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
+            <Zap size={13} /> Spara minne
           </button>
         </div>
       </div>
 
-      {/* Quick commands hint */}
-      {messages.length === 0 && (
-        <div style={{ padding: '16px 24px' }}>
-          <div style={{ padding: '14px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px', fontWeight: '500' }}>SNABBKOMMANDON</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-              {[
-                'tränade idag: bänk 4x8x80kg',
-                'väger 76.5 kg idag',
-                'åt lunch med Viktoria, pizza 800 kcal',
-                'drack 3 enheter igår',
-                'pluggade 2h fysiologi idag',
-                'förhör mig på RAAS-systemet',
-              ].map(cmd => (
-                <button
-                  key={cmd}
-                  onClick={() => setInput(cmd)}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: '6px',
-                    background: 'rgba(59,130,246,0.08)',
-                    border: '1px solid rgba(59,130,246,0.2)',
-                    color: '#93c5fd',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    fontFamily: 'DM Sans, sans-serif',
-                  }}
-                >
-                  {cmd}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Memory panel */}
+      {showInsights && (
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', background: 'rgba(139,92,246,0.04)', flexShrink: 0, maxHeight: '200px', overflowY: 'auto' }}>
+          {insights.length === 0 ? (
+            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Inga insikter sparade ännu. Chatta mer med Jarvis så lär den sig dig.</div>
+          ) : (
+            <>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px', letterSpacing: '0.05em' }}>JARVIS LÅNGTIDSMINNE</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                {insights.map(ins => (
+                  <div key={ins.id} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: 'var(--accent-soft)', color: 'var(--accent)', flexShrink: 0, fontWeight: '600' }}>{ins.category}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--text)', lineHeight: '1.4' }}>{ins.insight}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {messages.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
+            <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚡</div>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text)', marginBottom: '6px' }}>Jarvis är redo</div>
+            <div style={{ fontSize: '13px' }}>Fråga om din träning, hälsa, plugg eller livet i allmänhet. Jarvis hämtar data automatiskt.</div>
+            <div style={{ marginTop: '20px', display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+              {[
+                'Analysera min löpning i år',
+                'Hur mår jag generellt?',
+                'Vad bör jag prioritera idag?',
+                'Visa min vikttrend',
+                'Hur går det med plugget?',
+              ].map(suggestion => (
+                <button key={suggestion} onClick={() => { setInput(suggestion); inputRef.current?.focus() }} style={{
+                  padding: '7px 14px', borderRadius: '20px', border: '1px solid var(--border)',
+                  background: 'var(--surface2)', color: 'var(--muted2)', cursor: 'pointer',
+                  fontSize: '12px', fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
+                }}>
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {messages.map((msg, i) => (
           <div key={i} style={{
             display: 'flex',
             justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
           }}>
             <div style={{
-              maxWidth: '80%',
+              maxWidth: '75%',
               padding: '12px 16px',
               borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-              background: msg.role === 'user' ? 'var(--blue)' : 'var(--surface)',
+              background: msg.role === 'user' ? 'var(--accent)' : 'var(--surface)',
               border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
+              color: msg.role === 'user' ? 'white' : 'var(--text)',
               fontSize: '14px',
               lineHeight: '1.6',
-              color: 'var(--text)',
+              backdropFilter: 'blur(10px)',
+              boxShadow: msg.role === 'user' ? '0 2px 12px var(--accent-glow)' : 'var(--glass-shadow)',
               whiteSpace: 'pre-wrap',
             }}>
               {msg.content}
@@ -363,29 +410,10 @@ Förbrukat: ${Math.round(csnRes.data || 0)} kr av 114 500 kr (${((csnRes.data ||
 
         {loading && (
           <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{
-              padding: '12px 16px',
-              borderRadius: '16px 16px 16px 4px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              display: 'flex',
-              gap: '5px',
-              alignItems: 'center',
-            }}>
+            <div style={{ padding: '12px 16px', borderRadius: '16px 16px 16px 4px', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', gap: '5px', alignItems: 'center' }}>
               {[0,1,2].map(i => (
-                <div key={i} style={{
-                  width: '6px', height: '6px', borderRadius: '50%',
-                  background: 'var(--muted)',
-                  animation: 'pulse 1.2s infinite',
-                  animationDelay: `${i * 0.2}s`,
-                }} />
+                <div key={i} style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--accent)', opacity: 0.6, animation: `bounce 1.2s ease-in-out ${i * 0.15}s infinite` }} />
               ))}
-              <style>{`
-                @keyframes pulse {
-                  0%, 100% { opacity: 0.3; transform: scale(0.8); }
-                  50% { opacity: 1; transform: scale(1); }
-                }
-              `}</style>
             </div>
           </div>
         )}
@@ -393,41 +421,47 @@ Förbrukat: ${Math.round(csnRes.data || 0)} kr av 114 500 kr (${((csnRes.data ||
       </div>
 
       {/* Input */}
-      <div style={{ padding: '12px 24px 20px', borderTop: '1px solid var(--border)' }}>
+      <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', background: 'var(--surface)', backdropFilter: 'blur(20px)', flexShrink: 0 }}>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
           <textarea
             ref={inputRef}
-            className="input"
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                sendMessage()
-              }
-            }}
+            onKeyDown={handleKey}
             placeholder="Skriv till Jarvis... (Enter för att skicka)"
+            disabled={loading}
             rows={1}
             style={{
-              resize: 'none',
-              overflowY: 'auto',
-              maxHeight: '120px',
-              lineHeight: '1.5',
+              flex: 1, padding: '12px 16px', borderRadius: '12px',
+              border: '1px solid var(--border)', background: 'var(--surface2)',
+              color: 'var(--text)', fontSize: '14px', fontFamily: 'Inter, sans-serif',
+              resize: 'none', outline: 'none', lineHeight: '1.5',
+              maxHeight: '120px', overflow: 'auto',
+              transition: 'border-color 0.15s',
             }}
+            onFocus={e => e.target.style.borderColor = 'var(--accent-border)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'}
           />
-          <button
-            onClick={sendMessage}
-            disabled={loading || !input.trim()}
-            className="btn btn-primary"
-            style={{ padding: '10px 14px', flexShrink: 0, opacity: loading || !input.trim() ? 0.5 : 1 }}
-          >
+          <button onClick={sendMessage} disabled={loading || !input.trim()} style={{
+            width: '44px', height: '44px', borderRadius: '12px', border: 'none',
+            background: input.trim() ? 'var(--accent)' : 'var(--surface2)',
+            color: input.trim() ? 'white' : 'var(--muted)',
+            cursor: input.trim() ? 'pointer' : 'default',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.15s', flexShrink: 0,
+            boxShadow: input.trim() ? '0 2px 12px var(--accent-glow)' : 'none',
+          }}>
             <Send size={16} />
           </button>
         </div>
-        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
-          Shift+Enter för ny rad
-        </div>
       </div>
+
+      <style>{`
+        @keyframes bounce {
+          0%, 60%, 100% { transform: translateY(0); }
+          30% { transform: translateY(-6px); }
+        }
+      `}</style>
     </div>
   )
 }
