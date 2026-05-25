@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, BookOpen, Dumbbell, Heart,
   DollarSign, GraduationCap, Briefcase,
-  BarChart2, MessageSquare, LogOut, Compass
+  BarChart2, MessageSquare, LogOut, Compass, Settings
 } from 'lucide-react'
 
 const navItems = [
@@ -133,7 +133,24 @@ export default function Sidebar() {
       </nav>
 
       {/* Sign out */}
-      <div style={{ padding: '10px 10px 16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <div style={{ padding: '10px 10px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <NavLink to="/installningar" style={({ isActive }) => ({
+          display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px',
+          borderRadius: '10px', textDecoration: 'none', fontSize: '13.5px',
+          fontWeight: isActive ? '500' : '400',
+          color: isActive ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.38)',
+          background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+          border: isActive ? '1px solid rgba(255,255,255,0.10)' : '1px solid transparent',
+          transition: 'all 0.18s',
+        })}>
+          {({ isActive }) => (
+            <>
+              <span style={{ color: isActive ? 'var(--accent)' : 'inherit', display: 'flex' }}><Settings size={15} /></span>
+              Inställningar
+              {isActive && <span style={{ marginLeft: 'auto', width: '4px', height: '4px', borderRadius: '50%', background: 'var(--accent)', boxShadow: '0 0 6px var(--accent)' }} />}
+            </>
+          )}
+        </NavLink>
         <button
           onClick={handleSignOut}
           style={{

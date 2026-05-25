@@ -12,6 +12,7 @@ import PluggPage from './pages/Plugg'
 import JobbPage from './pages/Jobb'
 import InsightsPage from './pages/Insights'
 import UpplevelserPage from './pages/Upplevelser'
+import SettingsPage from './pages/Settings'
 import AuthCallback from './pages/AuthCallback'
 
 function ProtectedRoute({ children }) {
@@ -41,6 +42,7 @@ function AppRoutes() {
         <Route path="/jobb"         element={<JobbPage />} />
         <Route path="/upplevelser"  element={<UpplevelserPage />} />
         <Route path="/insights"     element={<InsightsPage />} />
+        <Route path="/installningar" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
