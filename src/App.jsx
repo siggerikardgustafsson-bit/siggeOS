@@ -13,6 +13,7 @@ import JobbPage from './pages/Jobb'
 import InsightsPage from './pages/Insights'
 import UpplevelserPage from './pages/Upplevelser'
 import SettingsPage from './pages/Settings'
+import KalenderPage from './pages/Kalender'
 import AuthCallback from './pages/AuthCallback'
 import StravaCallback from './pages/StravaCallback'
 
@@ -42,8 +43,9 @@ function AppRoutes() {
         <Route path="/ekonomi"      element={<EkonomiPage />} />
         <Route path="/plugg"        element={<PluggPage />} />
         <Route path="/jobb"         element={<JobbPage />} />
-        <Route path="/upplevelser"  element={<UpplevelserPage />} />
-        <Route path="/insights"     element={<InsightsPage />} />
+        <Route path="/upplevelser"   element={<UpplevelserPage />} />
+        <Route path="/insights"      element={<InsightsPage />} />
+        <Route path="/kalender"      element={<KalenderPage />} />
         <Route path="/installningar" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

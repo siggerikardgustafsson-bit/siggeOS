@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, BookOpen, Dumbbell, Heart,
   DollarSign, GraduationCap, Briefcase,
-  BarChart2, MessageSquare, LogOut, Compass, Settings
+  BarChart2, MessageSquare, LogOut, Compass, Settings, CalendarDays
 } from 'lucide-react'
 
 const navItems = [
@@ -16,6 +16,7 @@ const navItems = [
   { to: '/plugg',       icon: GraduationCap,   label: 'Plugg' },
   { to: '/jobb',        icon: Briefcase,       label: 'Jobb' },
   { to: '/upplevelser', icon: Compass,         label: 'Upplevelser' },
+  { to: '/kalender',    icon: CalendarDays,    label: 'Kalender' },
   { to: '/insights',    icon: BarChart2,       label: 'Insights' },
 ]
 
