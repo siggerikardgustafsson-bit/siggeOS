@@ -81,7 +81,7 @@ export default function InsightsPage() {
     const since180 = format(subDays(new Date(), 180), 'yyyy-MM-dd')
 
     const [healthRes, journalRes, studyRes, trainingRes, incomeRes, expenseRes, paRes, examRes, courseRes, prRes] = await Promise.all([
-      supabase.from('health_logs').select('date,weight,sleep_hours,energy_level').eq('user_id', user.id).gte('date', since90).order('date'),
+      supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('journal_entries').select('date,energy,mood,sleep_hours').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('study_sessions').select('date,hours,course_id').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('training_sessions').select('date,session_type,duration_min').eq('user_id', user.id).gte('date', since90).order('date'),
