@@ -6,7 +6,7 @@ import { sv } from 'date-fns/locale'
 import {
   Plus, X, Save, Loader, BookOpen, GraduationCap,
   ExternalLink, Copy, Check, ChevronDown, ChevronUp,
-  Archive, Zap, Upload
+  Archive, Zap, Upload, FileText, Trash2
 } from 'lucide-react'
 
 const GRADES = ['IG', 'G']
@@ -16,11 +16,11 @@ const TERMS = ['Termin 1','Termin 2','Termin 3','Termin 4','Termin 5','Termin 6'
 function CountdownBadge({ examDate }) {
   if (!examDate) return null
   const days = differenceInDays(parseISO(examDate), new Date())
-  const color = days <= 7 ? '#ef4444' : days <= 14 ? '#f59e0b' : days <= 30 ? '#3b82f6' : '#10b981'
+  const color = days < 0 ? '#6b7280' : days <= 7 ? '#ef4444' : days <= 14 ? '#f59e0b' : days <= 30 ? '#3b82f6' : '#10b981'
   return (
-    <div className="mono" style={{ fontSize: '12px', color, fontWeight: '600',
-      padding: '3px 8px', borderRadius: '6px', background: color + '15' }}>
-      {days < 0 ? 'Passerad' : days === 0 ? 'IDAG' : `${days}d`}
+    <div className="mono" style={{ fontSize: '11px', color, fontWeight: '600',
+      padding: '2px 7px', borderRadius: '5px', background: color + '15', flexShrink: 0 }}>
+      {days < 0 ? 'Avklarad' : days === 0 ? 'IDAG' : `${days}d`}
     </div>
   )
 }
@@ -32,7 +32,9 @@ export default function PluggPage() {
   const [archivedCourses, setArchivedCourses] = useState([])
   const [studySessions, setStudySessions] = useState([])
   const [exams, setExams] = useState({})
-  const [goals, setGoals] = useState({}) // examId -> goals[]
+  const [goals, setGoals] = useState({})
+  const [examFiles, setExamFiles] = useState({}) // examId -> files[]
+  const [archivedFiles, setArchivedFiles] = useState({}) // courseId -> files[]
   const [expandedCourse, setExpandedCourse] = useState(null)
   const [expandedExam, setExpandedExam] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -41,21 +43,28 @@ export default function PluggPage() {
   const [editForm, setEditForm] = useState({})
   const [uploadingGoalsPdf, setUploadingGoalsPdf] = useState(null)
   const [uploadingOldExam, setUploadingOldExam] = useState(null)
+  const [uploadingArchivePdf, setUploadingArchivePdf] = useState(null)
   const [estimatingTime, setEstimatingTime] = useState(null)
   const [showNewCourse, setShowNewCourse] = useState(false)
   const [showNewSession, setShowNewSession] = useState(false)
   const [showNewArchive, setShowNewArchive] = useState(false)
   const [addingExamTo, setAddingExamTo] = useState(null)
   const [examForm, setExamForm] = useState({ name: '', exam_date: '', notes: '' })
+  const [editingExamPoints, setEditingExamPoints] = useState(null)
+  const [examPointsForm, setExamPointsForm] = useState({ points_earned: '', points_max: '' })
   const [newGoal, setNewGoal] = useState('')
-  const [addingGoalTo, setAddingGoalTo] = useState(null) // examId
-  const [courseForm, setCourseForm] = useState({ name: '', term: 'Termin 3', end_date: '', notes: '' })
+  const [addingGoalTo, setAddingGoalTo] = useState(null)
+  const [courseForm, setCourseForm] = useState({ name: '', term: 'Termin 3', end_date: '' })
   const [archiveForm, setArchiveForm] = useState({ name: '', term: 'Termin 1', end_date: '', grade: 'G', points_earned: '', points_max: '' })
   const [sessionForm, setSessionForm] = useState({
     course_id: '', subject: '', hours: '', notes: '', date: format(new Date(), 'yyyy-MM-dd')
   })
 
-  useEffect(() => { if (user) { fetchCourses(); fetchStudySessions() } }, [user])
+  useEffect(() => { if (user) { fetchAll() } }, [user])
+
+  async function fetchAll() {
+    await Promise.all([fetchCourses(), fetchStudySessions()])
+  }
 
   async function fetchCourses() {
     const { data: active } = await supabase.from('courses').select('*')
@@ -66,28 +75,43 @@ export default function PluggPage() {
     setArchivedCourses(archived || [])
 
     const allIds = [...(active || []), ...(archived || [])].map(c => c.id)
-    if (allIds.length > 0) {
-      const [eRes, gRes] = await Promise.all([
-        supabase.from('course_exams').select('*').in('course_id', allIds).order('exam_date'),
-        supabase.from('learning_goals').select('*').in('course_id', allIds).order('created_at'),
-      ])
+    if (allIds.length === 0) return
 
-      const eMap = {}
-      for (const e of eRes.data || []) {
-        if (!eMap[e.course_id]) eMap[e.course_id] = []
-        eMap[e.course_id].push(e)
-      }
-      setExams(eMap)
+    const [eRes, gRes, efRes, afRes] = await Promise.all([
+      supabase.from('course_exams').select('*').in('course_id', allIds).order('exam_date'),
+      supabase.from('learning_goals').select('*').in('course_id', allIds).order('created_at'),
+      supabase.from('exam_old_files').select('*').order('created_at'),
+      supabase.from('archived_exam_files').select('*').in('course_id', allIds).order('created_at'),
+    ])
 
-      // Group goals by exam_id (if set) or fall back to course-level (exam_id null)
-      const gMap = {}
-      for (const g of gRes.data || []) {
-        const key = g.exam_id || `course_${g.course_id}`
-        if (!gMap[key]) gMap[key] = []
-        gMap[key].push(g)
-      }
-      setGoals(gMap)
+    const eMap = {}
+    for (const e of eRes.data || []) {
+      if (!eMap[e.course_id]) eMap[e.course_id] = []
+      eMap[e.course_id].push(e)
     }
+    setExams(eMap)
+
+    const gMap = {}
+    for (const g of gRes.data || []) {
+      const key = g.exam_id || `course_${g.course_id}`
+      if (!gMap[key]) gMap[key] = []
+      gMap[key].push(g)
+    }
+    setGoals(gMap)
+
+    const efMap = {}
+    for (const f of efRes.data || []) {
+      if (!efMap[f.exam_id]) efMap[f.exam_id] = []
+      efMap[f.exam_id].push(f)
+    }
+    setExamFiles(efMap)
+
+    const afMap = {}
+    for (const f of afRes.data || []) {
+      if (!afMap[f.course_id]) afMap[f.course_id] = []
+      afMap[f.course_id].push(f)
+    }
+    setArchivedFiles(afMap)
   }
 
   async function fetchStudySessions() {
@@ -104,7 +128,7 @@ export default function PluggPage() {
       exam_date: courseForm.end_date || null, active: true,
     })
     await fetchCourses()
-    setCourseForm({ name: '', term: 'Termin 3', end_date: '', notes: '' })
+    setCourseForm({ name: '', term: 'Termin 3', end_date: '' })
     setShowNewCourse(false)
     setSaving(false)
   }
@@ -125,10 +149,7 @@ export default function PluggPage() {
     await supabase.from('courses').insert({
       user_id: user.id, name: archiveForm.name, term: archiveForm.term,
       exam_date: archiveForm.end_date || null,
-      grade: archiveForm.grade,
-      points_earned: archiveForm.points_earned ? parseFloat(archiveForm.points_earned) : null,
-      points_max: archiveForm.points_max ? parseFloat(archiveForm.points_max) : null,
-      active: false,
+      grade: archiveForm.grade, active: false,
     })
     await fetchCourses()
     setArchiveForm({ name: '', term: 'Termin 1', end_date: '', grade: 'G', points_earned: '', points_max: '' })
@@ -138,6 +159,12 @@ export default function PluggPage() {
 
   async function archiveCourse(courseId) {
     await supabase.from('courses').update({ active: false }).eq('id', courseId)
+    await fetchCourses()
+  }
+
+  async function deleteCourse(courseId) {
+    if (!window.confirm('Är du säker? Detta tar bort kursen och allt kopplat till den.')) return
+    await supabase.from('courses').delete().eq('id', courseId)
     await fetchCourses()
   }
 
@@ -160,7 +187,17 @@ export default function PluggPage() {
   }
 
   async function deleteExam(examId) {
+    if (!window.confirm('Ta bort denna examination?')) return
     await supabase.from('course_exams').delete().eq('id', examId)
+    await fetchCourses()
+  }
+
+  async function saveExamPoints(examId) {
+    await supabase.from('course_exams').update({
+      points_earned: examPointsForm.points_earned ? parseFloat(examPointsForm.points_earned) : null,
+      points_max: examPointsForm.points_max ? parseFloat(examPointsForm.points_max) : null,
+    }).eq('id', examId)
+    setEditingExamPoints(null)
     await fetchCourses()
   }
 
@@ -209,42 +246,40 @@ export default function PluggPage() {
     setSaving(false)
   }
 
-  async function handleGoalsPdfUpload(e, examId, courseId) {
-    const file = e.target.files[0]
-    if (!file) return
-    setUploadingGoalsPdf(examId)
+  async function extractPdfContent(file, prompt) {
     const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(reader.result.split(',')[1])
       reader.onerror = reject
       reader.readAsDataURL(file)
     })
+    const { data } = await supabase.functions.invoke('jarvis-chat', {
+      body: {
+        messages: [{ role: 'user', content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+          { type: 'text', text: prompt }
+        ]}],
+        context: '',
+        systemPrompt: 'Returnera alltid bara JSON utan backticks, eller ren text om instruktionen säger det.',
+      },
+    })
+    return data?.content || ''
+  }
+
+  async function handleGoalsPdfUpload(e, examId, courseId) {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingGoalsPdf(examId)
     try {
-      const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: {
-          messages: [{ role: 'user', content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-            { type: 'text', text: 'Extrahera alla lärandemål från detta dokument. Returnera ENBART ett JSON-objekt med nyckeln "goals" som är en array av strängar. Inga backticks.' }
-          ]}],
-          context: '',
-          systemPrompt: 'Returnera alltid bara JSON utan backticks.',
-        },
-      })
-      if (data?.content) {
-        try {
-          const parsed = JSON.parse(data.content.replace(/```json|```/g, '').trim())
-          if (parsed.goals?.length > 0) {
-            await supabase.from('learning_goals').insert(
-              parsed.goals.map(g => ({
-                user_id: user.id, course_id: courseId,
-                exam_id: examId, description: g, source_file: file.name
-              }))
-            )
-            await fetchCourses()
-          }
-        } catch { /* ignore */ }
+      const content = await extractPdfContent(file, 'Extrahera alla lärandemål. Returnera ENBART JSON: {"goals": ["mål1", "mål2"]}. Inga backticks.')
+      const parsed = JSON.parse(content.replace(/```json|```/g, '').trim())
+      if (parsed.goals?.length > 0) {
+        await supabase.from('learning_goals').insert(
+          parsed.goals.map(g => ({ user_id: user.id, course_id: courseId, exam_id: examId, description: g, source_file: file.name }))
+        )
+        await fetchCourses()
       }
-    } catch (err) { console.error(err) }
+    } catch (err) { console.error('Goals PDF failed:', err) }
     setUploadingGoalsPdf(null)
     e.target.value = ''
   }
@@ -253,33 +288,43 @@ export default function PluggPage() {
     const file = e.target.files[0]
     if (!file) return
     setUploadingOldExam(examId)
-    const base64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result.split(',')[1])
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
     try {
-      const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: {
-          messages: [{ role: 'user', content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-            { type: 'text', text: 'Extrahera hela innehållet i detta tentadokument som text. Behåll alla frågor och svar. Returnera bara texten.' }
-          ]}],
-          context: '',
-          systemPrompt: 'Du extraherar text från tentadokument. Returnera bara texten.',
-        },
+      const content = await extractPdfContent(file, 'Extrahera hela innehållet i detta tentadokument. Behåll alla frågor. Returnera bara texten.')
+      await supabase.from('exam_old_files').insert({
+        user_id: user.id, exam_id: examId, file_name: file.name, content,
       })
-      if (data?.content) {
-        await supabase.from('course_exams').update({
-          old_exam_content: data.content,
-          old_exam_filename: file.name,
-        }).eq('id', examId)
-        await fetchCourses()
-      }
-    } catch (err) { console.error(err) }
+      await fetchCourses()
+    } catch (err) { console.error('Old exam upload failed:', err) }
     setUploadingOldExam(null)
     e.target.value = ''
+  }
+
+  async function deleteExamFile(fileId) {
+    await supabase.from('exam_old_files').delete().eq('id', fileId)
+    await fetchCourses()
+  }
+
+  async function handleArchivePdfUpload(e, courseId, fileType) {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingArchivePdf(`${courseId}-${fileType}`)
+    try {
+      const prompt = fileType === 'learning_goals'
+        ? 'Extrahera alla lärandemål. Returnera texten direkt.'
+        : 'Extrahera hela tentainnehållet. Returnera texten direkt.'
+      const content = await extractPdfContent(file, prompt)
+      await supabase.from('archived_exam_files').insert({
+        user_id: user.id, course_id: courseId, file_name: file.name, file_type: fileType, content,
+      })
+      await fetchCourses()
+    } catch (err) { console.error('Archive PDF failed:', err) }
+    setUploadingArchivePdf(null)
+    e.target.value = ''
+  }
+
+  async function deleteArchivedFile(fileId) {
+    await supabase.from('archived_exam_files').delete().eq('id', fileId)
+    await fetchCourses()
   }
 
   async function estimateStudyTime(course) {
@@ -288,23 +333,21 @@ export default function PluggPage() {
     if (allGoals.length === 0) return
     setEstimatingTime(course.id)
     try {
+      const content = await extractPdfContent(
+        new Blob([allGoals.map((g,i) => `${i+1}. ${g.description}`).join('\n')], { type: 'text/plain' }),
+        `Uppskatta studietimmar för "${course.name}" (${course.term}, KI). Returnera JSON: {"hours": <tal>, "reasoning": "<2 meningar svenska>"}`
+      )
+      // Fallback: use jarvis-chat directly
       const { data } = await supabase.functions.invoke('jarvis-chat', {
         body: {
-          messages: [{ role: 'user', content:
-            `Uppskatta studietimmar för "${course.name}" (${course.term}, KI) baserat på ${allGoals.length} lärandemål. Returnera JSON: {"hours": <tal>, "reasoning": "<2 meningar svenska>"}\n${allGoals.map((g,i) => `${i+1}. ${g.description}`).join('\n')}`
-          }],
-          context: '',
-          systemPrompt: 'Returnera bara JSON utan backticks.',
+          messages: [{ role: 'user', content: `Uppskatta studietimmar för "${course.name}" (${course.term}, KI) baserat på ${allGoals.length} lärandemål:\n${allGoals.map((g,i) => `${i+1}. ${g.description}`).join('\n')}\nReturnera JSON: {"hours": <tal>, "reasoning": "<2 meningar svenska>"}` }],
+          context: '', systemPrompt: 'Returnera bara JSON utan backticks.',
         },
       })
       if (data?.content) {
-        try {
-          const parsed = JSON.parse(data.content.replace(/```json|```/g, '').trim())
-          await supabase.from('courses').update({
-            ai_time_hours: parsed.hours, ai_time_estimate: parsed.reasoning
-          }).eq('id', course.id)
-          await fetchCourses()
-        } catch { /* ignore */ }
+        const parsed = JSON.parse(data.content.replace(/```json|```/g, '').trim())
+        await supabase.from('courses').update({ ai_time_hours: parsed.hours, ai_time_estimate: parsed.reasoning }).eq('id', course.id)
+        await fetchCourses()
       }
     } catch (err) { console.error(err) }
     setEstimatingTime(null)
@@ -312,35 +355,34 @@ export default function PluggPage() {
 
   function generateStudyPrompt(course, specificExam = null) {
     const courseExams = exams[course.id] || []
-    const targetExam = specificExam || courseExams[0]
+    const targetExam = specificExam || courseExams.find(e => !e.grade) || courseExams[0]
     const examGoals = targetExam ? (goals[targetExam.id] || []) : []
+    const files = targetExam ? (examFiles[targetExam.id] || []) : []
     const remaining = examGoals.filter(g => !g.completed)
     const mastered = examGoals.filter(g => g.completed)
     const daysLeft = targetExam?.exam_date ? differenceInDays(parseISO(targetExam.exam_date), new Date()) : null
     const recentSessions = studySessions.filter(s => s.course_id === course.id).slice(0, 3)
-
     return `Du är Jarvis, Sigges studiecoach för ${course.name}.
 
 KURS: ${course.name} (${course.term})
 ${targetExam ? `EXAMINATION: ${targetExam.name}${daysLeft !== null ? ` — ${daysLeft} dagar kvar` : ''}` : ''}
-${targetExam?.old_exam_filename ? `GAMMAL TENTA TILLGÄNGLIG: ${targetExam.old_exam_filename}` : ''}
-${targetExam?.old_exam_content ? `\nGAMMAL TENTA (använd för att förstå examinationsformatet):\n${targetExam.old_exam_content.slice(0, 2000)}` : ''}
+${files.length > 0 ? `GAMLA TENTOR TILLGÄNGLIGA: ${files.map(f => f.file_name).join(', ')}` : ''}
+${files[0]?.content ? `\nGAMMAL TENTA (format-referens):\n${files[0].content.slice(0, 2000)}` : ''}
 
-EXAMINATIONER:
-${courseExams.map(e => `- ${e.name}${e.exam_date ? ` (${format(parseISO(e.exam_date), 'd MMM yyyy', { locale: sv })})` : ''}${e.grade ? ` — ${e.grade}` : ''}`).join('\n') || 'Inga'}
+ALLA EXAMINATIONER:
+${courseExams.map(e => `- ${e.name}${e.exam_date ? ` (${format(parseISO(e.exam_date), 'd MMM', { locale: sv })})` : ''}${e.grade ? ` ✓ ${e.grade}${e.points_earned ? ` ${e.points_earned}/${e.points_max}p` : ''}` : ''}`).join('\n') || 'Inga'}
 
-LÄRANDEMÅL EJ BEHÄRSKADE (${remaining.length} st):
+LÄRANDEMÅL EJ BEHÄRSKADE (${remaining.length}):
 ${remaining.map((g,i) => `${i+1}. ${g.description}`).join('\n') || 'Inga kvar!'}
 
-LÄRANDEMÅL BEHÄRSKADE (${mastered.length} st):
+BEHÄRSKADE (${mastered.length}):
 ${mastered.map(g => `✓ ${g.description}`).join('\n') || 'Inga ännu'}
 
 SENASTE SESSIONER:
 ${recentSessions.map(s => `- ${s.date}: ${s.subject} (${s.hours}h)`).join('\n') || 'Inga'}
 
-SIGGES STUDIETEKNIK: Förstår logik och resonemang, inte utantill. Lär via dialog. Vill bli rättad precist. Hatar sycophancy. Pratar svenska.
-
-Börja: välj viktigaste lärandemålet → förklara kort → förhör → precis feedback → när behärskat, gå vidare. Hälsa honom välkommen och börja.`
+SIGGE: Lär via logik och dialog, inte utantill. Vill bli rättad precist. Hatar sycophancy. Svenska.
+Börja: välj viktigaste målet → förklara → förhör → feedback → gå vidare när behärskat.`
   }
 
   async function copyStudyPrompt(course) {
@@ -440,6 +482,7 @@ Börja: välj viktigaste lärandemålet → förklara kort → förhör → prec
                 const progress = totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0
                 const isExpanded = expandedCourse === course.id
                 const courseHours = studySessions.filter(s => s.course_id === course.id).reduce((sum, s) => sum + (s.hours || 0), 0)
+                const doneExams = courseExams.filter(e => e.grade).length
 
                 return (
                   <div key={course.id} className="card">
@@ -479,12 +522,11 @@ Börja: välj viktigaste lärandemålet → förklara kort → förhör → prec
                             <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                               <span>{course.term}</span>
                               {course.exam_date && <span>Slutar: {format(parseISO(course.exam_date), 'd MMM yyyy', { locale: sv })}</span>}
-                              <span>⏱ {courseHours.toFixed(1)}h loggat</span>
-                              {course.ai_time_hours && <span style={{ color: '#f59e0b' }}>🤖 ~{course.ai_time_hours}h uppskattat</span>}
+                              <span>⏱ {courseHours.toFixed(1)}h</span>
+                              {courseExams.length > 0 && <span style={{ color: doneExams === courseExams.length ? '#10b981' : 'var(--muted)' }}>✓ {doneExams}/{courseExams.length} tentor</span>}
+                              {course.ai_time_hours && <span style={{ color: '#f59e0b' }}>🤖 ~{course.ai_time_hours}h</span>}
                             </div>
-                            {course.ai_time_estimate && (
-                              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px', fontStyle: 'italic' }}>{course.ai_time_estimate}</div>
-                            )}
+                            {course.ai_time_estimate && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px', fontStyle: 'italic' }}>{course.ai_time_estimate}</div>}
                           </div>
                           <div style={{ display: 'flex', gap: '4px' }}>
                             <button onClick={() => { setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, end_date: course.exam_date || '' }) }}
@@ -499,10 +541,9 @@ Börja: välj viktigaste lärandemålet → förklara kort → förhör → prec
                         {totalGoals > 0 && (
                           <div style={{ marginBottom: '12px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>
-                              <span>Lärandemål (alla examinationer)</span>
-                              <span>{completedGoals}/{totalGoals} klara</span>
+                              <span>Lärandemål totalt</span><span>{completedGoals}/{totalGoals}</span>
                             </div>
-                            <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ height: '5px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
                               <div style={{ height: '100%', width: `${progress}%`, background: progress === 100 ? '#10b981' : '#3b82f6', borderRadius: '3px', transition: 'width 0.6s' }} />
                             </div>
                           </div>
@@ -522,7 +563,7 @@ Börja: välj viktigaste lärandemålet → förklara kort → förhör → prec
                             {copied === course.id ? <Check size={14} color="#10b981" /> : <Copy size={14} />}
                           </button>
                           {allGoals.length > 0 && (
-                            <button onClick={() => estimateStudyTime(course)} className="btn btn-ghost" style={{ padding: '10px 12px', fontSize: '12px' }}>
+                            <button onClick={() => estimateStudyTime(course)} className="btn btn-ghost" style={{ padding: '10px 12px' }} title="AI-uppskatta studietid">
                               {estimatingTime === course.id ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : '🤖'}
                             </button>
                           )}
@@ -533,40 +574,55 @@ Börja: välj viktigaste lärandemålet → förklara kort → förhör → prec
                     {isExpanded && editingCourse !== course.id && (
                       <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
 
-                        {/* Examinationer */}
+                        {/* Examinationer — sorterade: ej avklarade först, avklarade sist */}
                         <div style={{ marginBottom: '16px' }}>
                           <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>EXAMINATIONER</div>
 
-                          {courseExams.length === 0 && (
+                          {(exams[course.id] || []).length === 0 && (
                             <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '10px' }}>Inga examinationer — lägg till nedan</div>
                           )}
 
-                          {courseExams.map(exam => {
+                          {/* Sort: no grade first, then graded */}
+                          {[...(exams[course.id] || [])].sort((a, b) => {
+                            if (a.grade && !b.grade) return 1
+                            if (!a.grade && b.grade) return -1
+                            return 0
+                          }).map(exam => {
                             const daysLeft = exam.exam_date ? differenceInDays(parseISO(exam.exam_date), new Date()) : null
                             const isExamExpanded = expandedExam === exam.id
-                            const examGoals = goals[exam.id] || []
-                            const examCompleted = examGoals.filter(g => g.completed).length
+                            const examGoalList = goals[exam.id] || []
+                            const examCompleted = examGoalList.filter(g => g.completed).length
+                            const examFilesForExam = examFiles[exam.id] || []
+                            const isDone = !!exam.grade
 
                             return (
-                              <div key={exam.id} style={{ marginBottom: '10px', background: 'var(--surface2)', borderRadius: '10px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                                {/* Exam header */}
-                                <div style={{ padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                              <div key={exam.id} style={{
+                                marginBottom: '8px', borderRadius: '10px', overflow: 'hidden',
+                                border: `1px solid ${isDone ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`,
+                                background: isDone ? 'rgba(16,185,129,0.03)' : 'var(--surface2)',
+                              }}>
+                                <div style={{ padding: '11px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
                                   onClick={() => setExpandedExam(isExamExpanded ? null : exam.id)}>
-                                  <div>
-                                    <div style={{ fontSize: '14px', fontWeight: '500' }}>{exam.name}</div>
-                                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '10px' }}>
-                                      {exam.exam_date && <span>{format(parseISO(exam.exam_date), 'd MMM yyyy', { locale: sv })}</span>}
-                                      {daysLeft !== null && daysLeft >= 0 && <span style={{ color: daysLeft <= 7 ? '#ef4444' : '#f59e0b' }}>{daysLeft}d kvar</span>}
-                                      {examGoals.length > 0 && <span>{examCompleted}/{examGoals.length} mål klara</span>}
-                                      {exam.old_exam_filename && <span style={{ color: '#10b981' }}>📄 {exam.old_exam_filename}</span>}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                                    {isDone && <Check size={14} color="#10b981" />}
+                                    <div>
+                                      <div style={{ fontSize: '13px', fontWeight: '500', color: isDone ? 'var(--muted)' : 'var(--text)' }}>{exam.name}</div>
+                                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '8px' }}>
+                                        {exam.exam_date && <span>{format(parseISO(exam.exam_date), 'd MMM yyyy', { locale: sv })}</span>}
+                                        {examGoalList.length > 0 && <span>{examCompleted}/{examGoalList.length} mål</span>}
+                                        {examFilesForExam.length > 0 && <span style={{ color: '#10b981' }}>📄 {examFilesForExam.length} fil{examFilesForExam.length > 1 ? 'er' : ''}</span>}
+                                      </div>
                                     </div>
                                   </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    {!isDone && exam.exam_date && <CountdownBadge examDate={exam.exam_date} />}
                                     {exam.grade && (
                                       <span className="mono" style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px',
                                         background: exam.grade === 'G' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
                                         color: exam.grade === 'G' ? '#10b981' : '#ef4444',
-                                      }}>{exam.grade}</span>
+                                      }}>
+                                        {exam.grade}{exam.points_earned && exam.points_max ? ` · ${exam.points_earned}/${exam.points_max}p` : ''}
+                                      </span>
                                     )}
                                     <button onClick={e => { e.stopPropagation(); openClaudePro(course, exam) }}
                                       style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)',
@@ -586,9 +642,9 @@ Börja: välj viktigaste lärandemålet → förklara kort → förhör → prec
                                   <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
 
                                     {/* Betyg */}
-                                    <div style={{ marginBottom: '14px' }}>
-                                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>Betyg:</div>
-                                      <div style={{ display: 'flex', gap: '6px' }}>
+                                    <div style={{ marginBottom: '12px' }}>
+                                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px' }}>BETYG</div>
+                                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                                         {GRADES.map(g => (
                                           <button key={g} onClick={() => updateExamGrade(exam.id, g)} style={{
                                             padding: '5px 14px', borderRadius: '6px', cursor: 'pointer',
@@ -598,82 +654,114 @@ Börja: välj viktigaste lärandemålet → förklara kort → förhör → prec
                                             fontSize: '13px', fontFamily: 'DM Sans, sans-serif', fontWeight: '600',
                                           }}>{g}</button>
                                         ))}
+                                        {/* Poäng inline */}
+                                        {editingExamPoints === exam.id ? (
+                                          <>
+                                            <input className="input" type="number" placeholder="Poäng" value={examPointsForm.points_earned}
+                                              onChange={e => setExamPointsForm(f => ({ ...f, points_earned: e.target.value }))}
+                                              style={{ width: '70px', padding: '5px 8px', fontSize: '12px' }} />
+                                            <span style={{ color: 'var(--muted)', fontSize: '12px' }}>av</span>
+                                            <input className="input" type="number" placeholder="Max" value={examPointsForm.points_max}
+                                              onChange={e => setExamPointsForm(f => ({ ...f, points_max: e.target.value }))}
+                                              style={{ width: '70px', padding: '5px 8px', fontSize: '12px' }} />
+                                            <button onClick={() => saveExamPoints(exam.id)} className="btn btn-primary" style={{ fontSize: '12px', padding: '5px 10px' }}>✓</button>
+                                            <button onClick={() => setEditingExamPoints(null)} className="btn btn-ghost" style={{ fontSize: '12px', padding: '5px 8px' }}>✕</button>
+                                          </>
+                                        ) : (
+                                          <button onClick={() => { setEditingExamPoints(exam.id); setExamPointsForm({ points_earned: exam.points_earned || '', points_max: exam.points_max || '' }) }}
+                                            style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '6px', padding: '5px 10px', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif' }}>
+                                            {exam.points_earned && exam.points_max ? `✏️ ${exam.points_earned}/${exam.points_max}p` : '+ Poäng'}
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
 
-                                    {/* PDF buttons */}
-                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-                                      <input type="file" accept=".pdf" style={{ display: 'none' }} id={`goals-${exam.id}`}
-                                        onChange={e => handleGoalsPdfUpload(e, exam.id, exam.course_id)} />
-                                      <label htmlFor={`goals-${exam.id}`} style={{
-                                        padding: '7px 12px', borderRadius: '6px', border: '1px solid var(--border)',
-                                        color: 'var(--muted)', cursor: 'pointer', fontSize: '12px',
-                                        display: 'flex', alignItems: 'center', gap: '4px',
-                                      }}>
-                                        {uploadingGoalsPdf === exam.id
-                                          ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</>
-                                          : <><Upload size={11} /> Importera lärandemål (PDF)</>}
-                                      </label>
+                                    {/* PDF-knappar */}
+                                    <div style={{ marginBottom: '14px' }}>
+                                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>BIFOGADE FILER</div>
+                                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`goals-${exam.id}`}
+                                          onChange={e => handleGoalsPdfUpload(e, exam.id, exam.course_id)} />
+                                        <label htmlFor={`goals-${exam.id}`} style={{
+                                          padding: '7px 12px', borderRadius: '6px', border: '1px solid var(--border)',
+                                          color: 'var(--muted)', cursor: 'pointer', fontSize: '12px',
+                                          display: 'flex', alignItems: 'center', gap: '4px',
+                                        }}>
+                                          {uploadingGoalsPdf === exam.id
+                                            ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</>
+                                            : <><Upload size={11} /> Lärandemål (PDF)</>}
+                                        </label>
 
-                                      <input type="file" accept=".pdf" style={{ display: 'none' }} id={`oldexam-${exam.id}`}
-                                        onChange={e => handleOldExamUpload(e, exam.id)} />
-                                      <label htmlFor={`oldexam-${exam.id}`} style={{
-                                        padding: '7px 12px', borderRadius: '6px',
-                                        border: `1px solid ${exam.old_exam_filename ? 'rgba(16,185,129,0.3)' : 'var(--border)'}`,
-                                        color: exam.old_exam_filename ? '#10b981' : 'var(--muted)',
-                                        cursor: 'pointer', fontSize: '12px',
-                                        display: 'flex', alignItems: 'center', gap: '4px',
-                                        background: exam.old_exam_filename ? 'rgba(16,185,129,0.06)' : 'transparent',
-                                      }}>
-                                        {uploadingOldExam === exam.id
-                                          ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</>
-                                          : exam.old_exam_filename
-                                            ? <><Check size={11} /> {exam.old_exam_filename}</>
-                                            : <><Upload size={11} /> Ladda upp gammal tenta (PDF)</>}
-                                      </label>
+                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`oldexam-${exam.id}`}
+                                          onChange={e => handleOldExamUpload(e, exam.id)} />
+                                        <label htmlFor={`oldexam-${exam.id}`} style={{
+                                          padding: '7px 12px', borderRadius: '6px', border: '1px solid var(--border)',
+                                          color: 'var(--muted)', cursor: 'pointer', fontSize: '12px',
+                                          display: 'flex', alignItems: 'center', gap: '4px',
+                                        }}>
+                                          {uploadingOldExam === exam.id
+                                            ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</>
+                                            : <><Upload size={11} /> Gammal tenta (PDF)</>}
+                                        </label>
+                                      </div>
+
+                                      {/* Lista bifogade filer */}
+                                      {examFilesForExam.length > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                          {examFilesForExam.map(f => (
+                                            <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: 'rgba(16,185,129,0.06)', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.15)' }}>
+                                              <FileText size={12} color="#10b981" />
+                                              <span style={{ fontSize: '12px', flex: 1, color: '#10b981' }}>{f.file_name}</span>
+                                              <button onClick={() => deleteExamFile(f.id)}
+                                                style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.5, padding: '2px' }}>
+                                                <Trash2 size={11} />
+                                              </button>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
 
-                                    {/* Learning goals for this exam */}
+                                    {/* Lärandemål */}
                                     <div>
-                                      <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>
-                                        LÄRANDEMÅL ({examGoals.length})
+                                      <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>
+                                        LÄRANDEMÅL ({examGoalList.length})
                                       </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
-                                        {examGoals.length === 0 && (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '8px' }}>
+                                        {examGoalList.length === 0 && (
                                           <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Inga lärandemål — importera PDF eller lägg till manuellt</div>
                                         )}
-                                        {examGoals.map(goal => (
+                                        {examGoalList.map(goal => (
                                           <div key={goal.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                                             <button onClick={() => toggleGoal(goal.id, goal.completed)} style={{
-                                              width: '18px', height: '18px', borderRadius: '4px', flexShrink: 0, marginTop: '1px',
+                                              width: '17px', height: '17px', borderRadius: '4px', flexShrink: 0, marginTop: '2px',
                                               border: `2px solid ${goal.completed ? '#10b981' : 'var(--border)'}`,
                                               background: goal.completed ? '#10b981' : 'transparent',
                                               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             }}>
-                                              {goal.completed && <Check size={10} color="white" />}
+                                              {goal.completed && <Check size={9} color="white" />}
                                             </button>
                                             <span style={{ fontSize: '13px', flex: 1, lineHeight: '1.5',
                                               color: goal.completed ? 'var(--muted)' : 'var(--text)',
                                               textDecoration: goal.completed ? 'line-through' : 'none' }}>
                                               {goal.description}
-                                              {goal.source_file && <span style={{ fontSize: '10px', color: 'var(--muted)', marginLeft: '6px' }}>📄</span>}
+                                              {goal.source_file && <span style={{ fontSize: '10px', color: 'var(--muted)', marginLeft: '5px' }}>📄</span>}
                                             </span>
                                             <button onClick={() => deleteGoal(goal.id)}
-                                              style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: '2px', flexShrink: 0 }}>
-                                              <X size={12} />
+                                              style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.35, padding: '2px', flexShrink: 0 }}>
+                                              <X size={11} />
                                             </button>
                                           </div>
                                         ))}
                                       </div>
-
                                       {addingGoalTo === exam.id ? (
                                         <div style={{ display: 'flex', gap: '8px' }}>
                                           <input className="input" placeholder="Nytt lärandemål..." value={newGoal}
                                             onChange={e => setNewGoal(e.target.value)}
                                             onKeyDown={e => e.key === 'Enter' && addGoal(exam.id, exam.course_id)}
                                             autoFocus style={{ fontSize: '13px' }} />
-                                          <button onClick={() => addGoal(exam.id, exam.course_id)} className="btn btn-primary" style={{ flexShrink: 0 }}>Lägg till</button>
-                                          <button onClick={() => { setAddingGoalTo(null); setNewGoal('') }} className="btn btn-ghost" style={{ flexShrink: 0 }}>Avbryt</button>
+                                          <button onClick={() => addGoal(exam.id, exam.course_id)} className="btn btn-primary" style={{ flexShrink: 0, fontSize: '12px' }}>Lägg till</button>
+                                          <button onClick={() => { setAddingGoalTo(null); setNewGoal('') }} className="btn btn-ghost" style={{ flexShrink: 0, fontSize: '12px' }}>Avbryt</button>
                                         </div>
                                       ) : (
                                         <button onClick={() => setAddingGoalTo(exam.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
@@ -687,41 +775,40 @@ Börja: välj viktigaste lärandemålet → förklara kort → förhör → prec
                             )
                           })}
 
-                          {/* Add exam */}
                           {addingExamTo === course.id ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: 'var(--surface2)', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px', background: 'var(--surface2)', borderRadius: '8px', marginTop: '8px' }}>
                               <input className="input" placeholder="t.ex. Delexamination 1" value={examForm.name}
                                 onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))} autoFocus />
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                 <div>
                                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Tentadatum</label>
-                                  <input className="input" type="date" value={examForm.exam_date}
-                                    onChange={e => setExamForm(f => ({ ...f, exam_date: e.target.value }))} />
+                                  <input className="input" type="date" value={examForm.exam_date} onChange={e => setExamForm(f => ({ ...f, exam_date: e.target.value }))} />
                                 </div>
                                 <div>
                                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Anteckningar</label>
-                                  <input className="input" placeholder="Valfritt" value={examForm.notes}
-                                    onChange={e => setExamForm(f => ({ ...f, notes: e.target.value }))} />
+                                  <input className="input" placeholder="Valfritt" value={examForm.notes} onChange={e => setExamForm(f => ({ ...f, notes: e.target.value }))} />
                                 </div>
                               </div>
                               <div style={{ display: 'flex', gap: '8px' }}>
-                                <button onClick={() => saveExam(course.id)} className="btn btn-primary" disabled={saving || !examForm.name}>
-                                  <Save size={12} /> Spara
-                                </button>
-                                <button onClick={() => { setAddingExamTo(null); setExamForm({ name: '', exam_date: '', notes: '' }) }}
-                                  className="btn btn-ghost">Avbryt</button>
+                                <button onClick={() => saveExam(course.id)} className="btn btn-primary" disabled={saving || !examForm.name}><Save size={12} /> Spara</button>
+                                <button onClick={() => { setAddingExamTo(null); setExamForm({ name: '', exam_date: '', notes: '' }) }} className="btn btn-ghost">Avbryt</button>
                               </div>
                             </div>
                           ) : (
-                            <button onClick={() => setAddingExamTo(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+                            <button onClick={() => setAddingExamTo(course.id)} className="btn btn-ghost" style={{ fontSize: '12px', marginTop: '6px' }}>
                               <Plus size={12} /> Lägg till examination
                             </button>
                           )}
                         </div>
 
-                        <button onClick={() => archiveCourse(course.id)} className="btn btn-ghost" style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                          <Archive size={12} /> Arkivera kurs
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
+                          <button onClick={() => archiveCourse(course.id)} className="btn btn-ghost" style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                            <Archive size={12} /> Arkivera
+                          </button>
+                          <button onClick={() => deleteCourse(course.id)} className="btn btn-danger" style={{ fontSize: '12px' }}>
+                            <Trash2 size={12} /> Ta bort kurs
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -849,16 +936,6 @@ Börja: välj viktigaste lärandemålet → förklara kort → förhör → prec
                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Slutdatum</label>
                   <input className="input" type="date" value={archiveForm.end_date} onChange={e => setArchiveForm(f => ({ ...f, end_date: e.target.value }))} />
                 </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Poäng (valfritt)</label>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <input className="input" type="number" placeholder="45" value={archiveForm.points_earned}
-                      onChange={e => setArchiveForm(f => ({ ...f, points_earned: e.target.value }))} style={{ flex: 1 }} />
-                    <span style={{ color: 'var(--muted)', fontSize: '13px' }}>av</span>
-                    <input className="input" type="number" placeholder="60" value={archiveForm.points_max}
-                      onChange={e => setArchiveForm(f => ({ ...f, points_max: e.target.value }))} style={{ flex: 1 }} />
-                  </div>
-                </div>
               </div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button onClick={() => setShowNewArchive(false)} className="btn btn-ghost">Avbryt</button>
@@ -884,30 +961,81 @@ Börja: välj viktigaste lärandemålet → förklara kort → förhör → prec
             <div key={term} style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>{term.toUpperCase()}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {termCourses.map(course => (
-                  <div key={course.id} className="card-sm" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: '500' }}>{course.name}</div>
-                      {course.end_date && (
-                        <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                          {format(parseISO(course.exam_date), 'd MMM yyyy', { locale: sv })}
+                {termCourses.map(course => {
+                  const courseArchivedFiles = archivedFiles[course.id] || []
+                  const isExpanded = expandedCourse === `archive-${course.id}`
+                  return (
+                    <div key={course.id} className="card-sm">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                        onClick={() => setExpandedCourse(isExpanded ? null : `archive-${course.id}`)}>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: '500' }}>{course.name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '8px' }}>
+                            {course.exam_date && <span>{format(parseISO(course.exam_date), 'd MMM yyyy', { locale: sv })}</span>}
+                            {courseArchivedFiles.length > 0 && <span style={{ color: '#10b981' }}>📄 {courseArchivedFiles.length} fil{courseArchivedFiles.length > 1 ? 'er' : ''}</span>}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div className="mono" style={{
+                            fontSize: '14px', fontWeight: '600', padding: '4px 10px', borderRadius: '6px',
+                            background: course.grade === 'G' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                            color: course.grade === 'G' ? '#10b981' : '#ef4444',
+                          }}>{course.grade || '—'}</div>
+                          <button onClick={e => { e.stopPropagation(); deleteCourse(course.id) }}
+                            style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4 }}>
+                            <Trash2 size={13} />
+                          </button>
+                          {isExpanded ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>BIFOGADE FILER</div>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                            <input type="file" accept=".pdf" style={{ display: 'none' }} id={`arc-goals-${course.id}`}
+                              onChange={e => handleArchivePdfUpload(e, course.id, 'learning_goals')} />
+                            <label htmlFor={`arc-goals-${course.id}`} style={{
+                              padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)',
+                              color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
+                            }}>
+                              {uploadingArchivePdf === `${course.id}-learning_goals`
+                                ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</>
+                                : <><Upload size={11} /> Lärandemål (PDF)</>}
+                            </label>
+
+                            <input type="file" accept=".pdf" style={{ display: 'none' }} id={`arc-exam-${course.id}`}
+                              onChange={e => handleArchivePdfUpload(e, course.id, 'old_exam')} />
+                            <label htmlFor={`arc-exam-${course.id}`} style={{
+                              padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)',
+                              color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px',
+                            }}>
+                              {uploadingArchivePdf === `${course.id}-old_exam`
+                                ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</>
+                                : <><Upload size={11} /> Gammal tenta (PDF)</>}
+                            </label>
+                          </div>
+
+                          {courseArchivedFiles.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              {courseArchivedFiles.map(f => (
+                                <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 8px', background: 'rgba(16,185,129,0.06)', borderRadius: '5px', border: '1px solid rgba(16,185,129,0.15)' }}>
+                                  <FileText size={11} color="#10b981" />
+                                  <span style={{ fontSize: '12px', flex: 1, color: '#10b981' }}>{f.file_name}</span>
+                                  <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{f.file_type === 'learning_goals' ? 'Lärandemål' : 'Gammal tenta'}</span>
+                                  <button onClick={() => deleteArchivedFile(f.id)}
+                                    style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.5, padding: '2px' }}>
+                                    <Trash2 size={11} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {course.points_earned && course.points_max && (
-                        <span className="mono" style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                          {course.points_earned}/{course.points_max}p
-                        </span>
-                      )}
-                      <div className="mono" style={{
-                        fontSize: '14px', fontWeight: '600', padding: '4px 10px', borderRadius: '6px',
-                        background: course.grade === 'G' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-                        color: course.grade === 'G' ? '#10b981' : '#ef4444',
-                      }}>{course.grade || '—'}</div>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           ))}
