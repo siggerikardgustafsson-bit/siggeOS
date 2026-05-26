@@ -1112,8 +1112,8 @@ export default function PluggPage() {
                 )}
               </div>
 
-      )}
         </>
+      )}
 
           <button onClick={() => setShowNewArchive(true)} className="btn btn-ghost" style={{ marginTop: '8px', fontSize: '13px' }}>
             <Plus size={14} /> Arkivera kurs manuellt
