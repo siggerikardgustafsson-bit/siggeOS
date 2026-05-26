@@ -279,7 +279,11 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       return msg
     })
 
-    const systemPrompt = buildSystemPrompt(sessionGoals, [], mode === 'tenta', [], null, false, null)
+    // Fetch fresh context for every message so Jarvis doesn't forget
+    const { data: matData } = await supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
+    const { data: oldExamData } = await supabase.from('exam_old_files').select('id, file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
+    const chosenExamFile = currentTentaFileId ? (oldExamData || []).find(e => e.id === currentTentaFileId) : null
+    const systemPrompt = buildSystemPrompt(sessionGoals, matData || [], mode === 'tenta', oldExamData || [], chosenExamFile, false, null)
     try {
       const { data } = await supabase.functions.invoke('jarvis-chat', {
         body: { messages: cleanMessages, context: '', systemPrompt },
@@ -581,6 +585,9 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
           </>
         )}
       </div>
+      </div>
+      </div>
+      <style>{'@keyframes bounce { 0%,60%,100% { transform:translateY(0) } 30% { transform:translateY(-5px) } } @keyframes spin { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }'}</style>
     </div>
   )
 }
