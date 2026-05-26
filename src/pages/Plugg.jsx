@@ -5,7 +5,7 @@ import { format, differenceInDays, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import {
   Plus, X, Save, Loader, BookOpen, GraduationCap,
-  ExternalLink, Copy, Check, ChevronDown, ChevronUp,
+  Copy, Check, ChevronDown, ChevronUp,
   Archive, Zap, Upload, FileText, Trash2
 } from 'lucide-react'
 import StudyModal from '../components/StudyModal'
@@ -35,7 +35,6 @@ export default function PluggPage() {
   const [exams, setExams] = useState({})
   const [goals, setGoals] = useState({})
   const [examFiles, setExamFiles] = useState({})
-  const [archivedFiles, setArchivedFiles] = useState({})
   const [expandedCourse, setExpandedCourse] = useState(null)
   const [expandedExam, setExpandedExam] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -44,7 +43,6 @@ export default function PluggPage() {
   const [editForm, setEditForm] = useState({})
   const [uploadingGoalsPdf, setUploadingGoalsPdf] = useState(null)
   const [uploadingOldExam, setUploadingOldExam] = useState(null)
-  const [uploadingArchivePdf, setUploadingArchivePdf] = useState(null)
   const [uploadingCourseMaterial, setUploadingCourseMaterial] = useState(null)
   const [estimatingTime, setEstimatingTime] = useState(null)
   const [showNewCourse, setShowNewCourse] = useState(false)
@@ -57,14 +55,12 @@ export default function PluggPage() {
   const [newGoal, setNewGoal] = useState('')
   const [addingGoalTo, setAddingGoalTo] = useState(null)
   const [courseForm, setCourseForm] = useState({ name: '', term: 'Termin 3', end_date: '' })
-  const [archiveForm, setArchiveForm] = useState({ name: '', term: 'Termin 1', end_date: '', grade: 'G', points_earned: '', points_max: '' })
-  const [sessionForm, setSessionForm] = useState({
-    course_id: '', subject: '', hours: '', notes: '', date: format(new Date(), 'yyyy-MM-dd')
-  })
+  const [archiveForm, setArchiveForm] = useState({ name: '', term: 'Termin 1', end_date: '', grade: 'G' })
+  const [sessionForm, setSessionForm] = useState({ course_id: '', subject: '', hours: '', notes: '', date: format(new Date(), 'yyyy-MM-dd') })
   const [mandatorySessions, setMandatorySessions] = useState({})
   const [mandatoryUnmatched, setMandatoryUnmatched] = useState([])
   const [syncingMandatory, setSyncingMandatory] = useState(false)
-  const [studySession, setStudySession] = useState(null) // { exam, courseId, goals }
+  const [studySession, setStudySession] = useState(null)
 
   useEffect(() => { if (user) fetchAll() }, [user])
 
@@ -73,20 +69,12 @@ export default function PluggPage() {
   }
 
   async function fetchMandatory() {
-    const { data } = await supabase
-      .from('mandatory_sessions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: false })
+    const { data } = await supabase.from('mandatory_sessions').select('*').eq('user_id', user.id).order('date', { ascending: false })
     const matched = {}
     const unmatched = []
     for (const s of data || []) {
-      if (s.course_id) {
-        if (!matched[s.course_id]) matched[s.course_id] = []
-        matched[s.course_id].push(s)
-      } else {
-        unmatched.push(s)
-      }
+      if (s.course_id) { if (!matched[s.course_id]) matched[s.course_id] = []; matched[s.course_id].push(s) }
+      else unmatched.push(s)
     }
     setMandatorySessions(matched)
     setMandatoryUnmatched(unmatched)
@@ -97,10 +85,7 @@ export default function PluggPage() {
     try {
       const session = (await supabase.auth.getSession()).data.session
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-sync?action=mandatory`, {
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        }
+        headers: { Authorization: `Bearer ${session?.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY }
       })
       const data = await res.json()
       alert(`Synkade ${data.synced || 0} obligatoriska moment`)
@@ -115,62 +100,36 @@ export default function PluggPage() {
   }
 
   async function fetchCourses() {
-    const { data: activeCourses } = await supabase
-      .from('courses').select('*').eq('user_id', user.id).eq('active', true).order('created_at')
-    const { data: archived } = await supabase
-      .from('courses').select('*').eq('user_id', user.id).eq('active', false).order('created_at', { ascending: false })
-
+    const { data: activeCourses } = await supabase.from('courses').select('*').eq('user_id', user.id).eq('active', true).order('created_at')
+    const { data: archived } = await supabase.from('courses').select('*').eq('user_id', user.id).eq('active', false).order('created_at', { ascending: false })
     const allIds = [...(activeCourses || []), ...(archived || [])].map(c => c.id)
     if (allIds.length === 0) { setCourses([]); setArchivedCourses([]); return }
-
-    const [examsRes, goalsRes, examFilesRes, archFilesRes] = await Promise.all([
+    const [examsRes, goalsRes, examFilesRes] = await Promise.all([
       supabase.from('course_exams').select('*').in('course_id', allIds).order('exam_date'),
       supabase.from('learning_goals').select('*').in('course_id', allIds),
       supabase.from('exam_old_files').select('*').in('course_id', allIds),
-      supabase.from('archived_exam_files').select('*').in('course_id', allIds),
     ])
-
     const examMap = {}
-    for (const e of (examsRes.data || [])) {
-      if (!examMap[e.course_id]) examMap[e.course_id] = []
-      examMap[e.course_id].push(e)
-    }
+    for (const e of (examsRes.data || [])) { if (!examMap[e.course_id]) examMap[e.course_id] = []; examMap[e.course_id].push(e) }
     const goalMap = {}
-    for (const g of (goalsRes.data || [])) {
-      if (!goalMap[g.exam_id]) goalMap[g.exam_id] = []
-      goalMap[g.exam_id].push(g)
-    }
+    for (const g of (goalsRes.data || [])) { if (!goalMap[g.exam_id]) goalMap[g.exam_id] = []; goalMap[g.exam_id].push(g) }
     const examFileMap = {}
-    for (const f of (examFilesRes.data || [])) {
-      if (!examFileMap[f.exam_id]) examFileMap[f.exam_id] = []
-      examFileMap[f.exam_id].push(f)
-    }
-    const archFileMap = {}
-    for (const f of (archFilesRes.data || [])) {
-      if (!archFileMap[f.course_id]) archFileMap[f.course_id] = []
-      archFileMap[f.course_id].push(f)
-    }
-
+    for (const f of (examFilesRes.data || [])) { if (!examFileMap[f.exam_id]) examFileMap[f.exam_id] = []; examFileMap[f.exam_id].push(f) }
     setCourses(activeCourses || [])
     setArchivedCourses(archived || [])
     setExams(examMap)
     setGoals(goalMap)
     setExamFiles(examFileMap)
-    setArchivedFiles(archFileMap)
   }
 
   async function fetchStudySessions() {
-    const { data } = await supabase
-      .from('study_sessions').select('*, courses(name)')
-      .eq('user_id', user.id).order('date', { ascending: false }).limit(50)
+    const { data } = await supabase.from('study_sessions').select('*, courses(name)').eq('user_id', user.id).order('date', { ascending: false }).limit(50)
     setStudySessions(data || [])
   }
 
   async function saveCourse() {
     setSaving(true)
-    await supabase.from('courses').insert({
-      user_id: user.id, ...courseForm, active: true,
-    })
+    await supabase.from('courses').insert({ user_id: user.id, ...courseForm, active: true })
     await fetchCourses()
     setCourseForm({ name: '', term: 'Termin 3', end_date: '' })
     setShowNewCourse(false)
@@ -179,12 +138,9 @@ export default function PluggPage() {
 
   async function saveArchive() {
     setSaving(true)
-    await supabase.from('courses').insert({
-      user_id: user.id, ...archiveForm, active: false,
-      grade: archiveForm.grade,
-    })
+    await supabase.from('courses').insert({ user_id: user.id, ...archiveForm, active: false })
     await fetchCourses()
-    setArchiveForm({ name: '', term: 'Termin 1', end_date: '', grade: 'G', points_earned: '', points_max: '' })
+    setArchiveForm({ name: '', term: 'Termin 1', end_date: '', grade: 'G' })
     setShowNewArchive(false)
     setSaving(false)
   }
@@ -192,10 +148,7 @@ export default function PluggPage() {
   async function saveExam(courseId) {
     if (!examForm.name) return
     setSaving(true)
-    await supabase.from('course_exams').insert({
-      user_id: user.id, course_id: courseId,
-      name: examForm.name, exam_date: examForm.exam_date || null, notes: examForm.notes,
-    })
+    await supabase.from('course_exams').insert({ user_id: user.id, course_id: courseId, name: examForm.name, exam_date: examForm.exam_date || null, notes: examForm.notes })
     await fetchCourses()
     setExamForm({ name: '', exam_date: '', notes: '' })
     setAddingExamTo(null)
@@ -213,20 +166,14 @@ export default function PluggPage() {
   }
 
   async function saveExamPoints(examId) {
-    await supabase.from('course_exams').update({
-      points_earned: parseFloat(examPointsForm.points_earned) || null,
-      points_max: parseFloat(examPointsForm.points_max) || null,
-    }).eq('id', examId)
+    await supabase.from('course_exams').update({ points_earned: parseFloat(examPointsForm.points_earned) || null, points_max: parseFloat(examPointsForm.points_max) || null }).eq('id', examId)
     setEditingExamPoints(null)
     await fetchCourses()
   }
 
   async function addGoal(examId, courseId) {
     if (!newGoal.trim()) return
-    await supabase.from('learning_goals').insert({
-      user_id: user.id, course_id: courseId, exam_id: examId,
-      description: newGoal.trim(), source_file: 'manual',
-    })
+    await supabase.from('learning_goals').insert({ user_id: user.id, course_id: courseId, exam_id: examId, description: newGoal.trim(), source_file: 'manual' })
     setNewGoal('')
     setAddingGoalTo(null)
     await fetchCourses()
@@ -245,9 +192,7 @@ export default function PluggPage() {
   async function saveStudySession() {
     if (!sessionForm.hours) return
     setSaving(true)
-    await supabase.from('study_sessions').insert({
-      user_id: user.id, ...sessionForm, hours: parseFloat(sessionForm.hours),
-    })
+    await supabase.from('study_sessions').insert({ user_id: user.id, ...sessionForm, hours: parseFloat(sessionForm.hours) })
     await fetchStudySessions()
     setSessionForm({ course_id: '', subject: '', hours: '', notes: '', date: format(new Date(), 'yyyy-MM-dd') })
     setShowNewSession(false)
@@ -260,7 +205,7 @@ export default function PluggPage() {
   }
 
   async function deleteCourse(courseId) {
-    if (!window.confirm('Ta bort kurs och all tillhörande data?')) return
+    if (!window.confirm('Ta bort kurs?')) return
     await supabase.from('courses').delete().eq('id', courseId)
     await fetchCourses()
   }
@@ -275,170 +220,87 @@ export default function PluggPage() {
 
   async function estimateTime(courseId) {
     setEstimatingTime(courseId)
+    const course = courses.find(c => c.id === courseId)
     const courseExams = exams[courseId] || []
     const allGoals = courseExams.flatMap(e => goals[e.id] || [])
-    const course = courses.find(c => c.id === courseId)
-
     const { data } = await supabase.functions.invoke('jarvis-chat', {
-      body: {
-        messages: [{
-          role: 'user',
-          content: `Estimera studietid för kursen "${course?.name}" med ${courseExams.length} examinationer och ${allGoals.length} lärandemål. Ge ett konkret svar i timmar. Svara kort.`
-        }],
-        context: '',
-        systemPrompt: 'Du är en studierådgivare. Ge konkret tidsestimering.',
-      },
+      body: { messages: [{ role: 'user', content: `Estimera studietid för "${course?.name}" med ${courseExams.length} examinationer och ${allGoals.length} lärandemål. Ge ett konkret svar i timmar.` }], context: '', systemPrompt: 'Du är studierådgivare. Ge konkret tidsestimering på svenska.' }
     })
-    if (data?.content) {
-      await supabase.from('courses').update({ ai_time_estimate: data.content }).eq('id', courseId)
-      await fetchCourses()
-    }
+    if (data?.content) { await supabase.from('courses').update({ ai_time_estimate: data.content }).eq('id', courseId); await fetchCourses() }
     setEstimatingTime(null)
   }
 
   async function handleGoalsPdfUpload(e, examId, courseId) {
-    const file = e.target.files[0]
-    if (!file) return
+    const file = e.target.files[0]; if (!file) return
     setUploadingGoalsPdf(examId)
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const base64 = ev.target.result.split(',')[1]
       const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: {
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-              { type: 'text', text: 'Extrahera alla lärandemål från detta dokument. Returnera en JSON-lista: {"goals": ["mål 1", "mål 2", ...]}. Returnera BARA JSON.' }
-            ]
-          }],
-          context: '',
-          systemPrompt: 'Du extraherar lärandemål från PDF. Returnera bara JSON.',
-        },
+        body: { messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }, { type: 'text', text: 'Extrahera alla lärandemål. Returnera JSON: {"goals": ["mål 1", ...]}. Bara JSON.' }] }], context: '', systemPrompt: 'Extrahera lärandemål. Returnera bara JSON.' }
       })
       if (data?.content) {
         try {
           const parsed = JSON.parse(data.content.replace(/```json|```/g, '').trim())
           if (parsed.goals?.length > 0) {
-            for (const goal of parsed.goals) {
-              await supabase.from('learning_goals').insert({
-                user_id: user.id, course_id: courseId, exam_id: examId,
-                description: goal, source_file: file.name,
-              })
-            }
+            for (const goal of parsed.goals) await supabase.from('learning_goals').insert({ user_id: user.id, course_id: courseId, exam_id: examId, description: goal, source_file: file.name })
             await fetchCourses()
           }
-        } catch(err) { console.error(err) }
+        } catch(err) {}
       }
       setUploadingGoalsPdf(null)
     }
     reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
   async function handleOldExamUpload(e, examId, courseId) {
-    const file = e.target.files[0]
-    if (!file) return
+    const file = e.target.files[0]; if (!file) return
     setUploadingOldExam(examId)
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const base64 = ev.target.result.split(',')[1]
       const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: {
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-              { type: 'text', text: 'Sammanfatta denna gamla tenta. Vad testades? Vilka frågetyper? Returnera JSON: {"summary": "...", "topics": ["ämne1", "ämne2"]}. Bara JSON.' }
-            ]
-          }],
-          context: '',
-          systemPrompt: 'Du analyserar gamla tentor. Returnera bara JSON.',
-        },
+        body: { messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }, { type: 'text', text: 'Sammanfatta denna tenta. Returnera JSON: {"summary": "...", "topics": [...]}. Bara JSON.' }] }], context: '', systemPrompt: 'Analysera tenta. Returnera bara JSON.' }
       })
-      await supabase.from('exam_old_files').insert({
-        user_id: user.id, exam_id: examId, course_id: courseId,
-        file_name: file.name, content: data?.content || '',
-      })
+      await supabase.from('exam_old_files').insert({ user_id: user.id, exam_id: examId, course_id: courseId, file_name: file.name, content: data?.content || '' })
       await fetchCourses()
       setUploadingOldExam(null)
     }
     reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
   async function handleCourseMaterialUpload(e, examId, courseId) {
-    const file = e.target.files[0]
-    if (!file) return
+    const file = e.target.files[0]; if (!file) return
     setUploadingCourseMaterial(examId)
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const base64 = ev.target.result.split(',')[1]
       const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: {
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-              { type: 'text', text: 'Extrahera allt text-innehåll från detta kursmaterial. Behåll struktur och detaljer. Returnera bara texten.' }
-            ]
-          }],
-          context: '',
-          systemPrompt: 'Extrahera text från PDF. Returnera bara texten.',
-        },
+        body: { messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }, { type: 'text', text: 'Extrahera allt textinnehåll från detta kursmaterial. Behåll struktur och detaljer.' }] }], context: '', systemPrompt: 'Extrahera text från PDF.' }
       })
-      await supabase.from('course_materials').insert({
-        user_id: user.id,
-        exam_id: examId,
-        course_id: courseId,
-        file_name: file.name,
-        content: data?.content || '',
-      })
+      await supabase.from('course_materials').insert({ user_id: user.id, exam_id: examId, course_id: courseId, file_name: file.name, content: data?.content || '' })
       setUploadingCourseMaterial(null)
     }
     reader.readAsDataURL(file)
     e.target.value = ''
   }
-    const file = e.target.files[0]
-    if (!file) return
-    setUploadingArchivePdf(courseId)
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const base64 = ev.target.result.split(',')[1]
-      await supabase.from('archived_exam_files').insert({
-        user_id: user.id, course_id: courseId,
-        file_name: file.name, file_type: 'pdf', content: base64,
-      })
-      await fetchCourses()
-      setUploadingArchivePdf(null)
-    }
-    reader.readAsDataURL(file)
-  }
 
   async function copyGoals(courseId) {
     const courseExams = exams[courseId] || []
-    const allGoals = courseExams.flatMap(e =>
-      (goals[e.id] || []).map(g => `• ${g.description}`)
-    )
+    const allGoals = courseExams.flatMap(e => (goals[e.id] || []).map(g => `• ${g.description}`))
     await navigator.clipboard.writeText(allGoals.join('\n'))
     setCopied(courseId)
     setTimeout(() => setCopied(null), 2000)
   }
 
-  const thisWeekHours = studySessions
-    .filter(s => differenceInDays(new Date(), parseISO(s.date)) <= 7)
-    .reduce((sum, s) => sum + (s.hours || 0), 0)
-
+  const thisWeekHours = studySessions.filter(s => differenceInDays(new Date(), parseISO(s.date)) <= 7).reduce((sum, s) => sum + (s.hours || 0), 0)
   const totalStudyHours = studySessions.reduce((sum, s) => sum + (s.hours || 0), 0)
-
-  const tabs = [
-    { id: 'aktiva', label: 'Aktiva kurser', icon: BookOpen },
-    { id: 'arkiv', label: 'Arkiv', icon: Archive },
-    { id: 'session', label: 'Studielogg', icon: GraduationCap },
-  ]
 
   return (
     <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
 
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
           <div style={{ fontSize: '22px', fontWeight: '600' }}>Plugg</div>
@@ -447,22 +309,18 @@ export default function PluggPage() {
             <span style={{ color: '#f59e0b' }}>⏱ {thisWeekHours.toFixed(1)}h denna vecka</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={syncMandatory} disabled={syncingMandatory} className="btn btn-ghost" style={{ fontSize: '12px' }}>
-            {syncingMandatory ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : '🎓'}
-            Synka obligatoriska
-          </button>
-        </div>
+        <button onClick={syncMandatory} disabled={syncingMandatory} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+          {syncingMandatory ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : '🎓'} Synka obligatoriska
+        </button>
       </div>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
-        {tabs.map(tab => (
+        {[{ id: 'aktiva', label: 'Aktiva kurser' }, { id: 'arkiv', label: 'Arkiv' }, { id: 'session', label: 'Studielogg' }].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
             flex: 1, padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer',
             background: activeTab === tab.id ? 'var(--surface3)' : 'transparent',
             color: activeTab === tab.id ? 'var(--text)' : 'var(--muted)',
-            fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
+            fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif',
           }}>{tab.label}</button>
         ))}
       </div>
@@ -476,7 +334,7 @@ export default function PluggPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Kursnamn</label>
-                  <input className="input" placeholder="t.ex. 2LAO04 Basvetenskap 5" value={courseForm.name} onChange={e => setCourseForm(f => ({ ...f, name: e.target.value }))} />
+                  <input className="input" placeholder="t.ex. 2LAO04" value={courseForm.name} onChange={e => setCourseForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Termin</label>
@@ -498,13 +356,6 @@ export default function PluggPage() {
             </div>
           )}
 
-          {courses.length === 0 && !showNewCourse && (
-            <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)', marginBottom: '16px' }}>
-              <GraduationCap size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-              <div>Inga aktiva kurser</div>
-            </div>
-          )}
-
           {courses.map(course => {
             const isExpanded = expandedCourse === course.id
             const courseExams = exams[course.id] || []
@@ -519,7 +370,7 @@ export default function PluggPage() {
                 {isEditing ? (
                   <div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                      <input className="input" value={editForm.name || ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Kursnamn" />
+                      <input className="input" value={editForm.name || ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
                       <select className="input" value={editForm.term || ''} onChange={e => setEditForm(f => ({ ...f, term: e.target.value }))}>
                         {TERMS.map(t => <option key={t}>{t}</option>)}
                       </select>
@@ -545,29 +396,19 @@ export default function PluggPage() {
                             </div>
                           )}
                           {mandatoryForCourse.length > 0 && (
-                            <div style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '4px',
-                              background: 'rgba(139,92,246,0.15)', color: '#a78bfa', fontWeight: '600' }}>
+                            <div style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(139,92,246,0.15)', color: '#a78bfa', fontWeight: '600' }}>
                               🎓 {attendedCount}/{mandatoryForCourse.length}
                             </div>
                           )}
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '10px' }}>
                           <span>{course.term}</span>
-                          {daysLeft !== null && (
-                            <span style={{ color: daysLeft < 14 ? '#ef4444' : daysLeft < 30 ? '#f59e0b' : 'var(--muted)' }}>
-                              {daysLeft < 0 ? 'Avslutad' : `${daysLeft}d kvar`}
-                            </span>
-                          )}
-                          {course.ai_time_estimate && (
-                            <span style={{ color: '#8b5cf6' }}>⏱ {course.ai_time_estimate.slice(0, 40)}</span>
-                          )}
+                          {daysLeft !== null && <span style={{ color: daysLeft < 14 ? '#ef4444' : daysLeft < 30 ? '#f59e0b' : 'var(--muted)' }}>{daysLeft < 0 ? 'Avslutad' : `${daysLeft}d kvar`}</span>}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                         <button onClick={e => { e.stopPropagation(); setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, end_date: course.end_date || '' }) }}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', opacity: 0.6 }}>
-                          ✏️
-                        </button>
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', opacity: 0.6 }}>✏️</button>
                         {isExpanded ? <ChevronUp size={16} color="var(--muted)" /> : <ChevronDown size={16} color="var(--muted)" />}
                       </div>
                     </div>
@@ -575,30 +416,19 @@ export default function PluggPage() {
                     {isExpanded && (
                       <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
 
-                        {/* Obligatoriska moment */}
+                        {/* Obligatoriska */}
                         {mandatoryForCourse.length > 0 && (
                           <div style={{ marginBottom: '16px' }}>
-                            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>
-                              OBLIGATORISKA MOMENT ({mandatoryForCourse.length})
-                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>OBLIGATORISKA MOMENT ({mandatoryForCourse.length})</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                               {mandatoryForCourse.sort((a, b) => b.date.localeCompare(a.date)).map(session => {
-                                const timeStr = session.start_time
-                                  ? format(parseISO(session.start_time), 'HH:mm') + (session.end_time ? '–' + format(parseISO(session.end_time), 'HH:mm') : '')
-                                  : null
+                                const timeStr = session.start_time ? format(parseISO(session.start_time), 'HH:mm') + (session.end_time ? '–' + format(parseISO(session.end_time), 'HH:mm') : '') : null
                                 return (
-                                  <div key={session.id} style={{
-                                    borderRadius: '8px',
-                                    background: session.attended ? 'rgba(16,185,129,0.06)' : 'var(--surface2)',
-                                    border: `1px solid ${session.attended ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`,
-                                    overflow: 'hidden',
-                                  }}>
+                                  <div key={session.id} style={{ borderRadius: '8px', background: session.attended ? 'rgba(16,185,129,0.06)' : 'var(--surface2)', border: `1px solid ${session.attended ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`, overflow: 'hidden' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', cursor: 'pointer' }}
                                       onClick={() => setExpandedExam(expandedExam === `mand-${session.id}` ? null : `mand-${session.id}`)}>
                                       <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                          🎓 {session.title}
-                                        </div>
+                                        <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎓 {session.title}</div>
                                         <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '8px' }}>
                                           <span>{format(parseISO(session.date), 'd MMM yyyy', { locale: sv })}</span>
                                           {timeStr && <span style={{ color: '#8b5cf6', fontWeight: '600' }}>🕐 {timeStr}</span>}
@@ -608,29 +438,16 @@ export default function PluggPage() {
                                         <button onClick={e => { e.stopPropagation(); toggleMandatoryAttended(session.id, session.attended) }} style={{
                                           fontSize: '11px', padding: '3px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
                                           background: session.attended ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
-                                          color: session.attended ? '#10b981' : 'var(--muted)',
-                                          fontFamily: 'Inter, sans-serif',
-                                        }}>
-                                          {session.attended ? '✓' : 'Markera'}
-                                        </button>
+                                          color: session.attended ? '#10b981' : 'var(--muted)', fontFamily: 'Inter, sans-serif',
+                                        }}>{session.attended ? '✓' : 'Markera'}</button>
                                         {expandedExam === `mand-${session.id}` ? <ChevronUp size={12} color="var(--muted)" /> : <ChevronDown size={12} color="var(--muted)" />}
                                       </div>
                                     </div>
                                     {expandedExam === `mand-${session.id}` && (
-                                      <div style={{ padding: '0 12px 10px', borderTop: '1px solid var(--border)' }}>
-                                        <div style={{ paddingTop: '8px', fontSize: '13px', lineHeight: '1.6', color: 'var(--text)', wordBreak: 'break-word' }}>
-                                          {session.title}
-                                        </div>
-                                        {timeStr && (
-                                          <div style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '600', marginTop: '4px' }}>
-                                            🕐 {timeStr}
-                                          </div>
-                                        )}
-                                        {session.course_hint && (
-                                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px', fontStyle: 'italic', lineHeight: '1.5' }}>
-                                            {session.course_hint}
-                                          </div>
-                                        )}
+                                      <div style={{ padding: '0 12px 10px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                                        <div style={{ fontSize: '13px', lineHeight: '1.6' }}>{session.title}</div>
+                                        {timeStr && <div style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '600', marginTop: '4px' }}>🕐 {timeStr}</div>}
+                                        {session.course_hint && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px', fontStyle: 'italic' }}>{session.course_hint}</div>}
                                       </div>
                                     )}
                                   </div>
@@ -643,39 +460,28 @@ export default function PluggPage() {
                         {/* Examinationer */}
                         <div style={{ marginBottom: '16px' }}>
                           <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>EXAMINATIONER</div>
-                          {courseExams.length === 0 && (
-                            <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '10px' }}>Inga examinationer tillagda</div>
-                          )}
                           {courseExams.map(exam => {
                             const isExamExpanded = expandedExam === exam.id
                             const examGoalList = goals[exam.id] || []
                             const examFilesForExam = examFiles[exam.id] || []
                             return (
                               <div key={exam.id} style={{ marginBottom: '8px', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-                                <div style={{
-                                  padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                <div style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                   background: exam.grade === 'G' ? 'rgba(16,185,129,0.06)' : exam.grade === 'IG' ? 'rgba(239,68,68,0.06)' : 'var(--surface2)',
-                                  borderLeft: `3px solid ${exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : 'var(--border)'}`,
-                                }}
+                                  borderLeft: `3px solid ${exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : 'var(--border)'}` }}
                                   onClick={() => setExpandedExam(isExamExpanded ? null : exam.id)}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exam.name}</div>
                                     {exam.exam_date && <CountdownBadge examDate={exam.exam_date} />}
-                                    {examGoalList.length > 0 && (
-                                      <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{examGoalList.length} mål</span>
-                                    )}
+                                    {examGoalList.length > 0 && <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{examGoalList.length} mål</span>}
                                   </div>
                                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
                                     {examGoalList.length > 0 && (
-                                      <button onClick={e => { e.stopPropagation(); setStudySession({ exam, courseId: course.id, goals: examGoalList }) }}
-                                        style={{
-                                          display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px',
-                                          borderRadius: '6px', border: '1px solid rgba(139,92,246,0.3)',
-                                          background: 'rgba(139,92,246,0.1)', color: '#a78bfa',
-                                          cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif', fontWeight: '600',
-                                        }}>
-                                        📚 Plugga
-                                      </button>
+                                      <button onClick={e => { e.stopPropagation(); setStudySession({ exam, courseId: course.id, goals: examGoalList }) }} style={{
+                                        display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px',
+                                        border: '1px solid rgba(139,92,246,0.3)', background: 'rgba(139,92,246,0.1)', color: '#a78bfa',
+                                        cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif', fontWeight: '600',
+                                      }}>📚 Plugga</button>
                                     )}
                                     {GRADES.map(g => (
                                       <button key={g} onClick={e => { e.stopPropagation(); updateExamGrade(exam.id, exam.grade === g ? null : g) }} style={{
@@ -685,8 +491,7 @@ export default function PluggPage() {
                                         color: exam.grade === g ? (g === 'G' ? '#10b981' : '#ef4444') : 'var(--muted)',
                                       }}>{g}</button>
                                     ))}
-                                    <button onClick={e => { e.stopPropagation(); deleteExam(exam.id) }}
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', opacity: 0.5, padding: '2px' }}>
+                                    <button onClick={e => { e.stopPropagation(); deleteExam(exam.id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', opacity: 0.5, padding: '2px' }}>
                                       <X size={13} />
                                     </button>
                                     {isExamExpanded ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
@@ -698,62 +503,37 @@ export default function PluggPage() {
                                     {/* Poäng */}
                                     <div style={{ marginBottom: '12px' }}>
                                       <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>POÄNG</div>
-                                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                        {editingExamPoints === exam.id ? (
-                                          <>
-                                            <input className="input" type="number" placeholder="Fick" value={examPointsForm.points_earned}
-                                              onChange={e => setExamPointsForm(f => ({ ...f, points_earned: e.target.value }))}
-                                              style={{ width: '70px', padding: '6px 8px' }} />
-                                            <span style={{ color: 'var(--muted)' }}>/</span>
-                                            <input className="input" type="number" placeholder="Max" value={examPointsForm.points_max}
-                                              onChange={e => setExamPointsForm(f => ({ ...f, points_max: e.target.value }))}
-                                              style={{ width: '70px', padding: '6px 8px' }} />
-                                            <button onClick={() => saveExamPoints(exam.id)} className="btn btn-primary" style={{ padding: '6px 10px', fontSize: '12px' }}><Check size={12} /></button>
-                                            <button onClick={() => setEditingExamPoints(null)} className="btn btn-ghost" style={{ padding: '6px 10px', fontSize: '12px' }}><X size={12} /></button>
-                                          </>
-                                        ) : (
-                                          <button onClick={() => { setEditingExamPoints(exam.id); setExamPointsForm({ points_earned: exam.points_earned || '', points_max: exam.points_max || '' }) }}
-                                            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', color: 'var(--muted)', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
-                                            {exam.points_earned && exam.points_max ? `✏️ ${exam.points_earned}/${exam.points_max}p` : '+ Poäng'}
-                                          </button>
-                                        )}
-                                      </div>
+                                      {editingExamPoints === exam.id ? (
+                                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                          <input className="input" type="number" placeholder="Fick" value={examPointsForm.points_earned} onChange={e => setExamPointsForm(f => ({ ...f, points_earned: e.target.value }))} style={{ width: '70px', padding: '6px 8px' }} />
+                                          <span style={{ color: 'var(--muted)' }}>/</span>
+                                          <input className="input" type="number" placeholder="Max" value={examPointsForm.points_max} onChange={e => setExamPointsForm(f => ({ ...f, points_max: e.target.value }))} style={{ width: '70px', padding: '6px 8px' }} />
+                                          <button onClick={() => saveExamPoints(exam.id)} className="btn btn-primary" style={{ padding: '6px 10px' }}><Check size={12} /></button>
+                                          <button onClick={() => setEditingExamPoints(null)} className="btn btn-ghost" style={{ padding: '6px 10px' }}><X size={12} /></button>
+                                        </div>
+                                      ) : (
+                                        <button onClick={() => { setEditingExamPoints(exam.id); setExamPointsForm({ points_earned: exam.points_earned || '', points_max: exam.points_max || '' }) }}
+                                          style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', color: 'var(--muted)', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
+                                          {exam.points_earned && exam.points_max ? `✏️ ${exam.points_earned}/${exam.points_max}p` : '+ Poäng'}
+                                        </button>
+                                      )}
                                     </div>
 
-                                    {/* PDF upload */}
+                                    {/* Filer */}
                                     <div style={{ marginBottom: '12px' }}>
                                       <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>FILER</div>
                                       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`goals-${exam.id}`}
-                                          onChange={e => handleGoalsPdfUpload(e, exam.id, course.id)} />
-                                        <label htmlFor={`goals-${exam.id}`} style={{
-                                          padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)',
-                                          color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
-                                        }}>
-                                          {uploadingGoalsPdf === exam.id
-                                            ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</>
-                                            : <><Upload size={11} /> Lärandemål PDF</>}
+                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`goals-${exam.id}`} onChange={e => handleGoalsPdfUpload(e, exam.id, course.id)} />
+                                        <label htmlFor={`goals-${exam.id}`} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                          {uploadingGoalsPdf === exam.id ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : <><Upload size={11} /> Lärandemål PDF</>}
                                         </label>
-                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`oldexam-${exam.id}`}
-                                          onChange={e => handleOldExamUpload(e, exam.id, course.id)} />
-                                        <label htmlFor={`oldexam-${exam.id}`} style={{
-                                          padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)',
-                                          color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
-                                        }}>
-                                          {uploadingOldExam === exam.id
-                                            ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</>
-                                            : <><FileText size={11} /> Gammal tenta</>}
+                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`oldexam-${exam.id}`} onChange={e => handleOldExamUpload(e, exam.id, course.id)} />
+                                        <label htmlFor={`oldexam-${exam.id}`} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                          {uploadingOldExam === exam.id ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</> : <><FileText size={11} /> Gammal tenta</>}
                                         </label>
-                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`material-${exam.id}`}
-                                          onChange={e => handleCourseMaterialUpload(e, exam.id, course.id)} />
-                                        <label htmlFor={`material-${exam.id}`} style={{
-                                          padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.3)',
-                                          color: '#10b981', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
-                                          background: 'rgba(16,185,129,0.06)',
-                                        }}>
-                                          {uploadingCourseMaterial === exam.id
-                                            ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</>
-                                            : <><BookOpen size={11} /> Kursmaterial</>}
+                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`material-${exam.id}`} onChange={e => handleCourseMaterialUpload(e, exam.id, course.id)} />
+                                        <label htmlFor={`material-${exam.id}`} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(16,185,129,0.06)' }}>
+                                          {uploadingCourseMaterial === exam.id ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</> : <><BookOpen size={11} /> Kursmaterial</>}
                                         </label>
                                       </div>
                                       {examFilesForExam.length > 0 && (
@@ -761,11 +541,8 @@ export default function PluggPage() {
                                           {examFilesForExam.map(f => (
                                             <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--muted)' }}>
                                               <FileText size={11} color="#10b981" />
-                                              <span style={{ fontSize: '12px', flex: 1 }}>{f.file_name}</span>
-                                              <button onClick={() => deleteExamFile(f.id)}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px' }}>
-                                                <Trash2 size={11} />
-                                              </button>
+                                              <span style={{ flex: 1 }}>{f.file_name}</span>
+                                              <button onClick={() => deleteExamFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px' }}><Trash2 size={11} /></button>
                                             </div>
                                           ))}
                                         </div>
@@ -774,7 +551,7 @@ export default function PluggPage() {
 
                                     {/* Lärandemål */}
                                     {examGoalList.length > 0 && (
-                                      <div>
+                                      <div style={{ marginBottom: '12px' }}>
                                         <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>LÄRANDEMÅL ({examGoalList.length})</div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                           {examGoalList.map(goal => {
@@ -782,10 +559,8 @@ export default function PluggPage() {
                                             const color = m >= 80 ? '#10b981' : m >= 50 ? '#f59e0b' : m >= 20 ? '#3b82f6' : '#6b7280'
                                             return (
                                               <div key={goal.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                                                <div style={{ flexShrink: 0, marginTop: '2px' }}>
-                                                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: color + '15' }}>
-                                                    <span style={{ fontSize: '8px', fontWeight: '700', color, fontFamily: 'monospace' }}>{m}</span>
-                                                  </div>
+                                                <div style={{ flexShrink: 0, marginTop: '2px', width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: color + '15' }}>
+                                                  <span style={{ fontSize: '8px', fontWeight: '700', color, fontFamily: 'monospace' }}>{m}</span>
                                                 </div>
                                                 <span style={{ fontSize: '12px', color: 'var(--muted2)', lineHeight: '1.5', paddingTop: '4px' }}>{goal.description}</span>
                                               </div>
@@ -797,18 +572,31 @@ export default function PluggPage() {
 
                                     {/* Lägg till lärandemål */}
                                     {addingGoalTo === exam.id ? (
-                                      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                                        <input className="input" placeholder="Nytt lärandemål..." value={newGoal}
-                                          onChange={e => setNewGoal(e.target.value)}
-                                          onKeyDown={e => e.key === 'Enter' && addGoal(exam.id, course.id)} />
+                                      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                                        <input className="input" placeholder="Nytt lärandemål..." value={newGoal} onChange={e => setNewGoal(e.target.value)} onKeyDown={e => e.key === 'Enter' && addGoal(exam.id, course.id)} />
                                         <button onClick={() => addGoal(exam.id, course.id)} className="btn btn-primary" style={{ padding: '8px 12px' }}><Check size={14} /></button>
                                         <button onClick={() => setAddingGoalTo(null)} className="btn btn-ghost" style={{ padding: '8px 12px' }}><X size={14} /></button>
                                       </div>
                                     ) : (
-                                      <button onClick={() => setAddingGoalTo(exam.id)} className="btn btn-ghost" style={{ fontSize: '12px', marginTop: '10px' }}>
+                                      <button onClick={() => setAddingGoalTo(exam.id)} className="btn btn-ghost" style={{ fontSize: '12px', marginBottom: '12px' }}>
                                         <Plus size={11} /> Lärandemål
                                       </button>
                                     )}
+
+                                    {/* Lägg till examination */}
+                                    {addingExamTo === exam.id ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <input className="input" placeholder="Examinationsnamn" value={examForm.name} onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))} />
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                          <input className="input" type="date" value={examForm.exam_date} onChange={e => setExamForm(f => ({ ...f, exam_date: e.target.value }))} />
+                                          <input className="input" placeholder="Anteckningar" value={examForm.notes} onChange={e => setExamForm(f => ({ ...f, notes: e.target.value }))} />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                          <button onClick={() => saveExam(course.id)} className="btn btn-primary" disabled={saving}><Save size={12} /> Spara</button>
+                                          <button onClick={() => setAddingExamTo(null)} className="btn btn-ghost">Avbryt</button>
+                                        </div>
+                                      </div>
+                                    ) : null}
                                   </div>
                                 )}
                               </div>
@@ -816,20 +604,12 @@ export default function PluggPage() {
                           })}
                         </div>
 
-                        {/* Lägg till examination */}
                         {addingExamTo === course.id ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
-                            <input className="input" placeholder="t.ex. Delexamination 1, OSCE, Skriftlig salstenta" value={examForm.name}
-                              onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))} />
+                            <input className="input" placeholder="t.ex. Delexamination 1" value={examForm.name} onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))} />
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                              <div>
-                                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Datum</label>
-                                <input className="input" type="date" value={examForm.exam_date} onChange={e => setExamForm(f => ({ ...f, exam_date: e.target.value }))} />
-                              </div>
-                              <div>
-                                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Anteckningar</label>
-                                <input className="input" placeholder="Valfritt" value={examForm.notes} onChange={e => setExamForm(f => ({ ...f, notes: e.target.value }))} />
-                              </div>
+                              <input className="input" type="date" value={examForm.exam_date} onChange={e => setExamForm(f => ({ ...f, exam_date: e.target.value }))} />
+                              <input className="input" placeholder="Anteckningar" value={examForm.notes} onChange={e => setExamForm(f => ({ ...f, notes: e.target.value }))} />
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
                               <button onClick={() => saveExam(course.id)} className="btn btn-primary" disabled={saving}><Save size={12} /> Spara</button>
@@ -842,7 +622,6 @@ export default function PluggPage() {
                           </button>
                         )}
 
-                        {/* Actions */}
                         <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
                           <button onClick={() => copyGoals(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
                             {copied === course.id ? <><Check size={12} /> Kopierat!</> : <><Copy size={12} /> Kopiera mål</>}
@@ -869,12 +648,9 @@ export default function PluggPage() {
             <Plus size={14} /> Ny kurs
           </button>
 
-          {/* Omatschade obligatoriska */}
           {mandatoryUnmatched.length > 0 && (
             <div className="card" style={{ marginTop: '16px', borderColor: 'rgba(139,92,246,0.2)' }}>
-              <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600', marginBottom: '8px' }}>
-                OBLIGATORISKA UTAN KOPPLAD KURS ({mandatoryUnmatched.length})
-              </div>
+              <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600', marginBottom: '8px' }}>OBLIGATORISKA UTAN KOPPLAD KURS ({mandatoryUnmatched.length})</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {mandatoryUnmatched.map(s => (
                   <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: '8px', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
@@ -886,9 +662,7 @@ export default function PluggPage() {
                       fontSize: '11px', padding: '3px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
                       background: s.attended ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
                       color: s.attended ? '#10b981' : 'var(--muted)', fontFamily: 'Inter, sans-serif',
-                    }}>
-                      {s.attended ? '✓ Närvaro' : 'Markera'}
-                    </button>
+                    }}>{s.attended ? '✓ Närvaro' : 'Markera'}</button>
                   </div>
                 ))}
               </div>
@@ -902,7 +676,7 @@ export default function PluggPage() {
         <>
           {showNewArchive && (
             <div className="card" style={{ marginBottom: '16px' }}>
-              <div style={{ fontWeight: '600', marginBottom: '14px' }}>Arkivera kurs manuellt</div>
+              <div style={{ fontWeight: '600', marginBottom: '14px' }}>Arkivera kurs</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Kursnamn</label>
@@ -945,8 +719,6 @@ export default function PluggPage() {
             const isExpanded = expandedCourse === `archive-${course.id}`
             const courseExams = exams[course.id] || []
             const doneExams = courseExams.filter(e => e.grade === 'G').length
-            const archCourseFiles = archivedFiles[course.id] || []
-
             return (
               <div key={course.id} className="card" style={{ marginBottom: '10px', borderColor: course.grade === 'G' ? 'rgba(16,185,129,0.2)' : 'var(--border)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
@@ -957,163 +729,67 @@ export default function PluggPage() {
                       {course.grade && (
                         <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '4px',
                           background: course.grade === 'G' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
-                          color: course.grade === 'G' ? '#10b981' : '#ef4444', fontWeight: '700' }}>
-                          {course.grade}
-                        </span>
+                          color: course.grade === 'G' ? '#10b981' : '#ef4444', fontWeight: '700' }}>{course.grade}</span>
                       )}
-                      {courseExams.length > 0 && (
-                        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{doneExams}/{courseExams.length} klara</span>
-                      )}
+                      {courseExams.length > 0 && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{doneExams}/{courseExams.length} klara</span>}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
                       {course.term}{course.end_date ? ` · ${format(parseISO(course.end_date), 'MMM yyyy', { locale: sv })}` : ''}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    {isExpanded ? <ChevronUp size={14} color="var(--muted)" /> : <ChevronDown size={14} color="var(--muted)" />}
-                  </div>
+                  {isExpanded ? <ChevronUp size={14} color="var(--muted)" /> : <ChevronDown size={14} color="var(--muted)" />}
                 </div>
 
                 {isExpanded && (
                   <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
                     <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>EXAMINATIONER</div>
                     {courseExams.map(exam => {
-                      const isExamExpanded = expandedExam === `arc-${exam.id}`
                       const examGoalList = goals[exam.id] || []
-                      const examFilesForExam = examFiles[exam.id] || []
                       return (
-                        <div key={exam.id} style={{ marginBottom: '8px', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-                          <div style={{
-                            padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                            background: exam.grade === 'G' ? 'rgba(16,185,129,0.06)' : exam.grade === 'IG' ? 'rgba(239,68,68,0.06)' : 'var(--surface2)',
-                            borderLeft: `3px solid ${exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : 'var(--border)'}`,
-                          }} onClick={() => setExpandedExam(isExamExpanded ? null : `arc-${exam.id}`)}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exam.name}</div>
-                              {exam.exam_date && <CountdownBadge examDate={exam.exam_date} />}
-                            </div>
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
-                              <div style={{ fontSize: '12px', color: exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : 'var(--muted)', fontWeight: '600' }}>
-                                {exam.grade}{exam.points_earned && exam.points_max ? ` · ${exam.points_earned}/${exam.points_max}p` : ''}
-                              </div>
+                        <div key={exam.id} style={{ marginBottom: '8px', padding: '10px 14px', borderRadius: '8px',
+                          background: exam.grade === 'G' ? 'rgba(16,185,129,0.06)' : 'var(--surface2)',
+                          border: `1px solid ${exam.grade === 'G' ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`,
+                          borderLeft: `3px solid ${exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : 'var(--border)'}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontSize: '13px', fontWeight: '500' }}>{exam.name}</div>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                               {GRADES.map(g => (
-                                <button key={g} onClick={e => { e.stopPropagation(); updateExamGrade(exam.id, exam.grade === g ? null : g) }} style={{
-                                  padding: '3px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif',
+                                <button key={g} onClick={() => updateExamGrade(exam.id, exam.grade === g ? null : g)} style={{
+                                  padding: '3px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
                                   border: `1px solid ${exam.grade === g ? (g === 'G' ? '#10b981' : '#ef4444') : 'var(--border)'}`,
                                   background: exam.grade === g ? (g === 'G' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)') : 'transparent',
                                   color: exam.grade === g ? (g === 'G' ? '#10b981' : '#ef4444') : 'var(--muted)',
                                 }}>{g}</button>
                               ))}
-                              {editingExamPoints === `arc-${exam.id}` ? (
-                                <>
-                                  <input className="input" type="number" placeholder="Fick" value={examPointsForm.points_earned}
-                                    onChange={e => setExamPointsForm(f => ({ ...f, points_earned: e.target.value }))}
-                                    style={{ width: '60px', padding: '4px 6px', fontSize: '12px' }} />
-                                  <span style={{ color: 'var(--muted)' }}>/</span>
-                                  <input className="input" type="number" placeholder="Max" value={examPointsForm.points_max}
-                                    onChange={e => setExamPointsForm(f => ({ ...f, points_max: e.target.value }))}
-                                    style={{ width: '60px', padding: '4px 6px', fontSize: '12px' }} />
-                                  <button onClick={() => saveExamPoints(exam.id)} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: '11px' }}><Check size={11} /></button>
-                                  <button onClick={() => setEditingExamPoints(null)} className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '11px' }}><X size={11} /></button>
-                                </>
-                              ) : (
-                                <button onClick={() => { setEditingExamPoints(`arc-${exam.id}`); setExamPointsForm({ points_earned: exam.points_earned || '', points_max: exam.points_max || '' }) }}
-                                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '5px', padding: '3px 8px', cursor: 'pointer', color: 'var(--muted)', fontSize: '11px', fontFamily: 'Inter, sans-serif' }}>
-                                  {exam.points_earned && exam.points_max ? `✏️ ${exam.points_earned}/${exam.points_max}p` : '+ Poäng'}
-                                </button>
+                              {exam.points_earned && exam.points_max && (
+                                <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{exam.points_earned}/{exam.points_max}p</span>
                               )}
-                              {isExamExpanded ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
                             </div>
                           </div>
-
-                          {isExamExpanded && (
-                            <div style={{ padding: '12px', borderTop: '1px solid var(--border)' }}>
-                              <div style={{ marginBottom: '12px' }}>
-                                <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>FILER</div>
-                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
-                                  <input type="file" accept=".pdf" style={{ display: 'none' }} id={`arc-goals-${exam.id}`}
-                                    onChange={e => handleGoalsPdfUpload(e, exam.id, course.id)} />
-                                  <label htmlFor={`arc-goals-${exam.id}`} style={{
-                                    padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)',
-                                    color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
-                                  }}>
-                                    {uploadingGoalsPdf === exam.id
-                                      ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</>
-                                      : <><Upload size={11} /> Lärandemål PDF</>}
-                                  </label>
-                                  <input type="file" accept=".pdf" style={{ display: 'none' }} id={`arc-oldexam-${exam.id}`}
-                                    onChange={e => handleOldExamUpload(e, exam.id, course.id)} />
-                                  <label htmlFor={`arc-oldexam-${exam.id}`} style={{
-                                    padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)',
-                                    color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
-                                  }}>
-                                    {uploadingOldExam === exam.id
-                                      ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</>
-                                      : <><FileText size={11} /> Gammal tenta</>}
-                                  </label>
-                                </div>
-                                {examFilesForExam.length > 0 && (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    {examFilesForExam.map(f => (
-                                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--muted)' }}>
-                                        <FileText size={11} color="#10b981" />
-                                        <span style={{ flex: 1 }}>{f.file_name}</span>
-                                        <button onClick={() => deleteExamFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px' }}>
-                                          <Trash2 size={11} />
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                              {examGoalList.length > 0 && (
-                                <div>
-                                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>LÄRANDEMÅL</div>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    {examGoalList.map(goal => (
-                                      <div key={goal.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6', marginTop: '6px', flexShrink: 0 }} />
-                                        <span style={{ fontSize: '12px', color: 'var(--muted2)', lineHeight: '1.5' }}>{goal.description}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {addingExamTo === `arc-${course.id}` ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
-                                  <input className="input" placeholder="t.ex. Delexamination 1" value={examForm.name}
-                                    onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))} />
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                    <div>
-                                      <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Datum</label>
-                                      <input className="input" type="date" value={examForm.exam_date} onChange={e => setExamForm(f => ({ ...f, exam_date: e.target.value }))} />
-                                    </div>
-                                    <div>
-                                      <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>Anteckningar</label>
-                                      <input className="input" placeholder="Valfritt" value={examForm.notes} onChange={e => setExamForm(f => ({ ...f, notes: e.target.value }))} />
-                                    </div>
-                                  </div>
-                                  <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button onClick={() => saveExam(course.id)} className="btn btn-primary" disabled={saving}><Save size={12} /> Spara</button>
-                                    <button onClick={() => { setAddingExamTo(null); setExamForm({ name: '', exam_date: '', notes: '' }) }} className="btn btn-ghost">Avbryt</button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <button onClick={() => setAddingExamTo(`arc-${course.id}`)} className="btn btn-ghost" style={{ fontSize: '12px', marginTop: '8px' }}>
-                                  <Plus size={12} /> Lägg till examination
-                                </button>
-                              )}
-                            </div>
+                          {examGoalList.length > 0 && (
+                            <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--muted)' }}>{examGoalList.length} lärandemål</div>
                           )}
                         </div>
                       )
                     })}
+                    {addingExamTo === `arc-${course.id}` ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                        <input className="input" placeholder="Examinationsnamn" value={examForm.name} onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))} />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => saveExam(course.id)} className="btn btn-primary" disabled={saving}><Save size={12} /> Spara</button>
+                          <button onClick={() => setAddingExamTo(null)} className="btn btn-ghost">Avbryt</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => setAddingExamTo(`arc-${course.id}`)} className="btn btn-ghost" style={{ fontSize: '12px', marginTop: '8px' }}>
+                        <Plus size={12} /> Lägg till examination
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
-
-        </>
-      )}
+            )
+          })}
 
           <button onClick={() => setShowNewArchive(true)} className="btn btn-ghost" style={{ marginTop: '8px', fontSize: '13px' }}>
             <Plus size={14} /> Arkivera kurs manuellt
@@ -1195,9 +871,7 @@ export default function PluggPage() {
                       {session.notes && ` · ${session.notes}`}
                     </div>
                   </div>
-                  <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
-                    {session.hours}h
-                  </div>
+                  <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>{session.hours}h</div>
                 </div>
               </div>
             ))}
@@ -1215,6 +889,7 @@ export default function PluggPage() {
         />
       )}
 
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
