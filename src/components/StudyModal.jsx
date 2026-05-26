@@ -180,9 +180,13 @@ Börja direkt med tentans första fråga.`
   }
 
   async function startSession() {
-    if (selectedGoals.length === 0) return
+    if (mode === 'normal' && selectedGoals.length === 0) return
 
-    const chosen = goalsWithDecay.filter(g => selectedGoals.includes(g.id))
+    // In tenta mode, use all goals automatically
+    const chosen = mode === 'tenta'
+      ? goalsWithDecay
+      : goalsWithDecay.filter(g => selectedGoals.includes(g.id))
+
     setSessionGoals(chosen)
 
     // Fetch course material content
@@ -447,61 +451,79 @@ Börja direkt med tentans första fråga.`
                 </button>
               </div>
 
-              {/* Goal selector */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.05em' }}>
-                    LÄRANDEMÅL ({selectedGoals.length}/{goalsWithDecay.length} valda)
+              {/* Goal selector — only in normal mode */}
+              {mode === 'normal' && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.05em' }}>
+                      LÄRANDEMÅL ({selectedGoals.length}/{goalsWithDecay.length} valda)
+                    </div>
+                    <button onClick={() => setSelectedGoals(goalsWithDecay.map(g => g.id))} style={{ fontSize: '12px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                      Välj alla
+                    </button>
                   </div>
-                  <button onClick={() => setSelectedGoals(goalsWithDecay.map(g => g.id))} style={{ fontSize: '12px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                    Välj alla
-                  </button>
-                </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  {goalsWithDecay.map(goal => {
-                    const selected = selectedGoals.includes(goal.id)
-                    const m = goal.effectiveMastery
-                    const needsReview = goal.last_studied && differenceInDays(new Date(), parseISO(goal.last_studied)) >= 3
-                    return (
-                      <div key={goal.id} onClick={() => {
-                        setSelectedGoals(prev => prev.includes(goal.id) ? prev.filter(id => id !== goal.id) : [...prev, goal.id])
-                      }} style={{
-                        display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px',
-                        borderRadius: '9px', cursor: 'pointer', transition: 'all 0.12s',
-                        background: selected ? 'var(--accent-soft)' : 'var(--surface2)',
-                        border: `1px solid ${selected ? 'var(--accent-border)' : 'var(--border)'}`,
-                      }}>
-                        <div style={{
-                          width: '17px', height: '17px', borderRadius: '4px', flexShrink: 0,
-                          border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
-                          background: selected ? 'var(--accent)' : 'transparent',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    {goalsWithDecay.map(goal => {
+                      const selected = selectedGoals.includes(goal.id)
+                      const m = goal.effectiveMastery
+                      const needsReview = goal.last_studied && differenceInDays(new Date(), parseISO(goal.last_studied)) >= 3
+                      return (
+                        <div key={goal.id} onClick={() => {
+                          setSelectedGoals(prev => prev.includes(goal.id) ? prev.filter(id => id !== goal.id) : [...prev, goal.id])
+                        }} style={{
+                          display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px',
+                          borderRadius: '9px', cursor: 'pointer', transition: 'all 0.12s',
+                          background: selected ? 'var(--accent-soft)' : 'var(--surface2)',
+                          border: `1px solid ${selected ? 'var(--accent-border)' : 'var(--border)'}`,
                         }}>
-                          {selected && <Check size={10} color="white" />}
-                        </div>
-                        <MasteryRing value={m} size={34} />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '13px', lineHeight: '1.4' }}>{goal.description}</div>
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '2px', fontSize: '10px', color: 'var(--muted)' }}>
-                            {needsReview && <span style={{ color: '#f59e0b' }}>⚠️ Repeteras</span>}
-                            {goal.last_studied ? <span>Senast {format(parseISO(goal.last_studied), 'd MMM', { locale: sv })}</span> : <span>Ej studerad</span>}
+                          <div style={{
+                            width: '17px', height: '17px', borderRadius: '4px', flexShrink: 0,
+                            border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
+                            background: selected ? 'var(--accent)' : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {selected && <Check size={10} color="white" />}
+                          </div>
+                          <MasteryRing value={m} size={34} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', lineHeight: '1.4' }}>{goal.description}</div>
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '2px', fontSize: '10px', color: 'var(--muted)' }}>
+                              {needsReview && <span style={{ color: '#f59e0b' }}>⚠️ Repeteras</span>}
+                              {goal.last_studied ? <span>Senast {format(parseISO(goal.last_studied), 'd MMM', { locale: sv })}</span> : <span>Ej studerad</span>}
+                            </div>
                           </div>
                         </div>
+                      )
+                    })}
+                    {goalsWithDecay.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '30px', color: 'var(--muted)', fontSize: '13px' }}>
+                        Inga lärandemål tillagda för denna examination
                       </div>
-                    )
-                  })}
-                  {goalsWithDecay.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '30px', color: 'var(--muted)', fontSize: '13px' }}>
-                      Inga lärandemål tillagda för denna examination
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Tenta mode info */}
+              {mode === 'tenta' && (
+                <div style={{ padding: '20px', borderRadius: '12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '10px' }}>📝</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#f59e0b', marginBottom: '6px' }}>Tentamode</div>
+                  <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6' }}>
+                    Jarvis kör en gammal tenta med dig fråga för fråga. Han bedömer dina svar och uppdaterar behärskningsgraden för alla {goalsWithDecay.length} lärandemål automatiskt.
+                  </div>
+                  {goalsWithDecay.filter(g => !g.last_studied).length > 0 && (
+                    <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--muted)' }}>
+                      {goalsWithDecay.filter(g => !g.last_studied).length} mål ej studerade än
                     </div>
                   )}
                 </div>
-              </div>
+              )}
             </div>
 
             <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-              <button onClick={startSession} disabled={selectedGoals.length === 0} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px' }}>
+              <button onClick={startSession} disabled={mode === 'normal' && selectedGoals.length === 0} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px' }}>
                 {mode === 'tenta' ? <><Zap size={15} /> Starta tentamode</> : <><Brain size={15} /> Starta session · {selectedGoals.length} mål</>}
               </button>
             </div>
