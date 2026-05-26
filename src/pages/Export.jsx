@@ -34,7 +34,7 @@ const EXPORTS = [
     description: 'Alla journalanteckningar med humör, energi och reflektioner',
     color: '#06b6d4',
     table: 'journal_entries',
-    select: 'date, mood, energy, sleep_hours, highlights, challenges, gratitude, tomorrow_focus',
+    select: 'date, mood, energy, sleep_hours, social_score, content',
     orderBy: 'date',
   },
   {
