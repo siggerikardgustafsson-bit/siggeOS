@@ -105,11 +105,11 @@ function CountryPicker({ selected, onChange }) {
         }}>
           {COUNTRIES.map(c => (
             <button key={c} onClick={() => toggle(c)} style={{
-              width: '100%', padding: '8px 12px', background: 'none', border: 'none',
+              width: '100%', padding: '8px 12px', border: 'none',
               cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif',
               fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px',
               color: selected.includes(c) ? 'var(--text)' : 'var(--muted)',
-              background: selected.includes(c) ? 'rgba(59,130,246,0.08)' : 'transparent',
+              background: selected.includes(c) ? 'rgba(59,130,246,0.08)' : 'none',
             }}>
               <span>{FLAGS[c] || '🌍'}</span>
               <span style={{ flex: 1 }}>{c}</span>
