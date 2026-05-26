@@ -8,6 +8,7 @@ import {
   ExternalLink, Copy, Check, ChevronDown, ChevronUp,
   Archive, Zap, Upload, FileText, Trash2
 } from 'lucide-react'
+import StudyModal from '../components/StudyModal'
 
 const GRADES = ['IG', 'G']
 const TERMS = ['Termin 1','Termin 2','Termin 3','Termin 4','Termin 5','Termin 6',
@@ -21,6 +22,8 @@ function CountdownBadge({ examDate }) {
     <div className="mono" style={{ fontSize: '11px', color, fontWeight: '600',
       padding: '2px 7px', borderRadius: '5px', background: color + '15', flexShrink: 0 }}>
       {days < 0 ? 'Avklarad' : days === 0 ? 'IDAG' : `${days}d`}
+    </div>
+    </div>
     </div>
   )
 }
@@ -62,6 +65,7 @@ export default function PluggPage() {
   const [mandatorySessions, setMandatorySessions] = useState({})
   const [mandatoryUnmatched, setMandatoryUnmatched] = useState([])
   const [syncingMandatory, setSyncingMandatory] = useState(false)
+  const [studySession, setStudySession] = useState(null) // { exam, courseId, goals }
 
   useEffect(() => { if (user) fetchAll() }, [user])
 
@@ -632,6 +636,17 @@ export default function PluggPage() {
                                     )}
                                   </div>
                                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+                                    {examGoalList.length > 0 && (
+                                      <button onClick={e => { e.stopPropagation(); setStudySession({ exam, courseId: course.id, goals: examGoalList }) }}
+                                        style={{
+                                          display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px',
+                                          borderRadius: '6px', border: '1px solid rgba(139,92,246,0.3)',
+                                          background: 'rgba(139,92,246,0.1)', color: '#a78bfa',
+                                          cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif', fontWeight: '600',
+                                        }}>
+                                        📚 Plugga
+                                      </button>
+                                    )}
                                     {GRADES.map(g => (
                                       <button key={g} onClick={e => { e.stopPropagation(); updateExamGrade(exam.id, exam.grade === g ? null : g) }} style={{
                                         padding: '3px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
@@ -720,13 +735,21 @@ export default function PluggPage() {
                                     {examGoalList.length > 0 && (
                                       <div>
                                         <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>LÄRANDEMÅL ({examGoalList.length})</div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                          {examGoalList.map(goal => (
-                                            <div key={goal.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6', marginTop: '6px', flexShrink: 0 }} />
-                                              <span style={{ fontSize: '12px', color: 'var(--muted2)', lineHeight: '1.5' }}>{goal.description}</span>
-                                            </div>
-                                          ))}
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                          {examGoalList.map(goal => {
+                                            const m = goal.mastery || 0
+                                            const color = m >= 80 ? '#10b981' : m >= 50 ? '#f59e0b' : m >= 20 ? '#3b82f6' : '#6b7280'
+                                            return (
+                                              <div key={goal.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                                <div style={{ flexShrink: 0, marginTop: '2px' }}>
+                                                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', border: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: color + '15' }}>
+                                                    <span style={{ fontSize: '8px', fontWeight: '700', color, fontFamily: 'monospace' }}>{m}</span>
+                                                  </div>
+                                                </div>
+                                                <span style={{ fontSize: '12px', color: 'var(--muted2)', lineHeight: '1.5', paddingTop: '4px' }}>{goal.description}</span>
+                                              </div>
+                                            )
+                                          })}
                                         </div>
                                       </div>
                                     )}
@@ -1138,6 +1161,16 @@ export default function PluggPage() {
             ))}
           </div>
         </>
+      )}
+
+      {studySession && (
+        <StudyModal
+          exam={studySession.exam}
+          courseId={studySession.courseId}
+          goals={studySession.goals}
+          onClose={() => setStudySession(null)}
+          onMasteryUpdate={() => fetchCourses()}
+        />
       )}
 
     </div>
