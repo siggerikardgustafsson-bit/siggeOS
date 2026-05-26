@@ -713,56 +713,7 @@ BÖRJA DIREKT med att presentera vilken tenta vi kör och sedan FRÅGA 1.`
                         ))}
                       </div>
                     )}
-                  </div>
-                )
-              })}
-              {loading && (
-                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                  <div style={{ padding: '10px 14px', borderRadius: '14px', background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', gap: '4px' }}>
-                    {[0,1,2].map(i => (
-                      <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: `bounce 1.2s ease-in-out ${i*0.15}s infinite` }} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
-                <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
-                  placeholder="Svara på Jarvis frågor... (Enter för att skicka, Shift+Enter för ny rad)"
-                  disabled={loading} rows={3}
-                  style={{
-                    flex: 1, padding: '10px 14px', borderRadius: '10px',
-                    border: '1px solid var(--border)', background: 'var(--surface2)',
-                    color: 'var(--text)', fontSize: '14px', fontFamily: 'Inter, sans-serif',
-                    resize: 'none', outline: 'none', lineHeight: '1.5',
-                    minHeight: '72px', maxHeight: '160px', overflow: 'auto',
-                  }}
-                  onFocus={e => e.target.style.borderColor = 'var(--accent-border)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
-                />
-                <button onClick={sendMessage} disabled={loading || !input.trim()} style={{
-                  width: '42px', height: '42px', borderRadius: '10px', border: 'none',
-                  background: input.trim() ? 'var(--accent)' : 'var(--surface2)',
-                  color: input.trim() ? 'white' : 'var(--muted)', cursor: input.trim() ? 'pointer' : 'default',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  boxShadow: input.trim() ? '0 2px 10px var(--accent-glow)' : 'none',
-                }}>
-                  <Send size={15} />
-                </button>
-              </div>
-            </div>
-          </>
-        )}
       </div>
-      </div>
-      </div>
-      <style>{\`
-        @keyframes bounce { 0%,60%,100% { transform:translateY(0) } 30% { transform:translateY(-5px) } }
-        @keyframes spin { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }
-      \`}</style>
     </div>
   )
 }
