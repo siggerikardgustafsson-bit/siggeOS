@@ -22,6 +22,8 @@ function CountdownBadge({ examDate }) {
       padding: '2px 7px', borderRadius: '5px', background: color + '15', flexShrink: 0 }}>
       {days < 0 ? 'Avklarad' : days === 0 ? 'IDAG' : `${days}d`}
     </div>
+    </div>
+    </div>
   )
 }
 
@@ -222,7 +224,7 @@ export default function PluggPage() {
     if (!newGoal.trim()) return
     await supabase.from('learning_goals').insert({
       user_id: user.id, course_id: courseId, exam_id: examId,
-      goal: newGoal.trim(), source_file: 'manual',
+      description: newGoal.trim(), source_file: 'manual',
     })
     setNewGoal('')
     setAddingGoalTo(null)
@@ -320,7 +322,7 @@ export default function PluggPage() {
             for (const goal of parsed.goals) {
               await supabase.from('learning_goals').insert({
                 user_id: user.id, course_id: courseId, exam_id: examId,
-                goal, source_file: file.name,
+                description: goal, source_file: file.name,
               })
             }
             await fetchCourses()
@@ -382,7 +384,7 @@ export default function PluggPage() {
   async function copyGoals(courseId) {
     const courseExams = exams[courseId] || []
     const allGoals = courseExams.flatMap(e =>
-      (goals[e.id] || []).map(g => `• ${g.goal}`)
+      (goals[e.id] || []).map(g => `• ${g.description}`)
     )
     await navigator.clipboard.writeText(allGoals.join('\n'))
     setCopied(courseId)
@@ -695,7 +697,7 @@ export default function PluggPage() {
                                           {examGoalList.map(goal => (
                                             <div key={goal.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
                                               <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6', marginTop: '6px', flexShrink: 0 }} />
-                                              <span style={{ fontSize: '12px', color: 'var(--muted2)', lineHeight: '1.5' }}>{goal.goal}</span>
+                                              <span style={{ fontSize: '12px', color: 'var(--muted2)', lineHeight: '1.5' }}>{goal.description}</span>
                                             </div>
                                           ))}
                                         </div>
@@ -980,7 +982,7 @@ export default function PluggPage() {
                                     {examGoalList.map(goal => (
                                       <div key={goal.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
                                         <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#3b82f6', marginTop: '6px', flexShrink: 0 }} />
-                                        <span style={{ fontSize: '12px', color: 'var(--muted2)', lineHeight: '1.5' }}>{goal.goal}</span>
+                                        <span style={{ fontSize: '12px', color: 'var(--muted2)', lineHeight: '1.5' }}>{goal.description}</span>
                                       </div>
                                     ))}
                                   </div>
