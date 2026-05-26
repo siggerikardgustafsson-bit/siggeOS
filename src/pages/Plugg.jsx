@@ -23,6 +23,7 @@ function CountdownBadge({ examDate }) {
       padding: '2px 7px', borderRadius: '5px', background: color + '15', flexShrink: 0 }}>
       {days < 0 ? 'Avklarad' : days === 0 ? 'IDAG' : `${days}d`}
     </div>
+    </div>
   )
 }
 
@@ -1214,6 +1215,7 @@ export default function PluggPage() {
         />
       )}
 
+    </div>
     </div>
   )
 }
