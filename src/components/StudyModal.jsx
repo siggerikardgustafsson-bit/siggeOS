@@ -745,8 +745,6 @@ BÖRJA DIREKT med att presentera vilken tenta vi kör och sedan FRÅGA 1.`
           </>
         )}
       </div>
-      </div>
-      </div>
       <style>{`
         @keyframes bounce { 0%,60%,100% { transform:translateY(0) } 30% { transform:translateY(-5px) } }
         @keyframes spin { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }
