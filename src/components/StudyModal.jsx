@@ -58,6 +58,8 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   const [masteryUpdates, setMasteryUpdates] = useState({})
   const [sessionGoals, setSessionGoals] = useState([])
   const [courseMaterials, setCourseMaterials] = useState([])
+  const [tentaHistory, setTentaHistory] = useState([]) // previous tenta sessions
+  const [currentTentaFileId, setCurrentTentaFileId] = useState(null)
   const [uploadingMaterial, setUploadingMaterial] = useState(false)
   const [sessionId, setSessionId] = useState(null)
   const [sessionStartTime] = useState(new Date())
@@ -72,8 +74,18 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   }))
 
   useEffect(() => {
-    if (user && exam?.id) fetchCourseMaterials()
+    if (user && exam?.id) { fetchCourseMaterials(); fetchTentaHistory() }
   }, [user, exam])
+
+  async function fetchTentaHistory() {
+    const { data } = await supabase
+      .from('tenta_sessions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('exam_id', exam.id)
+      .order('completed_at', { ascending: false })
+    setTentaHistory(data || [])
+  }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -131,13 +143,63 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     await fetchCourseMaterials()
   }
 
-  function buildSystemPrompt(chosenGoals, materials, isTentaMode) {
+  async function startTentaSession(chosen, matData, oldExamData) {
+    setStep('chat')
+    const { data: sessData } = await supabase.from('study_sessions').insert({
+      user_id: user.id, course_id: courseId, hours: 0,
+      date: format(new Date(), 'yyyy-MM-dd'), subject: exam.name, notes: 'Tentamode',
+    }).select().single()
+    if (sessData) setSessionId(sessData.id)
+
+    // Pick which old exam to use (prefer least recently done)
+    let chosenExamFile = null
+    if (oldExamData.length > 0) {
+      const doneFileIds = tentaHistory.map(t => t.old_exam_file_id).filter(Boolean)
+      const undone = oldExamData.filter(e => !doneFileIds.includes(e.id))
+      chosenExamFile = undone.length > 0 ? undone[0] : oldExamData[0]
+      setCurrentTentaFileId(chosenExamFile?.id || null)
+    }
+
+    // Build history context
+    const historyForFile = chosenExamFile
+      ? tentaHistory.filter(t => t.old_exam_file_id === chosenExamFile.id)
+      : []
+    const isPreviouslyDone = historyForFile.length > 0
+    const lastDone = isPreviouslyDone ? historyForFile[0] : null
+
+    // Save tenta session record
+    await supabase.from('tenta_sessions').insert({
+      user_id: user.id,
+      exam_id: exam.id,
+      old_exam_file_id: chosenExamFile?.id || null,
+      file_name: chosenExamFile?.file_name || 'Genererad tenta',
+    })
+
+    const systemPrompt = buildSystemPrompt(chosen, matData, true, oldExamData, chosenExamFile, isPreviouslyDone, lastDone)
+    setLoading(true)
+    try {
+      const { data } = await supabase.functions.invoke('jarvis-chat', {
+        body: { messages: [{ role: 'user', content: 'Kör tentamode.' }], context: '', systemPrompt },
+      })
+      setMessages([{ role: 'assistant', content: data.content }])
+      await processMasteryUpdates(data.content, chosen)
+    } catch(e) { console.error(e) }
+    setLoading(false)
+    setTimeout(() => inputRef.current?.focus(), 100)
+    await fetchTentaHistory()
+  }
+
+  function buildSystemPrompt(chosenGoals, materials, isTentaMode, oldExams = [], chosenExamFile = null, isPreviouslyDone = false, lastDone = null) {
     const goalsList = chosenGoals.map((g, i) =>
       `${i + 1}. [ID: ${g.id}] ${g.description} (nuvarande behärskningsgrad: ${masteryUpdates[g.id] ?? g.effectiveMastery}%)`
     ).join('\n')
 
     const materialsBlock = materials.length > 0
-      ? `\nKURSMATERIAL (vad Sigge förväntas kunna):\n${materials.map(m => `--- ${m.file_name} ---\n${m.content?.slice(0, 3000)}`).join('\n\n')}`
+      ? `\nKURSMATERIAL:\n${materials.map(m => `--- ${m.file_name} ---\n${m.content?.slice(0, 3000)}`).join('\n\n')}`
+      : ''
+
+    const oldExamsBlock = oldExams.length > 0
+      ? `\nGAMLA TENTOR:\n${oldExams.map(e => `--- ${e.file_name} ---\n${e.content?.slice(0, 4000)}`).join('\n\n')}`
       : ''
 
     const basePrompt = `Du är Jarvis, Sigges personliga medicinstudent-tutor. Examination: "${exam.name}".
@@ -145,6 +207,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
 LÄRANDEMÅL (med goal_id och nuvarande behärskningsgrad):
 ${goalsList}
 ${materialsBlock}
+${oldExamsBlock}
 
 MASTERY-UPPDATERING (KRITISKT VIKTIGT):
 - Du MÅSTE inkludera mastery_update JSON varje gång du bedömer ett svar
@@ -167,13 +230,15 @@ PEDAGOGISK STIL:
 Svara på svenska. Var direkt och pedagogisk.`
 
     if (isTentaMode) {
+      const examInfo = chosenExamFile
+        ? `Du kör tentan: "${chosenExamFile.file_name}".${isPreviouslyDone ? ` Sigge har gjort denna tenta tidigare (senast ${format(parseISO(lastDone.completed_at), 'd MMM yyyy', { locale: sv })}). Informera honom om detta i ditt första meddelande och notera om han förbättrat sig.` : ' Det är första gången Sigge gör denna tenta. Informera honom om det.'}`
+        : 'Inga gamla tentor är uppladdade. Generera realistiska tentafrågor baserade på lärandemålen och kursmaterialet. Informera Sigge att detta är genererade frågor, inte en riktig gammal tenta.'
       return basePrompt + `
 
 TENTAMODE:
-Du kör en simulerad tenta. Presentera en fråga i taget från den gamla tentan. 
-Vänta på Sigges svar. Ge feedback och poäng (0-10). 
-Gå sedan till nästa fråga. Summera resultatet i slutet och uppdatera behärskningsgrader baserat på prestationen.
-Börja direkt med tentans första fråga.`
+${examInfo}
+Kör frågorna en i taget. Vänta på svar. Ge feedback och poäng (0-10). Uppdatera behärskningsgrad efter varje svar. Summera i slutet.
+Börja direkt med att informera om vilken tenta det är och sedan första frågan.`
     }
 
     return basePrompt + '\n\nBörja med att fråga om det första lärandemålet.'
@@ -182,23 +247,24 @@ Börja direkt med tentans första fråga.`
   async function startSession() {
     if (mode === 'normal' && selectedGoals.length === 0) return
 
-    // In tenta mode, use all goals automatically
-    const chosen = mode === 'tenta'
-      ? goalsWithDecay
-      : goalsWithDecay.filter(g => selectedGoals.includes(g.id))
-
+    const chosen = mode === 'tenta' ? goalsWithDecay : goalsWithDecay.filter(g => selectedGoals.includes(g.id))
     setSessionGoals(chosen)
+
+    if (mode === 'tenta') {
+      const [matRes, oldExamRes] = await Promise.all([
+        supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
+        supabase.from('exam_old_files').select('id, file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
+      ])
+      await startTentaSession(chosen, matRes.data || [], oldExamRes.data || [])
+      return
+    }
+
     setStep('chat')
 
-    // In tenta mode, skip straight to chat without showing select screen
-    // (setStep already called, just continue loading)
-
-    // Fetch course material content
-    const { data: matData } = await supabase
-      .from('course_materials')
-      .select('file_name, content')
-      .eq('exam_id', exam.id)
-      .eq('user_id', user.id)
+    const [matRes, oldExamRes] = await Promise.all([
+      supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
+      supabase.from('exam_old_files').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
+    ])
 
     // Create study session in DB
     const { data: sessData } = await supabase.from('study_sessions').insert({
@@ -211,7 +277,7 @@ Börja direkt med tentans första fråga.`
     }).select().single()
     if (sessData) setSessionId(sessData.id)
 
-    const systemPrompt = buildSystemPrompt(chosen, matData || [], mode === 'tenta')
+    const systemPrompt = buildSystemPrompt(chosen, matRes.data || [], mode === 'tenta', oldExamRes.data || [])
 
     setLoading(true)
     try {
@@ -415,22 +481,13 @@ Börja direkt med tentans första fråga.`
                 </button>
                 <button onClick={async () => { 
                   setMode('tenta')
-                  // Auto-start tenta mode without showing goal selection
                   const chosen = goalsWithDecay
                   setSessionGoals(chosen)
-                  setStep('chat')
-                  const { data: matData } = await supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
-                  const { data: sessData } = await supabase.from('study_sessions').insert({ user_id: user.id, course_id: courseId, hours: 0, date: format(new Date(), 'yyyy-MM-dd'), subject: exam.name, notes: 'Tentamode' }).select().single()
-                  if (sessData) setSessionId(sessData.id)
-                  const systemPrompt = buildSystemPrompt(chosen, matData || [], true)
-                  setLoading(true)
-                  try {
-                    const { data } = await supabase.functions.invoke('jarvis-chat', { body: { messages: [{ role: 'user', content: 'Kör tentamode.' }], context: '', systemPrompt } })
-                    setMessages([{ role: 'assistant', content: data.content }])
-                    await processMasteryUpdates(data.content, chosen)
-                  } catch(e) { console.error(e) }
-                  setLoading(false)
-                  setTimeout(() => inputRef.current?.focus(), 100)
+                  const [matRes, oldExamRes] = await Promise.all([
+                    supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
+                    supabase.from('exam_old_files').select('id, file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
+                  ])
+                  await startTentaSession(chosen, matRes.data || [], oldExamRes.data || [])
                 }} style={{
                   flex: 1, padding: '9px', borderRadius: '9px', border: 'none', cursor: 'pointer',
                   background: mode === 'tenta' ? '#f59e0b' : 'var(--surface2)',
@@ -530,13 +587,22 @@ Börja direkt med tentans första fråga.`
                 <div style={{ padding: '20px', borderRadius: '12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', textAlign: 'center' }}>
                   <div style={{ fontSize: '32px', marginBottom: '10px' }}>📝</div>
                   <div style={{ fontSize: '14px', fontWeight: '600', color: '#f59e0b', marginBottom: '6px' }}>Tentamode</div>
-                  <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6' }}>
-                    Jarvis kör en gammal tenta med dig fråga för fråga. Han bedömer dina svar och uppdaterar behärskningsgraden för alla {goalsWithDecay.length} lärandemål automatiskt.
+                  <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6', marginBottom: '12px' }}>
+                    Jarvis kör en gammal tenta med dig fråga för fråga och bedömer alla {goalsWithDecay.length} lärandemål automatiskt.
                   </div>
-                  {goalsWithDecay.filter(g => !g.last_studied).length > 0 && (
-                    <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--muted)' }}>
-                      {goalsWithDecay.filter(g => !g.last_studied).length} mål ej studerade än
+                  {tentaHistory.length > 0 && (
+                    <div style={{ textAlign: 'left', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>TIDIGARE GJORDA TENTOR</div>
+                      {tentaHistory.map(t => (
+                        <div key={t.id} style={{ fontSize: '12px', color: 'var(--muted2)', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>{t.file_name || 'Genererad tenta'}</span>
+                          <span style={{ color: 'var(--muted)' }}>{format(parseISO(t.completed_at), 'd MMM yyyy', { locale: sv })}</span>
+                        </div>
+                      ))}
                     </div>
+                  )}
+                  {tentaHistory.length === 0 && (
+                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ingen tenta gjord ännu</div>
                   )}
                 </div>
               )}
