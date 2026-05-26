@@ -271,12 +271,33 @@ export default function PluggPage() {
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const base64 = ev.target.result.split(',')[1]
+      // Extract text via Jarvis at upload time so we don't need to send large PDFs later
+      let extractedText = ''
+      try {
+        const { data } = await supabase.functions.invoke('jarvis-chat', {
+          body: {
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+                { type: 'text', text: 'Extrahera hela innehållet i detta tentapapper ordagrant. Behåll alla frågor, svarsalternativ och numrering exakt som de är. Returnera bara texten.' }
+              ]
+            }],
+            context: '',
+            systemPrompt: 'Du extraherar text från PDF-tentor. Returnera bara texten exakt som den är.',
+          },
+        })
+        extractedText = data?.content || ''
+      } catch(err) {
+        console.error('PDF extraction failed:', err)
+        extractedText = `[Kunde inte extrahera text från ${file.name}]`
+      }
       await supabase.from('exam_old_files').insert({
         user_id: user.id,
         exam_id: examId,
         course_id: courseId,
         file_name: file.name,
-        content: base64,
+        content: extractedText, // Store extracted text, not base64
       })
       await fetchCourses()
       setUploadingOldExam(null)
@@ -291,12 +312,31 @@ export default function PluggPage() {
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const base64 = ev.target.result.split(',')[1]
+      let extractedText = ''
+      try {
+        const { data } = await supabase.functions.invoke('jarvis-chat', {
+          body: {
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+                { type: 'text', text: 'Extrahera allt textinnehåll från detta kursmaterial. Behåll rubriker, struktur och alla detaljer exakt som de är. Returnera bara texten.' }
+              ]
+            }],
+            context: '',
+            systemPrompt: 'Du extraherar text från PDF-kursmaterial. Returnera bara texten.',
+          },
+        })
+        extractedText = data?.content || ''
+      } catch(err) {
+        extractedText = `[Kunde inte extrahera text från ${file.name}]`
+      }
       await supabase.from('course_materials').insert({
         user_id: user.id,
         exam_id: examId,
         course_id: courseId,
         file_name: file.name,
-        content: base64,
+        content: extractedText,
       })
       await fetchCourses()
       setUploadingCourseMaterial(null)

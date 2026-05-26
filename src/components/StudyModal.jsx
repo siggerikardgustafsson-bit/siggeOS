@@ -145,25 +145,12 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   }
 
   function buildMessages(isTentaMode, oldExams, materials, userText) {
-    const content = []
-    // Add old exam PDFs as documents
-    for (const e of oldExams) {
-      if (e.content) {
-        content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: e.content }, title: e.file_name })
-      }
-    }
-    // Add course material PDFs
-    for (const m of materials) {
-      if (m.content) {
-        content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: m.content }, title: m.file_name })
-      }
-    }
-    content.push({ type: 'text', text: userText })
-    return [{ role: 'user', content }]
+    // Content is extracted text, send as plain text (not documents)
+    // This avoids payload size issues with large PDFs
+    return [{ role: 'user', content: userText }]
   }
 
   async function startTentaSession(chosen, matData, oldExamData) {
-    // Don't switch to chat until we have the first message
     const { data: sessData } = await supabase.from('study_sessions').insert({
       user_id: user.id, course_id: courseId, hours: 0,
       date: format(new Date(), 'yyyy-MM-dd'), subject: exam.name, notes: 'Tentamode',
@@ -188,26 +175,34 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       file_name: chosenExamFile?.file_name || 'Genererad tenta',
     })
 
+    // Build system prompt — include exam file info but NOT the base64 content
+    // The PDF base64 is too large for the payload. Instead pass file name and let
+    // system prompt tell Jarvis to use the document that was attached.
     const systemPrompt = buildSystemPrompt(chosen, matData, true, oldExamData, chosenExamFile, isPreviouslyDone, lastDone)
 
     setSessionGoals(chosen)
     setStep('chat')
     setLoading(true)
     try {
-      const docsToSend = chosenExamFile ? [chosenExamFile] : []
-      const initialMessages = buildMessages(true, docsToSend, matData, 'Starta tentamode nu. Informera mig om vilken tenta vi kör och börja direkt med första frågan.')
-      const { data } = await supabase.functions.invoke('jarvis-chat', {
+      // Send PDF as document only if file is small enough (< 500KB base64)
+      const useDoc = chosenExamFile && chosenExamFile.content && chosenExamFile.content.length < 700000
+      const initialMessages = useDoc
+        ? buildMessages(true, [chosenExamFile], [], 'Starta tentamode. Informera mig om vilken tenta vi kör och börja med första frågan.')
+        : [{ role: 'user', content: `Starta tentamode. ${chosenExamFile ? `Tentan heter "${chosenExamFile.file_name}". Generera realistiska frågor baserade på lärandemålen och kursmaterialet.` : 'Generera realistiska tentafrågor baserade på lärandemålen.'} Börja direkt med första frågan.` }]
+
+      const { data, error } = await supabase.functions.invoke('jarvis-chat', {
         body: { messages: initialMessages, context: '', systemPrompt },
       })
+      if (error) throw new Error(error.message)
       if (data?.content) {
         setMessages([{ role: 'assistant', content: data.content }])
         await processMasteryUpdates(data.content, chosen)
       } else {
-        setMessages([{ role: 'assistant', content: 'Något gick fel vid start. Skriv något för att fortsätta.' }])
+        setMessages([{ role: 'assistant', content: `Fel: ${JSON.stringify(data)}` }])
       }
     } catch(e) {
-      console.error(e)
-      setMessages([{ role: 'assistant', content: 'Något gick fel. Skriv något för att försöka igen.' }])
+      console.error('startTentaSession error:', e)
+      setMessages([{ role: 'assistant', content: `Kunde inte starta: ${e.message}. Försök igen.` }])
     }
     setLoading(false)
     setTimeout(() => inputRef.current?.focus(), 100)
@@ -220,12 +215,16 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     ).join('\n')
 
     const oldExamsBlock = oldExams.length > 0
-      ? `\nGAMLA TENTOR (${oldExams.length} st uppladdade: ${oldExams.map(e => e.file_name).join(', ')})`
+      ? `\nGAMLA TENTOR tillgängliga: ${oldExams.map(e => e.file_name).join(', ')}`
       : ''
 
     const materialsBlock = materials.length > 0
-      ? `\nKURSMATERIAL (${materials.length} st uppladdade: ${materials.map(m => m.file_name).join(', ')})`
+      ? `\nKURSMATERIAL (ABSOLUT SANNING — basera allt på detta):\n${materials.map(m => `--- ${m.file_name} ---\n${(m.content || '').slice(0, 5000)}`).join('\n\n')}`
       : ''
+
+    const chosenExamBlock = chosenExamFile?.content
+      ? `\nVALD TENTA "${chosenExamFile.file_name}" — kör exakt dessa frågor:\n${chosenExamFile.content.slice(0, 8000)}`
+      : (chosenExamFile ? `\nVald tenta: "${chosenExamFile.file_name}" — texten kunde inte extraheras, generera liknande frågor.` : '')
 
     const basePrompt = `Du är Jarvis, Sigges personliga medicinstudent-tutor. Examination: "${exam.name}".
 
@@ -233,11 +232,12 @@ LÄRANDEMÅL (med goal_id och nuvarande behärskningsgrad):
 ${goalsList}
 ${materialsBlock}
 ${oldExamsBlock}
+${chosenExamBlock}
 
 KRITISKT — INNEHÅLLSPRIORITERING:
 ${materials.length > 0
-  ? `Kursmaterialet ovan är den ABSOLUTA sanningen för vad Sigge förväntas kunna. Basera ALLA frågor och förklaringar uteslutande på innehållet i kursmaterialet. Tolka lärandemålen i ljuset av kursmaterialet — inte tvärtom. Om något lärandemål verkar brett, titta på vad kursmaterialet faktiskt täcker och begränsa dig till det.`
-  : `Inget kursmaterial är uppladdnat. Basera frågor på lärandemålen.`}
+  ? `Kursmaterialet ovan är den ABSOLUTA sanningen. Basera ALLT på det.`
+  : `Inget kursmaterial uppladdnat. Basera frågor på lärandemålen.`}
 
 MASTERY-UPPDATERING (KRITISKT VIKTIGT):
 - Inkludera mastery_update JSON när du bedömer ett svar
