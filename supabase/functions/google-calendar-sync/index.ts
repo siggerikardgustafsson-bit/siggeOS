@@ -28,7 +28,7 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
 async function fetchCalendarEvents(accessToken: string, monthsBack = 2): Promise<any[]> {
   const now = new Date()
   const start = new Date(now.getFullYear(), now.getMonth() - monthsBack, 1).toISOString()
-  const end = new Date(now.getFullYear(), now.getMonth() + 2, 1).toISOString()
+  const end = new Date(now.getFullYear(), now.getMonth() + 12, 1).toISOString()
 
   // First get all calendars
   const calListResp = await fetch(
@@ -88,7 +88,7 @@ serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SERVICE_ROLE_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY') ?? '',
     )
 
     // Get user from token
@@ -96,7 +96,11 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     if (authError || !user) throw new Error('Unauthorized')
 
-    const { action, code, redirect_uri } = await req.json().catch(() => ({}))
+    const url = new URL(req.url)
+    const actionParam = url.searchParams.get('action')
+    const bodyData = await req.json().catch(() => ({}))
+    const action = actionParam || bodyData.action
+    const { code, redirect_uri } = bodyData
 
     // ===== EXCHANGE CODE FOR TOKENS =====
     if (action === 'exchange_code') {
@@ -225,15 +229,22 @@ serve(async (req) => {
         await supabase.from('google_tokens').update({ access_token: accessToken, expires_at: new Date(Date.now() + 3600000).toISOString() }).eq('user_id', user.id)
       }
 
-      // Fetch all events from all calendars (12 months back, 6 forward)
+      // Fetch all events from all calendars (12 months back, 12 forward)
       const events = await fetchCalendarEvents(accessToken, 12)
+
+      console.log('Total events fetched:', events.length)
+      console.log('Sample titles:', events.slice(0, 5).map((e: any) => e.summary).join(', '))
 
       // Filter events containing "obligatorisk" anywhere in title or description
       const mandatoryEvents = events.filter((e: any) => {
-        const title = (e.summary || '').toLowerCase()
+        const title = (e.summary || '')
+        const titleLower = title.toLowerCase()
         const desc = (e.description || '').toLowerCase()
-        return title.includes('obligatorisk') || desc.includes('obligatorisk')
+        return titleLower.includes('obligatorisk') || desc.includes('obligatorisk')
       })
+
+      console.log('Mandatory events found:', mandatoryEvents.length)
+      console.log('Mandatory titles:', mandatoryEvents.map((e: any) => e.summary).join(', '))
 
       // Fetch user's active courses for matching
       const { data: courses } = await supabase
@@ -261,22 +272,39 @@ serve(async (req) => {
       let synced = 0
       for (const event of mandatoryEvents) {
         const startStr = event.start?.dateTime || event.start?.date
-        const endStr = event.end?.dateTime || event.end?.date
         if (!startStr) continue
 
         const date = startStr.slice(0, 10)
         const courseId = matchCourse(event.summary || '', event.description || '')
+        const googleEventId = event.id || null
 
-        await supabase.from('mandatory_sessions').upsert({
+        const record = {
           user_id: user.id,
-          google_event_id: event.id,
+          google_event_id: googleEventId,
           title: event.summary,
           date,
           start_time: event.start?.dateTime || null,
           end_time: event.end?.dateTime || null,
           course_id: courseId,
           course_hint: event.description || null,
-        }, { onConflict: 'google_event_id' })
+        }
+
+        if (googleEventId) {
+          const { error } = await supabase.from('mandatory_sessions').upsert(record, { onConflict: 'google_event_id' })
+          if (error) console.error('Upsert error:', error.message, error.details)
+        } else {
+          const { data: existing } = await supabase
+            .from('mandatory_sessions')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('title', event.summary)
+            .eq('date', date)
+            .single()
+          if (!existing) {
+            const { error } = await supabase.from('mandatory_sessions').insert(record)
+            if (error) console.error('Insert error:', error.message, error.details)
+          }
+        }
         synced++
       }
 

@@ -77,7 +77,8 @@ export default function KalenderPage() {
       add(e.exam_date, 'exam', { label: e.name, sub: e.courses?.name })
     }
     for (const m of mandRes.data || []) {
-      add(m.date, 'mandatory', { label: m.title, attended: m.attended, id: m.id })
+      const timeStr = m.start_time ? format(parseISO(m.start_time), 'HH:mm') + (m.end_time ? '–' + format(parseISO(m.end_time), 'HH:mm') : '') : null
+      add(m.date, 'mandatory', { label: m.title, attended: m.attended, id: m.id, time: timeStr })
     }
     for (const j of journalRes.data || []) {
       add(j.date, 'journal', { label: `humör ${j.mood}/10`, sub: `energi ${j.energy}/10` })
@@ -193,7 +194,7 @@ export default function KalenderPage() {
           </div>
 
           {/* Day cells */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px' }}>
             {days.map(day => {
               const dateStr = format(day, 'yyyy-MM-dd')
               const dayEvents = filteredEvents(dateStr)
@@ -206,26 +207,31 @@ export default function KalenderPage() {
 
               return (
                 <div key={dateStr} onClick={() => setSelectedDay(isSelected ? null : dateStr)} style={{
-                  minHeight: '80px', padding: '5px', borderRadius: '8px', cursor: 'pointer',
+                  minHeight: '68px', padding: '4px', borderRadius: '6px', cursor: 'pointer',
                   background: isSelected ? 'var(--accent-soft)' : today ? 'rgba(79,142,247,0.06)' : hasExam ? 'rgba(239,68,68,0.04)' : hasPA ? 'rgba(249,115,22,0.04)' : isWeekend ? 'rgba(255,255,255,0.01)' : 'transparent',
                   border: `1px solid ${isSelected ? 'var(--accent-border)' : today ? 'var(--accent-border)' : dayEvents.length > 0 ? 'var(--border)' : 'transparent'}`,
                   opacity: inMonth ? 1 : 0.3,
                   transition: 'all 0.12s',
+                  overflow: 'hidden',
                 }}>
                   <div style={{ fontSize: '11px', fontWeight: today ? '700' : '400', color: today ? 'var(--accent)' : isWeekend ? 'var(--muted2)' : 'var(--muted)', marginBottom: '3px' }}>
                     {format(day, 'd')}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    {dayEvents.slice(0, 3).map((ev, i) => {
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px' }}>
+                    {dayEvents.slice(0, 4).map((ev, i) => {
                       const t = EVENT_TYPES[ev.type]
                       return (
-                        <div key={i} style={{ fontSize: '9px', padding: '1px 3px', borderRadius: '3px', background: t.color + '20', color: t.color, fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {t.emoji} {ev.label}
+                        <div key={i} style={{
+                          width: '14px', height: '14px', borderRadius: '3px',
+                          background: t.color + '25', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '9px', flexShrink: 0,
+                        }} title={ev.label}>
+                          {t.emoji}
                         </div>
                       )
                     })}
-                    {dayEvents.length > 3 && (
-                      <div style={{ fontSize: '9px', color: 'var(--muted)', paddingLeft: '3px' }}>+{dayEvents.length - 3} till</div>
+                    {dayEvents.length > 4 && (
+                      <div style={{ fontSize: '8px', color: 'var(--muted)', lineHeight: '14px' }}>+{dayEvents.length - 4}</div>
                     )}
                   </div>
                 </div>
@@ -236,7 +242,7 @@ export default function KalenderPage() {
 
         {/* Day detail panel */}
         {selectedDay && (
-          <div className="card" style={{ position: 'sticky', top: '24px' }}>
+          <div className="card" style={{ position: 'sticky', top: '24px', maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div style={{ fontWeight: '600', fontSize: '14px', textTransform: 'capitalize' }}>
                 {format(parseISO(selectedDay), 'EEEE d MMMM', { locale: sv })}
@@ -247,25 +253,26 @@ export default function KalenderPage() {
             {selectedEvents.length === 0 ? (
               <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Inget loggat denna dag</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {selectedEvents.map((ev, i) => {
                   const t = EVENT_TYPES[ev.type]
                   return (
                     <div key={i} style={{ padding: '10px 12px', borderRadius: '10px', background: t.color + '10', border: `1px solid ${t.color}25` }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                         <span style={{ fontSize: '14px' }}>{t.emoji}</span>
-                        <span style={{ fontSize: '13px', fontWeight: '600', color: t.color }}>{t.label}</span>
+                        <span style={{ fontSize: '12px', fontWeight: '600', color: t.color }}>{t.label}</span>
                         {ev.type === 'mandatory' && (
                           <button onClick={() => toggleAttended(ev.id, ev.attended)} style={{
                             marginLeft: 'auto', fontSize: '10px', padding: '2px 8px', borderRadius: '5px', border: 'none', cursor: 'pointer',
                             background: ev.attended ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.08)',
                             color: ev.attended ? '#10b981' : 'var(--muted)', fontFamily: 'Inter, sans-serif',
                           }}>
-                            {ev.attended ? '✓ Närvarade' : 'Markera'}
+                            {ev.attended ? '✓ Närvaro' : 'Markera'}
                           </button>
                         )}
                       </div>
-                      <div style={{ fontSize: '13px', fontWeight: '500' }}>{ev.label}</div>
+                      <div style={{ fontSize: '13px', fontWeight: '500', lineHeight: '1.4' }}>{ev.label}</div>
+                      {ev.time && <div style={{ fontSize: '11px', color: t.color, fontWeight: '600', marginTop: '3px' }}>🕐 {ev.time}</div>}
                       {ev.sub && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>{ev.sub}</div>}
                       {ev.notes && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', fontStyle: 'italic' }}>{ev.notes}</div>}
                     </div>
