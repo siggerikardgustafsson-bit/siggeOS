@@ -189,14 +189,15 @@ Börja direkt med tentans första fråga.`
 
     setSessionGoals(chosen)
 
+    // In tenta mode, skip straight to chat without showing select screen
+    // (setStep already called, just continue loading)
+
     // Fetch course material content
     const { data: matData } = await supabase
       .from('course_materials')
       .select('file_name, content')
       .eq('exam_id', exam.id)
       .eq('user_id', user.id)
-
-    setStep('chat')
 
     // Create study session in DB
     const { data: sessData } = await supabase.from('study_sessions').insert({
