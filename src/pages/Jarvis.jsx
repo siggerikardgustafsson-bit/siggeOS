@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays } from 'date-fns'
 import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp } from 'lucide-react'
+import MarkdownMessage from '../components/MarkdownMessage'
 
 const JARVIS_SYSTEM = `Du är Jarvis – Sigges personliga AI-assistent inbyggd i hans livs-OS kallat Sigge OS.
 
@@ -406,9 +407,8 @@ ${summariesBlock}`
               lineHeight: '1.6',
               backdropFilter: 'blur(10px)',
               boxShadow: msg.role === 'user' ? '0 2px 12px var(--accent-glow)' : 'var(--glass-shadow)',
-              whiteSpace: 'pre-wrap',
             }}>
-              {msg.content}
+              <MarkdownMessage content={msg.content} userMessage={msg.role === 'user'} />
             </div>
           </div>
         ))}

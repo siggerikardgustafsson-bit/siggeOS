@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { format, differenceInDays, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { X, Send, Loader, Brain, Check, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react'
+import MarkdownMessage from './MarkdownMessage'
 
 // Decay: mastery reduces conservatively over time
 // 3 days: -5%, 7 days: -10%, 14 days: -20%, 30 days: -35%
@@ -85,10 +86,14 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
 LÄRANDEMÅL FÖR DENNA SESSION:
 ${goalsList}
 
-INSTRUKTIONER:
-- Testa Sigge systematiskt på varje lärandemål
-- Ställ konkreta frågor, be honom förklara, resonera och koppla till kliniska sammanhang
-- Bedöm hans svar och ge konstruktiv feedback
+PEDAGOGISK STIL:
+- Sokrates-metoden: ställ frågor som får Sigge att resonera och förstå mekanismerna på djupet
+- Förklara alltid VARFÖR, inte bara VAD — bygg logiska kedjor: "X händer → därför Y → vilket leder till Z"
+- Undvik punktlistor om möjligt — resonera i löpande text som en lärare som pratar
+- Koppla till kliniska scenarier och patientfall när det är möjligt
+- Korrigera missuppfattningar direkt men konstruktivt
+- Använd tabeller och jämförelser när det genuint hjälper förståelsen (t.ex. DKA vs HHS)
+- Om Sigge svarar ytligt, borra djupare: "Rätt, men varför sker det? Vad är den bakomliggande mekanismen?"
 - När du känner att du har tillräckligt underlag för ett lärandemål, uppdatera behärskningsgraden
 - Uppdatera genom att inkludera JSON i ditt svar: {"mastery_update": {"goal_id": "UUID", "mastery": 75, "reason": "Förklarade mekanismen korrekt men missade..."}}
 - Du kan uppdatera flera mål i samma meddelande
@@ -307,9 +312,9 @@ Kör på svenska. Var direkt och pedagogisk.`
                   background: msg.role === 'user' ? 'var(--accent)' : 'var(--surface2)',
                   border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
                   color: msg.role === 'user' ? 'white' : 'var(--text)',
-                  fontSize: '14px', lineHeight: '1.6', whiteSpace: 'pre-wrap',
+                  fontSize: '14px', lineHeight: '1.6',
                 }}>
-                  {cleanContent(msg.content)}
+                  <MarkdownMessage content={cleanContent(msg.content)} userMessage={msg.role === 'user'} />
                 </div>
               </div>
             ))}
