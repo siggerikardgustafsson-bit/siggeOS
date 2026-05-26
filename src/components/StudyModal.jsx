@@ -189,6 +189,9 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     })
 
     const systemPrompt = buildSystemPrompt(chosen, matData, true, oldExamData, chosenExamFile, isPreviouslyDone, lastDone)
+
+    setSessionGoals(chosen)
+    setStep('chat')
     setLoading(true)
     try {
       const docsToSend = chosenExamFile ? [chosenExamFile] : []
@@ -199,10 +202,13 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       if (data?.content) {
         setMessages([{ role: 'assistant', content: data.content }])
         await processMasteryUpdates(data.content, chosen)
-        setSessionGoals(chosen)
-        setStep('chat') // Only switch to chat AFTER we have first message
+      } else {
+        setMessages([{ role: 'assistant', content: 'Något gick fel vid start. Skriv något för att fortsätta.' }])
       }
-    } catch(e) { console.error(e) }
+    } catch(e) {
+      console.error(e)
+      setMessages([{ role: 'assistant', content: 'Något gick fel. Skriv något för att försöka igen.' }])
+    }
     setLoading(false)
     setTimeout(() => inputRef.current?.focus(), 100)
     await fetchTentaHistory()
@@ -511,13 +517,11 @@ BÖRJA DIREKT med att presentera vilken tenta vi kör och sedan FRÅGA 1.`
                 </button>
                 <button onClick={async () => {
                   setMode('tenta')
-                  setLoading(true)
                   const chosen = goalsWithDecay
                   const [matRes, oldExamRes] = await Promise.all([
                     supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
                     supabase.from('exam_old_files').select('id, file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
                   ])
-                  setLoading(false)
                   await startTentaSession(chosen, matRes.data || [], oldExamRes.data || [])
                 }} style={{
                   flex: 1, padding: '9px', borderRadius: '9px', border: 'none', cursor: 'pointer',
@@ -663,12 +667,20 @@ BÖRJA DIREKT med att presentera vilken tenta vi kör och sedan FRÅGA 1.`
                 const content = typeof msg.content === 'string' ? msg.content : msg.content?.[0]?.text || ''
                 const cleanedContent = cleanContent(content)
 
-                // Detect MCQ options — lines starting with ○, •, A), 1), etc.
-                const mcqPattern = /^[○•◯]\s+(.+)$/m
-                const hasMCQ = msg.role === 'assistant' && isLast && !loading && mcqPattern.test(cleanedContent)
-                const mcqOptions = hasMCQ
-                  ? cleanedContent.match(/^[○•◯]\s+(.+)$/gm)?.map(line => line.replace(/^[○•◯]\s+/, '').trim()) || []
-                  : []
+                // Detect MCQ — lines starting with ○, •, ◯, A), B), 1), or "Välj ett alternativ"
+                const mcqLinePattern = /^[\s]*[○•◯▪▸\-]\s+\S.{5,}$/m
+                const abcPattern = /^[\s]*[A-E][.)]\s+\S.{5,}$/m
+                const hasMCQ = msg.role === 'assistant' && isLast && !loading &&
+                  (mcqLinePattern.test(cleanedContent) || abcPattern.test(cleanedContent))
+                const mcqOptions = hasMCQ ? (() => {
+                  // Try ○/•/- style
+                  const bullet = cleanedContent.match(/^[\s]*[○•◯▪▸\-]\s+(.{5,})$/gm)
+                  if (bullet && bullet.length >= 2) return bullet.map(l => l.replace(/^[\s]*[○•◯▪▸\-]\s+/, '').trim())
+                  // Try A) B) style
+                  const abc = cleanedContent.match(/^[\s]*[A-E][.)]\s+(.{5,})$/gm)
+                  if (abc && abc.length >= 2) return abc.map(l => l.replace(/^[\s]*[A-E][.)]\s+/, '').trim())
+                  return []
+                })() : []
 
                 return (
                   <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '6px' }}>
@@ -744,6 +756,8 @@ BÖRJA DIREKT med att presentera vilken tenta vi kör och sedan FRÅGA 1.`
             </div>
           </>
         )}
+      </div>
+      </div>
       </div>
       <style>{`
         @keyframes bounce { 0%,60%,100% { transform:translateY(0) } 30% { transform:translateY(-5px) } }
