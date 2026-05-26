@@ -143,7 +143,23 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     await fetchCourseMaterials()
   }
 
-  async function startTentaSession(chosen, matData, oldExamData) {
+  function buildMessages(isTentaMode, oldExams, materials, userText) {
+    const content = []
+    // Add old exam PDFs as documents
+    for (const e of oldExams) {
+      if (e.content) {
+        content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: e.content }, title: e.file_name })
+      }
+    }
+    // Add course material PDFs
+    for (const m of materials) {
+      if (m.content) {
+        content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: m.content }, title: m.file_name })
+      }
+    }
+    content.push({ type: 'text', text: userText })
+    return [{ role: 'user', content }]
+  }
     setStep('chat')
     const { data: sessData } = await supabase.from('study_sessions').insert({
       user_id: user.id, course_id: courseId, hours: 0,
@@ -178,8 +194,9 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     const systemPrompt = buildSystemPrompt(chosen, matData, true, oldExamData, chosenExamFile, isPreviouslyDone, lastDone)
     setLoading(true)
     try {
+      const initialMessages = buildMessages(true, oldExamData, matData, 'Kör tentamode.')
       const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: [{ role: 'user', content: 'Kör tentamode.' }], context: '', systemPrompt },
+        body: { messages: initialMessages, context: '', systemPrompt },
       })
       setMessages([{ role: 'assistant', content: data.content }])
       await processMasteryUpdates(data.content, chosen)
@@ -194,12 +211,12 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       `${i + 1}. [ID: ${g.id}] ${g.description} (nuvarande behärskningsgrad: ${masteryUpdates[g.id] ?? g.effectiveMastery}%)`
     ).join('\n')
 
-    const materialsBlock = materials.length > 0
-      ? `\nKURSMATERIAL:\n${materials.map(m => `--- ${m.file_name} ---\n${m.content?.slice(0, 3000)}`).join('\n\n')}`
+    const oldExamsBlock = oldExams.length > 0
+      ? `\nGAMLA TENTOR (${oldExams.length} st uppladdade: ${oldExams.map(e => e.file_name).join(', ')})`
       : ''
 
-    const oldExamsBlock = oldExams.length > 0
-      ? `\nGAMLA TENTOR:\n${oldExams.map(e => `--- ${e.file_name} ---\n${e.content?.slice(0, 4000)}`).join('\n\n')}`
+    const materialsBlock = materials.length > 0
+      ? `\nKURSMATERIAL (${materials.length} st uppladdade: ${materials.map(m => m.file_name).join(', ')})`
       : ''
 
     const basePrompt = `Du är Jarvis, Sigges personliga medicinstudent-tutor. Examination: "${exam.name}".

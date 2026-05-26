@@ -271,10 +271,13 @@ export default function PluggPage() {
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const base64 = ev.target.result.split(',')[1]
-      const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }, { type: 'text', text: 'Sammanfatta denna tenta. Returnera JSON: {"summary": "...", "topics": [...]}. Bara JSON.' }] }], context: '', systemPrompt: 'Analysera tenta. Returnera bara JSON.' }
+      await supabase.from('exam_old_files').insert({
+        user_id: user.id,
+        exam_id: examId,
+        course_id: courseId,
+        file_name: file.name,
+        content: base64,
       })
-      await supabase.from('exam_old_files').insert({ user_id: user.id, exam_id: examId, course_id: courseId, file_name: file.name, content: data?.content || '' })
       await fetchCourses()
       setUploadingOldExam(null)
     }
@@ -288,10 +291,14 @@ export default function PluggPage() {
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const base64 = ev.target.result.split(',')[1]
-      const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }, { type: 'text', text: 'Extrahera allt textinnehåll från detta kursmaterial. Behåll struktur och detaljer.' }] }], context: '', systemPrompt: 'Extrahera text från PDF.' }
+      await supabase.from('course_materials').insert({
+        user_id: user.id,
+        exam_id: examId,
+        course_id: courseId,
+        file_name: file.name,
+        content: base64,
       })
-      await supabase.from('course_materials').insert({ user_id: user.id, exam_id: examId, course_id: courseId, file_name: file.name, content: data?.content || '' })
+      await fetchCourses()
       setUploadingCourseMaterial(null)
     }
     reader.readAsDataURL(file)
@@ -534,6 +541,14 @@ export default function PluggPage() {
                                             <FileText size={11} color="#3b82f6" />
                                             <span style={{ fontSize: '12px', flex: 1, color: '#3b82f6' }}>{fname}</span>
                                             <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{examGoalList.filter(g => g.source_file === fname).length} mål</span>
+                                            <button onClick={async () => {
+                                              if (!window.confirm(`Ta bort alla lärandemål från "${fname}"?`)) return
+                                              const idsToDelete = examGoalList.filter(g => g.source_file === fname).map(g => g.id)
+                                              for (const id of idsToDelete) await supabase.from('learning_goals').delete().eq('id', id)
+                                              await fetchCourses()
+                                            }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px', opacity: 0.7 }}>
+                                              <Trash2 size={11} />
+                                            </button>
                                           </div>
                                         ))}
                                       </div>
@@ -950,7 +965,15 @@ export default function PluggPage() {
                       {session.notes && ` · ${session.notes}`}
                     </div>
                   </div>
-                  <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>{session.hours}h</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>{session.hours}h</div>
+                    <button onClick={async () => {
+                      await supabase.from('study_sessions').delete().eq('id', session.id)
+                      await fetchStudySessions()
+                    }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', opacity: 0.5, padding: '4px' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
