@@ -1215,6 +1215,5 @@ export default function PluggPage() {
       )}
 
     </div>
-    </div>
   )
 }
