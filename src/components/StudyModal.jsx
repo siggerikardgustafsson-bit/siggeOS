@@ -162,14 +162,13 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   }
 
   async function startTentaSession(chosen, matData, oldExamData) {
-    setStep('chat')
+    // Don't switch to chat until we have the first message
     const { data: sessData } = await supabase.from('study_sessions').insert({
       user_id: user.id, course_id: courseId, hours: 0,
       date: format(new Date(), 'yyyy-MM-dd'), subject: exam.name, notes: 'Tentamode',
     }).select().single()
     if (sessData) setSessionId(sessData.id)
 
-    // Pick which old exam to use (prefer least recently done)
     let chosenExamFile = null
     if (oldExamData.length > 0) {
       const doneFileIds = tentaHistory.map(t => t.old_exam_file_id).filter(Boolean)
@@ -178,17 +177,12 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       setCurrentTentaFileId(chosenExamFile?.id || null)
     }
 
-    // Build history context
-    const historyForFile = chosenExamFile
-      ? tentaHistory.filter(t => t.old_exam_file_id === chosenExamFile.id)
-      : []
+    const historyForFile = chosenExamFile ? tentaHistory.filter(t => t.old_exam_file_id === chosenExamFile.id) : []
     const isPreviouslyDone = historyForFile.length > 0
     const lastDone = isPreviouslyDone ? historyForFile[0] : null
 
-    // Save tenta session record
     await supabase.from('tenta_sessions').insert({
-      user_id: user.id,
-      exam_id: exam.id,
+      user_id: user.id, exam_id: exam.id,
       old_exam_file_id: chosenExamFile?.id || null,
       file_name: chosenExamFile?.file_name || 'Genererad tenta',
     })
@@ -196,14 +190,17 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     const systemPrompt = buildSystemPrompt(chosen, matData, true, oldExamData, chosenExamFile, isPreviouslyDone, lastDone)
     setLoading(true)
     try {
-      // Only send the chosen exam as a document (one at a time to avoid payload size issues)
       const docsToSend = chosenExamFile ? [chosenExamFile] : []
-      const initialMessages = buildMessages(true, docsToSend, [], 'Kör tentamode.')
+      const initialMessages = buildMessages(true, docsToSend, matData, 'Starta tentamode nu. Informera mig om vilken tenta vi kör och börja direkt med första frågan.')
       const { data } = await supabase.functions.invoke('jarvis-chat', {
         body: { messages: initialMessages, context: '', systemPrompt },
       })
-      setMessages([{ role: 'assistant', content: data.content }])
-      await processMasteryUpdates(data.content, chosen)
+      if (data?.content) {
+        setMessages([{ role: 'assistant', content: data.content }])
+        await processMasteryUpdates(data.content, chosen)
+        setSessionGoals(chosen)
+        setStep('chat') // Only switch to chat AFTER we have first message
+      }
     } catch(e) { console.error(e) }
     setLoading(false)
     setTimeout(() => inputRef.current?.focus(), 100)
@@ -230,36 +227,40 @@ ${goalsList}
 ${materialsBlock}
 ${oldExamsBlock}
 
+KRITISKT — INNEHÅLLSPRIORITERING:
+${materials.length > 0
+  ? `Kursmaterialet ovan är den ABSOLUTA sanningen för vad Sigge förväntas kunna. Basera ALLA frågor och förklaringar uteslutande på innehållet i kursmaterialet. Tolka lärandemålen i ljuset av kursmaterialet — inte tvärtom. Om något lärandemål verkar brett, titta på vad kursmaterialet faktiskt täcker och begränsa dig till det.`
+  : `Inget kursmaterial är uppladdnat. Basera frågor på lärandemålen.`}
+
 MASTERY-UPPDATERING (KRITISKT VIKTIGT):
-- Du MÅSTE inkludera mastery_update JSON varje gång du bedömer ett svar
-- Format: {"mastery_update": {"goal_id": "EXAKT-UUID-FRÅN-LISTAN", "mastery": 65}}
-- Använd EXAKT goal_id från listan ovan — kopiera UUID ordagrant
-- Uppdatera GRADVIS: om nuvarande är 0%, börja med 20-30% om svaret var okej, 40-60% om bra, 70-85% om mycket bra, 90-100% om perfekt
-- Om Sigge förbättrar sitt svar, öka gradvis i steg om 10-20%
-- Om Sigge ber dig höja ett mål, gör det direkt utan diskussion
-- Du kan uppdatera flera mål i samma svar
+- Inkludera mastery_update JSON när du bedömer ett svar
+- Format: {"mastery_update": {"goal_id": "EXAKT-UUID", "mastery": 65}}
+- Uppdatera GRADVIS: okej→20-30%, bra→40-60%, mycket bra→70-85%, perfekt→90-100%
+- Om Sigge ber dig höja ett mål, gör det direkt
 
 PEDAGOGISK STIL:
-- Sokrates-metoden: ställ frågor som tvingar fram resonemang, inte bara faktaåtergivning
-- Bygg logiska kedjor: "X händer → därför Y → vilket leder till Z"
-- Koppla till kliniska scenarier och patientfall
-- Borra djupare om svaret är ytligt: "Rätt, men VARFÖR sker det? Vad är mekanismen?"
-- Förklara i löpande text som en engagerad lärare — inte bara punktlistor
-- Använd tabeller/jämförelser när det genuint hjälper (t.ex. DKA vs HHS)
-- Om kursmaterial finns, se till att Sigge täcker allt som förväntas — inget mer, inget mindre
+- Sokrates-metoden — tvinga fram resonemang, inte bara faktaåtergivning
+- Bygg logiska kedjor: X → Y → Z
+- Koppla till kliniska scenarier
+- Förklara i löpande text, inte punktlistor
+- Borra djupare om svaret är ytligt
 
-Svara på svenska. Var direkt och pedagogisk.`
+Svara alltid på svenska.`
 
     if (isTentaMode) {
       const examInfo = chosenExamFile
-        ? `Du kör tentan: "${chosenExamFile.file_name}".${isPreviouslyDone ? ` Sigge har gjort denna tenta tidigare (senast ${format(parseISO(lastDone.completed_at), 'd MMM yyyy', { locale: sv })}). Informera honom om detta i ditt första meddelande och notera om han förbättrat sig.` : ' Det är första gången Sigge gör denna tenta. Informera honom om det.'}`
-        : 'Inga gamla tentor är uppladdade. Generera realistiska tentafrågor baserade på lärandemålen och kursmaterialet. Informera Sigge att detta är genererade frågor, inte en riktig gammal tenta.'
+        ? `DU KÖR TENTAMODE MED TENTAN: "${chosenExamFile.file_name}". ${isPreviouslyDone ? `Sigge har gjort denna tenta tidigare (senast ${format(parseISO(lastDone.completed_at), 'd MMM yyyy', { locale: sv })}). Nämn detta i ditt första meddelande.` : 'Det är första gången Sigge gör denna tenta.'} Presentera frågorna från tentan EN I TAGET. Vänta på svar innan nästa fråga.`
+        : 'DU KÖR TENTAMODE. Inga gamla tentor är uppladdade — generera realistiska tentafrågor baserade på kursmaterialet och lärandemålen. Nämn att frågorna är genererade.'
       return basePrompt + `
 
-TENTAMODE:
+TENTAMODE — DETTA ÄR EN TENTA, INTE EN STUDIESESSION:
 ${examInfo}
-Kör frågorna en i taget. Vänta på svar. Ge feedback och poäng (0-10). Uppdatera behärskningsgrad efter varje svar. Summera i slutet.
-Börja direkt med att informera om vilken tenta det är och sedan första frågan.`
+- Presentera EN fråga i taget, exakt som den stod i tentan
+- Vänta alltid på Sigges svar innan du går vidare
+- Ge feedback och poäng 0-10 per fråga
+- Uppdatera behärskningsgrad efter varje svar
+- Summera resultat i slutet
+BÖRJA DIREKT med att presentera vilken tenta vi kör och sedan FRÅGA 1.`
     }
 
     return basePrompt + '\n\nBörja med att fråga om det första lärandemålet.'
@@ -500,14 +501,15 @@ Börja direkt med att informera om vilken tenta det är och sedan första fråga
                 }}>
                   <Brain size={14} /> Studiesession
                 </button>
-                <button onClick={async () => { 
+                <button onClick={async () => {
                   setMode('tenta')
+                  setLoading(true)
                   const chosen = goalsWithDecay
-                  setSessionGoals(chosen)
                   const [matRes, oldExamRes] = await Promise.all([
                     supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
                     supabase.from('exam_old_files').select('id, file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
                   ])
+                  setLoading(false)
                   await startTentaSession(chosen, matRes.data || [], oldExamRes.data || [])
                 }} style={{
                   flex: 1, padding: '9px', borderRadius: '9px', border: 'none', cursor: 'pointer',
@@ -630,9 +632,16 @@ Börja direkt med att informera om vilken tenta det är och sedan första fråga
             </div>
 
             <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-              <button onClick={startSession} disabled={mode === 'normal' && selectedGoals.length === 0} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px' }}>
-                {mode === 'tenta' ? <><Zap size={15} /> Starta tentamode</> : <><Brain size={15} /> Starta session · {selectedGoals.length} mål</>}
-              </button>
+              {loading ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '12px', color: 'var(--muted)', fontSize: '13px' }}>
+                  <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                  {mode === 'tenta' ? 'Laddar tenta...' : 'Startar session...'}
+                </div>
+              ) : (
+                <button onClick={startSession} disabled={mode === 'normal' && selectedGoals.length === 0} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px' }}>
+                  {mode === 'tenta' ? <><Zap size={15} /> Starta tentamode</> : <><Brain size={15} /> Starta session · {selectedGoals.length} mål</>}
+                </button>
+              )}
             </div>
           </>
         )}
