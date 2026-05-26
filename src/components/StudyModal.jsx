@@ -377,8 +377,8 @@ Börja direkt med tentans första fråga.`
             </div>
           </div>
 
-          {/* Mastery overview during chat */}
-          {step === 'chat' && sessionGoals.length > 0 && (
+          {/* Mastery overview during chat — hide in tenta mode */}
+          {step === 'chat' && mode === 'normal' && sessionGoals.length > 0 && (
             <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
               {sessionGoals.map(g => {
                 const current = masteryUpdates[g.id] ?? g.effectiveMastery
@@ -413,7 +413,25 @@ Börja direkt med tentans första fråga.`
                 }}>
                   <Brain size={14} /> Studiesession
                 </button>
-                <button onClick={() => setMode('tenta')} style={{
+                <button onClick={async () => { 
+                  setMode('tenta')
+                  // Auto-start tenta mode without showing goal selection
+                  const chosen = goalsWithDecay
+                  setSessionGoals(chosen)
+                  setStep('chat')
+                  const { data: matData } = await supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
+                  const { data: sessData } = await supabase.from('study_sessions').insert({ user_id: user.id, course_id: courseId, hours: 0, date: format(new Date(), 'yyyy-MM-dd'), subject: exam.name, notes: 'Tentamode' }).select().single()
+                  if (sessData) setSessionId(sessData.id)
+                  const systemPrompt = buildSystemPrompt(chosen, matData || [], true)
+                  setLoading(true)
+                  try {
+                    const { data } = await supabase.functions.invoke('jarvis-chat', { body: { messages: [{ role: 'user', content: 'Kör tentamode.' }], context: '', systemPrompt } })
+                    setMessages([{ role: 'assistant', content: data.content }])
+                    await processMasteryUpdates(data.content, chosen)
+                  } catch(e) { console.error(e) }
+                  setLoading(false)
+                  setTimeout(() => inputRef.current?.focus(), 100)
+                }} style={{
                   flex: 1, padding: '9px', borderRadius: '9px', border: 'none', cursor: 'pointer',
                   background: mode === 'tenta' ? '#f59e0b' : 'var(--surface2)',
                   color: mode === 'tenta' ? 'white' : 'var(--muted)',
