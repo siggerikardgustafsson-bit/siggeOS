@@ -23,6 +23,8 @@ function CountdownBadge({ examDate }) {
       padding: '2px 7px', borderRadius: '5px', background: color + '15', flexShrink: 0 }}>
       {days < 0 ? 'Avklarad' : days === 0 ? 'IDAG' : `${days}d`}
     </div>
+    </div>
+    </div>
   )
 }
 
@@ -45,6 +47,7 @@ export default function PluggPage() {
   const [uploadingGoalsPdf, setUploadingGoalsPdf] = useState(null)
   const [uploadingOldExam, setUploadingOldExam] = useState(null)
   const [uploadingArchivePdf, setUploadingArchivePdf] = useState(null)
+  const [uploadingCourseMaterial, setUploadingCourseMaterial] = useState(null)
   const [estimatingTime, setEstimatingTime] = useState(null)
   const [showNewCourse, setShowNewCourse] = useState(false)
   const [showNewSession, setShowNewSession] = useState(false)
@@ -364,7 +367,38 @@ export default function PluggPage() {
     reader.readAsDataURL(file)
   }
 
-  async function handleArchivePdfUpload(e, courseId) {
+  async function handleCourseMaterialUpload(e, examId, courseId) {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploadingCourseMaterial(examId)
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result.split(',')[1]
+      const { data } = await supabase.functions.invoke('jarvis-chat', {
+        body: {
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+              { type: 'text', text: 'Extrahera allt text-innehåll från detta kursmaterial. Behåll struktur och detaljer. Returnera bara texten.' }
+            ]
+          }],
+          context: '',
+          systemPrompt: 'Extrahera text från PDF. Returnera bara texten.',
+        },
+      })
+      await supabase.from('course_materials').insert({
+        user_id: user.id,
+        exam_id: examId,
+        course_id: courseId,
+        file_name: file.name,
+        content: data?.content || '',
+      })
+      setUploadingCourseMaterial(null)
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
     const file = e.target.files[0]
     if (!file) return
     setUploadingArchivePdf(courseId)
@@ -711,6 +745,17 @@ export default function PluggPage() {
                                           {uploadingOldExam === exam.id
                                             ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</>
                                             : <><FileText size={11} /> Gammal tenta</>}
+                                        </label>
+                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`material-${exam.id}`}
+                                          onChange={e => handleCourseMaterialUpload(e, exam.id, course.id)} />
+                                        <label htmlFor={`material-${exam.id}`} style={{
+                                          padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.3)',
+                                          color: '#10b981', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px',
+                                          background: 'rgba(16,185,129,0.06)',
+                                        }}>
+                                          {uploadingCourseMaterial === exam.id
+                                            ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</>
+                                            : <><BookOpen size={11} /> Kursmaterial</>}
                                         </label>
                                       </div>
                                       {examFilesForExam.length > 0 && (
@@ -1165,7 +1210,7 @@ export default function PluggPage() {
         <StudyModal
           exam={studySession.exam}
           courseId={studySession.courseId}
-          goals={studySession.goals}
+          goals={goals[studySession.exam.id] || studySession.goals}
           onClose={() => setStudySession(null)}
           onMasteryUpdate={() => fetchCourses()}
         />
