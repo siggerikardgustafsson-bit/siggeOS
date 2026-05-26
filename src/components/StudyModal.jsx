@@ -160,6 +160,8 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     content.push({ type: 'text', text: userText })
     return [{ role: 'user', content }]
   }
+
+  async function startTentaSession(chosen, matData, oldExamData) {
     setStep('chat')
     const { data: sessData } = await supabase.from('study_sessions').insert({
       user_id: user.id, course_id: courseId, hours: 0,
