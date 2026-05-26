@@ -196,7 +196,9 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     const systemPrompt = buildSystemPrompt(chosen, matData, true, oldExamData, chosenExamFile, isPreviouslyDone, lastDone)
     setLoading(true)
     try {
-      const initialMessages = buildMessages(true, oldExamData, matData, 'Kör tentamode.')
+      // Only send the chosen exam as a document (one at a time to avoid payload size issues)
+      const docsToSend = chosenExamFile ? [chosenExamFile] : []
+      const initialMessages = buildMessages(true, docsToSend, [], 'Kör tentamode.')
       const { data } = await supabase.functions.invoke('jarvis-chat', {
         body: { messages: initialMessages, context: '', systemPrompt },
       })
