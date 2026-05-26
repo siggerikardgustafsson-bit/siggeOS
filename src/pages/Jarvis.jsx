@@ -277,7 +277,9 @@ ${summariesBlock}`
   async function generateBrief(type) {
     setLoading(true)
     const prompt = type === 'morning'
-      ? 'Ge mig en morning brief. Analysera mina senaste data och ge mig de 3 viktigaste sakerna att fokusera på idag.'
+      ? 'Ge mig en morning brief. Analysera mina senaste data och ge mig de 3 viktigaste sakerna att fokusera på idag. Var konkret och direkt.'
+      : type === 'weekly'
+      ? 'Ge mig en veckoöversikt. Hämta data för senaste 7 dagarna och analysera: träning (frekvens, distans), hälsa (sömn, vikt), plugg (timmar), ekonomi och allmänt välmående. Lyft fram trender, vad som gick bra, vad som kan förbättras. Jämför med veckan innan om möjligt.'
       : 'Ge mig en kvällssummering. Vad hände idag? Lyft fram något bra och något att ta med till imorgon.'
     const fakeMsg = { role: 'user', content: prompt }
     setMessages(prev => [...prev, fakeMsg])
@@ -331,6 +333,9 @@ ${summariesBlock}`
               <Moon size={13} /> Kvällssummering
             </button>
           )}
+          <button onClick={() => generateBrief('weekly')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: '1px solid rgba(52,211,153,0.25)', background: 'rgba(52,211,153,0.08)', color: '#34d399', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
+            <Zap size={13} /> Veckoöversikt
+          </button>
           <button onClick={summarizeAndSave} disabled={messages.length < 4 || loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
             <Zap size={13} /> Spara minne
           </button>

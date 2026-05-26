@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, BookOpen, Dumbbell, Heart,
   DollarSign, GraduationCap, Briefcase,
-  BarChart2, MessageSquare, LogOut, Compass, Settings, CalendarDays
+  BarChart2, MessageSquare, LogOut, Compass, Settings, CalendarDays, Download
 } from 'lucide-react'
 
 const navItems = [
@@ -18,6 +18,7 @@ const navItems = [
   { to: '/upplevelser', icon: Compass,         label: 'Upplevelser' },
   { to: '/kalender',    icon: CalendarDays,    label: 'Kalender' },
   { to: '/insights',    icon: BarChart2,       label: 'Insights' },
+  { to: '/export',      icon: Download,        label: 'Exportera' },
 ]
 
 export default function Sidebar() {

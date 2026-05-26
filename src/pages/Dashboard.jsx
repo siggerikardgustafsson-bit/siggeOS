@@ -6,16 +6,15 @@ import { sv } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
 import {
   Dumbbell, Heart, GraduationCap, DollarSign,
-  BookOpen, Briefcase, Zap, TrendingUp, TrendingDown,
+  Briefcase, Zap, TrendingUp, TrendingDown,
   AlertTriangle, Moon, Scale, Clock
 } from 'lucide-react'
 
 const WEIGHTS = {
-  training: 0.20,
-  health:   0.20,
-  study:    0.15,
+  training: 0.25,
+  health:   0.25,
+  study:    0.20,
   economy:  0.15,
-  journal:  0.15,
   work:     0.15,
 }
 
@@ -24,7 +23,6 @@ const CATEGORIES = [
   { key: 'health',   label: 'Hälsa',    icon: Heart,        to: '/halsa',    color: '#10b981' },
   { key: 'study',    label: 'Plugg',    icon: GraduationCap,to: '/plugg',    color: '#f59e0b' },
   { key: 'economy',  label: 'Ekonomi',  icon: DollarSign,   to: '/ekonomi',  color: '#8b5cf6' },
-  { key: 'journal',  label: 'Journal',  icon: BookOpen,     to: '/journal',  color: '#06b6d4' },
   { key: 'work',     label: 'Jobb',     icon: Briefcase,    to: '/jobb',     color: '#f97316' },
 ]
 
@@ -174,7 +172,7 @@ export default function Dashboard() {
         </div>
 
         {/* Category tiles */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
           {CATEGORIES.map(({ key, label, icon: Icon, to, color }) => {
             const val = scores?.[`score_${key}`] || 0
             const active = val >= 70
