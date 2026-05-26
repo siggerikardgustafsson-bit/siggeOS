@@ -61,6 +61,8 @@ export default function PluggPage() {
   const [mandatoryUnmatched, setMandatoryUnmatched] = useState([])
   const [syncingMandatory, setSyncingMandatory] = useState(false)
   const [studySession, setStudySession] = useState(null)
+  const [showFilesFor, setShowFilesFor] = useState(null) // examId
+  const [courseMaterials, setCourseMaterials] = useState({}) // examId -> []
 
   useEffect(() => { if (user) fetchAll() }, [user])
 
@@ -104,10 +106,11 @@ export default function PluggPage() {
     const { data: archived } = await supabase.from('courses').select('*').eq('user_id', user.id).eq('active', false).order('created_at', { ascending: false })
     const allIds = [...(activeCourses || []), ...(archived || [])].map(c => c.id)
     if (allIds.length === 0) { setCourses([]); setArchivedCourses([]); return }
-    const [examsRes, goalsRes, examFilesRes] = await Promise.all([
+    const [examsRes, goalsRes, examFilesRes, courseMaterialsRes] = await Promise.all([
       supabase.from('course_exams').select('*').in('course_id', allIds).order('exam_date'),
       supabase.from('learning_goals').select('*').in('course_id', allIds),
       supabase.from('exam_old_files').select('*').in('course_id', allIds),
+      supabase.from('course_materials').select('*').in('course_id', allIds),
     ])
     const examMap = {}
     for (const e of (examsRes.data || [])) { if (!examMap[e.course_id]) examMap[e.course_id] = []; examMap[e.course_id].push(e) }
@@ -115,11 +118,14 @@ export default function PluggPage() {
     for (const g of (goalsRes.data || [])) { if (!goalMap[g.exam_id]) goalMap[g.exam_id] = []; goalMap[g.exam_id].push(g) }
     const examFileMap = {}
     for (const f of (examFilesRes.data || [])) { if (!examFileMap[f.exam_id]) examFileMap[f.exam_id] = []; examFileMap[f.exam_id].push(f) }
+    const courseMaterialMap = {}
+    for (const m of (courseMaterialsRes.data || [])) { if (!courseMaterialMap[m.exam_id]) courseMaterialMap[m.exam_id] = []; courseMaterialMap[m.exam_id].push(m) }
     setCourses(activeCourses || [])
     setArchivedCourses(archived || [])
     setExams(examMap)
     setGoals(goalMap)
     setExamFiles(examFileMap)
+    setCourseMaterials(courseMaterialMap)
   }
 
   async function fetchStudySessions() {
@@ -186,6 +192,11 @@ export default function PluggPage() {
 
   async function deleteExamFile(fileId) {
     await supabase.from('exam_old_files').delete().eq('id', fileId)
+    await fetchCourses()
+  }
+
+  async function deleteCourseMaterial(id) {
+    await supabase.from('course_materials').delete().eq('id', id)
     await fetchCourses()
   }
 
@@ -464,6 +475,9 @@ export default function PluggPage() {
                             const isExamExpanded = expandedExam === exam.id
                             const examGoalList = goals[exam.id] || []
                             const examFilesForExam = examFiles[exam.id] || []
+                            const examMaterials = courseMaterials[exam.id] || []
+                            const totalFiles = examFilesForExam.length + examMaterials.length + (examGoalList.some(g => g.source_file && g.source_file !== 'manual') ? 1 : 0)
+                            const showFiles = showFilesFor === exam.id
                             return (
                               <div key={exam.id} style={{ marginBottom: '8px', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
                                 <div style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -483,6 +497,14 @@ export default function PluggPage() {
                                         cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif', fontWeight: '600',
                                       }}>📚 Plugga</button>
                                     )}
+                                    <button onClick={e => { e.stopPropagation(); setShowFilesFor(showFiles ? null : exam.id) }} style={{
+                                      display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px',
+                                      border: '1px solid var(--border)', background: showFiles ? 'var(--accent-soft)' : 'transparent',
+                                      color: showFiles ? 'var(--accent)' : 'var(--muted)',
+                                      cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif',
+                                    }}>
+                                      <FileText size={11} /> Filer {totalFiles > 0 && `(${totalFiles})`}
+                                    </button>
                                     {GRADES.map(g => (
                                       <button key={g} onClick={e => { e.stopPropagation(); updateExamGrade(exam.id, exam.grade === g ? null : g) }} style={{
                                         padding: '3px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
@@ -497,6 +519,63 @@ export default function PluggPage() {
                                     {isExamExpanded ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
                                   </div>
                                 </div>
+
+                                {/* File manager panel */}
+                                {showFiles && (
+                                  <div style={{ padding: '12px', borderTop: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                                    <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>BIFOGADE FILER</div>
+
+                                    {/* Lärandemål PDF */}
+                                    {examGoalList.filter(g => g.source_file && g.source_file !== 'manual').length > 0 && (
+                                      <div style={{ marginBottom: '10px' }}>
+                                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginBottom: '5px' }}>📋 Lärandemål (importerade från PDF)</div>
+                                        {[...new Set(examGoalList.filter(g => g.source_file && g.source_file !== 'manual').map(g => g.source_file))].map(fname => (
+                                          <div key={fname} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', marginBottom: '4px' }}>
+                                            <FileText size={11} color="#3b82f6" />
+                                            <span style={{ fontSize: '12px', flex: 1, color: '#3b82f6' }}>{fname}</span>
+                                            <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{examGoalList.filter(g => g.source_file === fname).length} mål</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {/* Gamla tentor */}
+                                    {examFilesForExam.length > 0 && (
+                                      <div style={{ marginBottom: '10px' }}>
+                                        <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '600', marginBottom: '5px' }}>📝 Gamla tentor</div>
+                                        {examFilesForExam.map(f => (
+                                          <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', marginBottom: '4px' }}>
+                                            <FileText size={11} color="#f59e0b" />
+                                            <span style={{ fontSize: '12px', flex: 1 }}>{f.file_name}</span>
+                                            <button onClick={() => deleteExamFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px', opacity: 0.7 }}>
+                                              <Trash2 size={11} />
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {/* Kursmaterial */}
+                                    {examMaterials.length > 0 && (
+                                      <div style={{ marginBottom: '10px' }}>
+                                        <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600', marginBottom: '5px' }}>📗 Kursmaterial</div>
+                                        {examMaterials.map(m => (
+                                          <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', marginBottom: '4px' }}>
+                                            <FileText size={11} color="#10b981" />
+                                            <span style={{ fontSize: '12px', flex: 1 }}>{m.file_name}</span>
+                                            <button onClick={() => deleteCourseMaterial(m.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px', opacity: 0.7 }}>
+                                              <Trash2 size={11} />
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+
+                                    {totalFiles === 0 && (
+                                      <div style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center', padding: '12px' }}>Inga filer bifogade ännu</div>
+                                    )}
+                                  </div>
+                                )}
 
                                 {isExamExpanded && (
                                   <div style={{ padding: '12px', borderTop: '1px solid var(--border)' }}>
