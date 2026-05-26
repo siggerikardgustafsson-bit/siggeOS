@@ -22,6 +22,8 @@ function CountdownBadge({ examDate }) {
       padding: '2px 7px', borderRadius: '5px', background: color + '15', flexShrink: 0 }}>
       {days < 0 ? 'Avklarad' : days === 0 ? 'IDAG' : `${days}d`}
     </div>
+    </div>
+    </div>
   )
 }
 
@@ -548,31 +550,60 @@ export default function PluggPage() {
                               OBLIGATORISKA MOMENT ({mandatoryForCourse.length})
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                              {mandatoryForCourse.sort((a, b) => b.date.localeCompare(a.date)).map(session => (
-                                <div key={session.id} style={{
-                                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                  padding: '8px 12px', borderRadius: '8px',
-                                  background: session.attended ? 'rgba(16,185,129,0.06)' : 'var(--surface2)',
-                                  border: `1px solid ${session.attended ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`,
-                                }}>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {session.title}
-                                    </div>
-                                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                                      {format(parseISO(session.date), 'd MMM yyyy', { locale: sv })}
-                                    </div>
-                                  </div>
-                                  <button onClick={() => toggleMandatoryAttended(session.id, session.attended)} style={{
-                                    fontSize: '11px', padding: '3px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                                    background: session.attended ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
-                                    color: session.attended ? '#10b981' : 'var(--muted)',
-                                    fontFamily: 'Inter, sans-serif', flexShrink: 0, marginLeft: '8px',
+                              {mandatoryForCourse.sort((a, b) => b.date.localeCompare(a.date)).map(session => {
+                                const timeStr = session.start_time
+                                  ? format(parseISO(session.start_time), 'HH:mm') + (session.end_time ? '–' + format(parseISO(session.end_time), 'HH:mm') : '')
+                                  : null
+                                return (
+                                  <div key={session.id} style={{
+                                    borderRadius: '8px',
+                                    background: session.attended ? 'rgba(16,185,129,0.06)' : 'var(--surface2)',
+                                    border: `1px solid ${session.attended ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`,
+                                    overflow: 'hidden',
                                   }}>
-                                    {session.attended ? '✓ Närvaro' : 'Markera'}
-                                  </button>
-                                </div>
-                              ))}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', cursor: 'pointer' }}
+                                      onClick={() => setExpandedExam(expandedExam === `mand-${session.id}` ? null : `mand-${session.id}`)}>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          🎓 {session.title}
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '8px' }}>
+                                          <span>{format(parseISO(session.date), 'd MMM yyyy', { locale: sv })}</span>
+                                          {timeStr && <span style={{ color: '#8b5cf6', fontWeight: '600' }}>🕐 {timeStr}</span>}
+                                        </div>
+                                      </div>
+                                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0, marginLeft: '8px' }}>
+                                        <button onClick={e => { e.stopPropagation(); toggleMandatoryAttended(session.id, session.attended) }} style={{
+                                          fontSize: '11px', padding: '3px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                                          background: session.attended ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
+                                          color: session.attended ? '#10b981' : 'var(--muted)',
+                                          fontFamily: 'Inter, sans-serif',
+                                        }}>
+                                          {session.attended ? '✓' : 'Markera'}
+                                        </button>
+                                        {expandedExam === `mand-${session.id}` ? <ChevronUp size={12} color="var(--muted)" /> : <ChevronDown size={12} color="var(--muted)" />}
+                                      </div>
+                                    </div>
+                                    {expandedExam === `mand-${session.id}` && (
+                                      <div style={{ padding: '0 12px 10px', borderTop: '1px solid var(--border)' }}>
+                                        <div style={{ paddingTop: '8px', fontSize: '13px', lineHeight: '1.6', color: 'var(--text)', wordBreak: 'break-word' }}>
+                                          {session.title}
+                                        </div>
+                                        {timeStr && (
+                                          <div style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '600', marginTop: '4px' }}>
+                                            🕐 {timeStr}
+                                          </div>
+                                        )}
+                                        {session.course_hint && (
+                                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px', fontStyle: 'italic', lineHeight: '1.5' }}>
+                                            {session.course_hint}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
                         )}
