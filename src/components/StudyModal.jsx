@@ -581,8 +581,6 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
           </>
         )}
       </div>
-      </div>
-      </div>
     </div>
   )
 }
