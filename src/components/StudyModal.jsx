@@ -188,6 +188,7 @@ Börja direkt med tentans första fråga.`
       : goalsWithDecay.filter(g => selectedGoals.includes(g.id))
 
     setSessionGoals(chosen)
+    setStep('chat')
 
     // In tenta mode, skip straight to chat without showing select screen
     // (setStep already called, just continue loading)
