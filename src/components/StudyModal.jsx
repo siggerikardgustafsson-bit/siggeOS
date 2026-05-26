@@ -583,7 +583,6 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       </div>
       </div>
       </div>
-      <style>{'@keyframes bounce { 0%,60%,100% { transform:translateY(0) } 30% { transform:translateY(-5px) } } @keyframes spin { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }'}</style>
     </div>
   )
 }
