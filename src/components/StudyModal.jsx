@@ -78,7 +78,8 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   }, [user, exam])
 
   async function fetchTentaHistory() {
-    const { data } = await supabase
+    console.log('exam.id:', exam.id)
+    const { data, error } = await supabase
       .from('tenta_sessions')
       .select('*')
       .eq('user_id', user.id)
@@ -273,10 +274,12 @@ BÖRJA DIREKT med att presentera vilken tenta vi kör och sedan FRÅGA 1.`
     setSessionGoals(chosen)
 
     if (mode === 'tenta') {
+      console.log('Starting tenta, exam.id:', exam.id, 'exam.name:', exam.name)
       const [matRes, oldExamRes] = await Promise.all([
         supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
         supabase.from('exam_old_files').select('id, file_name, content').eq('exam_id', exam.id).eq('user_id', user.id),
       ])
+      console.log('old exams:', oldExamRes.data?.length, oldExamRes.data?.map(e => e.file_name), 'error:', oldExamRes.error)
       await startTentaSession(chosen, matRes.data || [], oldExamRes.data || [])
       return
     }
@@ -363,25 +366,30 @@ BÖRJA DIREKT med att presentera vilken tenta vi kör och sedan FRÅGA 1.`
     }
   }
 
-  async function sendMessage() {
-    if (!input.trim() || loading) return
-    const userMsg = { role: 'user', content: input.trim() }
+  async function sendMessage(textOverride) {
+    const text = textOverride || input.trim()
+    if (!text || loading) return
+    const userMsg = { role: 'user', content: text }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setInput('')
     setLoading(true)
 
-    const { data: matData } = await supabase
-      .from('course_materials')
-      .select('file_name, content')
-      .eq('exam_id', exam.id)
-      .eq('user_id', user.id)
+    // Strip document blocks from history — only keep text content
+    const cleanMessages = newMessages.map(msg => {
+      if (typeof msg.content === 'string') return msg
+      if (Array.isArray(msg.content)) {
+        const textOnly = msg.content.filter(b => b.type === 'text')
+        return { ...msg, content: textOnly.length === 1 ? textOnly[0].text : textOnly }
+      }
+      return msg
+    })
 
-    const systemPrompt = buildSystemPrompt(sessionGoals, matData || [], mode === 'tenta')
+    const systemPrompt = buildSystemPrompt(sessionGoals, [], mode === 'tenta')
 
     try {
       const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: newMessages, context: '', systemPrompt },
+        body: { messages: cleanMessages, context: '', systemPrompt },
       })
       const assistantMsg = { role: 'assistant', content: data.content }
       setMessages(prev => [...prev, assistantMsg])
@@ -650,20 +658,52 @@ BÖRJA DIREKT med att presentera vilken tenta vi kör och sedan FRÅGA 1.`
         {step === 'chat' && (
           <>
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {messages.map((msg, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  <div style={{
-                    maxWidth: '80%', padding: '10px 14px',
-                    borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                    background: msg.role === 'user' ? 'var(--accent)' : 'var(--surface2)',
-                    border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
-                    color: msg.role === 'user' ? 'white' : 'var(--text)',
-                    boxShadow: msg.role === 'user' ? '0 2px 10px var(--accent-glow)' : 'none',
-                  }}>
-                    <MarkdownMessage content={cleanContent(msg.content)} userMessage={msg.role === 'user'} />
+              {messages.map((msg, i) => {
+                const isLast = i === messages.length - 1
+                const content = typeof msg.content === 'string' ? msg.content : msg.content?.[0]?.text || ''
+                const cleanedContent = cleanContent(content)
+
+                // Detect MCQ options — lines starting with ○, •, A), 1), etc.
+                const mcqPattern = /^[○•◯]\s+(.+)$/m
+                const hasMCQ = msg.role === 'assistant' && isLast && !loading && mcqPattern.test(cleanedContent)
+                const mcqOptions = hasMCQ
+                  ? cleanedContent.match(/^[○•◯]\s+(.+)$/gm)?.map(line => line.replace(/^[○•◯]\s+/, '').trim()) || []
+                  : []
+
+                return (
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '6px' }}>
+                    <div style={{
+                      maxWidth: '85%', padding: '10px 14px',
+                      borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                      background: msg.role === 'user' ? 'var(--accent)' : 'var(--surface2)',
+                      border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
+                      color: msg.role === 'user' ? 'white' : 'var(--text)',
+                      boxShadow: msg.role === 'user' ? '0 2px 10px var(--accent-glow)' : 'none',
+                    }}>
+                      <MarkdownMessage content={cleanedContent} userMessage={msg.role === 'user'} />
+                    </div>
+
+                    {/* MCQ clickable options */}
+                    {hasMCQ && mcqOptions.length > 0 && (
+                      <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: '5px', width: '100%' }}>
+                        {mcqOptions.map((opt, oi) => (
+                          <button key={oi} onClick={() => sendMessage(opt)} disabled={loading} style={{
+                            padding: '9px 14px', borderRadius: '9px', border: '1px solid var(--border)',
+                            background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer',
+                            fontSize: '13px', fontFamily: 'Inter, sans-serif', textAlign: 'left',
+                            transition: 'all 0.12s', lineHeight: '1.4',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.background = 'var(--accent-soft)' }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)' }}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
               {loading && (
                 <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                   <div style={{ padding: '10px 14px', borderRadius: '14px', background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', gap: '4px' }}>
@@ -704,6 +744,8 @@ BÖRJA DIREKT med att presentera vilken tenta vi kör och sedan FRÅGA 1.`
             </div>
           </>
         )}
+      </div>
+      </div>
       </div>
       <style>{`
         @keyframes bounce { 0%,60%,100% { transform:translateY(0) } 30% { transform:translateY(-5px) } }
