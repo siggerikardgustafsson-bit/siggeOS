@@ -336,9 +336,33 @@ select.input option { background: #1a1a2e; color: #fff; }
   font-weight: 500;
 }
 
-/* Divider */
-.divider {
-  height: 1px;
-  background: var(--border);
-  margin: 16px 0;
+/* ============================================================
+   MOBILE
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Prevent horizontal scroll */
+  body { overflow-x: hidden; }
+
+  /* Tighter padding on all pages */
+  div[style*="padding: '24px'"],
+  div[style*="padding: '28px'"] {
+    padding: 16px !important;
+  }
+
+  /* Stack grids to single column */
+  .card-sm {
+    padding: 10px;
+  }
+
+  /* Main content gets bottom padding for BottomNav */
+  main {
+    padding-bottom: 70px !important;
+  }
+
+  /* Smaller font sizes */
+  .mono { font-size: 14px; }
+
+  /* Full width buttons */
+  .btn { font-size: 12px; padding: 8px 12px; }
 }
+
