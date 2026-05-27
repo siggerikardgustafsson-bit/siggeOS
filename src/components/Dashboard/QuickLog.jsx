@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { supabase } from '../../supabase'
+import { supabase } from '../../lib/supabase'
 import { format } from 'date-fns'
 
 
