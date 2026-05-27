@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { subDays, format, differenceInDays, parseISO } from 'date-fns'
-import { supabase } from '../supabase'
+import { supabase } from '../lib/supabase'
 import CategoryCard from '../components/dashboard/CategoryCard'
 import DetailModal from '../components/dashboard/DetailModal'
 import QuickLog from '../components/dashboard/QuickLog'

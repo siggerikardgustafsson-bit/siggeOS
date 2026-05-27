@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { supabase } from '../../supabase'
+import { supabase } from '../../lib/supabase'
 import { format } from 'date-fns'
 
 const USER_ID = 'c051041c-83e4-4b3d-8e9f-e531e3dde025'
