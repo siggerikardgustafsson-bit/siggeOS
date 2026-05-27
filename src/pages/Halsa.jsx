@@ -250,25 +250,29 @@ export default function HalsaPage() {
   ]
 
   return (
-    <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
+    <div className="page-wrap">
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      {/* Sticky header */}
+      <div className="page-header">
         <div>
-          <div style={{ fontSize: '22px', fontWeight: '600' }}>Hälsa</div>
-          <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-            {latestWeight && <span style={{ color: '#10b981', marginRight: '12px' }}>⚖️ {latestWeight} kg</span>}
-            {avgSleep > 0 && <span style={{ color: '#06b6d4', marginRight: '12px' }}>💤 {avgSleep.toFixed(1)}h snitt</span>}
-            {avgSteps > 0 && <span style={{ color: '#f59e0b' }}>👟 {Math.round(avgSteps).toLocaleString('sv-SE')} steg/dag</span>}
+          <div className="page-header-title">Hälsa</div>
+          <div className="page-header-sub" style={{ display: 'flex', gap: '12px' }}>
+            {latestWeight && <span style={{ color: '#10b981' }}>⚖ {latestWeight} kg</span>}
+            {avgSleep > 0 && <span style={{ color: '#06b6d4' }}>💤 {avgSleep.toFixed(1)}h</span>}
+            {avgSteps > 0 && <span style={{ color: '#f59e0b' }}>{Math.round(avgSteps).toLocaleString('sv-SE')} steg</span>}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '7px' }}>
           <input ref={fileRef} type="file" accept=".xml" onChange={handleFileImport} style={{ display: 'none' }} />
           <button onClick={() => fileRef.current?.click()} className="btn btn-ghost" style={{ fontSize: '12px' }}>
             <Apple size={13} /> Apple Health
           </button>
         </div>
       </div>
+
+      {/* Scrollable content */}
+      <div className="page-content-scroll">
+      <div style={{ padding: '20px 24px', maxWidth: '900px', margin: '0 auto' }}>
 
       {/* Import result */}
       {importResult && (
@@ -607,6 +611,8 @@ export default function HalsaPage() {
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+      </div>
     </div>
   )
 }

@@ -500,16 +500,15 @@ export default function TraningPage() {
   })
 
   return (
-    <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
+    <div className="page-wrap">
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      {/* Sticky header */}
+      <div className="page-header">
         <div>
-          <div style={{ fontSize: '22px', fontWeight: '600' }}>Träning</div>
-          <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{thisWeekSessions.length} pass denna vecka</div>
+          <div className="page-header-title">Träning</div>
+          <div className="page-header-sub">{thisWeekSessions.length} pass denna vecka</div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Strava */}
+        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
           <input ref={csvRef} type="file" accept=".csv" onChange={handleCsvImport} style={{ display: 'none' }} />
           {stravaConnected ? (
             <button onClick={syncStrava} disabled={stravaSyncing} className="btn btn-ghost" style={{ fontSize: '12px', color: '#fc4c02', borderColor: 'rgba(252,76,2,0.25)' }}>
@@ -521,7 +520,7 @@ export default function TraningPage() {
             </button>
           )}
           <button onClick={() => csvRef.current?.click()} disabled={csvImporting} className="btn btn-ghost" style={{ fontSize: '12px' }}>
-            {csvImporting ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : '📥 CSV-import'}
+            {csvImporting ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : '📥 CSV'}
           </button>
           <button onClick={() => setView(view === 'calendar' ? 'overview' : 'calendar')} className="btn btn-ghost" style={{ fontSize: '13px' }}>
             <Calendar size={14} /> {view === 'calendar' ? 'Översikt' : 'Kalender'}
@@ -531,6 +530,10 @@ export default function TraningPage() {
           </button>
         </div>
       </div>
+
+      {/* Scrollable content */}
+      <div className="page-content-scroll">
+      <div style={{ padding: '20px 24px', maxWidth: '900px', margin: '0 auto' }}>
 
       {/* Strava result */}
       {stravaResult && (
@@ -1080,6 +1083,8 @@ export default function TraningPage() {
       {showRunModal && (
         <RunModal onClose={() => setShowRunModal(false)} />
       )}
+    </div>
+      </div>
     </div>
   )
 }

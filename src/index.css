@@ -532,3 +532,80 @@ html[data-theme="light"] body.has-bg-image aside {
   border-right: 1px solid rgba(255,255,255,0.60) !important;
   box-shadow: 1px 0 0 rgba(255,255,255,0.45) !important;
 }
+
+/* ============================================================
+   PAGE LAYOUT — STICKY HEADER + iOS FADE MASK
+   ============================================================ */
+
+/* Wraps every page — header sticks, content scrolls with fade */
+.page-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Sticky glass header widget */
+.page-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  flex-shrink: 0;
+  padding: 13px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 1px 0 var(--glass-border), 0 4px 24px rgba(0,0,0,0.06);
+  transition: box-shadow 0.2s;
+}
+
+.page-header::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border2), transparent);
+  pointer-events: none;
+}
+
+.page-header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.page-header-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* Scrollable content with iOS-style fade at top */
+.page-content-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Fade out top 40px when content scrolls under header */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 32px
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 32px
+  );
+}
+
+/* Remove fade when at top */
+.page-content-scroll.at-top {
+  -webkit-mask-image: none;
+  mask-image: none;
+}

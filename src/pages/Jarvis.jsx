@@ -317,18 +317,10 @@ ${summariesBlock}`
         WebkitBackdropFilter: 'blur(28px)',
         position: 'sticky', top: 0, zIndex: 10,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: '10px',
-            background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 12px var(--accent-glow)', fontSize: '16px',
-          }}>⚡</div>
-          <div>
-            <div style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text)', letterSpacing: '-0.02em' }}>Jarvis</div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-              {insights.length > 0 ? insights.length + ' insikter' : 'Personlig AI'}
-            </div>
+        <div>
+          <div style={{ fontSize: '17px', fontWeight: '600', color: 'var(--text)', letterSpacing: '-0.02em' }}>Jarvis</div>
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
+            {insights.length > 0 ? insights.length + ' insikter sparade' : 'Personlig AI'}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -386,11 +378,13 @@ ${summariesBlock}`
         {messages.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '40px 20px', gap: '20px' }}>
             <div style={{
-              width: 60, height: 60, borderRadius: '18px',
-              background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+              width: 56, height: 56, borderRadius: '16px',
+              background: 'var(--accent-soft)',
+              border: '1px solid var(--accent-border)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '26px', boxShadow: '0 8px 32px var(--accent-glow)',
-            }}>⚡</div>
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+            </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '17px', fontWeight: '600', color: 'var(--text)', marginBottom: '6px', letterSpacing: '-0.02em' }}>Jarvis är redo</div>
               <div style={{ fontSize: '13px', color: 'var(--muted)', maxWidth: '300px', lineHeight: '1.6' }}>Fråga om träning, hälsa, plugg eller livet. Jarvis hämtar din data automatiskt.</div>
@@ -421,10 +415,12 @@ ${summariesBlock}`
             {msg.role === 'assistant' && (
               <div style={{
                 width: 28, height: 28, borderRadius: '8px', flexShrink: 0,
-                background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+                background: 'var(--accent-soft)',
+                border: '1px solid var(--accent-border)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '12px', boxShadow: '0 2px 8px var(--accent-glow)',
-              }}>⚡</div>
+              }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+              </div>
             )}
             <div style={{
               maxWidth: '72%',
@@ -445,7 +441,9 @@ ${summariesBlock}`
 
         {loading && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'linear-gradient(135deg, var(--accent), var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>⚡</div>
+            <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+            </div>
             <div style={{ padding: '14px 18px', borderRadius: '4px 18px 18px 18px', background: 'var(--surface)', border: '1px solid var(--glass-border)', display: 'flex', gap: '5px', alignItems: 'center', backdropFilter: 'blur(20px)' }}>
               {[0,1,2].map(i => (
                 <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'bounce 1.2s ease-in-out ' + (i * 0.15) + 's infinite' }} />
