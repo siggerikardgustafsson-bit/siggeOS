@@ -231,7 +231,7 @@ export default function Dashboard() {
           {loading ? (
             <div style={{ color:'var(--muted)', fontSize:'14px', padding:'60px 0', textAlign:'center' }}>Laddar...</div>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px' }}>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'10px' }}>
               {categories.map((cat,i) => (
                 <div key={cat.id} className={'fade-up fade-up-delay-'+Math.min(i+1,7)}>
                   <CategoryCard category={cat} onClick={setSelectedCategory} />
