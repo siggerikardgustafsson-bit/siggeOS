@@ -126,17 +126,37 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     await fetchCourseMaterials()
   }
 
-  function buildSystemPrompt(chosenGoals, materials, isTentaMode, oldExams, chosenExamFile, isPreviouslyDone, lastDone) {
+  async function callAnthropic(messages, systemPrompt) {
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'pdfs-2024-09-25',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages,
+      }),
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error?.message || 'API error')
+    return data.content?.[0]?.text || ''
+  }
     const goalsList = chosenGoals.map((g, i) =>
       `${i + 1}. [ID: ${g.id}] ${g.description} (behärskningsgrad: ${masteryUpdates[g.id] ?? g.effectiveMastery}%)`
     ).join('\n')
 
     const materialsBlock = materials && materials.length > 0
-      ? '\nKURSMATERIAL (ABSOLUT SANNING — basera allt på detta):\n' + materials.map(m => `--- ${m.file_name} ---\n${(m.content || '').slice(0, 5000)}`).join('\n\n')
+      ? '\nKURSMATERIAL (ABSOLUT SANNING — basera allt på detta):\n' + materials.map(m => `--- ${m.file_name} ---\n${m.content || ''}`).join('\n\n')
       : ''
 
     const chosenExamBlock = chosenExamFile && chosenExamFile.content
-      ? '\nVALD TENTA "' + chosenExamFile.file_name + '" — kör exakt dessa frågor:\n' + chosenExamFile.content.slice(0, 8000)
+      ? '\nVALD TENTA "' + chosenExamFile.file_name + '" — kör exakt dessa frågor:\n' + chosenExamFile.content
       : (chosenExamFile ? '\nVald tenta: "' + chosenExamFile.file_name + '" — generera liknande frågor.' : '')
 
     const base = 'Du är Jarvis, Sigges personliga medicinstudent-tutor. Examination: "' + exam.name + '".\n\n' +
@@ -213,12 +233,12 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     const systemPrompt = buildSystemPrompt(chosen, matData || [], true, oldExamData || [], chosenExamFile, isPreviouslyDone, lastDone)
 
     try {
-      const { data, error } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: [{ role: 'user', content: 'Starta tentamode.' }], context: '', systemPrompt },
-      })
-      if (error) throw new Error(error.message)
-      setMessages([{ role: 'assistant', content: data?.content || 'Kunde inte starta.' }])
-      if (data?.content) await processMasteryUpdates(data.content, chosen)
+      const content = await callAnthropic(
+        [{ role: 'user', content: 'Starta tentamode.' }],
+        systemPrompt
+      )
+      setMessages([{ role: 'assistant', content: content || 'Kunde inte starta.' }])
+      if (content) await processMasteryUpdates(content, chosen)
     } catch(e) {
       console.error(e)
       setMessages([{ role: 'assistant', content: 'Fel: ' + e.message }])
@@ -249,11 +269,12 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     const systemPrompt = buildSystemPrompt(chosen, matData || [], false, [], null, false, null)
 
     try {
-      const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: [{ role: 'user', content: 'Starta studiesessionen.' }], context: '', systemPrompt },
-      })
-      setMessages([{ role: 'assistant', content: data?.content || '' }])
-      if (data?.content) await processMasteryUpdates(data.content, chosen)
+      const content = await callAnthropic(
+        [{ role: 'user', content: 'Starta studiesessionen.' }],
+        systemPrompt
+      )
+      setMessages([{ role: 'assistant', content: content || '' }])
+      if (content) await processMasteryUpdates(content, chosen)
     } catch(e) {
       setMessages([{ role: 'assistant', content: 'Något gick fel.' }])
     }
@@ -285,12 +306,10 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     const chosenExamFile = currentTentaFileId ? (oldExamData || []).find(e => e.id === currentTentaFileId) : null
     const systemPrompt = buildSystemPrompt(sessionGoals, matData || [], mode === 'tenta', oldExamData || [], chosenExamFile, false, null)
     try {
-      const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: cleanMessages, context: '', systemPrompt },
-      })
-      const assistantMsg = { role: 'assistant', content: data?.content || 'Inget svar.' }
+      const content = await callAnthropic(cleanMessages, systemPrompt)
+      const assistantMsg = { role: 'assistant', content: content || 'Inget svar.' }
       setMessages(prev => [...prev, assistantMsg])
-      if (data?.content) await processMasteryUpdates(data.content, sessionGoals)
+      if (content) await processMasteryUpdates(content, sessionGoals)
     } catch(e) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Något gick fel. Försök igen.' }])
     }
@@ -585,6 +604,9 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
           </>
         )}
       </div>
+      </div>
+      </div>
+      <style>{'@keyframes bounce { 0%,60%,100% { transform:translateY(0) } 30% { transform:translateY(-5px) } } @keyframes spin { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }'}</style>
     </div>
   )
 }
