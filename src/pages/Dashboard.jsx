@@ -209,7 +209,7 @@ export default function Dashboard() {
     <div style={{ padding:'0 0 80px', maxWidth:'1100px', margin:'0 auto' }}>
 
       {/* ── HEADER ── */}
-      <div style={{ padding:'24px 24px 18px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+      <div style={{ padding:'14px 24px 12px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
         <div>
           <div style={{ fontSize:'22px', fontWeight:700, color:'var(--text)', letterSpacing:'-0.03em', marginBottom:'3px' }}>Sigge Gustafsson</div>
           <div style={{ fontSize:'13px', color:'var(--muted)' }}>{todayDisplay}</div>
@@ -225,7 +225,7 @@ export default function Dashboard() {
       <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'16px' }}>
 
         {/* ── TOP ROW: cards + today ── */}
-        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 268px', gap:'16px', alignItems:'start' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 220px', gap:'16px', alignItems:'start' }}>
 
           {/* Category cards grid */}
           {loading ? (
