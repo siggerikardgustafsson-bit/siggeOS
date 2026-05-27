@@ -180,21 +180,17 @@ export default function EkonomiPage() {
 
   return (
     <div className="page-wrap">
-
-      {/* Floating sticky header */}
       <div className="page-header">
         <div>
           <div className="page-header-title">Ekonomi</div>
           <div className="page-header-sub">{format(selectedMonth, 'MMMM yyyy', { locale: sv })}</div>
         </div>
-        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
-          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}>←</button><button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost" style={{ fontSize: '12px' }}>Idag</button><button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}>→</button>
+        <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost" style={{ padding: "7px 10px" }}>←</button><button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost" style={{ fontSize: "12px" }}>Idag</button><button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost" style={{ padding: "7px 10px" }}>→</button>
         </div>
       </div>
-
-      {/* Scrollable content */}
       <div className="page-content-scroll">
-      <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
+        <div style={{ padding: "16px 16px 0", maxWidth: "900px", margin: "0 auto" }}>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
@@ -528,10 +524,8 @@ export default function EkonomiPage() {
           </div>
         </div>
       )}
-
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
-      </div>
+        </div>
       </div>
     </div>
   )

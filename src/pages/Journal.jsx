@@ -291,21 +291,17 @@ export default function JournalPage() {
 
   return (
     <div className="page-wrap">
-
-      {/* Floating sticky header */}
       <div className="page-header">
         <div>
           <div className="page-header-title">Journal</div>
           <div className="page-header-sub">Dagliga reflektioner</div>
         </div>
-        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
-          <button onClick={() => { setSelectedDate(new Date()); setShowForm(true) }} className="btn btn-primary" style={{ fontSize: '12px' }}><Plus size={14} /> Ny entry</button>
+        <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+          <button onClick={() => { setSelectedDate(new Date()); setShowForm(true) }} className="btn btn-primary" style={{ fontSize: "12px" }}><Plus size={14} /> Ny entry</button>
         </div>
       </div>
-
-      {/* Scrollable content */}
       <div className="page-content-scroll">
-      <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
+        <div style={{ padding: "16px 16px 0", maxWidth: "900px", margin: "0 auto" }}>
 
       <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px' }}>
 
@@ -530,7 +526,7 @@ export default function JournalPage() {
         </div>
       </div>
     </div>
-      </div>
+        </div>
       </div>
   )
 }

@@ -359,20 +359,18 @@ export default function PluggPage() {
   return (
     <div className="page-wrap">
 
-      {/* Floating sticky header */}
+
       <div className="page-header">
         <div>
           <div className="page-header-title">Plugg</div>
-          <div className="page-header-sub">{courses.length} aktiva kurser · {thisWeekHours.toFixed(1)}h denna vecka</div>
+          <div className="page-header-sub">{courses.length} aktiva kurser</div>
         </div>
-        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
-          <button onClick={syncMandatory} disabled={syncingMandatory} className="btn btn-ghost" style={{ fontSize: '12px' }}>{syncingMandatory ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : null} Synka obligatoriska</button>
+        <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+          <button onClick={syncMandatory} disabled={syncingMandatory} className="btn btn-ghost" style={{ fontSize: "12px" }}>{syncingMandatory ? <Loader size={13} style={{ animation: "spin 1s linear infinite" }} /> : null} Synka</button>
         </div>
       </div>
-
-      {/* Scrollable content */}
       <div className="page-content-scroll">
-      <div style={{ padding: '16px 16px 0', maxWidth: '1000px', margin: '0 auto' }}>
+        <div style={{ padding: "16px 16px 0", maxWidth: "1000px", margin: "0 auto" }}>
 
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
         {[{ id: 'aktiva', label: 'Aktiva kurser' }, { id: 'arkiv', label: 'Arkiv' }, { id: 'session', label: 'Studielogg' }].map(tab => (
@@ -1032,10 +1030,8 @@ export default function PluggPage() {
           onMasteryUpdate={() => fetchCourses()}
         />
       )}
-
-
-      </div>
-      </div>
     </div>
+        </div>
+      </div>
   )
 }

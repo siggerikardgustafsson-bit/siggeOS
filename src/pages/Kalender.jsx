@@ -133,22 +133,17 @@ export default function KalenderPage() {
 
   return (
     <div className="page-wrap">
-
-      {/* Floating sticky header */}
       <div className="page-header">
         <div>
           <div className="page-header-title">Kalender</div>
           <div className="page-header-sub">{format(month, 'MMMM yyyy', { locale: sv })}</div>
         </div>
-        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
-          <button onClick={syncMandatory} disabled={syncing} className="btn btn-ghost" style={{ fontSize: '12px' }}>{syncing ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />} Synka</button><button onClick={() => setMonth(subMonths(month, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}><ChevronLeft size={15} /></button><button onClick={() => setMonth(new Date())} className="btn btn-ghost" style={{ fontSize: '12px' }}>Idag</button><button onClick={() => setMonth(addMonths(month, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}><ChevronRight size={15} /></button>
+        <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+          <button onClick={syncMandatory} disabled={syncing} className="btn btn-ghost" style={{ fontSize: "12px" }}>{syncing ? <Loader size={13} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={13} />} Synka</button><button onClick={() => setMonth(subMonths(month, 1))} className="btn btn-ghost" style={{ padding: "7px 10px" }}><ChevronLeft size={15} /></button><button onClick={() => setMonth(new Date())} className="btn btn-ghost" style={{ fontSize: "12px" }}>Idag</button><button onClick={() => setMonth(addMonths(month, 1))} className="btn btn-ghost" style={{ padding: "7px 10px" }}><ChevronRight size={15} /></button>
         </div>
       </div>
-
-      {/* Scrollable content */}
       <div className="page-content-scroll">
-      <div style={{ padding: '16px 16px 0', maxWidth: '1200px', margin: '0 auto' }}>
-      </div>
+        <div style={{ padding: "16px 16px 0", maxWidth: "1200px", margin: "0 auto" }}>
 
       {/* Month title */}
       <div style={{ fontSize: '18px', fontWeight: '600', marginBottom: '12px', textTransform: 'capitalize' }}>
@@ -278,6 +273,7 @@ export default function KalenderPage() {
         )}
       </div>
     </div>
+        </div>
       </div>
   )
 }
