@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { subDays, format, differenceInDays, parseISO } from 'date-fns'
 import { supabase } from '../lib/supabase'
-import CategoryCard from '../components/dashboard/CategoryCard'
-import DetailModal from '../components/dashboard/DetailModal'
-import QuickLog from '../components/dashboard/QuickLog'
+import CategoryCard from '../components/Dashboard/CategoryCard'
+import DetailModal from '../components/Dashboard/DetailModal'
+import QuickLog from '../components/Dashboard/QuickLog'
 import {
   getTier, getStudyTier, getSkillTier, getDecayedValue, calcOverallTier,
   estimateVO2max, calc1RM, formatRunTime,
@@ -14,7 +14,7 @@ import {
   INCOME_THRESHOLDS, SAVINGS_THRESHOLDS,
   ENERGY_THRESHOLDS, MOOD_THRESHOLDS, STRESS_THRESHOLDS, STEPS_THRESHOLDS,
   TIER_COLORS, TIER_NAMES,
-} from '../components/dashboard/tierUtils'
+} from '../components/Dashboard/tierUtils'
 
 const USER_ID = 'c051041c-83e4-4b3d-8e9f-e531e3dde025'
 const BW = 77 // bodyweight kg, uppdateras dynamiskt från senaste health_log
