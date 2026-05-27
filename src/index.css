@@ -441,134 +441,67 @@ select.input option { background: #1a1a2e; color: #fff; }
   .w-2,.w-3,.w-4,.w-5,.w-6,.w-7,.w-8,.w-9,.w-12 { grid-column: span 2; }
 }
 /* ============================================================
-   BACKGROUND IMAGE — ENHANCED GLASS SYSTEM
+   BACKGROUND IMAGE — GLASS SYSTEM
    ============================================================ */
 
-/* When bg image is active, boost glass opacity and blur on all surfaces */
-body.has-bg-image {
-  --surface:  rgba(15, 18, 30, 0.55);
-  --surface2: rgba(15, 18, 30, 0.40);
-  --surface3: rgba(15, 18, 30, 0.65);
-  --glass-blur: blur(var(--bg-blur-amount, 35px));
-  --glass-border: rgba(255,255,255,0.13);
-  --glass-shadow: 0 8px 32px rgba(0,0,0,0.50), 0 1px 0 rgba(255,255,255,0.09) inset;
-  --glass-shadow-hover: 0 12px 48px rgba(0,0,0,0.60), 0 1px 0 rgba(255,255,255,0.12) inset;
-}
-
-[data-theme="light"].has-bg-image {
-  --surface:  rgba(255,255,255,0.52);
-  --surface2: rgba(255,255,255,0.38);
-  --surface3: rgba(255,255,255,0.68);
-  --glass-border: rgba(255,255,255,0.70);
-  --glass-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.95) inset;
-  --glass-shadow-hover: 0 12px 48px rgba(0,0,0,0.24), 0 1px 0 rgba(255,255,255,1) inset;
-}
-
-/* bg-image overlay uses CSS custom property */
+/* bg-image overlay — blur + dim controlled via CSS vars */
 #bg-image::after {
   content: '';
   position: absolute;
   inset: 0;
-  backdrop-filter: blur(var(--bg-blur-amount, 35px));
-  -webkit-backdrop-filter: blur(var(--bg-blur-amount, 35px));
+  backdrop-filter: blur(var(--bg-blur-amount, 22px));
+  -webkit-backdrop-filter: blur(var(--bg-blur-amount, 22px));
   background: var(--bg-overlay, rgba(7,9,15,0.55));
   transition: background 0.3s, backdrop-filter 0.3s;
 }
 
-/* Sidebar glass boost when bg image is active */
+/* Blur levels */
+body.bg-blur-low    { --bg-blur-amount: 6px; }
+body.bg-blur-medium { --bg-blur-amount: 18px; }
+body.bg-blur-high   { --bg-blur-amount: 38px; }
+
+/* Hide orbs when bg image is active */
+body.has-bg-image .orb { opacity: 0 !important; }
+
+/* ── DARK MODE with bg image ── */
+body.has-bg-image {
+  --surface:       rgba(12, 15, 25, 0.28);
+  --surface2:      rgba(12, 15, 25, 0.18);
+  --surface3:      rgba(12, 15, 25, 0.38);
+  --glass-blur:    blur(24px);
+  --glass-border:  rgba(255,255,255,0.12);
+  --glass-shadow:  0 8px 32px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.08) inset;
+  --glass-shadow-hover: 0 12px 48px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.11) inset;
+}
+
+/* Sidebar — same glass as widgets */
 body.has-bg-image aside {
-  background: rgba(10,13,22,0.65) !important;
+  background: rgba(12, 15, 25, 0.28) !important;
   backdrop-filter: blur(32px) !important;
   -webkit-backdrop-filter: blur(32px) !important;
+  border-right: 1px solid rgba(255,255,255,0.10) !important;
+  box-shadow: 1px 0 0 rgba(255,255,255,0.05) !important;
 }
 
-[data-theme="light"].has-bg-image aside {
-  background: rgba(255,255,255,0.55) !important;
-}
-
-/* Disable gradient orbs when bg image is active */
-body.has-bg-image .orb {
-  opacity: 0 !important;
-}
-
-/* Blur levels */
-body.bg-blur-low    { --bg-blur-amount: 18px; }
-body.bg-blur-medium { --bg-blur-amount: 35px; }
-body.bg-blur-high   { --bg-blur-amount: 55px; }
-
-/* Fix blur levels — less is more */
-body.bg-blur-low    { --bg-blur-amount: 8px; }
-body.bg-blur-medium { --bg-blur-amount: 22px; }
-body.bg-blur-high   { --bg-blur-amount: 42px; }
-
-/* Fix light mode glass with bg image */
-[data-theme="light"].has-bg-image {
-  --surface:  rgba(255,255,255,0.65);
-  --surface2: rgba(255,255,255,0.50);
-  --surface3: rgba(255,255,255,0.80);
-  --border:   rgba(0,0,0,0.08);
-  --text:     rgba(0,0,0,0.88);
-  --muted:    rgba(0,0,0,0.45);
-}
-
-/* Fix blur levels — less is more */
-body.bg-blur-low    { --bg-blur-amount: 8px; }
-body.bg-blur-medium { --bg-blur-amount: 22px; }
-body.bg-blur-high   { --bg-blur-amount: 42px; }
-
-/* Fix light mode glass with bg image */
-[data-theme="light"].has-bg-image {
-  --surface:  rgba(255,255,255,0.65);
-  --surface2: rgba(255,255,255,0.50);
-  --surface3: rgba(255,255,255,0.80);
-  --border:   rgba(0,0,0,0.08);
-  --text:     rgba(0,0,0,0.88);
-  --muted:    rgba(0,0,0,0.45);
-}
-
-/* Light mode glass fix — correct selector */
+/* ── LIGHT MODE with bg image ── */
 html[data-theme="light"] body.has-bg-image {
-  --surface:  rgba(255,255,255,0.72);
-  --surface2: rgba(255,255,255,0.58);
-  --surface3: rgba(255,255,255,0.86);
-  --glass-border: rgba(255,255,255,0.85);
-  --glass-shadow: 0 4px 24px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.95) inset;
-  --glass-shadow-hover: 0 8px 32px rgba(0,0,0,0.16), 0 1px 0 rgba(255,255,255,1) inset;
-  --text:  rgba(0,0,0,0.88);
-  --muted: rgba(0,0,0,0.45);
-  --border: rgba(0,0,0,0.08);
+  --surface:       rgba(255,255,255,0.38);
+  --surface2:      rgba(255,255,255,0.26);
+  --surface3:      rgba(255,255,255,0.52);
+  --glass-border:  rgba(255,255,255,0.72);
+  --glass-shadow:  0 4px 24px rgba(0,0,0,0.10), 0 1px 0 rgba(255,255,255,0.92) inset;
+  --glass-shadow-hover: 0 8px 32px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,1) inset;
+  --text:    rgba(0,0,0,0.88);
+  --muted:   rgba(0,0,0,0.45);
+  --muted2:  rgba(0,0,0,0.62);
+  --border:  rgba(0,0,0,0.08);
   --border2: rgba(0,0,0,0.14);
 }
 
 html[data-theme="light"] body.has-bg-image aside {
-  background: rgba(255,255,255,0.70) !important;
+  background: rgba(255,255,255,0.38) !important;
   backdrop-filter: blur(32px) !important;
   -webkit-backdrop-filter: blur(32px) !important;
-  border-right: 1px solid rgba(0,0,0,0.08) !important;
-}
-
-/* More transparent widgets + unified sidebar */
-body.has-bg-image {
-  --surface:  rgba(15,18,30,0.42) !important;
-  --surface2: rgba(15,18,30,0.28) !important;
-  --surface3: rgba(15,18,30,0.55) !important;
-}
-
-html[data-theme="light"] body.has-bg-image {
-  --surface:  rgba(255,255,255,0.52) !important;
-  --surface2: rgba(255,255,255,0.38) !important;
-  --surface3: rgba(255,255,255,0.68) !important;
-}
-
-/* Sidebar floats over background — no solid wall */
-body.has-bg-image aside {
-  background: rgba(10,13,22,0.48) !important;
-  backdrop-filter: blur(40px) !important;
-  -webkit-backdrop-filter: blur(40px) !important;
-  border-right: 1px solid rgba(255,255,255,0.08) !important;
-}
-
-html[data-theme="light"] body.has-bg-image aside {
-  background: rgba(255,255,255,0.52) !important;
-  border-right: 1px solid rgba(255,255,255,0.6) !important;
+  border-right: 1px solid rgba(255,255,255,0.60) !important;
+  box-shadow: 1px 0 0 rgba(255,255,255,0.45) !important;
 }
