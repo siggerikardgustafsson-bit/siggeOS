@@ -1,405 +1,558 @@
-import { useEffect, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
-import { format, subDays, parseISO } from 'date-fns'
-import { sv } from 'date-fns/locale'
-import { Link } from 'react-router-dom'
+import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { subDays, format, differenceInDays, parseISO } from 'date-fns'
+import { supabase } from '../supabase'
+import CategoryCard from '../components/dashboard/CategoryCard'
+import DetailModal from '../components/dashboard/DetailModal'
+import QuickLog from '../components/dashboard/QuickLog'
 import {
-  Dumbbell, Heart, GraduationCap, DollarSign,
-  Briefcase, Zap, TrendingUp, TrendingDown,
-  AlertTriangle, Moon, Scale, Clock
-} from 'lucide-react'
+  getTier, getStudyTier, getSkillTier, getDecayedValue, calcOverallTier,
+  estimateVO2max, calc1RM, formatRunTime,
+  VO2MAX_THRESHOLDS, RUN_5K_THRESHOLDS, RUN_10K_THRESHOLDS, RUN_HALF_THRESHOLDS, RUN_MARA_THRESHOLDS,
+  BENCH_THRESHOLDS, SQUAT_THRESHOLDS, DEADLIFT_THRESHOLDS, OHP_THRESHOLDS, PULLUP_THRESHOLDS,
+  SLEEP_DURATION_THRESHOLDS, SLEEP_REGULARITY_THRESHOLDS,
+  INCOME_THRESHOLDS, SAVINGS_THRESHOLDS,
+  ENERGY_THRESHOLDS, MOOD_THRESHOLDS, STRESS_THRESHOLDS, STEPS_THRESHOLDS,
+  TIER_COLORS, TIER_NAMES,
+} from '../components/dashboard/tierUtils'
 
-const WEIGHTS = {
-  training: 0.25,
-  health:   0.25,
-  study:    0.20,
-  economy:  0.15,
-  work:     0.15,
-}
-
-const CATEGORIES = [
-  { key: 'training', label: 'Träning',  icon: Dumbbell,     to: '/traning',  color: '#3b82f6' },
-  { key: 'health',   label: 'Hälsa',    icon: Heart,        to: '/halsa',    color: '#10b981' },
-  { key: 'study',    label: 'Plugg',    icon: GraduationCap,to: '/plugg',    color: '#f59e0b' },
-  { key: 'economy',  label: 'Ekonomi',  icon: DollarSign,   to: '/ekonomi',  color: '#8b5cf6' },
-  { key: 'work',     label: 'Jobb',     icon: Briefcase,    to: '/jobb',     color: '#f97316' },
-]
-
-function ScoreRing({ score, size = 120, strokeWidth = 9, color = '#3b82f6', children }) {
-  const r = (size - strokeWidth) / 2
-  const circ = 2 * Math.PI * r
-  const offset = circ - (score / 100) * circ
-  return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeWidth} />
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth}
-        strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset}
-        style={{ transition: 'stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)' }} />
-      <foreignObject x={0} y={0} width={size} height={size} style={{ transform: 'rotate(90deg)' }}>
-        <div style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-          {children}
-        </div>
-      </foreignObject>
-    </svg>
-  )
-}
+const USER_ID = 'c051041c-83e4-4b3d-8e9f-e531e3dde025'
+const BW = 77 // bodyweight kg, uppdateras dynamiskt från senaste health_log
 
 export default function Dashboard() {
-  const { user } = useAuth()
-  const today = format(new Date(), 'yyyy-MM-dd')
-  const weekAgo = format(subDays(new Date(), 6), 'yyyy-MM-dd')
-  const monthStart = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd')
-
-  const [scores, setScores] = useState(null)
-  const [weekScores, setWeekScores] = useState([])
-  const [csnUsage, setCsnUsage] = useState(0)
-  const [upcomingExams, setUpcomingExams] = useState([])
-  const [erikTasks, setErikTasks] = useState([])
-  const [todayJournal, setTodayJournal] = useState(null)
-  const [latestWeight, setLatestWeight] = useState(null)
-  const [paThisMonth, setPaThisMonth] = useState(0)
-  const [nextPaShift, setNextPaShift] = useState(null)
-  const [studyThisWeek, setStudyThisWeek] = useState(0)
-  const [incomeThisWeek, setIncomeThisWeek] = useState(0)
-  const [avgSleepWeek, setAvgSleepWeek] = useState(0)
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
+  const [selectedCategory, setSelectedCategory] = useState(null)
+  const [categories, setCategories] = useState([])
+  const [overallTier, setOverallTier] = useState(null)
+  const [bodyWeight, setBodyWeight] = useState(BW)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  useEffect(() => { if (!user) return; fetchAll() }, [user])
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const todayDate = new Date()
 
-  function getHalfYearStart() {
-    const now = new Date()
-    return now.getMonth() < 6 ? `${now.getFullYear()}-01-01` : `${now.getFullYear()}-07-01`
-  }
-
-  async function fetchAll() {
+  // ─── DATA FETCH ──────────────────────────────────────────────────────────────
+  const fetchAllData = useCallback(async () => {
     setLoading(true)
-    const halfStart = getHalfYearStart()
+    try {
+      const since90 = format(subDays(todayDate, 90), 'yyyy-MM-dd')
+      const since30 = format(subDays(todayDate, 30), 'yyyy-MM-dd')
+      const since14 = format(subDays(todayDate, 14), 'yyyy-MM-dd')
+      const since7 = format(subDays(todayDate, 7), 'yyyy-MM-dd')
 
-    const [scoresRes, weekRes, csnRes, examsRes, tasksRes, journalRes, weightRes,
-           paRes, nextPaRes, studyRes, incomeRes, paWeekRes, sleepRes] = await Promise.all([
-      supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).single(),
-      supabase.from('daily_scores').select('*').eq('user_id', user.id).gte('date', weekAgo).order('date'),
-      supabase.from('income_logs').select('amount').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', today),
-      supabase.from('course_exams').select('name, exam_date, courses(name)').eq('user_id', user.id).is('grade', null).not('exam_date', 'is', null).gte('exam_date', today).order('exam_date').limit(4),
-      supabase.from('erik_tasks').select('*').eq('user_id', user.id).neq('status', 'klart').order('deadline').limit(4),
-      supabase.from('journal_entries').select('mood, energy, sleep_hours, sleep_type').eq('user_id', user.id).eq('date', today).single(),
-      supabase.from('health_logs').select('weight_kg').eq('user_id', user.id).not('weight_kg', 'is', null).gt('weight_kg', 0).order('date', { ascending: false }).limit(1).single(),
-      supabase.from('pa_shifts').select('hours_worked').eq('user_id', user.id).gte('date', monthStart).lte('date', today),
-      supabase.from('pa_shifts').select('date, start_time, end_time, hours_worked').eq('user_id', user.id).gte('date', today).order('date').limit(1).single(),
-      supabase.from('study_sessions').select('hours').eq('user_id', user.id).gte('date', weekAgo),
-      supabase.from('erik_payments').select('amount').eq('user_id', user.id).gte('date', weekAgo).lte('date', today),
-      supabase.from('pa_shifts').select('start_time, end_time, shift_type, estimated_pay').eq('user_id', user.id).gte('date', weekAgo).lte('date', today),
-      supabase.from('journal_entries').select('sleep_hours').eq('user_id', user.id).gte('date', weekAgo).not('sleep_hours', 'is', null).gt('sleep_hours', 0),
-    ])
+      const [
+        { data: prData },
+        { data: healthData },
+        { data: studyData },
+        { data: coursesData },
+        { data: paData },
+        { data: skillData },
+        { data: userSettings },
+        { data: exerciseSets },
+      ] = await Promise.all([
+        supabase.from('pr_logs').select('*').eq('user_id', USER_ID).gte('date', since90).order('date', { ascending: false }),
+        supabase.from('health_logs').select('*').eq('user_id', USER_ID).gte('date', since90).order('date', { ascending: false }),
+        supabase.from('learning_goals').select('*, courses(name,active)').eq('user_id', USER_ID),
+        supabase.from('courses').select('*').eq('user_id', USER_ID).eq('active', true),
+        supabase.from('pa_shifts').select('*').eq('user_id', USER_ID).gte('date', since30),
+        supabase.from('skill_logs').select('*').eq('user_id', USER_ID).gte('date', since30),
+        supabase.from('user_settings').select('*').eq('user_id', USER_ID).single(),
+        supabase.from('exercise_sets').select('*').eq('user_id', USER_ID).gte('created_at', since90 + 'T00:00:00').order('created_at', { ascending: false }),
+      ])
 
-    setCsnUsage((csnRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0))
-    setScores(scoresRes.data)
-    setWeekScores(weekRes.data || [])
-    setUpcomingExams(examsRes.data || [])
-    setErikTasks(tasksRes.data || [])
-    setTodayJournal(journalRes.data)
-    setLatestWeight(weightRes.data?.weight_kg || null)
-    setPaThisMonth((paRes.data || []).reduce((sum, s) => sum + (s.hours_worked || 0), 0))
-    setNextPaShift(nextPaRes.data)
-    setStudyThisWeek((studyRes.data || []).reduce((sum, s) => sum + (s.hours || 0), 0))
+      // ── Helpers ──
+      function latestPR(type) {
+        return prData?.find(p => p.type === type) || null
+      }
 
-    // Förtjänat denna vecka = Erik-betalningar + estimerad PA nettolön (brutto × 0.70)
-    const erikWeek = (incomeRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0)
-    const paWeekPay = (paWeekRes.data || []).reduce((sum, s) => sum + (s.estimated_pay || 0), 0)
-    const paWeekNet = Math.round(paWeekPay * 0.70) // ~30% skatt
-    setIncomeThisWeek(Math.round(erikWeek + paWeekNet))
+      // ── KROPP / bodyweight ──
+      const latestWeight = healthData?.[0]
+      const currentBW = latestWeight?.weight_kg || BW
+      setBodyWeight(currentBW)
 
-    const sleepEntries = (sleepRes.data || []).filter(e => e.sleep_hours > 0)
-    setAvgSleepWeek(sleepEntries.length ? sleepEntries.reduce((sum, e) => sum + e.sleep_hours, 0) / sleepEntries.length : 0)
-    setLoading(false)
-  }
+      // ── KONDITION ──────────────────────────────────────────────────────────
+      const pr5k = latestPR('run_5k')
+      const pr10k = latestPR('run_10k')
+      const prHalf = latestPR('run_half')
+      const prMara = latestPR('run_full')
+      const pr1k = latestPR('run_1k')
 
-  const totalScore = scores
-    ? Math.round(CATEGORIES.reduce((sum, c) => sum + (scores[`score_${c.key}`] || 0) * WEIGHTS[c.key], 0))
-    : 0
-  const peakMode = CATEGORIES.filter(c => (scores?.[`score_${c.key}`] || 0) >= 70).length >= 4
-  const csnPct = (csnUsage / 114500) * 100
-  const csnWarn = csnPct >= 80
-  const momentumTrend = weekScores.length >= 2
-    ? (weekScores[weekScores.length - 1]?.total_score || 0) - (weekScores[0]?.total_score || 0)
-    : 0
-  const dateLabel = format(new Date(), "EEEE d MMMM", { locale: sv })
-  const hour = new Date().getHours()
-  const greeting = hour < 11 ? 'God morgon' : hour < 17 ? 'God dag' : hour < 21 ? 'God kväll' : 'God natt'
+      const pr5kDecay = pr5k ? getDecayedValue(pr5k.value, pr5k.date, 90) : null
+      const pr10kDecay = pr10k ? getDecayedValue(pr10k.value, pr10k.date, 90) : null
+      const prHalfDecay = prHalf ? getDecayedValue(prHalf.value, prHalf.date, 90) : null
+      const prMaraDecay = prMara ? getDecayedValue(prMara.value, prMara.date, 90) : null
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--muted)' }}>
-      Laddar...
-    </div>
-  )
+      const vo2max = pr5kDecay ? estimateVO2max(pr5kDecay.value) : null
+      const vo2Tier = vo2max ? getTier(vo2max, VO2MAX_THRESHOLDS, true) : null
+      const run5kTier = pr5kDecay ? getTier(pr5kDecay.value, RUN_5K_THRESHOLDS, false) : null
+      const run10kTier = pr10kDecay ? getTier(pr10kDecay.value, RUN_10K_THRESHOLDS, false) : null
+      const runHalfTier = prHalfDecay ? getTier(prHalfDecay.value, RUN_HALF_THRESHOLDS, false) : null
+      const runMaraTier = prMaraDecay ? getTier(prMaraDecay.value, RUN_MARA_THRESHOLDS, false) : null
+
+      const konditionTiers = [vo2Tier, run5kTier, run10kTier, runHalfTier, runMaraTier].filter(Boolean)
+      const konditionTopTier = konditionTiers.length
+        ? konditionTiers.reduce((best, t) => (t.tier > best.tier ? t : best), konditionTiers[0])
+        : null
+
+      const konditionHasData = konditionTiers.length > 0
+      const konditionDecayWarning = [pr5kDecay, pr10kDecay, prHalfDecay, prMaraDecay].some(d => d?.stale)
+
+      // Build kondition chart data from pr_logs
+      const konditionChartData = (prData || [])
+        .filter(p => ['run_5k', 'run_10k'].includes(p.type))
+        .reduce((acc, p) => {
+          const existing = acc.find(a => a.date === p.date)
+          const label = p.type === 'run_5k' ? '5km' : '10km'
+          if (existing) { existing[label] = Math.round(p.value / 60) }
+          else acc.push({ date: p.date.slice(5), [label]: Math.round(p.value / 60) })
+          return acc
+        }, []).reverse()
+
+      // ── STYRKA ───────────────────────────────────────────────────────────────
+      function getBestSet(exerciseName) {
+        const sets = (exerciseSets || []).filter(s =>
+          s.exercise_name?.toLowerCase().includes(exerciseName.toLowerCase())
+        )
+        if (!sets.length) return null
+        const best = sets.reduce((b, s) => {
+          const rm = calc1RM(s.weight_kg, s.reps) || 0
+          const bRm = calc1RM(b.weight_kg, b.reps) || 0
+          return rm > bRm ? s : b
+        }, sets[0])
+        return { value: calc1RM(best.weight_kg, best.reps), date: best.created_at?.slice(0, 10) }
+      }
+
+      // Combine pr_logs (explicit) + exercise_sets (calculated)
+      function getStrength(prType, exerciseName) {
+        const fromPR = latestPR(prType)
+        if (fromPR) return getDecayedValue(fromPR.value, fromPR.date, 60)
+        const fromSets = getBestSet(exerciseName)
+        if (fromSets) return getDecayedValue(fromSets.value, fromSets.date, 60)
+        return null
+      }
+
+      const benchDecay = getStrength('bench', 'bänkpress')
+      const squatDecay = getStrength('squat', 'knäböj')
+      const deadliftDecay = getStrength('deadlift', 'marklyft')
+      const ohpDecay = getStrength('ohp', 'militärpress')
+      const pullupDecay = getStrength('pullup_max', 'pull-up')
+
+      const benchTier = benchDecay ? getTier(benchDecay.value / currentBW, BENCH_THRESHOLDS, true) : null
+      const squatTier = squatDecay ? getTier(squatDecay.value / currentBW, SQUAT_THRESHOLDS, true) : null
+      const deadliftTier = deadliftDecay ? getTier(deadliftDecay.value / currentBW, DEADLIFT_THRESHOLDS, true) : null
+      const ohpTier = ohpDecay ? getTier(ohpDecay.value / currentBW, OHP_THRESHOLDS, true) : null
+      const pullupTier = pullupDecay ? getTier(pullupDecay.value, PULLUP_THRESHOLDS, true) : null
+
+      const styrkaAllTiers = [benchTier, squatTier, deadliftTier, ohpTier, pullupTier].filter(Boolean)
+      const styrkaTopTier = styrkaAllTiers.length
+        ? styrkaAllTiers.reduce((b, t) => (t.tier > b.tier ? t : b), styrkaAllTiers[0])
+        : null
+      const styrkaHasData = styrkaAllTiers.length > 0
+      const styrkaDecayWarning = [benchDecay, squatDecay, deadliftDecay, ohpDecay, pullupDecay].some(d => d?.stale)
+
+      // ── KROPP ─────────────────────────────────────────────────────────────────
+      const weightLogs = (healthData || []).filter(h => h.weight_kg).slice(0, 14)
+      const weightGoal = userSettings?.goals?.target_weight || 75
+      const weightProgress = weightLogs.length
+        ? Math.round(((weightLogs[weightLogs.length - 1].weight_kg - (weightLogs[0]?.weight_kg || currentBW)) * 10) / 10)
+        : 0
+      const weightKvar = Math.max(0, Math.round((currentBW - weightGoal) * 10) / 10)
+      const kroppenHasData = !!latestWeight?.weight_kg
+      const weightChartData = [...weightLogs].reverse().map(h => ({
+        date: h.date.slice(5),
+        Vikt: h.weight_kg,
+      }))
+
+      // ── SÖMN ─────────────────────────────────────────────────────────────────
+      const sleepLogs7 = (healthData || []).filter(h => h.sleep_hours && h.date >= format(subDays(todayDate, 7), 'yyyy-MM-dd'))
+      const avgSleep = sleepLogs7.length ? sleepLogs7.reduce((s, h) => s + h.sleep_hours, 0) / sleepLogs7.length : null
+      const sleepDurationTier = avgSleep ? getTier(avgSleep, SLEEP_DURATION_THRESHOLDS, true) : null
+      const somnHasData = !!avgSleep
+      const sleepChartData = (healthData || []).filter(h => h.sleep_hours).slice(0, 14).reverse().map(h => ({
+        date: h.date.slice(5),
+        Sömn: h.sleep_hours,
+      }))
+
+      // ── PLUGG ─────────────────────────────────────────────────────────────────
+      const activeGoals = (studyData || []).filter(g => g.courses?.active)
+      const avgMastery = activeGoals.length
+        ? Math.round(activeGoals.reduce((s, g) => s + (g.mastery || 0), 0) / activeGoals.length)
+        : null
+      const pluggTier = avgMastery != null ? getStudyTier(avgMastery) : null
+      const pluggHasData = avgMastery != null
+
+      // Group by course
+      const byCourse = {}
+      activeGoals.forEach(g => {
+        const cn = g.courses?.name || 'Okänd'
+        if (!byCourse[cn]) byCourse[cn] = []
+        byCourse[cn].push(g.mastery || 0)
+      })
+
+      // ── EKONOMI ───────────────────────────────────────────────────────────────
+      const totalPAPay = (paData || []).reduce((s, shift) => s + (shift.estimated_pay || 0), 0)
+      const savingsRaw = userSettings?.goals?.savings || null
+      const incomeTier = totalPAPay ? getTier(totalPAPay, INCOME_THRESHOLDS, true) : null
+      const savingsTier = savingsRaw != null ? getTier(savingsRaw, SAVINGS_THRESHOLDS, true) : null
+      const ekonomiTopTier = [incomeTier, savingsTier].filter(Boolean).reduce(
+        (b, t) => (t && t.tier > (b?.tier || 0) ? t : b), null
+      )
+      const ekonomiHasData = !!(totalPAPay || savingsRaw != null)
+
+      // ── VÄLMÅENDE ─────────────────────────────────────────────────────────────
+      const wellLogs7 = (healthData || []).filter(h => h.date >= format(subDays(todayDate, 7), 'yyyy-MM-dd'))
+      function avg7(field) {
+        const vals = wellLogs7.filter(h => h[field] != null).map(h => h[field])
+        return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null
+      }
+      const avgEnergy = avg7('energy_level')
+      const avgStress = avg7('stress_level')
+      const avgMood = avg7('mood')
+      const avgSteps = avg7('steps')
+
+      const energyTier = avgEnergy != null ? getTier(avgEnergy, ENERGY_THRESHOLDS, true) : null
+      const stressTier = avgStress != null ? getTier(avgStress, STRESS_THRESHOLDS, false) : null
+      const moodTier = avgMood != null ? getTier(avgMood, MOOD_THRESHOLDS, true) : null
+      const stepsTier = avgSteps != null ? getTier(avgSteps, STEPS_THRESHOLDS, true) : null
+
+      const wellTiers = [energyTier, stressTier, moodTier, stepsTier].filter(Boolean)
+      const wellTopTier = wellTiers.length
+        ? wellTiers.reduce((b, t) => (t.tier > b.tier ? t : b), wellTiers[0])
+        : null
+      const wellHasData = wellTiers.length > 0
+      const wellChartData = (healthData || []).filter(h => h.energy_level || h.mood).slice(0, 14).reverse().map(h => ({
+        date: h.date.slice(5),
+        Energi: h.energy_level,
+        Humör: h.mood,
+        Stress: h.stress_level,
+      }))
+
+      // ── FÄRDIGHETER ───────────────────────────────────────────────────────────
+      function avgMinPerWeek(skillName) {
+        const logs = (skillData || []).filter(s => s.skill === skillName)
+        if (!logs.length) return 0
+        const totalMins = logs.reduce((s, l) => s + l.minutes, 0)
+        return Math.round(totalMins / 4)
+      }
+      const spanishMin = avgMinPerWeek('spanish')
+      const serbianMin = avgMinPerWeek('serbian')
+      const guitarMin = avgMinPerWeek('guitar')
+      const skillsHasData = !!(skillData?.length)
+      const spanishTier = getSkillTier(spanishMin)
+      const serbianTier = getSkillTier(serbianMin)
+      const guitarTier = getSkillTier(guitarMin)
+      const skillTopTier = [spanishTier, serbianTier, guitarTier].reduce(
+        (b, t) => (t.tier > b.tier ? t : b), spanishTier
+      )
+
+      // ── ASSEMBLE CATEGORIES ───────────────────────────────────────────────────
+      const builtCategories = [
+        {
+          id: 'kondition',
+          name: 'Kondition',
+          icon: '🏃',
+          tier: konditionTopTier,
+          hasData: konditionHasData,
+          decayWarning: konditionDecayWarning,
+          trend: pr5kDecay ? (pr5kDecay.daysSince < 7 ? 'up' : 'neutral') : 'neutral',
+          metrics: [
+            { label: '5km PR', value: pr5kDecay ? formatRunTime(Math.round(pr5kDecay.value)) : '—', highlight: true },
+            { label: '10km PR', value: pr10kDecay ? formatRunTime(Math.round(pr10kDecay.value)) : '—' },
+            { label: 'Est. VO2max', value: vo2max ? vo2max + ' ml/kg/min' : '—' },
+          ],
+          details: [
+            { label: '1km PR', value: pr1k ? formatRunTime(Math.round(pr1k.value)) : '—' },
+            { label: '5km PR', value: pr5kDecay ? formatRunTime(Math.round(pr5kDecay.value)) : '—', tierInfo: run5kTier },
+            { label: '10km PR', value: pr10kDecay ? formatRunTime(Math.round(pr10kDecay.value)) : '—', tierInfo: run10kTier },
+            { label: 'Halvmara PR', value: prHalfDecay ? formatRunTime(Math.round(prHalfDecay.value)) : '—', tierInfo: runHalfTier },
+            { label: 'Mara PR', value: prMaraDecay ? formatRunTime(Math.round(prMaraDecay.value)) : '—', tierInfo: runMaraTier },
+            { label: 'Estimerat VO2max', value: vo2max ? vo2max + ' ml/kg/min' : '—', tierInfo: vo2Tier },
+          ],
+          chartData: konditionChartData,
+          chartLines: [
+            { key: '5km', label: '5km (min)', color: '#3b82f6' },
+            { key: '10km', label: '10km (min)', color: '#8b5cf6' },
+          ],
+          navTarget: '/traning',
+          navLabel: 'Träning',
+          nextTierText: konditionTopTier?.nextThreshold
+            ? 'Kräver bättre löptider eller VO2max'
+            : null,
+        },
+        {
+          id: 'styrka',
+          name: 'Styrka',
+          icon: '🏋️',
+          tier: styrkaTopTier,
+          hasData: styrkaHasData,
+          decayWarning: styrkaDecayWarning,
+          trend: 'neutral',
+          metrics: [
+            { label: 'Bänkpress 1RM', value: benchDecay ? benchDecay.value + ' kg' : '—', highlight: true },
+            { label: 'Marklyft 1RM', value: deadliftDecay ? deadliftDecay.value + ' kg' : '—' },
+            { label: 'Knäböj 1RM', value: squatDecay ? squatDecay.value + ' kg' : '—' },
+          ],
+          details: [
+            { label: 'Bänkpress 1RM', value: benchDecay ? benchDecay.value + ' kg (' + Math.round(benchDecay.value / currentBW * 100) / 100 + 'x BW)' : '—', tierInfo: benchTier },
+            { label: 'Knäböj 1RM', value: squatDecay ? squatDecay.value + ' kg (' + Math.round(squatDecay.value / currentBW * 100) / 100 + 'x BW)' : '—', tierInfo: squatTier },
+            { label: 'Marklyft 1RM', value: deadliftDecay ? deadliftDecay.value + ' kg (' + Math.round(deadliftDecay.value / currentBW * 100) / 100 + 'x BW)' : '—', tierInfo: deadliftTier },
+            { label: 'Militärpress 1RM', value: ohpDecay ? ohpDecay.value + ' kg' : '—', tierInfo: ohpTier },
+            { label: 'Pull-ups max reps', value: pullupDecay ? pullupDecay.value + ' reps' : '—', tierInfo: pullupTier },
+          ],
+          chartData: [],
+          navTarget: '/traning',
+          navLabel: 'Träning',
+        },
+        {
+          id: 'kropp',
+          name: 'Kropp',
+          icon: '⚖️',
+          tier: null,
+          hasData: kroppenHasData,
+          decayWarning: false,
+          trend: weightProgress < 0 ? 'up' : weightProgress > 0 ? 'down' : 'neutral',
+          metrics: [
+            { label: 'Aktuell vikt', value: currentBW + ' kg', highlight: true },
+            { label: 'Kvar till mål (' + weightGoal + 'kg)', value: weightKvar + ' kg' },
+            { label: 'Trend 14 dagar', value: weightProgress > 0 ? '+' + weightProgress + ' kg' : weightProgress + ' kg' },
+          ],
+          details: [
+            { label: 'Aktuell vikt', value: currentBW + ' kg' },
+            { label: 'Målvikt', value: weightGoal + ' kg' },
+            { label: 'Kvar', value: weightKvar + ' kg (' + Math.round((1 - weightKvar / (currentBW - weightGoal + weightKvar)) * 100) + '% klart)' },
+            { label: 'Trend 14d', value: weightProgress <= 0 ? Math.abs(weightProgress) + ' kg ned' : weightProgress + ' kg upp' },
+          ],
+          chartData: weightChartData,
+          chartLines: [{ key: 'Vikt', label: 'Vikt (kg)', color: '#f59e0b' }],
+          navTarget: '/halsa',
+          navLabel: 'Hälsa',
+        },
+        {
+          id: 'somn',
+          name: 'Sömn',
+          icon: '🌙',
+          tier: sleepDurationTier,
+          hasData: somnHasData,
+          decayWarning: false,
+          trend: 'neutral',
+          metrics: [
+            { label: 'Snitt 7 dagar', value: avgSleep ? avgSleep.toFixed(1) + ' h' : '—', highlight: true },
+            { label: 'Loggar', value: sleepLogs7.length + ' av 7 dagar' },
+          ],
+          details: [
+            { label: 'Sömnsnitt 7d', value: avgSleep ? avgSleep.toFixed(1) + ' timmar' : '—', tierInfo: sleepDurationTier },
+          ],
+          chartData: sleepChartData,
+          chartLines: [{ key: 'Sömn', label: 'Timmar', color: '#8b5cf6' }],
+          navTarget: '/halsa',
+          navLabel: 'Hälsa',
+        },
+        {
+          id: 'plugg',
+          name: 'Plugg',
+          icon: '📚',
+          tier: pluggTier,
+          hasData: pluggHasData,
+          decayWarning: false,
+          trend: 'neutral',
+          metrics: [
+            { label: 'Genomsnittlig mastery', value: avgMastery != null ? avgMastery + '%' : '—', highlight: true },
+            { label: 'Aktiva lärandemål', value: activeGoals.length },
+          ],
+          details: [
+            { label: 'Genomsnittlig mastery', value: avgMastery != null ? avgMastery + '%' : '—', tierInfo: pluggTier },
+            ...Object.entries(byCourse).map(([course, vals]) => ({
+              label: course,
+              value: Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) + '% mastery',
+            })),
+          ],
+          chartData: [],
+          navTarget: '/plugg',
+          navLabel: 'Plugg',
+        },
+        {
+          id: 'ekonomi',
+          name: 'Ekonomi',
+          icon: '💰',
+          tier: ekonomiTopTier,
+          hasData: ekonomiHasData,
+          decayWarning: false,
+          trend: 'neutral',
+          metrics: [
+            { label: 'Inkomst denna månad', value: totalPAPay ? Math.round(totalPAPay).toLocaleString('sv-SE') + ' kr' : '—', highlight: true },
+            { label: 'Sparkapital', value: savingsRaw != null ? savingsRaw.toLocaleString('sv-SE') + ' kr' : '—' },
+          ],
+          details: [
+            { label: 'Månadsnettoink. (PA)', value: totalPAPay ? Math.round(totalPAPay).toLocaleString('sv-SE') + ' kr' : '—', tierInfo: incomeTier },
+            { label: 'Sparkapital', value: savingsRaw != null ? savingsRaw.toLocaleString('sv-SE') + ' kr' : '—', tierInfo: savingsTier },
+          ],
+          chartData: [],
+          navTarget: '/ekonomi',
+          navLabel: 'Ekonomi',
+        },
+        {
+          id: 'valmående',
+          name: 'Välmående',
+          icon: '🌱',
+          tier: wellTopTier,
+          hasData: wellHasData,
+          decayWarning: false,
+          trend: avgEnergy ? (avgEnergy >= 7 ? 'up' : avgEnergy <= 4 ? 'down' : 'neutral') : 'neutral',
+          metrics: [
+            { label: 'Energi snitt', value: avgEnergy != null ? avgEnergy + '/10' : '—', highlight: true },
+            { label: 'Humör snitt', value: avgMood != null ? avgMood + '/10' : '—' },
+            { label: 'Stress snitt', value: avgStress != null ? avgStress + '/10' : '—' },
+          ],
+          details: [
+            { label: 'Energi (7d snitt)', value: avgEnergy != null ? avgEnergy + '/10' : '—', tierInfo: energyTier },
+            { label: 'Stress (7d snitt)', value: avgStress != null ? avgStress + '/10' : '—', tierInfo: stressTier },
+            { label: 'Humör (7d snitt)', value: avgMood != null ? avgMood + '/10' : '—', tierInfo: moodTier },
+            { label: 'Steg/dag (7d snitt)', value: avgSteps != null ? Math.round(avgSteps).toLocaleString('sv-SE') : '—', tierInfo: stepsTier },
+          ],
+          chartData: wellChartData,
+          chartLines: [
+            { key: 'Energi', label: 'Energi', color: '#f59e0b' },
+            { key: 'Humör', label: 'Humör', color: '#10b981' },
+            { key: 'Stress', label: 'Stress', color: '#ef4444' },
+          ],
+          navTarget: '/halsa',
+          navLabel: 'Hälsa',
+        },
+        {
+          id: 'fardigheter',
+          name: 'Färdigheter',
+          icon: '🎸',
+          tier: skillsHasData ? skillTopTier : null,
+          hasData: skillsHasData,
+          decayWarning: false,
+          trend: 'neutral',
+          metrics: [
+            { label: '🇪🇸 Spanska', value: spanishMin + ' min/v', highlight: spanishTier.tier >= 4 },
+            { label: '🇷🇸 Serbiska', value: serbianMin + ' min/v' },
+            { label: '🎸 Gitarr', value: guitarMin + ' min/v' },
+          ],
+          details: [
+            { label: '🇪🇸 Spanska', value: spanishMin + ' min/v', tierInfo: spanishTier },
+            { label: '🇷🇸 Serbiska', value: serbianMin + ' min/v', tierInfo: serbianTier },
+            { label: '🎸 Gitarr', value: guitarMin + ' min/v', tierInfo: guitarTier },
+          ],
+          chartData: [],
+          navTarget: null,
+          navLabel: null,
+        },
+      ]
+
+      setCategories(builtCategories)
+
+      // Overall tier — genomsnitt av alla kategorier med tier
+      const allTiers = builtCategories
+        .filter(c => c.tier && c.hasData)
+        .map(c => ({ tier: c.tier.tier }))
+      setOverallTier(calcOverallTier(allTiers))
+
+    } catch (err) {
+      console.error('Dashboard fetch error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }, [refreshKey])
+
+  useEffect(() => {
+    fetchAllData()
+  }, [fetchAllData])
+
+  // ─── RENDER ───────────────────────────────────────────────────────────────────
+  const overallColor = overallTier ? TIER_COLORS[overallTier] : '#6b7280'
+  const overallLabel = overallTier ? TIER_NAMES[overallTier] : null
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
+    <div style={{ padding: '0 0 40px 0', maxWidth: '900px', margin: '0 auto' }}>
 
-      {/* Header */}
-      <div style={{ marginBottom: '22px' }}>
-        <div style={{ color: 'var(--muted)', fontSize: '13px', textTransform: 'capitalize' }}>{dateLabel}</div>
-        <div style={{ fontSize: '24px', fontWeight: '600', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {greeting}, Sigge
-          {peakMode && (
-            <span style={{ fontSize: '13px', color: '#10b981', fontWeight: '500',
-              padding: '3px 10px', borderRadius: '20px', background: 'rgba(16,185,129,0.1)',
-              border: '1px solid rgba(16,185,129,0.2)' }}>
-              ⚡ Peak mode
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* ROW 1: Score ring + category tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '12px', marginBottom: '12px' }}>
-
-        {/* Main score */}
-        <div className={`card ${peakMode ? 'peak-glow' : ''}`} style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          gap: '8px', padding: '20px 24px', minWidth: '165px',
-        }}>
-          <ScoreRing score={totalScore} size={118} strokeWidth={9} color={peakMode ? '#10b981' : '#3b82f6'}>
-            <div className="mono" style={{ fontSize: '32px', fontWeight: '700', color: peakMode ? '#10b981' : 'var(--text)', lineHeight: 1 }}>{totalScore}</div>
-            <div style={{ fontSize: '9px', color: 'var(--muted)', letterSpacing: '0.08em', marginTop: '3px' }}>DAGSSCORE</div>
-          </ScoreRing>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: momentumTrend >= 0 ? '#10b981' : '#ef4444' }}>
-            {momentumTrend >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-            <span className="mono">{momentumTrend >= 0 ? '+' : ''}{momentumTrend.toFixed(0)}</span>
-            <span style={{ color: 'var(--muted)', fontSize: '11px' }}>denna vecka</span>
-          </div>
-        </div>
-
-        {/* Category tiles */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
-          {CATEGORIES.map(({ key, label, icon: Icon, to, color }) => {
-            const val = scores?.[`score_${key}`] || 0
-            const active = val >= 70
-            return (
-              <Link key={key} to={to} style={{ textDecoration: 'none' }}>
-                <div className="card-sm" style={{
-                  cursor: 'pointer', transition: 'all 0.15s', height: '100%',
-                  borderColor: active ? color + '40' : 'var(--border)',
-                  background: active ? color + '08' : 'var(--surface2)',
-                }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = color + '70'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = active ? color + '40' : 'var(--border)'}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <Icon size={13} color={active ? color : 'var(--muted)'} />
-                    {active && <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: color }} />}
-                  </div>
-                  <div className="mono" style={{ fontSize: '24px', fontWeight: '700', color: active ? color : 'var(--text)', marginBottom: '2px', lineHeight: 1 }}>
-                    {Math.round(val)}
-                  </div>
-                  <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '8px' }}>{label}</div>
-                  <div style={{ height: '2px', background: 'rgba(255,255,255,0.06)', borderRadius: '1px', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${val}%`, background: color, borderRadius: '1px', transition: 'width 0.8s ease' }} />
-                  </div>
-                </div>
-              </Link>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ROW 2: Vitals — 4 kort */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '12px' }}>
-        {[
-          {
-            label: 'Vikt',
-            value: latestWeight ? `${latestWeight} kg` : '—',
-            icon: Scale, color: '#10b981',
-            sub: null,
-          },
-          {
-            label: 'Snitt sömn (7 dagar)',
-            value: avgSleepWeek > 0 ? `${avgSleepWeek.toFixed(1)}h` : '—',
-            icon: Moon, color: '#8b5cf6',
-            sub: todayJournal?.sleep_type === 'nattjobb' ? '🌙 Nattjobb idag' : todayJournal?.sleep_type === 'uppdelad' ? '✂️ Uppdelad idag' : null,
-          },
-          {
-            label: 'Förtjänat denna vecka (netto)',
-            value: incomeThisWeek > 0 ? `${incomeThisWeek.toLocaleString('sv-SE')} kr` : '—',
-            icon: DollarSign, color: '#10b981',
-            sub: null,
-          },
-          {
-            label: 'Plugg denna vecka',
-            value: `${studyThisWeek.toFixed(1)}h`,
-            icon: GraduationCap, color: '#f59e0b',
-            sub: null,
-          },
-        ].map(({ label, value, icon: Icon, color, sub }) => (
-          <div key={label} className="card" style={{ padding: '14px 16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-              <Icon size={12} color={color} />
-              <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '500' }}>{label.toUpperCase()}</span>
+      {/* ─ Profile Header ─ */}
+      <div style={{
+        padding: '28px 24px 24px',
+        borderBottom: '1px solid var(--border)',
+        marginBottom: '28px',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', marginBottom: '4px' }}>
+              Sigge Gustafsson
             </div>
-            <div className="mono" style={{ fontSize: '20px', fontWeight: '700', color, lineHeight: 1 }}>{value}</div>
-            {sub && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '4px' }}>{sub}</div>}
-          </div>
-        ))}
-      </div>
-
-      {/* ROW 3: Momentum + Tentor + Erik */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-
-        {/* 7-day bars */}
-        <div className="card">
-          <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '14px', letterSpacing: '0.05em' }}>MOMENTUM — 7 DAGAR</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '52px' }}>
-            {Array.from({ length: 7 }).map((_, i) => {
-              const d = format(subDays(new Date(), 6 - i), 'yyyy-MM-dd')
-              const entry = weekScores.find(s => s.date === d)
-              const val = entry?.total_score || 0
-              const isToday = i === 6
-              return (
-                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
-                  <div title={val > 0 ? String(Math.round(val)) : 'Ingen data'} style={{
-                    width: '100%', height: `${Math.max(val * 0.52, 2)}px`,
-                    background: isToday ? '#3b82f6' : val > 0 ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.04)',
-                    borderRadius: '3px 3px 0 0', transition: 'height 0.6s ease',
-                  }} />
-                  <span style={{ fontSize: '9px', color: isToday ? 'var(--text)' : 'var(--muted)', fontWeight: isToday ? '600' : '400' }}>
-                    {format(subDays(new Date(), 6 - i), 'EEE', { locale: sv }).slice(0, 2)}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Upcoming exams */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.05em' }}>KOMMANDE TENTOR</div>
-            <Link to="/plugg" style={{ fontSize: '11px', color: 'var(--blue)', textDecoration: 'none' }}>Alla →</Link>
-          </div>
-          {upcomingExams.length === 0 ? (
-            <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Inga tentor planerade</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-              {upcomingExams.map(exam => {
-                const days = Math.ceil((new Date(exam.exam_date) - new Date()) / 86400000)
-                const color = days <= 7 ? '#ef4444' : days <= 14 ? '#f59e0b' : 'var(--muted)'
-                return (
-                  <div key={exam.name + exam.exam_date} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontSize: '12px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exam.name}</div>
-                      {exam.courses?.name && <div style={{ fontSize: '10px', color: 'var(--muted)' }}>{exam.courses.name}</div>}
-                    </div>
-                    <div className="mono" style={{ fontSize: '12px', color, fontWeight: '600', flexShrink: 0, marginLeft: '8px' }}>{days}d</div>
-                  </div>
-                )
-              })}
+            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
+              {format(todayDate, 'EEEE d MMMM yyyy').charAt(0).toUpperCase() + format(todayDate, 'EEEE d MMMM yyyy').slice(1)}
             </div>
-          )}
-        </div>
-
-        {/* Erik tasks */}
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.05em' }}>ERIK-UPPDRAG</div>
-            <Link to="/jobb" style={{ fontSize: '11px', color: 'var(--blue)', textDecoration: 'none' }}>Alla →</Link>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
+              Medicinsk student · Termin 3 · {bodyWeight} kg
+            </div>
           </div>
-          {erikTasks.length === 0 ? (
-            <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Inga aktiva uppdrag</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {erikTasks.slice(0, 4).map(task => {
-                const days = task.deadline ? Math.ceil((new Date(task.deadline) - new Date()) / 86400000) : null
-                const urgent = days !== null && days <= 2
-                const tagColor = {
-                  'Hotell Vänersborg': '#3b82f6', 'Brålanda Vandrarhem': '#8b5cf6',
-                  'Tygladan': '#ec4899', 'Vargöns Varuhus': '#f97316',
-                }[task.tag] || '#6b7280'
-                return (
-                  <div key={task.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '12px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        {urgent && <AlertTriangle size={10} color="#ef4444" />}
-                        {task.title}
-                      </div>
-                      <div style={{ fontSize: '10px', color: tagColor }}>{task.tag}</div>
-                    </div>
-                    {days !== null && <div className="mono" style={{ fontSize: '11px', color: urgent ? '#ef4444' : 'var(--muted)', flexShrink: 0 }}>{days}d</div>}
-                  </div>
-                )
-              })}
+          {overallTier && (
+            <div style={{
+              textAlign: 'center',
+              background: overallColor + '15',
+              border: '1px solid ' + overallColor + '44',
+              borderRadius: '12px',
+              padding: '12px 20px',
+            }}>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Övergripande
+              </div>
+              <div style={{ fontSize: '16px', fontWeight: 800, color: overallColor }}>
+                {overallLabel}
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>
+                Tier {overallTier} / 8
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* ROW 4: CSN + Nästa pass + Quick actions */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '12px' }}>
+      {/* ─ Main layout: cards + quicklog ─ */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0,1fr) 300px',
+        gap: '28px',
+        padding: '0 24px',
+        alignItems: 'start',
+      }}>
 
-        {/* CSN */}
-        <div className="card" style={csnWarn ? { borderColor: 'rgba(245,158,11,0.4)' } : {}}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.05em' }}>CSN FRIBELOPP</div>
-            {csnWarn && <AlertTriangle size={13} color="#f59e0b" />}
-          </div>
-          <div className="mono" style={{ fontSize: '20px', fontWeight: '700', marginBottom: '4px' }}>
-            {Math.round(csnUsage).toLocaleString('sv-SE')} <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}>kr</span>
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '8px' }}>av 114 500 kr</div>
-          <div style={{ height: '4px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${Math.min(csnPct, 100)}%`, background: csnWarn ? '#f59e0b' : '#10b981', borderRadius: '2px', transition: 'width 0.6s' }} />
-          </div>
-          <div style={{ fontSize: '10px', color: csnWarn ? '#f59e0b' : 'var(--muted)', marginTop: '5px' }}>
-            {csnPct.toFixed(0)}% · {Math.round(114500 - csnUsage).toLocaleString('sv-SE')} kr kvar
-          </div>
-        </div>
-
-        {/* Nästa pass */}
-        <div className="card">
-          <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '10px' }}>NÄSTA PASS</div>
-          {nextPaShift ? (
-            <>
-              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '4px', textTransform: 'capitalize' }}>
-                {format(parseISO(nextPaShift.date), 'EEEE d MMM', { locale: sv })}
-              </div>
-              <div className="mono" style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '8px' }}>
-                {nextPaShift.start_time ? format(parseISO(nextPaShift.start_time), 'HH:mm') : '—'}
-                {' – '}
-                {nextPaShift.end_time ? format(parseISO(nextPaShift.end_time), 'HH:mm') : '—'}
-              </div>
-              <div className="mono" style={{ fontSize: '22px', fontWeight: '700', color: '#f97316' }}>
-                {nextPaShift.hours_worked?.toFixed(1)}<span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}>h</span>
-              </div>
-            </>
+        {/* Left: Category grid */}
+        <div>
+          {loading ? (
+            <div style={{ color: 'var(--muted)', fontSize: '14px', padding: '40px 0', textAlign: 'center' }}>
+              Laddar data...
+            </div>
           ) : (
-            <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Inga kommande pass</div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+              gap: '14px',
+            }}>
+              {categories.map(cat => (
+                <CategoryCard
+                  key={cat.id}
+                  category={cat}
+                  onClick={setSelectedCategory}
+                />
+              ))}
+            </div>
           )}
         </div>
 
-        {/* Quick actions */}
-        <div className="card">
-          <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.05em', marginBottom: '12px' }}>SNABBÅTGÄRDER</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
-            {[
-              { label: '+ Träningspass', to: '/traning', color: '#3b82f6' },
-              { label: todayJournal ? '✓ Journal idag' : '+ Journal', to: '/journal', color: '#06b6d4', done: !!todayJournal },
-              { label: '+ Utgift', to: '/ekonomi', color: '#8b5cf6' },
-              { label: '+ Studiepass', to: '/plugg', color: '#f59e0b' },
-              { label: '⚡ Jarvis', to: '/jarvis', color: '#10b981' },
-              { label: '📊 Insights', to: '/insights', color: '#a78bfa' },
-            ].map(({ label, to, color, done }) => (
-              <Link key={label} to={to} style={{
-                padding: '7px 13px', borderRadius: '7px',
-                background: done ? color + '18' : color + '10',
-                border: `1px solid ${color}${done ? '45' : '22'}`,
-                color, textDecoration: 'none', fontSize: '12px', fontWeight: '500',
-                transition: 'all 0.15s',
-              }}>
-                {label}
-              </Link>
-            ))}
-          </div>
+        {/* Right: QuickLog */}
+        <div style={{ position: 'sticky', top: '20px' }}>
+          <QuickLog onSaved={() => setRefreshKey(k => k + 1)} />
         </div>
       </div>
+
+      {/* ─ Detail Modal ─ */}
+      {selectedCategory && (
+        <DetailModal
+          category={selectedCategory}
+          onClose={() => setSelectedCategory(null)}
+        />
+      )}
     </div>
   )
 }
