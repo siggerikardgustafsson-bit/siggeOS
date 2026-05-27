@@ -277,6 +277,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     setInput('')
     setLoading(true)
 
+    // Smart compression: keep last 6 full, summarize older ones
     const cleanMessages = newMessages.map(msg => {
       if (typeof msg.content === 'string') return msg
       if (Array.isArray(msg.content)) {
@@ -286,10 +287,31 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       return msg
     })
 
+    let trimmedMessages
+    if (cleanMessages.length <= 10) {
+      trimmedMessages = cleanMessages
+    } else {
+      // Summarize older messages: keep question+answer pairs as single short entries
+      const older = cleanMessages.slice(0, -10)
+      const summary = older.reduce((acc, msg, i) => {
+        if (msg.role === 'user') {
+          acc.push({ role: 'user', content: msg.content.slice(0, 200) })
+        } else {
+          // Keep only score/mastery lines from assistant
+          const lines = msg.content.split('\n').filter(l =>
+            l.includes('Poäng:') || l.includes('RÄTT') || l.includes('FEL') || l.includes('mastery_update')
+          ).slice(0, 3)
+          if (lines.length > 0) acc.push({ role: 'assistant', content: lines.join('\n') })
+        }
+        return acc
+      }, [])
+      trimmedMessages = [...summary, ...cleanMessages.slice(-10)]
+    }
+
     const systemPrompt = buildSystemPrompt(sessionGoals, mode === 'tenta', currentTentaFileId ? { id: currentTentaFileId, file_name: '' } : null, false, null)
     const materialIds = (await supabase.from('course_materials').select('id').eq('exam_id', exam.id).eq('user_id', user.id)).data?.map(m => m.id) || []
     try {
-      const content = await callAnthropic(cleanMessages, systemPrompt, currentTentaFileId || null, materialIds)
+      const content = await callAnthropic(trimmedMessages, systemPrompt, currentTentaFileId || null, materialIds)
       setMessages(prev => [...prev, { role: 'assistant', content: content || 'Inget svar.' }])
       if (content) await processMasteryUpdates(content, sessionGoals)
     } catch(e) {
