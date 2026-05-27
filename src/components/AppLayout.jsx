@@ -7,17 +7,30 @@ import { initBackground } from '../hooks/useBackground'
 export default function AppLayout() {
   const location = useLocation()
 
-  // Re-apply background on every navigation (in case DOM updated)
   useEffect(() => {
     initBackground()
   }, [location.pathname])
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div style={{
+      display: 'flex',
+      height: '100vh',
+      overflow: 'hidden',
+      padding: '10px',
+      gap: '10px',
+      boxSizing: 'border-box',
+    }}>
 
-      {/* Sidebar — desktop only */}
-      <div className="hidden-mobile">
-        <Sidebar />
+      {/* Sidebar — floating widget */}
+      <div className="hidden-mobile" style={{ flexShrink: 0 }}>
+        <div style={{
+          height: '100%',
+          borderRadius: '18px',
+          overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+        }}>
+          <Sidebar floating />
+        </div>
       </div>
 
       {/* Main content */}
@@ -27,6 +40,7 @@ export default function AppLayout() {
         overflowX: 'hidden',
         background: 'transparent',
         minHeight: 0,
+        borderRadius: '18px',
       }}>
         <div className="page-content">
           <Outlet />

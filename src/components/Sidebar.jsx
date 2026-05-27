@@ -34,16 +34,16 @@ export default function Sidebar() {
     <aside style={{
       width: '210px',
       minWidth: '210px',
-      height: '100vh',
+      height: '100%',
       background: 'var(--surface)',
-      backdropFilter: 'blur(24px)',
-      WebkitBackdropFilter: 'blur(24px)',
-      borderRight: '1px solid var(--border)',
+      backdropFilter: 'blur(28px)',
+      WebkitBackdropFilter: 'blur(28px)',
+      border: '1px solid var(--glass-border)',
       display: 'flex',
       flexDirection: 'column',
-      position: 'sticky',
-      top: 0,
-      boxShadow: '1px 0 0 var(--border)',
+      borderRadius: '18px',
+      boxShadow: 'var(--glass-shadow)',
+      overflow: 'hidden',
     }}>
 
       {/* Logo */}
