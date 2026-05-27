@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '../../supabase'
 import { format } from 'date-fns'
 
-const USER_ID = 'c051041c-83e4-4b3d-8e9f-e531e3dde025'
 
-export default function QuickLog({ onSaved }) {
+
+export default function QuickLog({ onSaved, userId }) {
   const [tab, setTab] = useState('wellbeing')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -25,7 +25,7 @@ export default function QuickLog({ onSaved }) {
     setSaving(true)
     const today = format(new Date(), 'yyyy-MM-dd')
     const payload = {
-      user_id: USER_ID,
+      user_id: userId,
       date: today,
       energy_level: energy,
       stress_level: stress,
@@ -49,7 +49,7 @@ export default function QuickLog({ onSaved }) {
     const { error } = await supabase
       .from('skill_logs')
       .insert({
-        user_id: USER_ID,
+        user_id: userId,
         date: format(new Date(), 'yyyy-MM-dd'),
         skill,
         minutes: parseInt(skillMinutes),

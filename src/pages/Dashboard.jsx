@@ -10,14 +10,11 @@ import {
   estimateVO2max, calc1RM, formatRunTime,
   VO2MAX_THRESHOLDS, RUN_5K_THRESHOLDS, RUN_10K_THRESHOLDS, RUN_HALF_THRESHOLDS, RUN_MARA_THRESHOLDS,
   BENCH_THRESHOLDS, SQUAT_THRESHOLDS, DEADLIFT_THRESHOLDS, OHP_THRESHOLDS, PULLUP_THRESHOLDS,
-  SLEEP_DURATION_THRESHOLDS, SLEEP_REGULARITY_THRESHOLDS,
+  SLEEP_DURATION_THRESHOLDS,
   INCOME_THRESHOLDS, SAVINGS_THRESHOLDS,
   ENERGY_THRESHOLDS, MOOD_THRESHOLDS, STRESS_THRESHOLDS, STEPS_THRESHOLDS,
   TIER_COLORS, TIER_NAMES,
 } from '../components/Dashboard/tierUtils'
-
-const USER_ID = 'c051041c-83e4-4b3d-8e9f-e531e3dde025'
-const BW = 77 // bodyweight kg, uppdateras dynamiskt från senaste health_log
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -25,117 +22,159 @@ export default function Dashboard() {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [categories, setCategories] = useState([])
   const [overallTier, setOverallTier] = useState(null)
-  const [bodyWeight, setBodyWeight] = useState(BW)
+  const [bodyWeight, setBodyWeight] = useState(77)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [userId, setUserId] = useState(null)
 
-  const today = format(new Date(), 'yyyy-MM-dd')
   const todayDate = new Date()
 
-  // ─── DATA FETCH ──────────────────────────────────────────────────────────────
+  // Get user on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) setUserId(data.user.id)
+    })
+  }, [])
+
   const fetchAllData = useCallback(async () => {
+    if (!userId) return
     setLoading(true)
     try {
       const since90 = format(subDays(todayDate, 90), 'yyyy-MM-dd')
       const since30 = format(subDays(todayDate, 30), 'yyyy-MM-dd')
-      const since14 = format(subDays(todayDate, 14), 'yyyy-MM-dd')
-      const since7 = format(subDays(todayDate, 7), 'yyyy-MM-dd')
 
       const [
+        { data: runData },
         { data: prData },
         { data: healthData },
         { data: studyData },
-        { data: coursesData },
         { data: paData },
         { data: skillData },
         { data: userSettings },
-        { data: exerciseSets },
       ] = await Promise.all([
-        supabase.from('pr_logs').select('*').eq('user_id', USER_ID).gte('date', since90).order('date', { ascending: false }),
-        supabase.from('health_logs').select('*').eq('user_id', USER_ID).gte('date', since90).order('date', { ascending: false }),
-        supabase.from('learning_goals').select('*, courses(name,active)').eq('user_id', USER_ID),
-        supabase.from('courses').select('*').eq('user_id', USER_ID).eq('active', true),
-        supabase.from('pa_shifts').select('*').eq('user_id', USER_ID).gte('date', since30),
-        supabase.from('skill_logs').select('*').eq('user_id', USER_ID).gte('date', since30),
-        supabase.from('user_settings').select('*').eq('user_id', USER_ID).single(),
-        supabase.from('exercise_sets').select('*').eq('user_id', USER_ID).gte('created_at', since90 + 'T00:00:00').order('created_at', { ascending: false }),
+        // Löpning — training_sessions med distance
+        supabase.from('training_sessions')
+          .select('id, date, distance_km, time_seconds, pace_per_km, duration_minutes')
+          .eq('user_id', userId)
+          .gte('date', since90)
+          .not('distance_km', 'is', null)
+          .order('date', { ascending: false }),
+        // Styrka — personal_records
+        supabase.from('personal_records')
+          .select('exercise_name, weight_kg, reps, date, updated_at')
+          .eq('user_id', userId)
+          .order('weight_kg', { ascending: false }),
+        // Hälsa
+        supabase.from('health_logs')
+          .select('date, weight_kg, sleep_hours, energy_level, stress_level, mood, steps')
+          .eq('user_id', userId)
+          .gte('date', since90)
+          .order('date', { ascending: false }),
+        // Plugg
+        supabase.from('learning_goals')
+          .select('id, description, mastery, course_id, courses(name, active)')
+          .eq('user_id', userId),
+        // PA-pass
+        supabase.from('pa_shifts')
+          .select('date, estimated_pay, hours_worked')
+          .eq('user_id', userId)
+          .gte('date', since30),
+        // Färdigheter
+        supabase.from('skill_logs')
+          .select('date, skill, minutes')
+          .eq('user_id', userId)
+          .gte('date', since30),
+        // User settings
+        supabase.from('user_settings')
+          .select('goals')
+          .eq('user_id', userId)
+          .single(),
       ])
 
-      // ── Helpers ──
-      function latestPR(type) {
-        return prData?.find(p => p.type === type) || null
-      }
-
-      // ── KROPP / bodyweight ──
-      const latestWeight = healthData?.[0]
-      const currentBW = latestWeight?.weight_kg || BW
+      // ── KROPP / bodyweight ──────────────────────────────────────────────────
+      const latestWeight = (healthData || []).find(h => h.weight_kg)
+      const currentBW = latestWeight?.weight_kg || 77
       setBodyWeight(currentBW)
 
       // ── KONDITION ──────────────────────────────────────────────────────────
-      const pr5k = latestPR('run_5k')
-      const pr10k = latestPR('run_10k')
-      const prHalf = latestPR('run_half')
-      const prMara = latestPR('run_full')
-      const pr1k = latestPR('run_1k')
+      // Hitta bästa tid per distans från training_sessions
+      function bestRunForDistance(targetKm, tolerancePct = 0.05) {
+        const eligible = (runData || []).filter(r =>
+          r.distance_km >= targetKm * (1 - tolerancePct) &&
+          r.distance_km <= targetKm * (1 + tolerancePct) &&
+          (r.time_seconds || r.pace_per_km)
+        )
+        if (!eligible.length) return null
+        return eligible.reduce((best, r) => {
+          const tBest = best.time_seconds || (best.pace_per_km * targetKm)
+          const tThis = r.time_seconds || (r.pace_per_km * targetKm)
+          return tThis < tBest ? r : best
+        }, eligible[0])
+      }
 
-      const pr5kDecay = pr5k ? getDecayedValue(pr5k.value, pr5k.date, 90) : null
-      const pr10kDecay = pr10k ? getDecayedValue(pr10k.value, pr10k.date, 90) : null
-      const prHalfDecay = prHalf ? getDecayedValue(prHalf.value, prHalf.date, 90) : null
-      const prMaraDecay = prMara ? getDecayedValue(prMara.value, prMara.date, 90) : null
+      // Estimera tid för en distans från alla runs via pace
+      function estimatedTimeForDist(targetKm) {
+        const allWithPace = (runData || []).filter(r => r.pace_per_km && r.distance_km >= targetKm * 0.5)
+        if (!allWithPace.length) return null
+        // Ta den snabbaste genomsnittspacen från runs >= 50% av distansen
+        const best = allWithPace.reduce((b, r) => r.pace_per_km < b.pace_per_km ? r : b, allWithPace[0])
+        return { time_seconds: Math.round(best.pace_per_km * targetKm), date: best.date, estimated: true }
+      }
 
-      const vo2max = pr5kDecay ? estimateVO2max(pr5kDecay.value) : null
+      const run1k = bestRunForDistance(1) || estimatedTimeForDist(1)
+      const run5k = bestRunForDistance(5) || estimatedTimeForDist(5)
+      const run10k = bestRunForDistance(10) || estimatedTimeForDist(10)
+      const runHalf = bestRunForDistance(21.1, 0.03)
+      const runMara = bestRunForDistance(42.2, 0.02)
+
+      function runDecay(runObj, decayDays) {
+        if (!runObj) return null
+        return getDecayedValue(runObj.time_seconds, runObj.date, decayDays)
+      }
+
+      const run5kDecay = runDecay(run5k, 90)
+      const run10kDecay = runDecay(run10k, 90)
+      const runHalfDecay = runDecay(runHalf, 90)
+      const runMaraDecay = runDecay(runMara, 90)
+      const run1kDecay = runDecay(run1k, 90)
+
+      const vo2max = run5kDecay ? estimateVO2max(run5kDecay.value) : null
       const vo2Tier = vo2max ? getTier(vo2max, VO2MAX_THRESHOLDS, true) : null
-      const run5kTier = pr5kDecay ? getTier(pr5kDecay.value, RUN_5K_THRESHOLDS, false) : null
-      const run10kTier = pr10kDecay ? getTier(pr10kDecay.value, RUN_10K_THRESHOLDS, false) : null
-      const runHalfTier = prHalfDecay ? getTier(prHalfDecay.value, RUN_HALF_THRESHOLDS, false) : null
-      const runMaraTier = prMaraDecay ? getTier(prMaraDecay.value, RUN_MARA_THRESHOLDS, false) : null
+      const run5kTier = run5kDecay ? getTier(run5kDecay.value, RUN_5K_THRESHOLDS, false) : null
+      const run10kTier = run10kDecay ? getTier(run10kDecay.value, RUN_10K_THRESHOLDS, false) : null
+      const runHalfTier = runHalfDecay ? getTier(runHalfDecay.value, RUN_HALF_THRESHOLDS, false) : null
+      const runMaraTier = runMaraDecay ? getTier(runMaraDecay.value, RUN_MARA_THRESHOLDS, false) : null
 
       const konditionTiers = [vo2Tier, run5kTier, run10kTier, runHalfTier, runMaraTier].filter(Boolean)
       const konditionTopTier = konditionTiers.length
         ? konditionTiers.reduce((best, t) => (t.tier > best.tier ? t : best), konditionTiers[0])
         : null
-
       const konditionHasData = konditionTiers.length > 0
-      const konditionDecayWarning = [pr5kDecay, pr10kDecay, prHalfDecay, prMaraDecay].some(d => d?.stale)
+      const konditionDecayWarning = [run5kDecay, run10kDecay, runHalfDecay, runMaraDecay].some(d => d?.stale)
 
-      // Build kondition chart data from pr_logs
-      const konditionChartData = (prData || [])
-        .filter(p => ['run_5k', 'run_10k'].includes(p.type))
-        .reduce((acc, p) => {
-          const existing = acc.find(a => a.date === p.date)
-          const label = p.type === 'run_5k' ? '5km' : '10km'
-          if (existing) { existing[label] = Math.round(p.value / 60) }
-          else acc.push({ date: p.date.slice(5), [label]: Math.round(p.value / 60) })
-          return acc
-        }, []).reverse()
+      const konditionChartData = (runData || [])
+        .filter(r => r.distance_km >= 4.5 && r.distance_km <= 11)
+        .slice(0, 20).reverse()
+        .map(r => ({
+          date: r.date.slice(5),
+          'Pace (min/km)': r.pace_per_km ? Math.round(r.pace_per_km / 60 * 10) / 10 : null,
+        }))
 
       // ── STYRKA ───────────────────────────────────────────────────────────────
-      function getBestSet(exerciseName) {
-        const sets = (exerciseSets || []).filter(s =>
-          s.exercise_name?.toLowerCase().includes(exerciseName.toLowerCase())
+      // personal_records: exercise_name, weight_kg (already 1RM or max weight)
+      function getPR(keywords) {
+        const found = (prData || []).find(p =>
+          keywords.some(k => p.exercise_name?.toLowerCase().includes(k.toLowerCase()))
         )
-        if (!sets.length) return null
-        const best = sets.reduce((b, s) => {
-          const rm = calc1RM(s.weight_kg, s.reps) || 0
-          const bRm = calc1RM(b.weight_kg, b.reps) || 0
-          return rm > bRm ? s : b
-        }, sets[0])
-        return { value: calc1RM(best.weight_kg, best.reps), date: best.created_at?.slice(0, 10) }
+        if (!found) return null
+        const dateStr = found.updated_at?.slice(0, 10) || found.date || format(subDays(todayDate, 1), 'yyyy-MM-dd')
+        return getDecayedValue(found.weight_kg, dateStr, 60)
       }
 
-      // Combine pr_logs (explicit) + exercise_sets (calculated)
-      function getStrength(prType, exerciseName) {
-        const fromPR = latestPR(prType)
-        if (fromPR) return getDecayedValue(fromPR.value, fromPR.date, 60)
-        const fromSets = getBestSet(exerciseName)
-        if (fromSets) return getDecayedValue(fromSets.value, fromSets.date, 60)
-        return null
-      }
-
-      const benchDecay = getStrength('bench', 'bänkpress')
-      const squatDecay = getStrength('squat', 'knäböj')
-      const deadliftDecay = getStrength('deadlift', 'marklyft')
-      const ohpDecay = getStrength('ohp', 'militärpress')
-      const pullupDecay = getStrength('pullup_max', 'pull-up')
+      const benchDecay = getPR(['bänkpress', 'bench'])
+      const squatDecay = getPR(['knäböj', 'squat'])
+      const deadliftDecay = getPR(['marklyft', 'deadlift'])
+      const ohpDecay = getPR(['militärpress', 'ohp', 'overhead'])
+      const pullupDecay = getPR(['pull-up', 'pullup', 'chins'])
 
       const benchTier = benchDecay ? getTier(benchDecay.value / currentBW, BENCH_THRESHOLDS, true) : null
       const squatTier = squatDecay ? getTier(squatDecay.value / currentBW, SQUAT_THRESHOLDS, true) : null
@@ -153,9 +192,9 @@ export default function Dashboard() {
       // ── KROPP ─────────────────────────────────────────────────────────────────
       const weightLogs = (healthData || []).filter(h => h.weight_kg).slice(0, 14)
       const weightGoal = userSettings?.goals?.target_weight || 75
-      const weightProgress = weightLogs.length
-        ? Math.round(((weightLogs[weightLogs.length - 1].weight_kg - (weightLogs[0]?.weight_kg || currentBW)) * 10) / 10)
-        : 0
+      const oldestRecent = weightLogs[weightLogs.length - 1]?.weight_kg || currentBW
+      const newestRecent = weightLogs[0]?.weight_kg || currentBW
+      const weightProgress = Math.round((newestRecent - oldestRecent) * 10) / 10
       const weightKvar = Math.max(0, Math.round((currentBW - weightGoal) * 10) / 10)
       const kroppenHasData = !!latestWeight?.weight_kg
       const weightChartData = [...weightLogs].reverse().map(h => ({
@@ -164,8 +203,11 @@ export default function Dashboard() {
       }))
 
       // ── SÖMN ─────────────────────────────────────────────────────────────────
-      const sleepLogs7 = (healthData || []).filter(h => h.sleep_hours && h.date >= format(subDays(todayDate, 7), 'yyyy-MM-dd'))
-      const avgSleep = sleepLogs7.length ? sleepLogs7.reduce((s, h) => s + h.sleep_hours, 0) / sleepLogs7.length : null
+      const since7str = format(subDays(todayDate, 7), 'yyyy-MM-dd')
+      const sleepLogs7 = (healthData || []).filter(h => h.sleep_hours && h.date >= since7str)
+      const avgSleep = sleepLogs7.length
+        ? Math.round(sleepLogs7.reduce((s, h) => s + h.sleep_hours, 0) / sleepLogs7.length * 10) / 10
+        : null
       const sleepDurationTier = avgSleep ? getTier(avgSleep, SLEEP_DURATION_THRESHOLDS, true) : null
       const somnHasData = !!avgSleep
       const sleepChartData = (healthData || []).filter(h => h.sleep_hours).slice(0, 14).reverse().map(h => ({
@@ -181,7 +223,6 @@ export default function Dashboard() {
       const pluggTier = avgMastery != null ? getStudyTier(avgMastery) : null
       const pluggHasData = avgMastery != null
 
-      // Group by course
       const byCourse = {}
       activeGoals.forEach(g => {
         const cn = g.courses?.name || 'Okänd'
@@ -194,16 +235,15 @@ export default function Dashboard() {
       const savingsRaw = userSettings?.goals?.savings || null
       const incomeTier = totalPAPay ? getTier(totalPAPay, INCOME_THRESHOLDS, true) : null
       const savingsTier = savingsRaw != null ? getTier(savingsRaw, SAVINGS_THRESHOLDS, true) : null
-      const ekonomiTopTier = [incomeTier, savingsTier].filter(Boolean).reduce(
-        (b, t) => (t && t.tier > (b?.tier || 0) ? t : b), null
-      )
+      const ekonomiTopTier = [incomeTier, savingsTier].filter(Boolean)
+        .reduce((b, t) => (t && t.tier > (b?.tier || 0) ? t : b), null)
       const ekonomiHasData = !!(totalPAPay || savingsRaw != null)
 
       // ── VÄLMÅENDE ─────────────────────────────────────────────────────────────
-      const wellLogs7 = (healthData || []).filter(h => h.date >= format(subDays(todayDate, 7), 'yyyy-MM-dd'))
+      const wellLogs7 = (healthData || []).filter(h => h.date >= since7str)
       function avg7(field) {
         const vals = wellLogs7.filter(h => h[field] != null).map(h => h[field])
-        return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null
+        return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 : null
       }
       const avgEnergy = avg7('energy_level')
       const avgStress = avg7('stress_level')
@@ -231,8 +271,7 @@ export default function Dashboard() {
       function avgMinPerWeek(skillName) {
         const logs = (skillData || []).filter(s => s.skill === skillName)
         if (!logs.length) return 0
-        const totalMins = logs.reduce((s, l) => s + l.minutes, 0)
-        return Math.round(totalMins / 4)
+        return Math.round(logs.reduce((s, l) => s + l.minutes, 0) / 4)
       }
       const spanishMin = avgMinPerWeek('spanish')
       const serbianMin = avgMinPerWeek('serbian')
@@ -241,11 +280,10 @@ export default function Dashboard() {
       const spanishTier = getSkillTier(spanishMin)
       const serbianTier = getSkillTier(serbianMin)
       const guitarTier = getSkillTier(guitarMin)
-      const skillTopTier = [spanishTier, serbianTier, guitarTier].reduce(
-        (b, t) => (t.tier > b.tier ? t : b), spanishTier
-      )
+      const skillTopTier = [spanishTier, serbianTier, guitarTier]
+        .reduce((b, t) => (t.tier > b.tier ? t : b), spanishTier)
 
-      // ── ASSEMBLE CATEGORIES ───────────────────────────────────────────────────
+      // ── ASSEMBLE ───────────────────────────────────────────────────────────────
       const builtCategories = [
         {
           id: 'kondition',
@@ -254,30 +292,24 @@ export default function Dashboard() {
           tier: konditionTopTier,
           hasData: konditionHasData,
           decayWarning: konditionDecayWarning,
-          trend: pr5kDecay ? (pr5kDecay.daysSince < 7 ? 'up' : 'neutral') : 'neutral',
+          trend: run5kDecay ? (run5kDecay.daysSince < 14 ? 'up' : 'neutral') : 'neutral',
           metrics: [
-            { label: '5km PR', value: pr5kDecay ? formatRunTime(Math.round(pr5kDecay.value)) : '—', highlight: true },
-            { label: '10km PR', value: pr10kDecay ? formatRunTime(Math.round(pr10kDecay.value)) : '—' },
+            { label: '5km PR', value: run5kDecay ? formatRunTime(Math.round(run5kDecay.value)) : '—', highlight: true },
+            { label: '10km PR', value: run10kDecay ? formatRunTime(Math.round(run10kDecay.value)) : '—' },
             { label: 'Est. VO2max', value: vo2max ? vo2max + ' ml/kg/min' : '—' },
           ],
           details: [
-            { label: '1km PR', value: pr1k ? formatRunTime(Math.round(pr1k.value)) : '—' },
-            { label: '5km PR', value: pr5kDecay ? formatRunTime(Math.round(pr5kDecay.value)) : '—', tierInfo: run5kTier },
-            { label: '10km PR', value: pr10kDecay ? formatRunTime(Math.round(pr10kDecay.value)) : '—', tierInfo: run10kTier },
-            { label: 'Halvmara PR', value: prHalfDecay ? formatRunTime(Math.round(prHalfDecay.value)) : '—', tierInfo: runHalfTier },
-            { label: 'Mara PR', value: prMaraDecay ? formatRunTime(Math.round(prMaraDecay.value)) : '—', tierInfo: runMaraTier },
+            { label: '1km PR', value: run1kDecay ? formatRunTime(Math.round(run1kDecay.value)) : '—' },
+            { label: '5km PR', value: run5kDecay ? formatRunTime(Math.round(run5kDecay.value)) : '—', tierInfo: run5kTier },
+            { label: '10km PR', value: run10kDecay ? formatRunTime(Math.round(run10kDecay.value)) : '—', tierInfo: run10kTier },
+            { label: 'Halvmara PR', value: runHalfDecay ? formatRunTime(Math.round(runHalfDecay.value)) : '—', tierInfo: runHalfTier },
+            { label: 'Mara PR', value: runMaraDecay ? formatRunTime(Math.round(runMaraDecay.value)) : '—', tierInfo: runMaraTier },
             { label: 'Estimerat VO2max', value: vo2max ? vo2max + ' ml/kg/min' : '—', tierInfo: vo2Tier },
           ],
           chartData: konditionChartData,
-          chartLines: [
-            { key: '5km', label: '5km (min)', color: '#3b82f6' },
-            { key: '10km', label: '10km (min)', color: '#8b5cf6' },
-          ],
+          chartLines: [{ key: 'Pace (min/km)', label: 'Pace (min/km)', color: '#3b82f6' }],
           navTarget: '/traning',
           navLabel: 'Träning',
-          nextTierText: konditionTopTier?.nextThreshold
-            ? 'Kräver bättre löptider eller VO2max'
-            : null,
         },
         {
           id: 'styrka',
@@ -288,16 +320,16 @@ export default function Dashboard() {
           decayWarning: styrkaDecayWarning,
           trend: 'neutral',
           metrics: [
-            { label: 'Bänkpress 1RM', value: benchDecay ? benchDecay.value + ' kg' : '—', highlight: true },
-            { label: 'Marklyft 1RM', value: deadliftDecay ? deadliftDecay.value + ' kg' : '—' },
-            { label: 'Knäböj 1RM', value: squatDecay ? squatDecay.value + ' kg' : '—' },
+            { label: 'Bänkpress', value: benchDecay ? benchDecay.value + ' kg' : '—', highlight: true },
+            { label: 'Marklyft', value: deadliftDecay ? deadliftDecay.value + ' kg' : '—' },
+            { label: 'Knäböj', value: squatDecay ? squatDecay.value + ' kg' : '—' },
           ],
           details: [
-            { label: 'Bänkpress 1RM', value: benchDecay ? benchDecay.value + ' kg (' + Math.round(benchDecay.value / currentBW * 100) / 100 + 'x BW)' : '—', tierInfo: benchTier },
-            { label: 'Knäböj 1RM', value: squatDecay ? squatDecay.value + ' kg (' + Math.round(squatDecay.value / currentBW * 100) / 100 + 'x BW)' : '—', tierInfo: squatTier },
-            { label: 'Marklyft 1RM', value: deadliftDecay ? deadliftDecay.value + ' kg (' + Math.round(deadliftDecay.value / currentBW * 100) / 100 + 'x BW)' : '—', tierInfo: deadliftTier },
-            { label: 'Militärpress 1RM', value: ohpDecay ? ohpDecay.value + ' kg' : '—', tierInfo: ohpTier },
-            { label: 'Pull-ups max reps', value: pullupDecay ? pullupDecay.value + ' reps' : '—', tierInfo: pullupTier },
+            { label: 'Bänkpress', value: benchDecay ? benchDecay.value + ' kg (' + Math.round(benchDecay.value / currentBW * 100) / 100 + 'x BW)' : '—', tierInfo: benchTier },
+            { label: 'Knäböj', value: squatDecay ? squatDecay.value + ' kg (' + Math.round(squatDecay.value / currentBW * 100) / 100 + 'x BW)' : '—', tierInfo: squatTier },
+            { label: 'Marklyft', value: deadliftDecay ? deadliftDecay.value + ' kg (' + Math.round(deadliftDecay.value / currentBW * 100) / 100 + 'x BW)' : '—', tierInfo: deadliftTier },
+            { label: 'Militärpress', value: ohpDecay ? ohpDecay.value + ' kg' : '—', tierInfo: ohpTier },
+            { label: 'Pull-ups max', value: pullupDecay ? pullupDecay.value + ' reps' : '—', tierInfo: pullupTier },
           ],
           chartData: [],
           navTarget: '/traning',
@@ -313,13 +345,13 @@ export default function Dashboard() {
           trend: weightProgress < 0 ? 'up' : weightProgress > 0 ? 'down' : 'neutral',
           metrics: [
             { label: 'Aktuell vikt', value: currentBW + ' kg', highlight: true },
-            { label: 'Kvar till mål (' + weightGoal + 'kg)', value: weightKvar + ' kg' },
-            { label: 'Trend 14 dagar', value: weightProgress > 0 ? '+' + weightProgress + ' kg' : weightProgress + ' kg' },
+            { label: 'Kvar till mål (' + weightGoal + ' kg)', value: weightKvar + ' kg' },
+            { label: 'Trend 14 dagar', value: (weightProgress > 0 ? '+' : '') + weightProgress + ' kg' },
           ],
           details: [
             { label: 'Aktuell vikt', value: currentBW + ' kg' },
             { label: 'Målvikt', value: weightGoal + ' kg' },
-            { label: 'Kvar', value: weightKvar + ' kg (' + Math.round((1 - weightKvar / (currentBW - weightGoal + weightKvar)) * 100) + '% klart)' },
+            { label: 'Kvar till mål', value: weightKvar + ' kg' },
             { label: 'Trend 14d', value: weightProgress <= 0 ? Math.abs(weightProgress) + ' kg ned' : weightProgress + ' kg upp' },
           ],
           chartData: weightChartData,
@@ -336,11 +368,11 @@ export default function Dashboard() {
           decayWarning: false,
           trend: 'neutral',
           metrics: [
-            { label: 'Snitt 7 dagar', value: avgSleep ? avgSleep.toFixed(1) + ' h' : '—', highlight: true },
+            { label: 'Snitt 7 dagar', value: avgSleep ? avgSleep + ' h' : '—', highlight: true },
             { label: 'Loggar', value: sleepLogs7.length + ' av 7 dagar' },
           ],
           details: [
-            { label: 'Sömnsnitt 7d', value: avgSleep ? avgSleep.toFixed(1) + ' timmar' : '—', tierInfo: sleepDurationTier },
+            { label: 'Sömnsnitt 7d', value: avgSleep ? avgSleep + ' timmar' : '—', tierInfo: sleepDurationTier },
           ],
           chartData: sleepChartData,
           chartLines: [{ key: 'Sömn', label: 'Timmar', color: '#8b5cf6' }],
@@ -383,7 +415,7 @@ export default function Dashboard() {
             { label: 'Sparkapital', value: savingsRaw != null ? savingsRaw.toLocaleString('sv-SE') + ' kr' : '—' },
           ],
           details: [
-            { label: 'Månadsnettoink. (PA)', value: totalPAPay ? Math.round(totalPAPay).toLocaleString('sv-SE') + ' kr' : '—', tierInfo: incomeTier },
+            { label: 'Månadsnettoink.', value: totalPAPay ? Math.round(totalPAPay).toLocaleString('sv-SE') + ' kr' : '—', tierInfo: incomeTier },
             { label: 'Sparkapital', value: savingsRaw != null ? savingsRaw.toLocaleString('sv-SE') + ' kr' : '—', tierInfo: savingsTier },
           ],
           chartData: [],
@@ -427,9 +459,9 @@ export default function Dashboard() {
           decayWarning: false,
           trend: 'neutral',
           metrics: [
-            { label: '🇪🇸 Spanska', value: spanishMin + ' min/v', highlight: spanishTier.tier >= 4 },
-            { label: '🇷🇸 Serbiska', value: serbianMin + ' min/v' },
-            { label: '🎸 Gitarr', value: guitarMin + ' min/v' },
+            { label: '🇪🇸 Spanska', value: spanishMin ? spanishMin + ' min/v' : '—', highlight: spanishTier.tier >= 4 },
+            { label: '🇷🇸 Serbiska', value: serbianMin ? serbianMin + ' min/v' : '—' },
+            { label: '🎸 Gitarr', value: guitarMin ? guitarMin + ' min/v' : '—' },
           ],
           details: [
             { label: '🇪🇸 Spanska', value: spanishMin + ' min/v', tierInfo: spanishTier },
@@ -444,7 +476,6 @@ export default function Dashboard() {
 
       setCategories(builtCategories)
 
-      // Overall tier — genomsnitt av alla kategorier med tier
       const allTiers = builtCategories
         .filter(c => c.tier && c.hasData)
         .map(c => ({ tier: c.tier.tier }))
@@ -455,20 +486,18 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }, [refreshKey])
+  }, [userId, refreshKey])
 
   useEffect(() => {
     fetchAllData()
   }, [fetchAllData])
 
-  // ─── RENDER ───────────────────────────────────────────────────────────────────
   const overallColor = overallTier ? TIER_COLORS[overallTier] : '#6b7280'
   const overallLabel = overallTier ? TIER_NAMES[overallTier] : null
 
   return (
     <div style={{ padding: '0 0 40px 0', maxWidth: '900px', margin: '0 auto' }}>
 
-      {/* ─ Profile Header ─ */}
       <div style={{
         padding: '28px 24px 24px',
         borderBottom: '1px solid var(--border)',
@@ -508,7 +537,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ─ Main layout: cards + quicklog ─ */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(0,1fr) 300px',
@@ -516,8 +544,6 @@ export default function Dashboard() {
         padding: '0 24px',
         alignItems: 'start',
       }}>
-
-        {/* Left: Category grid */}
         <div>
           {loading ? (
             <div style={{ color: 'var(--muted)', fontSize: '14px', padding: '40px 0', textAlign: 'center' }}>
@@ -540,13 +566,11 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Right: QuickLog */}
         <div style={{ position: 'sticky', top: '20px' }}>
-          <QuickLog onSaved={() => setRefreshKey(k => k + 1)} />
+          <QuickLog userId={userId} onSaved={() => setRefreshKey(k => k + 1)} />
         </div>
       </div>
 
-      {/* ─ Detail Modal ─ */}
       {selectedCategory && (
         <DetailModal
           category={selectedCategory}
