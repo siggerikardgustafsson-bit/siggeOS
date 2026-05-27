@@ -1,11 +1,11 @@
-import React, { useState } from 'react'
+import React from 'react'
 
 const TIER_COLORS = {
   0:'rgba(255,255,255,0.15)',1:'#6b7280',2:'#4f8ef7',3:'#a78bfa',
   4:'#fbbf24',5:'#34d399',6:'#22d3ee',7:'#f472b6',8:'#fbbf24',
 }
 
-const CATEGORY_ICONS = {
+const CAT_PATHS = {
   kondition:   'M13 10V3L4 14h7v7l9-11h-7z',
   styrka:      'M6 4v16M18 4v16M3 8h4m10 0h4M3 16h4m10 0h4',
   kropp:       'M12 3a4 4 0 100 8 4 4 0 000-8zM6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2',
@@ -16,166 +16,113 @@ const CATEGORY_ICONS = {
   fardigheter: 'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3',
 }
 
-function CategoryIcon({ id, color, size = 15 }) {
-  const path = CATEGORY_ICONS[id] || CATEGORY_ICONS.kondition
+function Icon({ id, color, size = 14 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d={path} />
+      <path d={CAT_PATHS[id] || CAT_PATHS.kondition} />
     </svg>
   )
 }
 
-function RingProgress({ pct, color, tier, size = 64 }) {
-  const r = 24
-  const circ = 2 * Math.PI * r
+function Ring({ pct, color, tier, size = 62 }) {
+  const r = 22, circ = 2 * Math.PI * r
   const offset = circ - (Math.min(pct, 100) / 100) * circ
-  const tierLabel = tier > 0 ? 'T' + tier : '—'
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} viewBox="0 0 60 60" style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx="30" cy="30" r={r} fill="none" stroke="var(--border)" strokeWidth="4.5" />
-        <circle cx="30" cy="30" r={r} fill="none" stroke={color} strokeWidth="4.5"
+      <svg width={size} height={size} viewBox="0 0 56 56" style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx="28" cy="28" r={r} fill="none" stroke="var(--border)" strokeWidth="4" />
+        <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="4"
           strokeDasharray={circ} strokeDashoffset={pct > 0 ? offset : circ}
           strokeLinecap="round"
-          style={{ transition: 'stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)' }}
-        />
+          style={{ transition: 'stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)' }} />
       </svg>
       <div style={{
         position: 'absolute', inset: 0,
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        pointerEvents: 'none',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       }}>
-        <span style={{ fontSize: '12px', fontWeight: 600, color: pct > 0 ? color : 'var(--muted)', lineHeight: 1 }}>
-          {tierLabel}
+        <span style={{ fontSize: '11px', fontWeight: 700, color: pct > 0 ? color : 'var(--muted)', lineHeight: 1 }}>
+          {tier > 0 ? 'T' + tier : '—'}
         </span>
-        {pct > 0 && (
-          <span style={{ fontSize: '9px', color: 'var(--muted)', marginTop: '1px', lineHeight: 1 }}>
-            {Math.round(pct)}%
-          </span>
-        )}
       </div>
     </div>
   )
 }
 
 export default function CategoryCard({ category, onClick }) {
-  const [hovered, setHovered] = useState(false)
   const { id, name, tier, metrics, hasData, decayWarning, trend, pct } = category
   const tierNum = tier?.tier || 0
   const color = TIER_COLORS[tierNum]
   const ringPct = pct != null ? pct : 0
-  const trendColor = trend === 'up' ? 'var(--green)' : trend === 'down' ? 'var(--red)' : null
 
   return (
-    <div
-      onClick={() => onClick(category)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className="card fade-up"
-      style={{
-        padding: '16px',
-        cursor: 'pointer',
-        border: '1px solid ' + (hovered ? 'var(--border2)' : 'var(--glass-border)'),
-        boxShadow: hovered ? 'var(--glass-shadow-hover)' : 'var(--glass-shadow)',
-        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
-        transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
-        position: 'relative', overflow: 'hidden',
-        minHeight: '140px',
-        display: 'flex', flexDirection: 'column',
-      }}
-    >
-      {/* Top shimmer */}
-      <div style={{
-        position: 'absolute', top: 0, left: '15%', right: '15%', height: '1px',
-        background: 'linear-gradient(90deg, transparent, var(--border2), transparent)',
-        opacity: 0.6,
-      }} />
+    <div onClick={() => onClick(category)} className="widget cat-card fade-up"
+      style={{ padding: '14px', minHeight: '148px', display: 'flex', flexDirection: 'column' }}>
 
-      {/* Tier color ambient */}
+      {/* Tier color ambient glow */}
       {hasData && tierNum > 0 && (
         <div style={{
-          position: 'absolute', top: -24, right: -24, width: 72, height: 72,
-          borderRadius: '50%', background: color + '14',
-          filter: 'blur(20px)', pointerEvents: 'none',
+          position: 'absolute', top: -20, right: -20, width: 70, height: 70,
+          borderRadius: '50%', background: color + '12', filter: 'blur(18px)', pointerEvents: 'none',
         }} />
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <div style={{
-            width: 26, height: 26, borderRadius: '7px',
-            background: hasData && tierNum > 0 ? color + '15' : 'var(--surface2)',
+            width: 24, height: 24, borderRadius: '6px',
+            background: hasData && tierNum > 0 ? color + '18' : 'var(--surface2)',
             border: '1px solid ' + (hasData && tierNum > 0 ? color + '30' : 'var(--border)'),
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <CategoryIcon id={id} color={hasData && tierNum > 0 ? color : 'var(--muted)'} size={13} />
+            <Icon id={id} color={hasData && tierNum > 0 ? color : 'var(--muted)'} />
           </div>
-          <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--muted)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
             {name}
           </span>
         </div>
-        {trendColor && hasData && (
-          <span style={{ fontSize: '12px', fontWeight: 700, color: trendColor, lineHeight: 1 }}>
+        {trend !== 'neutral' && hasData && (
+          <span style={{ fontSize: '11px', fontWeight: 700, color: trend === 'up' ? 'var(--green)' : 'var(--red)' }}>
             {trend === 'up' ? '↑' : '↓'}
           </span>
         )}
       </div>
 
       {/* Ring + metrics */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-        <RingProgress pct={ringPct} color={hasData && tierNum > 0 ? color : 'var(--border)'} tier={tierNum} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+        <Ring pct={ringPct} color={hasData && tierNum > 0 ? color : 'var(--border)'} tier={tierNum} />
         <div style={{ flex: 1, minWidth: 0 }}>
           {hasData ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {metrics.slice(0, 3).map((m, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '4px' }}>
-                  <span style={{ fontSize: '10px', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '4px', alignItems: 'baseline' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1 }}>
                     {m.label}
                   </span>
-                  <span style={{
-                    fontSize: i === 0 ? '13px' : '11px',
-                    fontWeight: i === 0 ? 600 : 400,
-                    color: m.highlight ? color : 'var(--text)',
-                    whiteSpace: 'nowrap', flexShrink: 0,
-                  }}>
+                  <span style={{ fontSize: i === 0 ? '12px' : '11px', fontWeight: i === 0 ? 600 : 400, color: m.highlight ? color : 'var(--text)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                     {m.value}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <span style={{ fontSize: '11px', color: 'var(--muted)', fontStyle: 'italic' }}>
-              Ingen data ännu
-            </span>
+            <span style={{ fontSize: '11px', color: 'var(--muted)', fontStyle: 'italic' }}>Ingen data</span>
           )}
         </div>
       </div>
 
       {/* Footer */}
-      <div style={{
-        marginTop: '10px', paddingTop: '8px',
-        borderTop: '1px solid var(--border)',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
+      <div style={{ marginTop: '8px', paddingTop: '7px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         {tier && hasData ? (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '4px',
-            padding: '2px 8px', borderRadius: '20px',
-            background: color + '12',
-            border: '1px solid ' + color + '30',
-          }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 7px', borderRadius: '20px', background: color + '12', border: '1px solid ' + color + '28' }}>
             <div style={{ width: 4, height: 4, borderRadius: '50%', background: color }} />
-            <span style={{ fontSize: '9px', fontWeight: 700, color: color, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              {tier.label}
-            </span>
+            <span style={{ fontSize: '9px', fontWeight: 700, color: color, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tier.label}</span>
           </div>
         ) : (
           <span style={{ fontSize: '9px', color: 'var(--muted)' }}>—</span>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
           {decayWarning && <span style={{ fontSize: '9px', color: 'var(--amber)' }}>⚠</span>}
           <span style={{ fontSize: '10px', color: 'var(--muted)' }}>→</span>
         </div>

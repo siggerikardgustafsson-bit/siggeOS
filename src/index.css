@@ -366,3 +366,77 @@ select.input option { background: #1a1a2e; color: #fff; }
   .btn { font-size: 12px; padding: 8px 12px; }
 }
 
+/* ============================================================
+   DASHBOARD BACKGROUND IMAGE SUPPORT
+   ============================================================ */
+
+/* Background image set via JS — opacity controlled by Settings */
+#bg-image[style*="opacity: 1"],
+#bg-image[style*="opacity:1"] {
+  display: block;
+}
+
+/* Dashboard-specific layout overrides */
+.dashboard-wrap {
+  padding: 0 0 60px 0;
+}
+
+/* Widget grid — bento-box style */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 12px;
+}
+
+/* Glass widget base — works on any background */
+.widget {
+  background: var(--surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--glass-shadow);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.widget::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 15%; right: 15%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border2), transparent);
+  pointer-events: none;
+}
+
+.widget:hover {
+  border-color: var(--border2);
+  box-shadow: var(--glass-shadow-hover);
+}
+
+/* Widget size variants */
+.w-2  { grid-column: span 2; }
+.w-3  { grid-column: span 3; }
+.w-4  { grid-column: span 4; }
+.w-5  { grid-column: span 5; }
+.w-6  { grid-column: span 6; }
+.w-7  { grid-column: span 7; }
+.w-8  { grid-column: span 8; }
+.w-9  { grid-column: span 9; }
+.w-12 { grid-column: span 12; }
+
+/* Category card hover lift */
+.cat-card {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+.cat-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border2) !important;
+  box-shadow: var(--glass-shadow-hover) !important;
+}
+
+@media (max-width: 768px) {
+  .bento-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .w-2,.w-3,.w-4,.w-5,.w-6,.w-7,.w-8,.w-9,.w-12 { grid-column: span 2; }
+}
