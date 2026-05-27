@@ -495,3 +495,18 @@ body.has-bg-image .orb {
 body.bg-blur-low    { --bg-blur-amount: 18px; }
 body.bg-blur-medium { --bg-blur-amount: 35px; }
 body.bg-blur-high   { --bg-blur-amount: 55px; }
+
+/* Fix blur levels — less is more */
+body.bg-blur-low    { --bg-blur-amount: 8px; }
+body.bg-blur-medium { --bg-blur-amount: 22px; }
+body.bg-blur-high   { --bg-blur-amount: 42px; }
+
+/* Fix light mode glass with bg image */
+[data-theme="light"].has-bg-image {
+  --surface:  rgba(255,255,255,0.65);
+  --surface2: rgba(255,255,255,0.50);
+  --surface3: rgba(255,255,255,0.80);
+  --border:   rgba(0,0,0,0.08);
+  --text:     rgba(0,0,0,0.88);
+  --muted:    rgba(0,0,0,0.45);
+}
