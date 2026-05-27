@@ -510,3 +510,39 @@ body.bg-blur-high   { --bg-blur-amount: 42px; }
   --text:     rgba(0,0,0,0.88);
   --muted:    rgba(0,0,0,0.45);
 }
+
+/* Fix blur levels — less is more */
+body.bg-blur-low    { --bg-blur-amount: 8px; }
+body.bg-blur-medium { --bg-blur-amount: 22px; }
+body.bg-blur-high   { --bg-blur-amount: 42px; }
+
+/* Fix light mode glass with bg image */
+[data-theme="light"].has-bg-image {
+  --surface:  rgba(255,255,255,0.65);
+  --surface2: rgba(255,255,255,0.50);
+  --surface3: rgba(255,255,255,0.80);
+  --border:   rgba(0,0,0,0.08);
+  --text:     rgba(0,0,0,0.88);
+  --muted:    rgba(0,0,0,0.45);
+}
+
+/* Light mode glass fix — correct selector */
+html[data-theme="light"] body.has-bg-image {
+  --surface:  rgba(255,255,255,0.72);
+  --surface2: rgba(255,255,255,0.58);
+  --surface3: rgba(255,255,255,0.86);
+  --glass-border: rgba(255,255,255,0.85);
+  --glass-shadow: 0 4px 24px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.95) inset;
+  --glass-shadow-hover: 0 8px 32px rgba(0,0,0,0.16), 0 1px 0 rgba(255,255,255,1) inset;
+  --text:  rgba(0,0,0,0.88);
+  --muted: rgba(0,0,0,0.45);
+  --border: rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.14);
+}
+
+html[data-theme="light"] body.has-bg-image aside {
+  background: rgba(255,255,255,0.70) !important;
+  backdrop-filter: blur(32px) !important;
+  -webkit-backdrop-filter: blur(32px) !important;
+  border-right: 1px solid rgba(0,0,0,0.08) !important;
+}
