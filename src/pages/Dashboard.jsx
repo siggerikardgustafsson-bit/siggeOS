@@ -364,7 +364,7 @@ export default function Dashboard() {
           navTarget:'/halsa', navLabel:'Hälsa',
         },
         {
-          id:'fardigheter', name:'Färdigheter', icon:'🎸', tier:skillsHasData ? skillTop:null, hasData:!!(skillData?.length), pct:skillPct,
+          id:'fardigheter', name:'Färdigheter', icon:'🎸', tier:!!(skillData?.length) ? skillTop:null, hasData:!!(skillData?.length), pct:skillPct,
           decayWarning:false, trend:'neutral',
           metrics:[
             { label:'🇪🇸 Spanska', value:spMin ? spMin+' min/v':'—', highlight:spTier.tier>=4 },
