@@ -527,6 +527,5 @@ export default function EkonomiPage() {
     </div>
         </div>
       </div>
-    </div>
   )
 }
