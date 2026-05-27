@@ -304,57 +304,74 @@ ${summariesBlock}`
   const hour = new Date().getHours()
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'transparent' }}>
 
-      {/* Header */}
-      <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: 'var(--surface)', backdropFilter: 'blur(20px)' }}>
-        <div>
-          <div style={{ fontSize: '18px', fontWeight: '700', letterSpacing: '-0.3px' }}>Jarvis</div>
-          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-            {insights.length > 0 ? `${insights.length} insikter sparade` : 'Personlig AI'}
+      {/* STICKY HEADER */}
+      <div style={{
+        padding: '14px 24px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        flexShrink: 0,
+        background: 'var(--surface)',
+        backdropFilter: 'blur(28px)',
+        WebkitBackdropFilter: 'blur(28px)',
+        position: 'sticky', top: 0, zIndex: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '10px',
+            background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 12px var(--accent-glow)', fontSize: '16px',
+          }}>⚡</div>
+          <div>
+            <div style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text)', letterSpacing: '-0.02em' }}>Jarvis</div>
+            <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+              {insights.length > 0 ? insights.length + ' insikter' : 'Personlig AI'}
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           <button onClick={() => setShowInsights(!showInsights)} style={{
-            display: 'flex', alignItems: 'center', gap: '5px', padding: '7px 12px',
-            borderRadius: '8px', border: '1px solid var(--border)', background: showInsights ? 'var(--accent-soft)' : 'var(--surface2)',
-            color: showInsights ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
+            display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px',
+            borderRadius: '8px', border: '1px solid ' + (showInsights ? 'var(--accent-border)' : 'var(--border)'),
+            background: showInsights ? 'var(--accent-soft)' : 'var(--surface2)',
+            color: showInsights ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', fontSize: '12px',
           }}>
-            <Brain size={13} />
-            Minne
-            {showInsights ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+            <Brain size={12} /> Minne
+            {showInsights ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           </button>
           {hour < 12 && (
-            <button onClick={() => generateBrief('morning')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.25)', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
-              <Sun size={13} /> Morning brief
+            <button onClick={() => generateBrief('morning')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.25)', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', cursor: 'pointer', fontSize: '12px' }}>
+              <Sun size={12} /> Morning brief
             </button>
           )}
           {hour >= 18 && (
-            <button onClick={() => generateBrief('evening')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: '1px solid rgba(139,92,246,0.25)', background: 'rgba(139,92,246,0.08)', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
-              <Moon size={13} /> Kvällssummering
+            <button onClick={() => generateBrief('evening')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(139,92,246,0.25)', background: 'rgba(139,92,246,0.08)', color: '#a78bfa', cursor: 'pointer', fontSize: '12px' }}>
+              <Moon size={12} /> Kväll
             </button>
           )}
-          <button onClick={() => generateBrief('weekly')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: '1px solid rgba(52,211,153,0.25)', background: 'rgba(52,211,153,0.08)', color: '#34d399', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
-            <Zap size={13} /> Veckoöversikt
+          <button onClick={() => generateBrief('weekly')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(52,211,153,0.25)', background: 'rgba(52,211,153,0.08)', color: '#34d399', cursor: 'pointer', fontSize: '12px' }}>
+            <Zap size={12} /> Vecka
           </button>
-          <button onClick={summarizeAndSave} disabled={messages.length < 4 || loading} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
-            <Zap size={13} /> Spara minne
+          <button onClick={summarizeAndSave} disabled={messages.length < 4 || loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px' }}>
+            <Zap size={12} /> Spara
           </button>
         </div>
       </div>
 
       {/* Memory panel */}
       {showInsights && (
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', background: 'rgba(139,92,246,0.04)', flexShrink: 0, maxHeight: '200px', overflowY: 'auto' }}>
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', background: 'rgba(139,92,246,0.04)', flexShrink: 0, maxHeight: '180px', overflowY: 'auto' }}>
           {insights.length === 0 ? (
-            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Inga insikter sparade ännu. Chatta mer med Jarvis så lär den sig dig.</div>
+            <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Inga insikter ännu.</div>
           ) : (
             <>
-              <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px', letterSpacing: '0.05em' }}>JARVIS LÅNGTIDSMINNE</div>
+              <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Långtidsminne</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 {insights.map(ins => (
                   <div key={ins.id} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: 'var(--accent-soft)', color: 'var(--accent)', flexShrink: 0, fontWeight: '600' }}>{ins.category}</span>
+                    <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '4px', background: 'var(--accent-soft)', color: 'var(--accent)', flexShrink: 0, fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{ins.category}</span>
                     <span style={{ fontSize: '13px', color: 'var(--text)', lineHeight: '1.4' }}>{ins.insight}</span>
                   </div>
                 ))}
@@ -364,28 +381,32 @@ ${summariesBlock}`
         </div>
       )}
 
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* MESSAGES */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
-            <div style={{ fontSize: '32px', marginBottom: '12px' }}>⚡</div>
-            <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text)', marginBottom: '6px' }}>Jarvis är redo</div>
-            <div style={{ fontSize: '13px' }}>Fråga om din träning, hälsa, plugg eller livet i allmänhet. Jarvis hämtar data automatiskt.</div>
-            <div style={{ marginTop: '20px', display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-              {[
-                'Analysera min löpning i år',
-                'Hur mår jag generellt?',
-                'Vad bör jag prioritera idag?',
-                'Visa min vikttrend',
-                'Hur går det med plugget?',
-              ].map(suggestion => (
-                <button key={suggestion} onClick={() => { setInput(suggestion); inputRef.current?.focus() }} style={{
-                  padding: '7px 14px', borderRadius: '20px', border: '1px solid var(--border)',
-                  background: 'var(--surface2)', color: 'var(--muted2)', cursor: 'pointer',
-                  fontSize: '12px', fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
-                }}>
-                  {suggestion}
-                </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '40px 20px', gap: '20px' }}>
+            <div style={{
+              width: 60, height: 60, borderRadius: '18px',
+              background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '26px', boxShadow: '0 8px 32px var(--accent-glow)',
+            }}>⚡</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '17px', fontWeight: '600', color: 'var(--text)', marginBottom: '6px', letterSpacing: '-0.02em' }}>Jarvis är redo</div>
+              <div style={{ fontSize: '13px', color: 'var(--muted)', maxWidth: '300px', lineHeight: '1.6' }}>Fråga om träning, hälsa, plugg eller livet. Jarvis hämtar din data automatiskt.</div>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', maxWidth: '480px' }}>
+              {['Analysera min löpning', 'Hur mår jag generellt?', 'Vad bör jag prioritera idag?', 'Visa min vikttrend', 'Hur går det med plugget?'].map(s => (
+                <button key={s} onClick={() => { setInput(s); inputRef.current?.focus() }}
+                  style={{
+                    padding: '8px 16px', borderRadius: '20px',
+                    border: '1px solid var(--border)', background: 'var(--surface)',
+                    backdropFilter: 'blur(10px)', color: 'var(--muted2)',
+                    cursor: 'pointer', fontSize: '13px', transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.color = 'var(--accent)' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted2)' }}
+                >{s}</button>
               ))}
             </div>
           </div>
@@ -394,19 +415,28 @@ ${summariesBlock}`
         {messages.map((msg, i) => (
           <div key={i} style={{
             display: 'flex',
-            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+            flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+            gap: '10px', alignItems: 'flex-end',
           }}>
+            {msg.role === 'assistant' && (
+              <div style={{
+                width: 28, height: 28, borderRadius: '8px', flexShrink: 0,
+                background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '12px', boxShadow: '0 2px 8px var(--accent-glow)',
+              }}>⚡</div>
+            )}
             <div style={{
-              maxWidth: '75%',
-              padding: '12px 16px',
-              borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+              maxWidth: '72%',
+              padding: msg.role === 'user' ? '10px 16px' : '14px 18px',
+              borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px',
               background: msg.role === 'user' ? 'var(--accent)' : 'var(--surface)',
-              border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
+              border: msg.role === 'assistant' ? '1px solid var(--glass-border)' : 'none',
               color: msg.role === 'user' ? 'white' : 'var(--text)',
-              fontSize: '14px',
-              lineHeight: '1.6',
-              backdropFilter: 'blur(10px)',
-              boxShadow: msg.role === 'user' ? '0 2px 12px var(--accent-glow)' : 'var(--glass-shadow)',
+              fontSize: '14px', lineHeight: '1.65',
+              backdropFilter: msg.role === 'assistant' ? 'blur(20px)' : 'none',
+              WebkitBackdropFilter: msg.role === 'assistant' ? 'blur(20px)' : 'none',
+              boxShadow: msg.role === 'user' ? '0 4px 16px var(--accent-glow)' : 'var(--glass-shadow)',
             }}>
               <MarkdownMessage content={msg.content} userMessage={msg.role === 'user'} />
             </div>
@@ -414,10 +444,11 @@ ${summariesBlock}`
         ))}
 
         {loading && (
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={{ padding: '12px 16px', borderRadius: '16px 16px 16px 4px', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', gap: '5px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'linear-gradient(135deg, var(--accent), var(--accent2))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }}>⚡</div>
+            <div style={{ padding: '14px 18px', borderRadius: '4px 18px 18px 18px', background: 'var(--surface)', border: '1px solid var(--glass-border)', display: 'flex', gap: '5px', alignItems: 'center', backdropFilter: 'blur(20px)' }}>
               {[0,1,2].map(i => (
-                <div key={i} style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--accent)', opacity: 0.6, animation: `bounce 1.2s ease-in-out ${i * 0.15}s infinite` }} />
+                <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'bounce 1.2s ease-in-out ' + (i * 0.15) + 's infinite' }} />
               ))}
             </div>
           </div>
@@ -425,48 +456,61 @@ ${summariesBlock}`
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', background: 'var(--surface)', backdropFilter: 'blur(20px)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+      {/* INPUT */}
+      <div style={{
+        padding: '12px 16px',
+        borderTop: '1px solid var(--border)',
+        background: 'var(--surface)',
+        backdropFilter: 'blur(28px)',
+        WebkitBackdropFilter: 'blur(28px)',
+        flexShrink: 0,
+      }}>
+        <div style={{
+          display: 'flex', gap: '8px', alignItems: 'flex-end',
+          background: 'var(--surface2)',
+          border: '1px solid var(--border)',
+          borderRadius: '16px',
+          padding: '8px 8px 8px 16px',
+          transition: 'border-color 0.15s',
+        }}
+        onFocusCapture={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+        onBlurCapture={e => e.currentTarget.style.borderColor = 'var(--border)'}
+        >
           <textarea
             ref={inputRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Skriv till Jarvis... (Enter för att skicka)"
+            placeholder="Skriv till Jarvis..."
             disabled={loading}
             rows={1}
             style={{
-              flex: 1, padding: '12px 16px', borderRadius: '12px',
-              border: '1px solid var(--border)', background: 'var(--surface2)',
-              color: 'var(--text)', fontSize: '14px', fontFamily: 'Inter, sans-serif',
-              resize: 'none', outline: 'none', lineHeight: '1.5',
-              maxHeight: '120px', overflow: 'auto',
-              transition: 'border-color 0.15s',
+              flex: 1, background: 'none', border: 'none', outline: 'none',
+              color: 'var(--text)', fontSize: '14px', lineHeight: '1.5',
+              resize: 'none', maxHeight: '120px', overflow: 'auto',
+              padding: '4px 0',
             }}
-            onFocus={e => e.target.style.borderColor = 'var(--accent-border)'}
-            onBlur={e => e.target.style.borderColor = 'var(--border)'}
           />
           <button onClick={sendMessage} disabled={loading || !input.trim()} style={{
-            width: '44px', height: '44px', borderRadius: '12px', border: 'none',
-            background: input.trim() ? 'var(--accent)' : 'var(--surface2)',
+            width: 36, height: 36, borderRadius: '10px', border: 'none', flexShrink: 0,
+            background: input.trim() ? 'var(--accent)' : 'transparent',
             color: input.trim() ? 'white' : 'var(--muted)',
             cursor: input.trim() ? 'pointer' : 'default',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.15s', flexShrink: 0,
-            boxShadow: input.trim() ? '0 2px 12px var(--accent-glow)' : 'none',
+            transition: 'all 0.15s',
+            boxShadow: input.trim() ? '0 2px 10px var(--accent-glow)' : 'none',
           }}>
-            <Send size={16} />
+            <Send size={15} />
           </button>
         </div>
       </div>
 
-      <style>{`
+      <style>{\`
         @keyframes bounce {
           0%, 60%, 100% { transform: translateY(0); }
           30% { transform: translateY(-6px); }
         }
-      `}</style>
+      \`}</style>
     </div>
   )
 }
