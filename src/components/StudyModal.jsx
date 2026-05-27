@@ -47,6 +47,10 @@ function useTimer(running) {
   return { seconds, formatted: fmt(seconds) }
 }
 
+const MCQ_PATTERN = /^[ \t]*[○•◯][ \t]+.{5,}$/m
+const MCQ_BULLET = /^[ \t]*[○•◯][ \t]+(.{5,})$/gm
+const MCQ_ABC = /^[ \t]*[A-E][.)[ \t]+(.{5,})$/gm
+
 export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUpdate }) {
   const { user } = useAuth()
   const [selectedGoals, setSelectedGoals] = useState([])
@@ -147,12 +151,14 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     if (!response.ok) throw new Error(data.error?.message || 'API error')
     return data.content?.[0]?.text || ''
   }
+
+  function buildSystemPrompt(chosenGoals, materials, isTentaMode, oldExams, chosenExamFile, isPreviouslyDone, lastDone) {
     const goalsList = chosenGoals.map((g, i) =>
-      `${i + 1}. [ID: ${g.id}] ${g.description} (behärskningsgrad: ${masteryUpdates[g.id] ?? g.effectiveMastery}%)`
+      (i + 1) + '. [ID: ' + g.id + '] ' + g.description + ' (behärskningsgrad: ' + (masteryUpdates[g.id] ?? g.effectiveMastery) + '%)'
     ).join('\n')
 
     const materialsBlock = materials && materials.length > 0
-      ? '\nKURSMATERIAL (ABSOLUT SANNING — basera allt på detta):\n' + materials.map(m => `--- ${m.file_name} ---\n${m.content || ''}`).join('\n\n')
+      ? '\nKURSMATERIAL (ABSOLUT SANNING — basera allt på detta):\n' + materials.map(m => '--- ' + m.file_name + ' ---\n' + (m.content || '')).join('\n\n')
       : ''
 
     const chosenExamBlock = chosenExamFile && chosenExamFile.content
@@ -160,9 +166,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       : (chosenExamFile ? '\nVald tenta: "' + chosenExamFile.file_name + '" — generera liknande frågor.' : '')
 
     const base = 'Du är Jarvis, Sigges personliga medicinstudent-tutor. Examination: "' + exam.name + '".\n\n' +
-      'LÄRANDEMÅL:\n' + goalsList + '\n' +
-      materialsBlock + '\n' +
-      chosenExamBlock + '\n\n' +
+      'LÄRANDEMÅL:\n' + goalsList + '\n' + materialsBlock + '\n' + chosenExamBlock + '\n\n' +
       'INNEHÅLLSPRIORITERING: ' + (materials && materials.length > 0 ? 'Kursmaterialet är absolut sanning. Basera ALLT på det.' : 'Inget kursmaterial. Basera på lärandemålen.') + '\n\n' +
       'MASTERY: Inkludera {"mastery_update": {"goal_id": "UUID", "mastery": 65}} när du bedömer svar. Uppdatera gradvis.\n\n' +
       'PEDAGOGIK: Sokrates-metoden. Logiska kedjor. Kliniska exempel. Löpande text.\n\nSvara på svenska.'
@@ -170,12 +174,12 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     if (!isTentaMode) return base + '\n\nBörja med att fråga om det första lärandemålet.'
 
     const tentaInfo = chosenExamFile
-      ? ('DU KÖR TENTAMODE MED: "' + chosenExamFile.file_name + '". ' +
-        (isPreviouslyDone && lastDone ? 'Sigge gjorde denna tenta ' + format(parseISO(lastDone.completed_at), 'd MMM yyyy', { locale: sv }) + ' — nämn det.' : 'Första gången Sigge gör denna tenta.') +
-        ' Kör frågorna EN I TAGET.')
-      : 'DU KÖR TENTAMODE. Inga gamla tentor uppladdade — generera realistiska frågor baserade på kursmaterialet och lärandemålen.'
+      ? 'DU KÖR TENTAMODE MED: "' + chosenExamFile.file_name + '". ' +
+        (isPreviouslyDone && lastDone ? 'Sigge gjorde denna ' + format(parseISO(lastDone.completed_at), 'd MMM yyyy', { locale: sv }) + ' — nämn det.' : 'Första gången.') +
+        ' Kör frågorna EN I TAGET.'
+      : 'DU KÖR TENTAMODE. Inga gamla tentor — generera realistiska frågor baserade på kursmaterialet.'
 
-    return base + '\n\nTENTAMODE:\n' + tentaInfo + '\nVänta på svar. Ge feedback + poäng 0-10. Uppdatera mastery. Summera i slutet.\nBÖRJA DIREKT med info om tentan och sedan FRÅGA 1.'
+    return base + '\n\nTENTAMODE:\n' + tentaInfo + '\nVänta på svar. Ge feedback + poäng 0-10. Uppdatera mastery. Summera i slutet.\nBÖRJA DIREKT med info om tentan och FRÅGA 1.'
   }
 
   async function processMasteryUpdates(content, goalsForSession) {
@@ -231,16 +235,11 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     })
 
     const systemPrompt = buildSystemPrompt(chosen, matData || [], true, oldExamData || [], chosenExamFile, isPreviouslyDone, lastDone)
-
     try {
-      const content = await callAnthropic(
-        [{ role: 'user', content: 'Starta tentamode.' }],
-        systemPrompt
-      )
+      const content = await callAnthropic([{ role: 'user', content: 'Starta tentamode.' }], systemPrompt)
       setMessages([{ role: 'assistant', content: content || 'Kunde inte starta.' }])
       if (content) await processMasteryUpdates(content, chosen)
     } catch(e) {
-      console.error(e)
       setMessages([{ role: 'assistant', content: 'Fel: ' + e.message }])
     }
     setLoading(false)
@@ -267,12 +266,8 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
 
     const { data: matData } = await supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
     const systemPrompt = buildSystemPrompt(chosen, matData || [], false, [], null, false, null)
-
     try {
-      const content = await callAnthropic(
-        [{ role: 'user', content: 'Starta studiesessionen.' }],
-        systemPrompt
-      )
+      const content = await callAnthropic([{ role: 'user', content: 'Starta studiesessionen.' }], systemPrompt)
       setMessages([{ role: 'assistant', content: content || '' }])
       if (content) await processMasteryUpdates(content, chosen)
     } catch(e) {
@@ -300,15 +295,14 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       return msg
     })
 
-    // Fetch fresh context for every message so Jarvis doesn't forget
     const { data: matData } = await supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
     const { data: oldExamData } = await supabase.from('exam_old_files').select('id, file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
     const chosenExamFile = currentTentaFileId ? (oldExamData || []).find(e => e.id === currentTentaFileId) : null
     const systemPrompt = buildSystemPrompt(sessionGoals, matData || [], mode === 'tenta', oldExamData || [], chosenExamFile, false, null)
+
     try {
       const content = await callAnthropic(cleanMessages, systemPrompt)
-      const assistantMsg = { role: 'assistant', content: content || 'Inget svar.' }
-      setMessages(prev => [...prev, assistantMsg])
+      setMessages(prev => [...prev, { role: 'assistant', content: content || 'Inget svar.' }])
       if (content) await processMasteryUpdates(content, sessionGoals)
     } catch(e) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Något gick fel. Försök igen.' }])
@@ -339,6 +333,19 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     return content.replace(/\{"mastery_update"\s*:\s*\{[^}]*\}\}/g, '').trim()
   }
 
+  function detectMCQ(text) {
+    const bullets = []
+    let m
+    const b = new RegExp(MCQ_BULLET.source, 'gm')
+    while ((m = b.exec(text)) !== null) bullets.push(m[1].trim())
+    if (bullets.length >= 2) return bullets
+    const abcRe = new RegExp(MCQ_ABC.source, 'gm')
+    const abc = []
+    while ((m = abcRe.exec(text)) !== null) abc.push(m[1].trim())
+    if (abc.length >= 2) return abc
+    return []
+  }
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 1000,
@@ -352,7 +359,6 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 80px rgba(0,0,0,0.6)', overflow: 'hidden',
       }}>
-
         {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -381,7 +387,6 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
               </button>
             </div>
           </div>
-
           {step === 'chat' && mode === 'normal' && sessionGoals.length > 0 && (
             <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
               {sessionGoals.map(g => {
@@ -403,8 +408,6 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
         {step === 'select' && (
           <>
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
-
-              {/* Mode selector */}
               <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
                 <button onClick={() => setMode('normal')} style={{
                   flex: 1, padding: '9px', borderRadius: '9px', border: 'none', cursor: 'pointer',
@@ -422,7 +425,6 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                 }}><Zap size={14} /> Tentamode</button>
               </div>
 
-              {/* Course materials */}
               <div style={{ marginBottom: '14px' }}>
                 <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>KURSMATERIAL ({courseMaterials.length})</div>
                 {courseMaterials.map(m => (
@@ -442,7 +444,6 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                 </button>
               </div>
 
-              {/* Tenta mode info */}
               {mode === 'tenta' && (
                 <div style={{ padding: '16px', borderRadius: '12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
                   <div style={{ fontSize: '13px', fontWeight: '600', color: '#f59e0b', marginBottom: '6px' }}>📝 Tentamode</div>
@@ -463,7 +464,6 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                 </div>
               )}
 
-              {/* Goal selector — normal mode only */}
               {mode === 'normal' && (
                 <div style={{ marginTop: '14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -527,14 +527,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                 const isLast = i === messages.length - 1
                 const rawContent = typeof msg.content === 'string' ? msg.content : ''
                 const cleaned = cleanContent(rawContent)
-                const hasMCQ = msg.role === 'assistant' && isLast && !loading && /^[ \t]*[○•◯A-E][.)]\s+\S.{4,}$/m.test(cleaned)
-                const mcqOptions = hasMCQ ? (() => {
-                  const bullet = cleaned.match(/^[ \t]*[○•◯]\s+(.{5,})$/gm)
-                  if (bullet && bullet.length >= 2) return bullet.map(l => l.replace(/^[ \t]*[○•◯]\s+/, '').trim())
-                  const abc = cleaned.match(/^[ \t]*[A-E][.)]\s+(.{5,})$/gm)
-                  if (abc && abc.length >= 2) return abc.map(l => l.replace(/^[ \t]*[A-E][.)]\s+/, '').trim())
-                  return []
-                })() : []
+                const options = (msg.role === 'assistant' && isLast && !loading) ? detectMCQ(cleaned) : []
                 return (
                   <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '6px' }}>
                     <div style={{
@@ -547,9 +540,9 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                     }}>
                       <MarkdownMessage content={cleaned} userMessage={msg.role === 'user'} />
                     </div>
-                    {hasMCQ && mcqOptions.length > 0 && (
+                    {options.length > 0 && (
                       <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: '5px', alignSelf: 'flex-start' }}>
-                        {mcqOptions.map((opt, oi) => (
+                        {options.map((opt, oi) => (
                           <button key={oi} onClick={() => sendMessage(opt)} disabled={loading} style={{
                             padding: '9px 14px', borderRadius: '9px', border: '1px solid var(--border)',
                             background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer',
@@ -568,15 +561,14 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
               {loading && (
                 <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                   <div style={{ padding: '10px 14px', borderRadius: '14px', background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', gap: '4px' }}>
-                    {[0,1,2].map(i => (
-                      <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'bounce 1.2s ease-in-out ' + (i*0.15) + 's infinite' }} />
+                    {[0,1,2].map(idx => (
+                      <div key={idx} style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'bounce 1.2s ease-in-out ' + (idx * 0.15) + 's infinite' }} />
                     ))}
                   </div>
                 </div>
               )}
               <div ref={messagesEndRef} />
             </div>
-
             <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
                 <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
