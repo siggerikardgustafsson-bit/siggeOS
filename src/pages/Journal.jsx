@@ -529,13 +529,8 @@ export default function JournalPage() {
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
     </div>
       </div>
       </div>
-    </div>
   )
 }
