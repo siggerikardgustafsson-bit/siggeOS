@@ -546,3 +546,29 @@ html[data-theme="light"] body.has-bg-image aside {
   -webkit-backdrop-filter: blur(32px) !important;
   border-right: 1px solid rgba(0,0,0,0.08) !important;
 }
+
+/* More transparent widgets + unified sidebar */
+body.has-bg-image {
+  --surface:  rgba(15,18,30,0.42) !important;
+  --surface2: rgba(15,18,30,0.28) !important;
+  --surface3: rgba(15,18,30,0.55) !important;
+}
+
+html[data-theme="light"] body.has-bg-image {
+  --surface:  rgba(255,255,255,0.52) !important;
+  --surface2: rgba(255,255,255,0.38) !important;
+  --surface3: rgba(255,255,255,0.68) !important;
+}
+
+/* Sidebar floats over background — no solid wall */
+body.has-bg-image aside {
+  background: rgba(10,13,22,0.48) !important;
+  backdrop-filter: blur(40px) !important;
+  -webkit-backdrop-filter: blur(40px) !important;
+  border-right: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+html[data-theme="light"] body.has-bg-image aside {
+  background: rgba(255,255,255,0.52) !important;
+  border-right: 1px solid rgba(255,255,255,0.6) !important;
+}
