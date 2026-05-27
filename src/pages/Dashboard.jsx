@@ -241,7 +241,7 @@ export default function Dashboard() {
           )}
 
           {/* Today widget */}
-          <div style={{ position:'sticky', top:'20px' }}>
+          <div style={{ position:'relative' }}>
             <TodayWidget userId={userId} />
           </div>
         </div>
