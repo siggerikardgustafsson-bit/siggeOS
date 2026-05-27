@@ -7,7 +7,6 @@ import {
   Download, Trash2, Save, Loader, Upload, X, Check,
   User, Target, Brain, ChevronRight, Zap
 } from 'lucide-react'
-import { useBackground, BACKGROUNDS, BLUR_LEVELS, DIM_LEVELS } from '../hooks/useBackground'
 
 const ACCENTS = [
   { id: 'blue',   label: 'Blå',    color: '#4f8ef7' },
@@ -75,8 +74,7 @@ function SettingRow({ label, sub, children }) {
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth()
-  const { theme, setTheme, accent, setAccent, bgImage, setBgImage, compact, setCompact } = useTheme()
-  const { bgId, blurId, dimId, setBackground, setBlur, setDim } = useBackground()
+  const { theme, setTheme, accent, setAccent, bgImage, setBgImage, blurId, setBlurId, dimId, setDimId, compact, setCompact, BACKGROUNDS, BLUR_LEVELS, DIM_LEVELS } = useTheme()
   const [activeSection, setActiveSection] = useState('utseende')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -231,26 +229,25 @@ export default function SettingsPage() {
               </div>
 
               <div className="card">
-                <SectionHeader icon={Image} title="Bakgrundsbild" subtitle="Välj en bild — alla widgets svävar glasaktigt ovanpå" />
+                <SectionHeader icon={Image} title="Bakgrundsbild" subtitle="Alla sidor får glaseffekt ovanpå bilden" />
 
-                {/* Background grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '16px' }}>
-                  {BACKGROUNDS.map(bg => (
-                    <button key={bg.id} onClick={() => setBackground(bg.id)} style={{
+                  {(BACKGROUNDS || []).map(bg => (
+                    <button key={bg.id} onClick={() => setBgImage(bg.url)} style={{
                       borderRadius: '10px', overflow: 'hidden',
-                      border: '1.5px solid ' + (bgId === bg.id ? 'var(--accent)' : 'var(--border)'),
+                      border: '1.5px solid ' + (bgImage === bg.url ? 'var(--accent)' : 'var(--border)'),
                       cursor: 'pointer', aspectRatio: '16/9', position: 'relative',
                       padding: 0, transition: 'all 0.15s',
-                      boxShadow: bgId === bg.id ? '0 0 12px var(--accent-glow)' : 'none',
+                      boxShadow: bgImage === bg.url ? '0 0 12px var(--accent-glow)' : 'none',
                     }}>
-                      {bg.thumb ? (
-                        <img src={bg.thumb} alt={bg.label} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      {bg.thumb || bg.url ? (
+                        <img src={bg.thumb || bg.url} alt={bg.label} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                       ) : (
                         <div style={{ width: '100%', height: '100%', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <X size={16} color="var(--muted)" />
                         </div>
                       )}
-                      {bgId === bg.id && (
+                      {bgImage === bg.url && (
                         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <Check size={16} color="white" />
                         </div>
@@ -262,14 +259,11 @@ export default function SettingsPage() {
                   ))}
                 </div>
 
-                {/* Blur control */}
-                <div style={{ marginBottom: '14px' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.06em', marginBottom: '8px' }}>
-                    BAKGRUNDSOSKÄRPA
-                  </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.06em', marginBottom: '8px' }}>OSKÄRPA</div>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    {BLUR_LEVELS.map(b => (
-                      <button key={b.id} onClick={() => setBlur(b.id)} style={{
+                    {(BLUR_LEVELS || []).map(b => (
+                      <button key={b.id} onClick={() => setBlurId(b.id)} style={{
                         flex: 1, padding: '8px', borderRadius: '8px', cursor: 'pointer',
                         border: '1px solid ' + (blurId === b.id ? 'var(--accent-border)' : 'var(--border)'),
                         background: blurId === b.id ? 'var(--accent-soft)' : 'var(--surface2)',
@@ -281,14 +275,11 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                {/* Dim control */}
-                <div>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.06em', marginBottom: '8px' }}>
-                    MÖRKLÄGGNING
-                  </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.06em', marginBottom: '8px' }}>MÖRKLÄGGNING</div>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    {DIM_LEVELS.map(d => (
-                      <button key={d.id} onClick={() => setDim(d.id)} style={{
+                    {(DIM_LEVELS || []).map(d => (
+                      <button key={d.id} onClick={() => setDimId(d.id)} style={{
                         flex: 1, padding: '8px', borderRadius: '8px', cursor: 'pointer',
                         border: '1px solid ' + (dimId === d.id ? 'var(--accent-border)' : 'var(--border)'),
                         background: dimId === d.id ? 'var(--accent-soft)' : 'var(--surface2)',
@@ -299,6 +290,11 @@ export default function SettingsPage() {
                     ))}
                   </div>
                 </div>
+
+                <input ref={bgFileRef} type="file" accept="image/*" onChange={handleBgUpload} style={{ display: 'none' }} />
+                <button onClick={() => bgFileRef.current?.click()} className="btn btn-ghost" style={{ fontSize: '12px', width: '100%', justifyContent: 'center' }}>
+                  <Upload size={13} /> Ladda upp egen bild
+                </button>
               </div>
 
               <div className="card">
