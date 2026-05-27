@@ -527,11 +527,11 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                 const isLast = i === messages.length - 1
                 const rawContent = typeof msg.content === 'string' ? msg.content : ''
                 const cleaned = cleanContent(rawContent)
-                const hasMCQ = msg.role === 'assistant' && isLast && !loading && /^[\s]*[○•◯A-E][.)]\s+\S.{4,}$/m.test(cleaned)
+                const hasMCQ = msg.role === 'assistant' && isLast && !loading && /^[ \t]*[○•◯A-E][.)]\s+\S.{4,}$/m.test(cleaned)
                 const mcqOptions = hasMCQ ? (() => {
-                  const bullet = cleaned.match(/^[\s]*[○•◯]\s+(.{5,})$/gm)
+                  const bullet = cleaned.match(/^[ \t]*[○•◯]\s+(.{5,})$/gm)
                   if (bullet && bullet.length >= 2) return bullet.map(l => l.replace(/^[\s]*[○•◯]\s+/, '').trim())
-                  const abc = cleaned.match(/^[\s]*[A-E][.)]\s+(.{5,})$/gm)
+                  const abc = cleaned.match(/^[ \t]*[A-E][.)]\s+(.{5,})$/gm)
                   if (abc && abc.length >= 2) return abc.map(l => l.replace(/^[\s]*[A-E][.)]\s+/, '').trim())
                   return []
                 })() : []
