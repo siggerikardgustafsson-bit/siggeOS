@@ -130,44 +130,29 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     await fetchCourseMaterials()
   }
 
-  async function callAnthropic(messages, systemPrompt) {
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'pdfs-2024-09-25',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        system: systemPrompt,
+  async function callAnthropic(messages, systemPrompt, examFileId, materialIds) {
+    const { data, error } = await supabase.functions.invoke('jarvis-chat', {
+      body: {
         messages,
-      }),
+        context: '',
+        systemPrompt,
+        examFileId: examFileId || null,
+        materialIds: materialIds || [],
+      },
     })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error?.message || 'API error')
-    return data.content?.[0]?.text || ''
+    if (error) throw new Error(error.message)
+    if (!data?.content) throw new Error('Inget svar från Jarvis')
+    return data.content
   }
 
-  function buildSystemPrompt(chosenGoals, materials, isTentaMode, oldExams, chosenExamFile, isPreviouslyDone, lastDone) {
+  function buildSystemPrompt(chosenGoals, isTentaMode, chosenExamFile, isPreviouslyDone, lastDone) {
     const goalsList = chosenGoals.map((g, i) =>
       (i + 1) + '. [ID: ' + g.id + '] ' + g.description + ' (behärskningsgrad: ' + (masteryUpdates[g.id] ?? g.effectiveMastery) + '%)'
     ).join('\n')
 
-    const materialsBlock = materials && materials.length > 0
-      ? '\nKURSMATERIAL (ABSOLUT SANNING — basera allt på detta):\n' + materials.map(m => '--- ' + m.file_name + ' ---\n' + (m.content || '')).join('\n\n')
-      : ''
-
-    const chosenExamBlock = chosenExamFile && chosenExamFile.content
-      ? '\nVALD TENTA "' + chosenExamFile.file_name + '" — kör exakt dessa frågor:\n' + chosenExamFile.content
-      : (chosenExamFile ? '\nVald tenta: "' + chosenExamFile.file_name + '" — generera liknande frågor.' : '')
-
     const base = 'Du är Jarvis, Sigges personliga medicinstudent-tutor. Examination: "' + exam.name + '".\n\n' +
-      'LÄRANDEMÅL:\n' + goalsList + '\n' + materialsBlock + '\n' + chosenExamBlock + '\n\n' +
-      'INNEHÅLLSPRIORITERING: ' + (materials && materials.length > 0 ? 'Kursmaterialet är absolut sanning. Basera ALLT på det.' : 'Inget kursmaterial. Basera på lärandemålen.') + '\n\n' +
+      'LÄRANDEMÅL:\n' + goalsList + '\n\n' +
+      'INNEHÅLLSPRIORITERING: Kursmaterialet (om uppladdad) är absolut sanning. Basera ALLT på det.\n\n' +
       'MASTERY: Inkludera {"mastery_update": {"goal_id": "UUID", "mastery": 65}} när du bedömer svar. Uppdatera gradvis.\n\n' +
       'PEDAGOGIK: Sokrates-metoden. Logiska kedjor. Kliniska exempel. Löpande text.\n\nSvara på svenska.'
 
@@ -176,7 +161,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     const tentaInfo = chosenExamFile
       ? 'DU KÖR TENTAMODE MED: "' + chosenExamFile.file_name + '". ' +
         (isPreviouslyDone && lastDone ? 'Sigge gjorde denna ' + format(parseISO(lastDone.completed_at), 'd MMM yyyy', { locale: sv }) + ' — nämn det.' : 'Första gången.') +
-        ' Kör frågorna EN I TAGET.'
+        ' Kör frågorna EN I TAGET. Tenta-texten finns i kursmaterialet nedan.'
       : 'DU KÖR TENTAMODE. Inga gamla tentor — generera realistiska frågor baserade på kursmaterialet.'
 
     return base + '\n\nTENTAMODE:\n' + tentaInfo + '\nVänta på svar. Ge feedback + poäng 0-10. Uppdatera mastery. Summera i slutet.\nBÖRJA DIREKT med info om tentan och FRÅGA 1.'
@@ -234,9 +219,15 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       file_name: chosenExamFile?.file_name || 'Genererad tenta',
     })
 
-    const systemPrompt = buildSystemPrompt(chosen, matData || [], true, oldExamData || [], chosenExamFile, isPreviouslyDone, lastDone)
+    const systemPrompt = buildSystemPrompt(chosen, true, chosenExamFile, isPreviouslyDone, lastDone)
+    const materialIds = courseMaterials.map(m => m.id)
     try {
-      const content = await callAnthropic([{ role: 'user', content: 'Starta tentamode.' }], systemPrompt)
+      const content = await callAnthropic(
+        [{ role: 'user', content: 'Starta tentamode.' }],
+        systemPrompt,
+        chosenExamFile?.id || null,
+        materialIds
+      )
       setMessages([{ role: 'assistant', content: content || 'Kunde inte starta.' }])
       if (content) await processMasteryUpdates(content, chosen)
     } catch(e) {
@@ -264,10 +255,10 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     }).select().single()
     if (sessData) setSessionId(sessData.id)
 
-    const { data: matData } = await supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
-    const systemPrompt = buildSystemPrompt(chosen, matData || [], false, [], null, false, null)
+    const systemPrompt = buildSystemPrompt(chosen, false, null, false, null)
+    const materialIds = (await supabase.from('course_materials').select('id').eq('exam_id', exam.id).eq('user_id', user.id)).data?.map(m => m.id) || []
     try {
-      const content = await callAnthropic([{ role: 'user', content: 'Starta studiesessionen.' }], systemPrompt)
+      const content = await callAnthropic([{ role: 'user', content: 'Starta studiesessionen.' }], systemPrompt, null, materialIds)
       setMessages([{ role: 'assistant', content: content || '' }])
       if (content) await processMasteryUpdates(content, chosen)
     } catch(e) {
@@ -295,13 +286,10 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       return msg
     })
 
-    const { data: matData } = await supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
-    const { data: oldExamData } = await supabase.from('exam_old_files').select('id, file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
-    const chosenExamFile = currentTentaFileId ? (oldExamData || []).find(e => e.id === currentTentaFileId) : null
-    const systemPrompt = buildSystemPrompt(sessionGoals, matData || [], mode === 'tenta', oldExamData || [], chosenExamFile, false, null)
-
+    const systemPrompt = buildSystemPrompt(sessionGoals, mode === 'tenta', currentTentaFileId ? { id: currentTentaFileId, file_name: '' } : null, false, null)
+    const materialIds = (await supabase.from('course_materials').select('id').eq('exam_id', exam.id).eq('user_id', user.id)).data?.map(m => m.id) || []
     try {
-      const content = await callAnthropic(cleanMessages, systemPrompt)
+      const content = await callAnthropic(cleanMessages, systemPrompt, currentTentaFileId || null, materialIds)
       setMessages(prev => [...prev, { role: 'assistant', content: content || 'Inget svar.' }])
       if (content) await processMasteryUpdates(content, sessionGoals)
     } catch(e) {

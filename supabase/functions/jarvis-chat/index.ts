@@ -257,7 +257,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { messages, context, systemPrompt } = await req.json()
+    const { messages, context, systemPrompt, examFileId, materialIds } = await req.json()
 
     const authHeader = req.headers.get('Authorization') || ''
     const supabase = createClient(
@@ -270,6 +270,24 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     )
     const { data: { user } } = await anonClient.auth.getUser()
+
+    // Fetch exam file and course materials server-side to avoid large payloads
+    let contentBlock = ''
+    if (materialIds && materialIds.length > 0) {
+      const { data: mats } = await supabase.from('course_materials').select('file_name, content').in('id', materialIds)
+      if (mats && mats.length > 0) {
+        contentBlock += '\nKURSMATERIAL (ABSOLUT SANNING — basera allt på detta):\n' +
+          mats.map((m: any) => '--- ' + m.file_name + ' ---\n' + (m.content || '')).join('\n\n')
+      }
+    }
+    if (examFileId) {
+      const { data: ef } = await supabase.from('exam_old_files').select('file_name, content').eq('id', examFileId).single()
+      if (ef && ef.content) {
+        contentBlock += '\nVALD TENTA "' + ef.file_name + '" — kör exakt dessa frågor:\n' + ef.content
+      }
+    }
+
+    const enrichedSystemPrompt = systemPrompt + (contentBlock ? '\n\n' + contentBlock : '')
 
     // Fetch user settings
     let userSettingsBlock = ''
@@ -303,8 +321,8 @@ serve(async (req) => {
       }
     }
 
-    const systemBase = systemPrompt
-      ? systemPrompt.replace('{CONTEXT}', context || 'Ingen kontextdata.')
+    const systemBase = enrichedSystemPrompt
+      ? enrichedSystemPrompt.replace('{CONTEXT}', context || 'Ingen kontextdata.')
       : 'Du är en hjälpsam assistent.'
 
     const system = systemBase + userSettingsBlock + `
