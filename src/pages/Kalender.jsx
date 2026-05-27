@@ -132,28 +132,22 @@ export default function KalenderPage() {
   const examCount = allEvents.filter(e => e.type === 'exam').length
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="page-wrap">
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      {/* Floating sticky header */}
+      <div className="page-header">
         <div>
-          <div style={{ fontSize: '22px', fontWeight: '700', letterSpacing: '-0.3px' }}>Kalender</div>
-          <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '3px', display: 'flex', gap: '14px' }}>
-            <span>💪 {trainCount} träningspass</span>
-            <span>🌙 {paCount} PA-pass</span>
-            {mandCount > 0 && <span>🎓 {mandCount} obligatoriska</span>}
-            {examCount > 0 && <span>📝 {examCount} tentor</span>}
-          </div>
+          <div className="page-header-title">Kalender</div>
+          <div className="page-header-sub">{format(month, 'MMMM yyyy', { locale: sv })}</div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button onClick={syncMandatory} disabled={syncing} className="btn btn-ghost" style={{ fontSize: '12px' }}>
-            {syncing ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />}
-            Synka obligatoriska
-          </button>
-          <button onClick={() => setMonth(subMonths(month, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}><ChevronLeft size={15} /></button>
-          <button onClick={() => setMonth(new Date())} className="btn btn-ghost" style={{ fontSize: '12px' }}>Idag</button>
-          <button onClick={() => setMonth(addMonths(month, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}><ChevronRight size={15} /></button>
+        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
+          <button onClick={syncMandatory} disabled={syncing} className="btn btn-ghost" style={{ fontSize: '12px' }}>{syncing ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />} Synka</button><button onClick={() => setMonth(subMonths(month, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}><ChevronLeft size={15} /></button><button onClick={() => setMonth(new Date())} className="btn btn-ghost" style={{ fontSize: '12px' }}>Idag</button><button onClick={() => setMonth(addMonths(month, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}><ChevronRight size={15} /></button>
         </div>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="page-content-scroll">
+      <div style={{ padding: '16px 16px 0', maxWidth: '1200px', margin: '0 auto' }}>
       </div>
 
       {/* Month title */}
@@ -284,6 +278,9 @@ export default function KalenderPage() {
         )}
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+      </div>
+      </div>
     </div>
   )
 }

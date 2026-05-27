@@ -91,7 +91,9 @@ body {
   color: var(--text);
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 14px;
+  font-weight: 400;
   line-height: 1.5;
+  font-feature-settings: 'ss01', 'cv01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s, color 0.3s;
@@ -534,78 +536,80 @@ html[data-theme="light"] body.has-bg-image aside {
 }
 
 /* ============================================================
-   PAGE LAYOUT — STICKY HEADER + iOS FADE MASK
+   PAGE LAYOUT — FLOATING STICKY HEADER + iOS FADE MASK
    ============================================================ */
 
-/* Wraps every page — header sticks, content scrolls with fade */
+/* Page wrapper */
 .page-wrap {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  position: relative;
+  padding: 12px 12px 0;
+  gap: 10px;
+  box-sizing: border-box;
 }
 
-/* Sticky glass header widget */
+/* Floating glass header — same style as sidebar */
 .page-header {
+  flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 30;
-  flex-shrink: 0;
-  padding: 13px 24px;
+  padding: 12px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   background: var(--surface);
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
-  border-bottom: 1px solid var(--glass-border);
-  box-shadow: 0 1px 0 var(--glass-border), 0 4px 24px rgba(0,0,0,0.06);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow);
   transition: box-shadow 0.2s;
+  overflow: hidden;
 }
 
-.page-header::after {
+/* Shimmer line */
+.page-header::before {
   content: '';
   position: absolute;
-  top: 0; left: 10%; right: 10%; height: 1px;
+  top: 0; left: 12%; right: 12%; height: 1px;
   background: linear-gradient(90deg, transparent, var(--border2), transparent);
   pointer-events: none;
 }
 
 .page-header-title {
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 500;
   color: var(--text);
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
 .page-header-sub {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: 3px;
+  letter-spacing: 0.01em;
 }
 
-/* Scrollable content with iOS-style fade at top */
+/* Scrollable content with iOS fade */
 .page-content-scroll {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  /* Fade out top 40px when content scrolls under header */
+  padding-bottom: 24px;
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0px,
-    black 32px
+    rgba(0,0,0,0.6) 16px,
+    black 36px
   );
   mask-image: linear-gradient(
     to bottom,
     transparent 0px,
-    black 32px
+    rgba(0,0,0,0.6) 16px,
+    black 36px
   );
-}
-
-/* Remove fade when at top */
-.page-content-scroll.at-top {
-  -webkit-mask-image: none;
-  mask-image: none;
 }

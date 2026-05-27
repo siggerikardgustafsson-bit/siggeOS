@@ -357,20 +357,22 @@ export default function PluggPage() {
   const totalStudyHours = studySessions.reduce((sum, s) => sum + (s.hours || 0), 0)
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
+    <div className="page-wrap">
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+      {/* Floating sticky header */}
+      <div className="page-header">
         <div>
-          <div style={{ fontSize: '22px', fontWeight: '600' }}>Plugg</div>
-          <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '3px' }}>
-            <span style={{ marginRight: '12px' }}>📚 {courses.length} aktiva kurser</span>
-            <span style={{ color: '#f59e0b' }}>⏱ {thisWeekHours.toFixed(1)}h denna vecka</span>
-          </div>
+          <div className="page-header-title">Plugg</div>
+          <div className="page-header-sub">{courses.length} aktiva kurser · {thisWeekHours.toFixed(1)}h denna vecka</div>
         </div>
-        <button onClick={syncMandatory} disabled={syncingMandatory} className="btn btn-ghost" style={{ fontSize: '12px' }}>
-          {syncingMandatory ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : '🎓'} Synka obligatoriska
-        </button>
+        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
+          <button onClick={syncMandatory} disabled={syncingMandatory} className="btn btn-ghost" style={{ fontSize: '12px' }}>{syncingMandatory ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : null} Synka obligatoriska</button>
+        </div>
       </div>
+
+      {/* Scrollable content */}
+      <div className="page-content-scroll">
+      <div style={{ padding: '16px 16px 0', maxWidth: '1000px', margin: '0 auto' }}>
 
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
         {[{ id: 'aktiva', label: 'Aktiva kurser' }, { id: 'arkiv', label: 'Arkiv' }, { id: 'session', label: 'Studielogg' }].map(tab => (
@@ -1032,6 +1034,9 @@ export default function PluggPage() {
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+      </div>
+      </div>
     </div>
   )
 }

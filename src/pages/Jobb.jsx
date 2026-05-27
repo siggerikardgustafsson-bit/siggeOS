@@ -420,22 +420,22 @@ export default function JobbPage() {
   ]
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+    <div className="page-wrap">
+
+      {/* Floating sticky header */}
+      <div className="page-header">
         <div>
-          <div style={{ fontSize: '22px', fontWeight: '600' }}>Jobb</div>
-          <div style={{ fontSize: '13px', color: 'var(--muted)' }}>
-            <span style={{ marginRight: '12px' }}>⏱ {totalHours.toFixed(1)}h PA denna månad</span>
-            {urgentTasks.length > 0 && <span style={{ color: '#ef4444' }}>⚠️ {urgentTasks.length} brådskande uppdrag</span>}
-          </div>
+          <div className="page-header-title">Jobb</div>
+          <div className="page-header-sub">{totalHours.toFixed(1)}h PA denna månad{urgentTasks.length > 0 ? ' · ' + urgentTasks.length + ' brådskande' : ''}</div>
         </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}>←</button>
-          <button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost" style={{ fontSize: '12px' }}>Idag</button>
-          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}>→</button>
+        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
+          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}>←</button><button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost" style={{ fontSize: '12px' }}>Idag</button><button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}>→</button>
         </div>
       </div>
+
+      {/* Scrollable content */}
+      <div className="page-content-scroll">
+      <div style={{ padding: '16px 16px 0', maxWidth: '1000px', margin: '0 auto' }}>
 
       {/* Month label */}
       <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px', textTransform: 'capitalize' }}>
@@ -846,6 +846,9 @@ export default function JobbPage() {
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+      </div>
+      </div>
     </div>
   )
 }

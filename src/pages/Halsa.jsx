@@ -272,7 +272,7 @@ export default function HalsaPage() {
 
       {/* Scrollable content */}
       <div className="page-content-scroll">
-      <div style={{ padding: '20px 24px', maxWidth: '900px', margin: '0 auto' }}>
+      <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
 
       {/* Import result */}
       {importResult && (

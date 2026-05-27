@@ -290,21 +290,22 @@ export default function JournalPage() {
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd')
 
   return (
-    <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
+    <div className="page-wrap">
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      {/* Floating sticky header */}
+      <div className="page-header">
         <div>
-          <div style={{ fontSize: '22px', fontWeight: '600' }}>Journal</div>
-          <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Dagliga reflektioner</div>
+          <div className="page-header-title">Journal</div>
+          <div className="page-header-sub">Dagliga reflektioner</div>
         </div>
-        <button
-          onClick={() => { setSelectedDate(new Date()); setShowForm(true) }}
-          className="btn btn-primary"
-        >
-          <Plus size={15} /> Ny entry
-        </button>
+        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
+          <button onClick={() => { setSelectedDate(new Date()); setShowForm(true) }} className="btn btn-primary" style={{ fontSize: '12px' }}><Plus size={14} /> Ny entry</button>
+        </div>
       </div>
+
+      {/* Scrollable content */}
+      <div className="page-content-scroll">
+      <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
 
       <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px' }}>
 
@@ -532,6 +533,9 @@ export default function JournalPage() {
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
+    </div>
+      </div>
+      </div>
     </div>
   )
 }
