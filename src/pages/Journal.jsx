@@ -272,7 +272,7 @@ export default function JournalPage() {
 
       <div className="page-content-scroll">
         <div style={{ padding: '12px 12px 0', maxWidth: '1000px', margin: '0 auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '12px', alignItems: 'stretch', minHeight: 'calc(100vh - 140px)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '12px' }}>
 
             {/* ── LEFT: Calendar + stats ── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', position: 'sticky', top: '70px', alignSelf: 'start' }}>
@@ -477,18 +477,26 @@ export default function JournalPage() {
                 </div>
               )}
 
-              {/* Empty state */}
+              {/* Empty state — fills height */}
               {selectedEntries.length === 0 && !showForm && (
                 <div style={{
                   background: 'var(--surface)', backdropFilter: 'var(--glass-blur)',
                   WebkitBackdropFilter: 'var(--glass-blur)',
                   border: '1px solid var(--glass-border)', borderRadius: '16px',
-                  padding: '48px 24px', boxShadow: 'var(--glass-shadow)',
-                  textAlign: 'center',
+                  boxShadow: 'var(--glass-shadow)',
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center',
+                  minHeight: '420px', padding: '40px 24px', textAlign: 'center',
+                  gap: '12px',
                 }}>
-                  <BookOpen size={28} style={{ margin: '0 auto 10px', opacity: 0.25, display: 'block', color: 'var(--muted)' }} />
-                  <div style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '14px' }}>Ingen entry för detta datum</div>
-                  <button onClick={openNewForm} className="btn btn-primary" style={{ fontSize: '12px' }}>
+                  <div style={{ fontSize: '32px', opacity: 0.15 }}>✍️</div>
+                  <div style={{ fontSize: '15px', fontWeight: '500', color: 'var(--text)' }}>
+                    {format(selectedDate, "EEEE d MMMM", { locale: sv })}
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--muted)', maxWidth: '240px', lineHeight: '1.6' }}>
+                    Ingen entry loggad. Hur var dagen?
+                  </div>
+                  <button onClick={openNewForm} className="btn btn-primary" style={{ fontSize: '12px', marginTop: '8px' }}>
                     <Plus size={13} /> Skriv entry
                   </button>
                 </div>
