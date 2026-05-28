@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -89,11 +89,9 @@ html, body, #root { height: 100%; }
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 14px;
-  font-weight: 400;
   line-height: 1.5;
-  font-feature-settings: 'ss01', 'cv01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.3s, color 0.3s;
@@ -166,41 +164,14 @@ body {
 /* All app content sits above bg */
 #root > * { position: relative; z-index: 1; }
 
-
 /* ============================================================
-   STICKY PAGE HEADERS + SMOOTH SCROLL
+   SCROLLBAR
    ============================================================ */
-
-/* Smooth scroll for main content */
-main { scroll-behavior: smooth; }
-
-/* Sticky page header — used by all pages */
-.page-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: var(--surface);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-bottom: 1px solid var(--border);
-  padding: 14px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* Better scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: var(--border2);
-  border-radius: 10px;
-  transition: background 0.2s;
-}
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
-[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); }
-[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
-
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); }
 
 /* ============================================================
    TYPOGRAPHY
@@ -470,146 +441,200 @@ select.input option { background: #1a1a2e; color: #fff; }
   .w-2,.w-3,.w-4,.w-5,.w-6,.w-7,.w-8,.w-9,.w-12 { grid-column: span 2; }
 }
 /* ============================================================
-   BACKGROUND IMAGE — GLASS SYSTEM
+   BACKGROUND IMAGE — ENHANCED GLASS SYSTEM
    ============================================================ */
 
-/* bg-image overlay — blur + dim controlled via CSS vars */
+/* When bg image is active, boost glass opacity and blur on all surfaces */
+body.has-bg-image {
+  --surface:  rgba(15, 18, 30, 0.55);
+  --surface2: rgba(15, 18, 30, 0.40);
+  --surface3: rgba(15, 18, 30, 0.65);
+  --glass-blur: blur(var(--bg-blur-amount, 35px));
+  --glass-border: rgba(255,255,255,0.13);
+  --glass-shadow: 0 8px 32px rgba(0,0,0,0.50), 0 1px 0 rgba(255,255,255,0.09) inset;
+  --glass-shadow-hover: 0 12px 48px rgba(0,0,0,0.60), 0 1px 0 rgba(255,255,255,0.12) inset;
+}
+
+[data-theme="light"].has-bg-image {
+  --surface:  rgba(255,255,255,0.52);
+  --surface2: rgba(255,255,255,0.38);
+  --surface3: rgba(255,255,255,0.68);
+  --glass-border: rgba(255,255,255,0.70);
+  --glass-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.95) inset;
+  --glass-shadow-hover: 0 12px 48px rgba(0,0,0,0.24), 0 1px 0 rgba(255,255,255,1) inset;
+}
+
+/* bg-image overlay uses CSS custom property */
 #bg-image::after {
   content: '';
   position: absolute;
   inset: 0;
-  backdrop-filter: blur(var(--bg-blur-amount, 22px));
-  -webkit-backdrop-filter: blur(var(--bg-blur-amount, 22px));
+  backdrop-filter: blur(var(--bg-blur-amount, 35px));
+  -webkit-backdrop-filter: blur(var(--bg-blur-amount, 35px));
   background: var(--bg-overlay, rgba(7,9,15,0.55));
   transition: background 0.3s, backdrop-filter 0.3s;
 }
 
-/* Blur levels */
-body.bg-blur-low    { --bg-blur-amount: 6px; }
-body.bg-blur-medium { --bg-blur-amount: 18px; }
-body.bg-blur-high   { --bg-blur-amount: 38px; }
-
-/* Hide orbs when bg image is active */
-body.has-bg-image .orb { opacity: 0 !important; }
-
-/* ── DARK MODE with bg image ── */
-body.has-bg-image {
-  --surface:       rgba(12, 15, 25, 0.28);
-  --surface2:      rgba(12, 15, 25, 0.18);
-  --surface3:      rgba(12, 15, 25, 0.38);
-  --glass-blur:    blur(24px);
-  --glass-border:  rgba(255,255,255,0.12);
-  --glass-shadow:  0 8px 32px rgba(0,0,0,0.45), 0 1px 0 rgba(255,255,255,0.08) inset;
-  --glass-shadow-hover: 0 12px 48px rgba(0,0,0,0.55), 0 1px 0 rgba(255,255,255,0.11) inset;
-}
-
-/* Sidebar — same glass as widgets */
+/* Sidebar glass boost when bg image is active */
 body.has-bg-image aside {
-  background: rgba(12, 15, 25, 0.28) !important;
+  background: rgba(10,13,22,0.65) !important;
   backdrop-filter: blur(32px) !important;
   -webkit-backdrop-filter: blur(32px) !important;
-  border-right: 1px solid rgba(255,255,255,0.10) !important;
-  box-shadow: 1px 0 0 rgba(255,255,255,0.05) !important;
 }
 
-/* ── LIGHT MODE with bg image ── */
+[data-theme="light"].has-bg-image aside {
+  background: rgba(255,255,255,0.55) !important;
+}
+
+/* Disable gradient orbs when bg image is active */
+body.has-bg-image .orb {
+  opacity: 0 !important;
+}
+
+/* Blur levels */
+body.bg-blur-low    { --bg-blur-amount: 18px; }
+body.bg-blur-medium { --bg-blur-amount: 35px; }
+body.bg-blur-high   { --bg-blur-amount: 55px; }
+
+/* Fix blur levels — less is more */
+body.bg-blur-low    { --bg-blur-amount: 8px; }
+body.bg-blur-medium { --bg-blur-amount: 22px; }
+body.bg-blur-high   { --bg-blur-amount: 42px; }
+
+/* Fix light mode glass with bg image */
+[data-theme="light"].has-bg-image {
+  --surface:  rgba(255,255,255,0.65);
+  --surface2: rgba(255,255,255,0.50);
+  --surface3: rgba(255,255,255,0.80);
+  --border:   rgba(0,0,0,0.08);
+  --text:     rgba(0,0,0,0.88);
+  --muted:    rgba(0,0,0,0.45);
+}
+
+/* Fix blur levels — less is more */
+body.bg-blur-low    { --bg-blur-amount: 8px; }
+body.bg-blur-medium { --bg-blur-amount: 22px; }
+body.bg-blur-high   { --bg-blur-amount: 42px; }
+
+/* Fix light mode glass with bg image */
+[data-theme="light"].has-bg-image {
+  --surface:  rgba(255,255,255,0.65);
+  --surface2: rgba(255,255,255,0.50);
+  --surface3: rgba(255,255,255,0.80);
+  --border:   rgba(0,0,0,0.08);
+  --text:     rgba(0,0,0,0.88);
+  --muted:    rgba(0,0,0,0.45);
+}
+
+/* Light mode glass fix — correct selector */
 html[data-theme="light"] body.has-bg-image {
-  --surface:       rgba(255,255,255,0.38);
-  --surface2:      rgba(255,255,255,0.26);
-  --surface3:      rgba(255,255,255,0.52);
-  --glass-border:  rgba(255,255,255,0.72);
-  --glass-shadow:  0 4px 24px rgba(0,0,0,0.10), 0 1px 0 rgba(255,255,255,0.92) inset;
-  --glass-shadow-hover: 0 8px 32px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,1) inset;
-  --text:    rgba(0,0,0,0.88);
-  --muted:   rgba(0,0,0,0.45);
-  --muted2:  rgba(0,0,0,0.62);
-  --border:  rgba(0,0,0,0.08);
+  --surface:  rgba(255,255,255,0.72);
+  --surface2: rgba(255,255,255,0.58);
+  --surface3: rgba(255,255,255,0.86);
+  --glass-border: rgba(255,255,255,0.85);
+  --glass-shadow: 0 4px 24px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.95) inset;
+  --glass-shadow-hover: 0 8px 32px rgba(0,0,0,0.16), 0 1px 0 rgba(255,255,255,1) inset;
+  --text:  rgba(0,0,0,0.88);
+  --muted: rgba(0,0,0,0.45);
+  --border: rgba(0,0,0,0.08);
   --border2: rgba(0,0,0,0.14);
 }
 
 html[data-theme="light"] body.has-bg-image aside {
-  background: rgba(255,255,255,0.38) !important;
+  background: rgba(255,255,255,0.70) !important;
   backdrop-filter: blur(32px) !important;
   -webkit-backdrop-filter: blur(32px) !important;
-  border-right: 1px solid rgba(255,255,255,0.60) !important;
-  box-shadow: 1px 0 0 rgba(255,255,255,0.45) !important;
+  border-right: 1px solid rgba(0,0,0,0.08) !important;
 }
+
+/* More transparent widgets + unified sidebar */
+body.has-bg-image {
+  --surface:  rgba(15,18,30,0.42) !important;
+  --surface2: rgba(15,18,30,0.28) !important;
+  --surface3: rgba(15,18,30,0.55) !important;
+}
+
+html[data-theme="light"] body.has-bg-image {
+  --surface:  rgba(255,255,255,0.52) !important;
+  --surface2: rgba(255,255,255,0.38) !important;
+  --surface3: rgba(255,255,255,0.68) !important;
+}
+
+/* Sidebar floats over background — no solid wall */
+body.has-bg-image aside {
+  background: rgba(10,13,22,0.48) !important;
+  backdrop-filter: blur(40px) !important;
+  -webkit-backdrop-filter: blur(40px) !important;
+  border-right: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+html[data-theme="light"] body.has-bg-image aside {
+  background: rgba(255,255,255,0.52) !important;
+  border-right: 1px solid rgba(255,255,255,0.6) !important;
+}
+
+/* Even more transparent + unified sidebar style */
+body.has-bg-image {
+  --surface:  rgba(15,18,30,0.28) !important;
+  --surface2: rgba(15,18,30,0.18) !important;
+  --surface3: rgba(15,18,30,0.38) !important;
+  --glass-border: rgba(255,255,255,0.12) !important;
+}
+
+html[data-theme="light"] body.has-bg-image {
+  --surface:  rgba(255,255,255,0.38) !important;
+  --surface2: rgba(255,255,255,0.26) !important;
+  --surface3: rgba(255,255,255,0.52) !important;
+  --glass-border: rgba(255,255,255,0.70) !important;
+}
+
+/* Sidebar matches widgets exactly */
+body.has-bg-image aside {
+  background: rgba(10,13,22,0.28) !important;
+  backdrop-filter: blur(40px) !important;
+  -webkit-backdrop-filter: blur(40px) !important;
+  border-right: 1px solid rgba(255,255,255,0.10) !important;
+  box-shadow: 1px 0 0 rgba(255,255,255,0.06) !important;
+}
+
+html[data-theme="light"] body.has-bg-image aside {
+  background: rgba(255,255,255,0.38) !important;
+  border-right: 1px solid rgba(255,255,255,0.55) !important;
+  box-shadow: 1px 0 0 rgba(255,255,255,0.4) !important;
+}
+
+/* Even more transparent + unified sidebar style */
+body.has-bg-image {
+  --surface:  rgba(15,18,30,0.28) !important;
+  --surface2: rgba(15,18,30,0.18) !important;
+  --surface3: rgba(15,18,30,0.38) !important;
+  --glass-border: rgba(255,255,255,0.12) !important;
+}
+
+html[data-theme="light"] body.has-bg-image {
+  --surface:  rgba(255,255,255,0.38) !important;
+  --surface2: rgba(255,255,255,0.26) !important;
+  --surface3: rgba(255,255,255,0.52) !important;
+  --glass-border: rgba(255,255,255,0.70) !important;
+}
+
+body.has-bg-image aside {
+  background: rgba(10,13,22,0.28) !important;
+  backdrop-filter: blur(40px) !important;
+  -webkit-backdrop-filter: blur(40px) !important;
+  border-right: 1px solid rgba(255,255,255,0.10) !important;
+  box-shadow: 1px 0 0 rgba(255,255,255,0.06) !important;
+}
+
+html[data-theme="light"] body.has-bg-image aside {
+  background: rgba(255,255,255,0.38) !important;
+  border-right: 1px solid rgba(255,255,255,0.55) !important;
+  box-shadow: 1px 0 0 rgba(255,255,255,0.4) !important;
+}
+
 
 /* ============================================================
-   PAGE LAYOUT — FLOATING STICKY HEADER + iOS FADE MASK
+   PAGE LAYOUT OVERRIDES
    ============================================================ */
-
-/* Page wrapper */
-.page-wrap {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-  padding: 12px 12px 0;
-  gap: 10px;
-  box-sizing: border-box;
-}
-
-/* Floating glass header — same style as sidebar */
-.page-header {
-  flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  padding: 12px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--surface);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  box-shadow: var(--glass-shadow);
-  transition: box-shadow 0.2s;
-  overflow: hidden;
-}
-
-/* Shimmer line */
-.page-header::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 12%; right: 12%; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--border2), transparent);
-  pointer-events: none;
-}
-
-.page-header-title {
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--text);
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-}
-
-.page-header-sub {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 3px;
-  letter-spacing: 0.01em;
-}
-
-/* Scrollable content with iOS fade */
-.page-content-scroll {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-bottom: 24px;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0px,
-    rgba(0,0,0,0.6) 16px,
-    black 36px
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0px,
-    rgba(0,0,0,0.6) 16px,
-    black 36px
-  );
-}
+/* Remove any conflicting page-wrap styles */
+.page-wrap { padding: 0 !important; overflow: visible !important; height: auto !important; }

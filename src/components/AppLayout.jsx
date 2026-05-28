@@ -33,7 +33,7 @@ export default function AppLayout() {
         </div>
       </div>
 
-      {/* Main content */}
+      {/* Main content — this is the scroll container, needed for sticky to work */}
       <main style={{
         flex: 1,
         overflowY: 'auto',
@@ -41,10 +41,10 @@ export default function AppLayout() {
         background: 'transparent',
         minHeight: 0,
         borderRadius: '18px',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
-        <div className="page-content">
-          <Outlet />
-        </div>
+        <Outlet />
       </main>
 
       {/* Bottom nav — mobile only */}
@@ -55,22 +55,79 @@ export default function AppLayout() {
       <style>{`
         .hidden-mobile { display: flex; }
         .show-mobile { display: none; }
-        .page-content { width: 100%; }
+
+        /* page-wrap fills main and handles its own layout */
+        .page-wrap {
+          display: flex;
+          flex-direction: column;
+          min-height: 100%;
+          gap: 0;
+        }
+
+        /* Floating sticky header */
+        .page-header {
+          position: sticky;
+          top: 10px;
+          z-index: 30;
+          margin: 10px 10px 0;
+          flex-shrink: 0;
+          padding: 12px 20px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: var(--surface);
+          backdrop-filter: blur(32px);
+          -webkit-backdrop-filter: blur(32px);
+          border: 1px solid var(--glass-border);
+          border-radius: 16px;
+          box-shadow: var(--glass-shadow);
+          overflow: hidden;
+        }
+
+        .page-header::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 12%; right: 12%; height: 1px;
+          background: linear-gradient(90deg, transparent, var(--border2), transparent);
+          pointer-events: none;
+        }
+
+        .page-header-title {
+          font-size: 15px;
+          font-weight: 500;
+          color: var(--text);
+          letter-spacing: -0.01em;
+        }
+
+        .page-header-sub {
+          font-size: 11px;
+          color: var(--muted);
+          margin-top: 3px;
+        }
+
+        /* Scrollable content with iOS fade */
+        .page-content-scroll {
+          flex: 1;
+          padding: 12px 10px 24px;
+          -webkit-mask-image: linear-gradient(
+            to bottom,
+            transparent 0px,
+            rgba(0,0,0,0.7) 20px,
+            black 40px
+          );
+          mask-image: linear-gradient(
+            to bottom,
+            transparent 0px,
+            rgba(0,0,0,0.7) 20px,
+            black 40px
+          );
+        }
 
         @media (max-width: 768px) {
           .hidden-mobile { display: none !important; }
           .show-mobile { display: block; }
-          .page-content { padding-bottom: 80px; }
+          .page-content-scroll { padding-bottom: 80px; }
           * { max-width: 100vw; }
-          [style*="gridTemplateColumns: 'repeat(6"] { grid-template-columns: repeat(2, 1fr) !important; }
-          [style*="gridTemplateColumns: 'repeat(5"] { grid-template-columns: repeat(2, 1fr) !important; }
-          [style*="gridTemplateColumns: 'repeat(4"] { grid-template-columns: repeat(2, 1fr) !important; }
-          [style*="gridTemplateColumns: 'repeat(3"] { grid-template-columns: repeat(2, 1fr) !important; }
-          [style*="gridTemplateColumns: '1fr 1fr'"] { grid-template-columns: 1fr !important; }
-          [style*="gridTemplateColumns: '200px 1fr'"] { grid-template-columns: 1fr !important; }
-          [style*="gridTemplateColumns: 'auto 1fr'"] { grid-template-columns: 1fr !important; }
-          [style*="gridTemplateColumns: '1fr 300px'"] { grid-template-columns: 1fr !important; }
-          [style*="gridTemplateColumns: 'minmax(0,1fr) 230px'"] { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>
