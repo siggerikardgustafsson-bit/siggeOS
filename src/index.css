@@ -638,3 +638,37 @@ html[data-theme="light"] body.has-bg-image aside {
    ============================================================ */
 /* Remove any conflicting page-wrap styles */
 .page-wrap { padding: 0 !important; overflow: visible !important; height: auto !important; }
+
+
+/* ============================================================
+   FLOATING SIDEBAR FIX
+   Sidebar should behave like a glass widget, not a wall.
+   ============================================================ */
+.app-sidebar-floating {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+.app-sidebar-floating > div {
+  height: 100%;
+}
+
+.app-sidebar-floating aside {
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--glass-shadow) !important;
+}
+
+body.has-bg-image .app-sidebar-floating aside {
+  background: var(--surface) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--glass-shadow) !important;
+}
+
+html[data-theme="light"] body.has-bg-image .app-sidebar-floating aside {
+  background: var(--surface) !important;
+  border: 1px solid var(--glass-border) !important;
+}

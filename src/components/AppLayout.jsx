@@ -16,13 +16,13 @@ export default function AppLayout() {
       display: 'flex',
       height: '100vh',
       overflow: 'hidden',
-      padding: '0',
-      gap: '0',
+      padding: '10px',
+      gap: '10px',
       boxSizing: 'border-box',
     }}>
 
       {/* Sidebar — floating widget */}
-      <div className="hidden-mobile" style={{ flexShrink: 0 }}>
+      <div className="hidden-mobile app-sidebar-floating" style={{ flexShrink: 0 }}>
         <div style={{
           height: '100%',
           borderRadius: '18px',
