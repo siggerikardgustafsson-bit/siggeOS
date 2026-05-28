@@ -336,7 +336,7 @@ ${profileBlock}`
     return didSomething
   }
 
-
+  async function sendMessage() {
     if (!input.trim() || loading) return
     const userMsg = { role: 'user', content: input.trim() }
     const newMessages = [...messages, userMsg]
