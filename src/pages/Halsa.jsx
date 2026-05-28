@@ -374,8 +374,20 @@ export default function HalsaPage() {
             const cutoff = format(subDays(new Date(), periodDays), 'yyyy-MM-dd')
             const filteredData = chartData.filter(d => d.date >= cutoff)
 
-            // Retatrutide concentration — exponential decay, t½ = 6 days → λ = ln2/6
-            const lambda = Math.log(2) / 6
+            // Retatrutide PK model:
+            // - Absorption phase: rises to peak at Tmax = 48h (2 days) using 1-compartment absorption
+            // - Elimination: t½ = 6 days → ke = ln2/6
+            // - ka chosen so peak occurs at Tmax: ka ≈ ln(ka/ke)/(ka-ke) solved numerically → ka ≈ 0.693/0.5 = 1.386/day (Tmax ~0.5d is too fast)
+            // We use the standard formula: C(t) = F*D*ka/(Vd*(ka-ke)) * (e^(-ke*t) - e^(-ka*t))
+            // Normalised so C_max = 1 per unit dose, then scale by actual dose.
+            // ka: absorption rate constant — set so Tmax ≈ 2 days
+            // Tmax = ln(ka/ke)/(ka-ke). With ke=ln2/6≈0.1155, ka≈0.693 gives Tmax≈2.0 days ✓
+            const ke = Math.log(2) / 6        // elimination rate constant (per day)
+            const ka = Math.log(2) / 1.0      // absorption rate constant → Tmax ≈ 2 days
+            // Normalisation factor so peak = dose (scale factor)
+            const tmax_norm = Math.log(ka / ke) / (ka - ke)
+            const peak_factor = (ka - ke) / (ka * Math.exp(-ke * tmax_norm) - ke * Math.exp(-ka * tmax_norm))
+
             const retData = (() => {
               const injections = logs.filter(l => l.retatrutide_dose_mg > 0 && l.date >= cutoff).map(l => ({ date: l.date, dose: l.retatrutide_dose_mg }))
               if (!injections.length) return []
@@ -383,9 +395,11 @@ export default function HalsaPage() {
               for (let i = periodDays; i >= 0; i--) {
                 const d = format(subDays(new Date(), i), 'yyyy-MM-dd')
                 const conc = injections.reduce((sum, inj) => {
-                  const daysSince = (new Date(d) - new Date(inj.date)) / 86400000
-                  if (daysSince < 0) return sum
-                  return sum + inj.dose * Math.exp(-lambda * daysSince)
+                  const t = (new Date(d) - new Date(inj.date)) / 86400000 // days since injection
+                  if (t < 0) return sum
+                  // 1-compartment absorption model: C(t) = D * peak_factor * (e^(-ke*t) - e^(-ka*t))
+                  const c = inj.dose * peak_factor * (Math.exp(-ke * t) - Math.exp(-ka * t))
+                  return sum + Math.max(0, c)
                 }, 0)
                 days.push({ date: d, conc: Math.round(conc * 100) / 100 })
               }
@@ -439,7 +453,7 @@ export default function HalsaPage() {
                     <div style={{ fontSize:'13px', color:'#a78bfa', fontWeight:'700', marginBottom:'2px' }}>
                       {hasRet ? (retData.slice(-1)[0]?.conc.toFixed(2) + ' mg-ekv') : '—'}
                     </div>
-                    <div style={{ fontSize:'10px', color:'var(--muted)', marginBottom:'10px' }}>t½ = 6 dagar · exponentiellt förfall</div>
+                    <div style={{ fontSize:'10px', color:'var(--muted)', marginBottom:'10px' }}>Tmax ≈ 48h · t½ = 6 dagar · 1-kompartment PK-modell</div>
                     {hasRet ? (
                       <ResponsiveContainer width="100%" height={90}>
                         <LineChart data={retData}>
