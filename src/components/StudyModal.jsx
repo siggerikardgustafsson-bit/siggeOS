@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, differenceInDays, parseISO } from 'date-fns'
@@ -406,21 +407,22 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     return []
   }
 
-  return (
+  return createPortal(
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
-      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)',
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(0,0,0,0.70)', backdropFilter: 'blur(8px)',
+      WebkitBackdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
     }} onClick={e => e.target === e.currentTarget && (step === 'chat' ? endSession() : onClose())}>
       <div style={{
-        background: 'var(--surface)', backdropFilter: 'blur(20px)',
-        border: '1px solid var(--glass-border)', borderRadius: '20px',
+        background: 'var(--modal-bg)',
+        border: '1px solid var(--modal-border)', borderRadius: '20px',
         width: '100%', maxWidth: '720px', height: '90vh',
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 80px rgba(0,0,0,0.5)', overflow: 'hidden',
       }}>
         {/* Header */}
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--modal-border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: '15px', fontWeight: '700' }}>📚 {exam.name}</div>
@@ -453,7 +455,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                 const current = masteryUpdates[g.id] ?? g.effectiveMastery
                 const improved = masteryUpdates[g.id] !== undefined && masteryUpdates[g.id] > g.effectiveMastery
                 return (
-                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '8px', background: improved ? 'rgba(16,185,129,0.1)' : 'var(--surface2)', border: '1px solid ' + (improved ? 'rgba(16,185,129,0.2)' : 'var(--border)') }}>
+                  <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '8px', background: improved ? 'rgba(16,185,129,0.1)' : 'var(--modal-surface2)', border: '1px solid ' + (improved ? 'rgba(16,185,129,0.2)' : 'var(--modal-border)') }}>
                     <MasteryRing value={current} size={26} />
                     <span style={{ fontSize: '10px', color: 'var(--muted2)', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.description.slice(0, 25)}</span>
                     {improved && <TrendingUp size={9} color="#10b981" />}
@@ -471,14 +473,14 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
               <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
                 <button onClick={() => setMode('normal')} style={{
                   flex: 1, padding: '9px', borderRadius: '9px', border: 'none', cursor: 'pointer',
-                  background: mode === 'normal' ? 'var(--accent)' : 'var(--surface2)',
+                  background: mode === 'normal' ? 'var(--accent)' : 'var(--modal-surface2)',
                   color: mode === 'normal' ? 'white' : 'var(--muted)',
                   fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                 }}><Brain size={14} /> Studiesession</button>
                 <button onClick={() => setMode('tenta')} style={{
                   flex: 1, padding: '9px', borderRadius: '9px', border: 'none', cursor: 'pointer',
-                  background: mode === 'tenta' ? '#f59e0b' : 'var(--surface2)',
+                  background: mode === 'tenta' ? '#f59e0b' : 'var(--modal-surface2)',
                   color: mode === 'tenta' ? 'white' : 'var(--muted)',
                   fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
@@ -497,7 +499,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                 <input ref={materialRef} type="file" accept=".pdf" style={{ display: 'none' }} onChange={handleMaterialUpload} />
                 <button onClick={() => materialRef.current?.click()} disabled={uploadingMaterial} style={{
                   display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 12px',
-                  borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface2)',
+                  borderRadius: '7px', border: '1px solid var(--modal-border)', background: 'var(--modal-surface2)',
                   color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
                 }}>
                   {uploadingMaterial ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</> : <><Upload size={12} /> Ladda upp kursmaterial (PDF)</>}
@@ -514,7 +516,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                   return true
                 })
                 return (
-                  <div style={{ borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden', background: 'var(--surface2)' }}>
+                  <div style={{ borderRadius: '12px', border: '1px solid var(--modal-border)', overflow: 'hidden', background: 'var(--modal-surface2)' }}>
                     {/* Header row */}
                     <div style={{ padding: '12px 14px', borderBottom: uniqueHistory.length > 0 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -533,7 +535,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                       <div style={{ padding: '8px 14px 10px' }}>
                         <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.06em', marginBottom: '7px' }}>AVKLARADE</div>
                         {uniqueHistory.map(t => (
-                          <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                          <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--modal-border)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
                               <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                 <Check size={8} color="#10b981" />
@@ -572,10 +574,10 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                         <div key={goal.id} onClick={() => setSelectedGoals(prev => prev.includes(goal.id) ? prev.filter(id => id !== goal.id) : [...prev, goal.id])} style={{
                           display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px',
                           borderRadius: '9px', cursor: 'pointer', transition: 'all 0.12s',
-                          background: selected ? 'var(--accent-soft)' : 'var(--surface2)',
-                          border: '1px solid ' + (selected ? 'var(--accent-border)' : 'var(--border)'),
+                          background: selected ? 'var(--accent-soft)' : 'var(--modal-surface2)',
+                          border: '1px solid ' + (selected ? 'var(--accent-border)' : 'var(--modal-border)'),
                         }}>
-                          <div style={{ width: '17px', height: '17px', borderRadius: '4px', flexShrink: 0, border: '2px solid ' + (selected ? 'var(--accent)' : 'var(--border)'), background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <div style={{ width: '17px', height: '17px', borderRadius: '4px', flexShrink: 0, border: '2px solid ' + (selected ? 'var(--accent)' : 'var(--modal-border)'), background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {selected && <Check size={10} color="white" />}
                           </div>
                           <MasteryRing value={m} size={34} />
@@ -597,7 +599,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
               )}
             </div>
 
-            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--modal-border)', flexShrink: 0 }}>
               {loading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '12px', color: 'var(--muted)', fontSize: '13px' }}>
                   <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
@@ -626,7 +628,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                     <div style={{
                       maxWidth: '85%', padding: '10px 14px',
                       borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                      background: msg.role === 'user' ? 'var(--accent)' : 'var(--surface2)',
+                      background: msg.role === 'user' ? 'var(--accent)' : 'var(--modal-surface2)',
                       border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
                       color: msg.role === 'user' ? 'white' : 'var(--text)',
                       boxShadow: msg.role === 'user' ? '0 2px 10px var(--accent-glow)' : 'none',
@@ -637,12 +639,12 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                       <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: '5px', alignSelf: 'flex-start' }}>
                         {options.map((opt, oi) => (
                           <button key={oi} onClick={() => sendMessage(opt)} disabled={loading} style={{
-                            padding: '9px 14px', borderRadius: '9px', border: '1px solid var(--border)',
-                            background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer',
+                            padding: '9px 14px', borderRadius: '9px', border: '1px solid var(--modal-border)',
+                            background: 'var(--modal-surface)', color: 'var(--text)', cursor: 'pointer',
                             fontSize: '13px', fontFamily: 'Inter, sans-serif', textAlign: 'left', lineHeight: '1.4',
                           }}
                           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.background = 'var(--accent-soft)' }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--surface)' }}>
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--modal-border)'; e.currentTarget.style.background = 'var(--modal-surface)' }}>
                             {opt}
                           </button>
                         ))}
@@ -653,7 +655,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
               })}
               {loading && (
                 <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                  <div style={{ padding: '10px 14px', borderRadius: '14px', background: 'var(--surface2)', border: '1px solid var(--border)', display: 'flex', gap: '4px' }}>
+                  <div style={{ padding: '10px 14px', borderRadius: '14px', background: 'var(--modal-surface2)', border: '1px solid var(--modal-border)', display: 'flex', gap: '4px' }}>
                     {[0,1,2].map(idx => (
                       <div key={idx} style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'bounce 1.2s ease-in-out ' + (idx * 0.15) + 's infinite' }} />
                     ))}
@@ -662,22 +664,22 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
               )}
               <div ref={messagesEndRef} />
             </div>
-            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--modal-border)', flexShrink: 0 }}>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
                 <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
                   placeholder="Svara... (Enter skickar, Shift+Enter ny rad)" disabled={loading} rows={3}
                   style={{
                     flex: 1, padding: '10px 14px', borderRadius: '10px',
-                    border: '1px solid var(--border)', background: 'var(--surface2)',
+                    border: '1px solid var(--modal-border)', background: 'var(--modal-surface2)',
                     color: 'var(--text)', fontSize: '14px', fontFamily: 'Inter, sans-serif',
                     resize: 'none', outline: 'none', lineHeight: '1.5', minHeight: '72px', maxHeight: '160px',
                   }}
                   onFocus={e => e.target.style.borderColor = 'var(--accent-border)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--modal-border)'}
                 />
                 <button onClick={() => sendMessage()} disabled={loading || !input.trim()} style={{
                   width: '42px', height: '42px', borderRadius: '10px', border: 'none',
-                  background: input.trim() ? 'var(--accent)' : 'var(--surface2)',
+                  background: input.trim() ? 'var(--accent)' : 'var(--modal-surface2)',
                   color: input.trim() ? 'white' : 'var(--muted)',
                   cursor: input.trim() ? 'pointer' : 'default',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -689,6 +691,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
