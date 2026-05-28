@@ -16,8 +16,8 @@ export default function AppLayout() {
       display: 'flex',
       height: '100vh',
       overflow: 'hidden',
-      padding: '10px',
-      gap: '10px',
+      padding: '0',
+      gap: '0',
       boxSizing: 'border-box',
     }}>
 
