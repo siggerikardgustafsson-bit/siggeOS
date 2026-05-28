@@ -43,11 +43,33 @@ DIN PERSONLIGHET SOM JARVIS:
 - Aldrig sycophantisk – sanningen även om det är obekvämt
 - Refererar naturligt till hans vänner, historia och mål
 - Du har VERKTYG för att hämta data — använd dem proaktivt utan att fråga om lov
+- Du kan ÄNDRA DATA direkt i databasen när Sigge ber om det — använd actions nedan
 
-SNABBKOMMANDON:
-- "skapa uppdrag: [titel], tagg: [tagg], deadline: [datum]" → JSON: {"action": "create_erik_task", "title": "...", "tag": "...", "deadline": "YYYY-MM-DD"}
-- "logga äventyr: [titel]" → JSON: {"action": "create_adventure", "title": "...", "description": "...", "date": "YYYY-MM-DD", "category": "mat|musik|natur|spontant|socialt|kultur|övrigt", "rating": 1-5}
-- "spara insikt: [text]" → JSON: {"action": "save_insight", "insight": "...", "category": "hälsa|träning|plugg|socialt|mönster|mål"}
+DATABAS-ACTIONS (embed JSON i svaret när Sigge ber dig ändra data):
+
+SKAPA:
+- {"action":"create_erik_task","title":"...","tag":"...","deadline":"YYYY-MM-DD"}
+- {"action":"create_adventure","title":"...","description":"...","date":"YYYY-MM-DD","category":"mat|musik|natur|spontant|socialt|kultur|övrigt","rating":1-5}
+- {"action":"save_insight","insight":"...","category":"hälsa|träning|plugg|socialt|mönster|mål"}
+- {"action":"log_training","date":"YYYY-MM-DD","session_type":"gym|löpning|cykling|simning|övrigt","duration_minutes":60,"distance_km":null,"feeling":7,"notes":"..."}
+- {"action":"log_health","date":"YYYY-MM-DD","weight_kg":null,"sleep_hours":null,"energy":null,"steps":null,"alcohol_units":null,"nicotine":false}
+- {"action":"log_expense","date":"YYYY-MM-DD","amount":0,"category":"Mat|Transport|Nöje|Kläder|Hälsa|Prenumerationer|Övrigt","description":"..."}
+- {"action":"log_income","date":"YYYY-MM-DD","amount":0,"source":"CSN|PA-jobb|Erik|Övrigt","description":"..."}
+
+UPPDATERA (kräver id från kontexten eller att Sigge anger det):
+- {"action":"update_training","id":"UUID","fields":{"feeling":8,"notes":"uppdaterad notering"}}
+- {"action":"update_health","id":"UUID","fields":{"weight_kg":76.5,"sleep_hours":7.5}}
+- {"action":"update_erik_task","id":"UUID","fields":{"status":"pågående|klart|ej_påbörjat","title":"...","deadline":"YYYY-MM-DD"}}
+- {"action":"update_expense","id":"UUID","fields":{"amount":0,"category":"...","description":"..."}}
+
+RADERA:
+- {"action":"delete_training","id":"UUID"}
+- {"action":"delete_health","id":"UUID"}
+- {"action":"delete_erik_task","id":"UUID"}
+- {"action":"delete_expense","id":"UUID"}
+- {"action":"delete_income","id":"UUID"}
+
+VIKTIGT: Hämta alltid rätt ID via fetch-verktygen FÖRST. Bekräfta vad du ska göra INNAN du raderar. För update/delete — säg alltid vilket post du hittat och vad du tänker ändra.
 
 KONTEXT (injiceras nedan):
 {CONTEXT}
@@ -225,7 +247,96 @@ ${profileBlock}`
     } catch (e) { console.error('Summary failed:', e) }
   }
 
-  async function sendMessage() {
+  async function executeActions(content) {
+    // Find all JSON action blocks in the response
+    const actionRegex = /\{[^{}]*"action"\s*:\s*"[^"]*"[^{}]*\}/gs
+    const matches = content.match(actionRegex) || []
+    let didSomething = false
+
+    for (const raw of matches) {
+      try {
+        const d = JSON.parse(raw)
+        if (!d.action) continue
+
+        switch (d.action) {
+          // ── CREATE ──────────────────────────────────────────────
+          case 'create_erik_task':
+            await supabase.from('erik_tasks').insert({ user_id: user.id, title: d.title, description: d.description||'', deadline: d.deadline||null, tag: d.tag||'Övrig verksamhet', status: 'ej_påbörjat', priority: 'medium' })
+            didSomething = true; break
+
+          case 'create_adventure':
+            await supabase.from('adventures').insert({ user_id: user.id, title: d.title, description: d.description||'', date: d.date||format(new Date(),'yyyy-MM-dd'), location: d.location||'', category: d.category||'övrigt', rating: d.rating||null })
+            didSomething = true; break
+
+          case 'save_insight':
+            await supabase.from('jarvis_insights').insert({ user_id: user.id, insight: d.insight, category: d.category||'mönster' })
+            await loadInsights()
+            didSomething = true; break
+
+          case 'log_training':
+            await supabase.from('training_sessions').insert({ user_id: user.id, date: d.date||format(new Date(),'yyyy-MM-dd'), session_type: d.session_type||'gym', duration_minutes: d.duration_minutes||null, distance_km: d.distance_km||null, feeling: d.feeling||null, notes: d.notes||'', source: 'jarvis' })
+            didSomething = true; break
+
+          case 'log_health':
+            await supabase.from('health_logs').upsert({ user_id: user.id, date: d.date||format(new Date(),'yyyy-MM-dd'), weight_kg: d.weight_kg||null, sleep_hours: d.sleep_hours||null, energy: d.energy||null, steps: d.steps||null, alcohol_units: d.alcohol_units||null, nicotine: d.nicotine||false }, { onConflict: 'user_id,date' })
+            didSomething = true; break
+
+          case 'log_expense':
+            await supabase.from('expense_logs').insert({ user_id: user.id, date: d.date||format(new Date(),'yyyy-MM-dd'), amount: d.amount||0, category: d.category||'Övrigt', description: d.description||'' })
+            didSomething = true; break
+
+          case 'log_income':
+            await supabase.from('income_logs').insert({ user_id: user.id, date: d.date||format(new Date(),'yyyy-MM-dd'), amount: d.amount||0, source: d.source||'Övrigt', description: d.description||'' })
+            didSomething = true; break
+
+          // ── UPDATE ──────────────────────────────────────────────
+          case 'update_training':
+            if (d.id && d.fields) await supabase.from('training_sessions').update(d.fields).eq('id', d.id).eq('user_id', user.id)
+            didSomething = true; break
+
+          case 'update_health':
+            if (d.id && d.fields) await supabase.from('health_logs').update(d.fields).eq('id', d.id).eq('user_id', user.id)
+            didSomething = true; break
+
+          case 'update_erik_task':
+            if (d.id && d.fields) await supabase.from('erik_tasks').update(d.fields).eq('id', d.id).eq('user_id', user.id)
+            didSomething = true; break
+
+          case 'update_expense':
+            if (d.id && d.fields) await supabase.from('expense_logs').update(d.fields).eq('id', d.id).eq('user_id', user.id)
+            didSomething = true; break
+
+          // ── DELETE ──────────────────────────────────────────────
+          case 'delete_training':
+            if (d.id) await supabase.from('training_sessions').delete().eq('id', d.id).eq('user_id', user.id)
+            didSomething = true; break
+
+          case 'delete_health':
+            if (d.id) await supabase.from('health_logs').delete().eq('id', d.id).eq('user_id', user.id)
+            didSomething = true; break
+
+          case 'delete_erik_task':
+            if (d.id) await supabase.from('erik_tasks').delete().eq('id', d.id).eq('user_id', user.id)
+            didSomething = true; break
+
+          case 'delete_expense':
+            if (d.id) await supabase.from('expense_logs').delete().eq('id', d.id).eq('user_id', user.id)
+            didSomething = true; break
+
+          case 'delete_income':
+            if (d.id) await supabase.from('income_logs').delete().eq('id', d.id).eq('user_id', user.id)
+            didSomething = true; break
+
+          default: break
+        }
+      } catch(e) {
+        console.warn('Action parse/exec error:', e, raw)
+      }
+    }
+    return didSomething
+  }
+
+
     if (!input.trim() || loading) return
     const userMsg = { role: 'user', content: input.trim() }
     const newMessages = [...messages, userMsg]
@@ -243,37 +354,8 @@ ${profileBlock}`
 
       const assistantMsg = { role: 'assistant', content: data.content }
 
-      // Parse actions
-      if (data.content.includes('"action": "create_erik_task"')) {
-        try {
-          const m = data.content.match(/\{"action":\s*"create_erik_task"[^}]*\}/s)
-          if (m) {
-            const d = JSON.parse(m[0])
-            await supabase.from('erik_tasks').insert({ user_id: user.id, title: d.title, description: d.description||'', deadline: d.deadline||null, tag: d.tag||'Övrig verksamhet', status: 'ej_påbörjat', priority: 'medium' })
-          }
-        } catch(e) {}
-      }
-
-      if (data.content.includes('"action": "create_adventure"')) {
-        try {
-          const m = data.content.match(/\{"action":\s*"create_adventure"[^}]*\}/s)
-          if (m) {
-            const d = JSON.parse(m[0])
-            await supabase.from('adventures').insert({ user_id: user.id, title: d.title, description: d.description||'', date: d.date||format(new Date(),'yyyy-MM-dd'), location: d.location||'', category: d.category||'övrigt', rating: d.rating||null })
-          }
-        } catch(e) {}
-      }
-
-      if (data.content.includes('"action": "save_insight"')) {
-        try {
-          const m = data.content.match(/\{"action":\s*"save_insight"[^}]*\}/s)
-          if (m) {
-            const d = JSON.parse(m[0])
-            await supabase.from('jarvis_insights').insert({ user_id: user.id, insight: d.insight, category: d.category||'mönster' })
-            await loadInsights()
-          }
-        } catch(e) {}
-      }
+      // Execute all actions embedded in response
+      await executeActions(data.content)
 
       setMessages(prev => [...prev, assistantMsg])
       await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: data.content })
