@@ -25,7 +25,7 @@ export default function AppLayout() {
       <div className="hidden-mobile app-sidebar-floating" style={{ flexShrink: 0 }}>
         <div style={{
           height: '100%',
-          borderRadius: '18px',
+          borderRadius: '0',
           overflow: 'hidden',
           boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
         }}>
@@ -40,7 +40,7 @@ export default function AppLayout() {
         overflowX: 'hidden',
         background: 'transparent',
         minHeight: 0,
-        borderRadius: '18px',
+        borderRadius: '0',
         display: 'flex',
         flexDirection: 'column',
       }}>
@@ -69,7 +69,7 @@ export default function AppLayout() {
           position: sticky;
           top: 10px;
           z-index: 30;
-          margin: 10px 10px 0;
+          margin: 0 0 0;
           flex-shrink: 0;
           padding: 12px 20px;
           display: flex;
@@ -108,7 +108,7 @@ export default function AppLayout() {
         /* Scrollable content with iOS fade */
         .page-content-scroll {
           flex: 1;
-          padding: 12px 10px 24px;
+          padding: 12px 0 24px;
           -webkit-mask-image: linear-gradient(
             to bottom,
             transparent 0px,
