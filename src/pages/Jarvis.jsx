@@ -320,7 +320,7 @@ ${profileBlock}`
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'transparent' }}>
 
       {/* HEADER — matches page-header class */}
-      <div className="page-header" style={{ margin: '10px 10px 0', flexShrink: 0 }}>
+      <div className="page-header" style={{ marginBottom: '0', flexShrink: 0 }}>
         <div>
           <div className="page-header-title">Jarvis</div>
           <div className="page-header-sub">
@@ -460,7 +460,7 @@ ${profileBlock}`
       </div>
 
       {/* INPUT */}
-      <div style={{ padding: '10px 10px 10px', flexShrink: 0 }}>
+      <div style={{ padding: '8px 0 0', flexShrink: 0 }}>
         <div style={{
           display: 'flex', gap: '8px', alignItems: 'flex-end',
           background: 'var(--surface)',
