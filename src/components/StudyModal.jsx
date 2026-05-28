@@ -410,21 +410,29 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   return createPortal(
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
-      background: 'rgba(0,0,0,0.70)', backdropFilter: 'blur(8px)',
-      WebkitBackdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
-    }} onClick={e => e.target === e.currentTarget && (step === 'chat' ? endSession() : onClose())}>
+    }}>
+      {/* Overlay as sibling — plain dim, NO backdrop-filter so panel can blur through */}
+      <div
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.52)' }}
+        onClick={() => step === 'chat' ? endSession() : onClose()}
+      />
+
+      {/* Panel — same glass treatment as page-header and dashboard cards */}
       <div style={{
-        background: 'var(--modal-bg)',
-        backdropFilter: 'blur(32px)',
-        WebkitBackdropFilter: 'blur(32px)',
-        border: '1px solid var(--modal-border)', borderRadius: '20px',
+        position: 'relative', zIndex: 1,
+        background: 'var(--surface)',
+        backdropFilter: 'var(--glass-blur)',
+        WebkitBackdropFilter: 'var(--glass-blur)',
+        border: '1px solid var(--glass-border)',
+        borderRadius: '20px',
         width: '100%', maxWidth: '720px', height: '90vh',
         display: 'flex', flexDirection: 'column',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.5)', overflow: 'hidden',
+        boxShadow: 'var(--glass-shadow)',
+        overflow: 'hidden',
       }}>
         {/* Header */}
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--glass-border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: '15px', fontWeight: '700' }}>📚 {exam.name}</div>
@@ -601,7 +609,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
               )}
             </div>
 
-            <div style={{ padding: '12px 18px', borderTop: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--glass-border)', flexShrink: 0 }}>
               {loading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '12px', color: 'var(--muted)', fontSize: '13px' }}>
                   <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
@@ -632,10 +640,10 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                       borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '4px 16px 16px 16px',
                       background: msg.role === 'user'
                         ? 'var(--accent)'
-                        : 'rgba(255,255,255,0.07)',
+                        : 'var(--surface3)',
                       backdropFilter: msg.role === 'assistant' ? 'blur(10px)' : 'none',
                       WebkitBackdropFilter: msg.role === 'assistant' ? 'blur(10px)' : 'none',
-                      border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.10)' : 'none',
+                      border: msg.role === 'assistant' ? '1px solid var(--glass-border)' : 'none',
                       color: 'var(--text)',
                       boxShadow: msg.role === 'user' ? '0 4px 16px var(--accent-glow)' : '0 2px 12px rgba(0,0,0,0.15)',
                     }}>
@@ -646,15 +654,15 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                         {options.map((opt, oi) => (
                           <button key={oi} onClick={() => sendMessage(opt)} disabled={loading} style={{
                             padding: '9px 14px', borderRadius: '10px',
-                            border: '1px solid rgba(255,255,255,0.10)',
-                            background: 'rgba(255,255,255,0.06)',
-                            backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+                            border: '1px solid var(--glass-border)',
+                            background: 'var(--surface2)',
+                            backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
                             color: 'var(--text)', cursor: 'pointer',
                             fontSize: '13px', fontFamily: 'Inter, sans-serif', textAlign: 'left', lineHeight: '1.4',
                             transition: 'all 0.15s',
                           }}
                           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.background = 'var(--accent-soft)' }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}>
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--glass-border)'; e.currentTarget.style.background = 'var(--surface2)' }}>
                             {opt}
                           </button>
                         ))}
@@ -667,9 +675,9 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                 <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                   <div style={{
                     padding: '11px 16px', borderRadius: '4px 16px 16px 16px',
-                    background: 'rgba(255,255,255,0.07)',
-                    backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255,255,255,0.10)',
+                    background: 'var(--surface3)',
+                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                    border: '1px solid var(--glass-border)',
                     display: 'flex', gap: '5px', alignItems: 'center',
                   }}>
                     {[0,1,2].map(idx => (
@@ -684,21 +692,21 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
             {/* Input */}
             <div style={{
               padding: '12px 16px 16px',
-              borderTop: '1px solid rgba(255,255,255,0.07)',
-              background: 'rgba(0,0,0,0.15)',
-              backdropFilter: 'blur(10px)',
-              WebkitBackdropFilter: 'blur(10px)',
+              borderTop: '1px solid var(--glass-border)',
+              background: 'rgba(0,0,0,0.18)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
               flexShrink: 0,
             }}>
               <div style={{
                 display: 'flex', gap: '8px', alignItems: 'flex-end',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.10)',
+                background: 'var(--surface2)',
+                border: '1px solid var(--glass-border)',
                 borderRadius: '14px', padding: '8px 8px 8px 14px',
                 transition: 'border-color 0.15s',
               }}
               onFocusCapture={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
-              onBlurCapture={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'}
+              onBlurCapture={e => e.currentTarget.style.borderColor = 'var(--glass-border)'}
               >
                 <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
                   placeholder="Svara... (Enter skickar, Shift+Enter ny rad)" disabled={loading} rows={2}
