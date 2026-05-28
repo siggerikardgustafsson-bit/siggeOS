@@ -1,15 +1,9 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
-import { useEffect } from 'react'
-import { initBackground } from '../hooks/useBackground'
 
 export default function AppLayout() {
   const location = useLocation()
-
-  useEffect(() => {
-    initBackground()
-  }, [location.pathname])
 
   return (
     <div style={{

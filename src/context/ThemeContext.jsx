@@ -74,12 +74,18 @@ export function ThemeProvider({ children }) {
   // Background — apply whenever any bg setting changes
   useEffect(() => {
     applyBg(bgImage, blurId, dimId, theme)
+    // Save URL to localStorage so it survives page reloads
     if (bgImage) {
       try { localStorage.setItem('bgImage', bgImage) } catch(e) {}
     } else {
       localStorage.removeItem('bgImage')
     }
   }, [bgImage, blurId, dimId, theme])
+
+  // Re-apply on mount to handle hard reloads
+  useEffect(() => {
+    applyBg(bgImage, blurId, dimId, theme)
+  }, []) // eslint-disable-line
 
   // Compact
   useEffect(() => {
