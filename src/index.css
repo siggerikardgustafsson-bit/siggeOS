@@ -51,10 +51,10 @@
   --r-lg: 16px;
   --r-xl: 20px;
 
-  /* Modal — solid surface, not transparent like --surface */
-  --modal-bg:        #12182b;
-  --modal-surface:   #1a2236;
-  --modal-surface2:  #1f2a40;
+  /* Modal — glass surface matching app theme */
+  --modal-bg:        rgba(10, 14, 26, 0.82);
+  --modal-surface:   rgba(255,255,255,0.06);
+  --modal-surface2:  rgba(255,255,255,0.04);
   --modal-border:    rgba(255,255,255,0.10);
 }
 
@@ -74,9 +74,9 @@
   --glass-border: rgba(255,255,255,0.80);
   --glass-shadow: 0 4px 24px rgba(0,0,0,0.10), 0 1px 0 rgba(255,255,255,0.90) inset;
   --glass-shadow-hover: 0 8px 32px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,1) inset;
-  --modal-bg:       #ffffff;
-  --modal-surface:  #f4f6fb;
-  --modal-surface2: #edf0f7;
+  --modal-bg:       rgba(240, 242, 248, 0.80);
+  --modal-surface:  rgba(255,255,255,0.55);
+  --modal-surface2: rgba(255,255,255,0.38);
   --modal-border:   rgba(0,0,0,0.08);
 }
 

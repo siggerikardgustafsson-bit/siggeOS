@@ -416,13 +416,15 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     }} onClick={e => e.target === e.currentTarget && (step === 'chat' ? endSession() : onClose())}>
       <div style={{
         background: 'var(--modal-bg)',
+        backdropFilter: 'blur(32px)',
+        WebkitBackdropFilter: 'blur(32px)',
         border: '1px solid var(--modal-border)', borderRadius: '20px',
         width: '100%', maxWidth: '720px', height: '90vh',
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 80px rgba(0,0,0,0.5)', overflow: 'hidden',
       }}>
         {/* Header */}
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--modal-border)', flexShrink: 0 }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: '15px', fontWeight: '700' }}>📚 {exam.name}</div>
@@ -599,7 +601,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
               )}
             </div>
 
-            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--modal-border)', flexShrink: 0 }}>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
               {loading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '12px', color: 'var(--muted)', fontSize: '13px' }}>
                   <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
@@ -617,7 +619,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
         {/* CHAT STEP */}
         {step === 'chat' && (
           <>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 8px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {messages.map((msg, i) => {
                 const isLast = i === messages.length - 1
                 const rawContent = typeof msg.content === 'string' ? msg.content : ''
@@ -626,25 +628,33 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                 return (
                   <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '6px' }}>
                     <div style={{
-                      maxWidth: '85%', padding: '10px 14px',
-                      borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                      background: msg.role === 'user' ? 'var(--accent)' : 'var(--modal-surface2)',
-                      border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none',
-                      color: msg.role === 'user' ? 'white' : 'var(--text)',
-                      boxShadow: msg.role === 'user' ? '0 2px 10px var(--accent-glow)' : 'none',
+                      maxWidth: '82%', padding: '11px 15px',
+                      borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '4px 16px 16px 16px',
+                      background: msg.role === 'user'
+                        ? 'var(--accent)'
+                        : 'rgba(255,255,255,0.07)',
+                      backdropFilter: msg.role === 'assistant' ? 'blur(10px)' : 'none',
+                      WebkitBackdropFilter: msg.role === 'assistant' ? 'blur(10px)' : 'none',
+                      border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.10)' : 'none',
+                      color: 'var(--text)',
+                      boxShadow: msg.role === 'user' ? '0 4px 16px var(--accent-glow)' : '0 2px 12px rgba(0,0,0,0.15)',
                     }}>
                       <MarkdownMessage content={cleaned} userMessage={msg.role === 'user'} />
                     </div>
                     {options.length > 0 && (
-                      <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: '5px', alignSelf: 'flex-start' }}>
+                      <div style={{ maxWidth: '82%', display: 'flex', flexDirection: 'column', gap: '5px', alignSelf: 'flex-start' }}>
                         {options.map((opt, oi) => (
                           <button key={oi} onClick={() => sendMessage(opt)} disabled={loading} style={{
-                            padding: '9px 14px', borderRadius: '9px', border: '1px solid var(--modal-border)',
-                            background: 'var(--modal-surface)', color: 'var(--text)', cursor: 'pointer',
+                            padding: '9px 14px', borderRadius: '10px',
+                            border: '1px solid rgba(255,255,255,0.10)',
+                            background: 'rgba(255,255,255,0.06)',
+                            backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+                            color: 'var(--text)', cursor: 'pointer',
                             fontSize: '13px', fontFamily: 'Inter, sans-serif', textAlign: 'left', lineHeight: '1.4',
+                            transition: 'all 0.15s',
                           }}
                           onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-border)'; e.currentTarget.style.background = 'var(--accent-soft)' }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--modal-border)'; e.currentTarget.style.background = 'var(--modal-surface)' }}>
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)' }}>
                             {opt}
                           </button>
                         ))}
@@ -655,7 +665,13 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
               })}
               {loading && (
                 <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                  <div style={{ padding: '10px 14px', borderRadius: '14px', background: 'var(--modal-surface2)', border: '1px solid var(--modal-border)', display: 'flex', gap: '4px' }}>
+                  <div style={{
+                    padding: '11px 16px', borderRadius: '4px 16px 16px 16px',
+                    background: 'rgba(255,255,255,0.07)',
+                    backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    display: 'flex', gap: '5px', alignItems: 'center',
+                  }}>
                     {[0,1,2].map(idx => (
                       <div key={idx} style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', animation: 'bounce 1.2s ease-in-out ' + (idx * 0.15) + 's infinite' }} />
                     ))}
@@ -664,25 +680,43 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
               )}
               <div ref={messagesEndRef} />
             </div>
-            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--modal-border)', flexShrink: 0 }}>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+
+            {/* Input */}
+            <div style={{
+              padding: '12px 16px 16px',
+              borderTop: '1px solid rgba(255,255,255,0.07)',
+              background: 'rgba(0,0,0,0.15)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              flexShrink: 0,
+            }}>
+              <div style={{
+                display: 'flex', gap: '8px', alignItems: 'flex-end',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.10)',
+                borderRadius: '14px', padding: '8px 8px 8px 14px',
+                transition: 'border-color 0.15s',
+              }}
+              onFocusCapture={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+              onBlurCapture={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)'}
+              >
                 <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
-                  placeholder="Svara... (Enter skickar, Shift+Enter ny rad)" disabled={loading} rows={3}
+                  placeholder="Svara... (Enter skickar, Shift+Enter ny rad)" disabled={loading} rows={2}
                   style={{
-                    flex: 1, padding: '10px 14px', borderRadius: '10px',
-                    border: '1px solid var(--modal-border)', background: 'var(--modal-surface2)',
+                    flex: 1, background: 'none', border: 'none', outline: 'none',
                     color: 'var(--text)', fontSize: '14px', fontFamily: 'Inter, sans-serif',
-                    resize: 'none', outline: 'none', lineHeight: '1.5', minHeight: '72px', maxHeight: '160px',
+                    resize: 'none', lineHeight: '1.5', maxHeight: '120px', overflow: 'auto',
+                    padding: '4px 0',
                   }}
-                  onFocus={e => e.target.style.borderColor = 'var(--accent-border)'}
-                  onBlur={e => e.target.style.borderColor = 'var(--modal-border)'}
                 />
                 <button onClick={() => sendMessage()} disabled={loading || !input.trim()} style={{
-                  width: '42px', height: '42px', borderRadius: '10px', border: 'none',
-                  background: input.trim() ? 'var(--accent)' : 'var(--modal-surface2)',
+                  width: '36px', height: '36px', borderRadius: '10px', border: 'none', flexShrink: 0,
+                  background: input.trim() ? 'var(--accent)' : 'transparent',
                   color: input.trim() ? 'white' : 'var(--muted)',
                   cursor: input.trim() ? 'pointer' : 'default',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.15s',
+                  boxShadow: input.trim() ? '0 2px 10px var(--accent-glow)' : 'none',
                 }}>
                   <Send size={15} />
                 </button>
