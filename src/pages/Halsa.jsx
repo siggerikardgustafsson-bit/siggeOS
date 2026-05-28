@@ -54,6 +54,7 @@ export default function HalsaPage() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState(null)
   const [activeTab, setActiveTab] = useState('log')
+  const [graphPeriod, setGraphPeriod] = useState(30)
   const [editingLog, setEditingLog] = useState(null)
 
   const today = format(new Date(), 'yyyy-MM-dd')
@@ -355,32 +356,96 @@ export default function HalsaPage() {
           )}
 
           {/* ── GRAFER TAB ── */}
-          {activeTab === 'grafer' && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-              {[
-                { key:'weight', label:'Vikt', color:'#10b981', unit:'kg', refLine:75, refLabel:'Mål' },
-                { key:'sleep',  label:'Sömn', color:'#8b5cf6', unit:'h' },
-                { key:'steps',  label:'Steg/dag', color:'#f59e0b', unit:'' },
-                { key:'alcohol',label:'Alkohol', color:'#ef4444', unit:' enheter' },
-              ].map(({ key, label, color, unit, refLine, refLabel }) => (
-                <div key={key} style={{ background:'var(--surface)', backdropFilter:'var(--glass-blur)', WebkitBackdropFilter:'var(--glass-blur)', border:'1px solid var(--glass-border)', borderRadius:'16px', padding:'16px', boxShadow:'var(--glass-shadow)' }}>
-                  <div style={{ fontSize:'13px', fontWeight:'600', color:'var(--text)', marginBottom:'4px' }}>{label}</div>
-                  <div style={{ fontSize:'12px', color, fontWeight:'700', marginBottom:'8px' }}>
-                    {chartData.filter(d => d[key]).slice(-1)[0]?.[key]}{unit}
-                  </div>
-                  <ResponsiveContainer width="100%" height={80}>
-                    <LineChart data={chartData}>
-                      <Line type="monotone" dataKey={key} stroke={color} strokeWidth={2} dot={false} connectNulls />
-                      <XAxis dataKey="date" hide />
-                      <YAxis hide domain={['auto','auto']} />
-                      {refLine && <ReferenceLine y={refLine} stroke={color} strokeDasharray="3 3" opacity={0.4} label={{ value:refLabel, fontSize:10, fill:color }} />}
-                      <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'8px', fontSize:'12px' }} formatter={v => v!=null ? [`${v}${unit}`, label] : null} labelFormatter={l => format(parseISO(l),'d MMM',{locale:sv})} />
-                    </LineChart>
-                  </ResponsiveContainer>
+          {activeTab === 'grafer' && (() => {
+            const periodDays = graphPeriod
+            const cutoff = format(subDays(new Date(), periodDays), 'yyyy-MM-dd')
+            const filteredData = chartData.filter(d => d.date >= cutoff)
+
+            // Retatrutide concentration — exponential decay, t½ = 6 days → λ = ln2/6
+            const lambda = Math.log(2) / 6
+            const retData = (() => {
+              const injections = logs.filter(l => l.retatrutide_dose_mg > 0 && l.date >= cutoff).map(l => ({ date: l.date, dose: l.retatrutide_dose_mg }))
+              if (!injections.length) return []
+              const days = []
+              for (let i = periodDays; i >= 0; i--) {
+                const d = format(subDays(new Date(), i), 'yyyy-MM-dd')
+                const conc = injections.reduce((sum, inj) => {
+                  const daysSince = (new Date(d) - new Date(inj.date)) / 86400000
+                  if (daysSince < 0) return sum
+                  return sum + inj.dose * Math.exp(-lambda * daysSince)
+                }, 0)
+                days.push({ date: d, conc: Math.round(conc * 100) / 100 })
+              }
+              return days
+            })()
+
+            const hasRet = retData.some(d => d.conc > 0)
+
+            return (
+              <div>
+                {/* Period selector */}
+                <div style={{ display:'flex', gap:'6px', marginBottom:'14px', justifyContent:'flex-end' }}>
+                  {[7, 14, 30, 90].map(d => (
+                    <button key={d} onClick={() => setGraphPeriod(d)} style={{
+                      padding:'4px 12px', fontSize:'11px', borderRadius:'7px',
+                      background: graphPeriod===d ? 'var(--accent-soft)' : 'var(--surface2)',
+                      border:'1px solid '+(graphPeriod===d ? 'var(--accent-border)' : 'var(--border)'),
+                      color: graphPeriod===d ? 'var(--accent)' : 'var(--muted)',
+                      cursor:'pointer', fontWeight: graphPeriod===d ? 600 : 400,
+                      transition:'all 0.15s',
+                    }}>{d}d</button>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+                  {[
+                    { key:'weight', label:'Vikt', color:'#10b981', unit:'kg', refLine:75, refLabel:'Mål 75kg', data:filteredData },
+                    { key:'sleep',  label:'Sömn', color:'#8b5cf6', unit:'h', data:filteredData },
+                    { key:'steps',  label:'Steg/dag', color:'#f59e0b', unit:' steg', data:filteredData },
+                  ].map(({ key, label, color, unit, refLine, refLabel, data }) => (
+                    <div key={key} style={{ background:'var(--surface)', backdropFilter:'var(--glass-blur)', WebkitBackdropFilter:'var(--glass-blur)', border:'1px solid var(--glass-border)', borderRadius:'16px', padding:'16px', boxShadow:'var(--glass-shadow)' }}>
+                      <div style={{ fontSize:'13px', fontWeight:'600', color:'var(--text)', marginBottom:'3px' }}>{label}</div>
+                      <div style={{ fontSize:'13px', color, fontWeight:'700', marginBottom:'10px' }}>
+                        {data.filter(d => d[key] != null).slice(-1)[0]?.[key]}{unit}
+                      </div>
+                      <ResponsiveContainer width="100%" height={90}>
+                        <LineChart data={data}>
+                          <Line type="monotone" dataKey={key} stroke={color} strokeWidth={2} dot={false} connectNulls />
+                          <XAxis dataKey="date" hide />
+                          <YAxis hide domain={['auto','auto']} />
+                          {refLine && <ReferenceLine y={refLine} stroke={color} strokeDasharray="4 3" opacity={0.4} label={{ value:refLabel, fontSize:9, fill:color, position:'insideBottomRight' }} />}
+                          <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'8px', fontSize:'12px' }} formatter={v => v!=null ? [`${v}${unit}`, label] : null} labelFormatter={l => format(parseISO(l),'d MMM',{locale:sv})} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ))}
+
+                  {/* Retatrutide concentration */}
+                  <div style={{ background:'var(--surface)', backdropFilter:'var(--glass-blur)', WebkitBackdropFilter:'var(--glass-blur)', border:'1px solid var(--glass-border)', borderRadius:'16px', padding:'16px', boxShadow:'var(--glass-shadow)' }}>
+                    <div style={{ fontSize:'13px', fontWeight:'600', color:'var(--text)', marginBottom:'3px' }}>Retatrutide — plasmakonc.</div>
+                    <div style={{ fontSize:'13px', color:'#a78bfa', fontWeight:'700', marginBottom:'2px' }}>
+                      {hasRet ? (retData.slice(-1)[0]?.conc.toFixed(2) + ' mg-ekv') : '—'}
+                    </div>
+                    <div style={{ fontSize:'10px', color:'var(--muted)', marginBottom:'10px' }}>t½ = 6 dagar · exponentiellt förfall</div>
+                    {hasRet ? (
+                      <ResponsiveContainer width="100%" height={90}>
+                        <LineChart data={retData}>
+                          <Line type="monotone" dataKey="conc" stroke="#a78bfa" strokeWidth={2} dot={false} />
+                          <XAxis dataKey="date" hide />
+                          <YAxis hide domain={[0,'auto']} />
+                          <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'8px', fontSize:'12px' }} formatter={v => [`${v} mg-ekv`, 'Plasmakonc.']} labelFormatter={l => format(parseISO(l),'d MMM',{locale:sv})} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div style={{ height:90, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:'12px', fontStyle:'italic' }}>
+                        Ingen retatrutide-data loggad
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* ── HISTORIK TAB ── */}
           {activeTab === 'historik' && (
