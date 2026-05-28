@@ -414,10 +414,10 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     }} onClick={e => e.target === e.currentTarget && (step === 'chat' ? endSession() : onClose())}>
       <div style={{
         background: 'var(--surface)', backdropFilter: 'blur(20px)',
-        border: '1px solid var(--border)', borderRadius: '20px',
+        border: '1px solid var(--glass-border)', borderRadius: '20px',
         width: '100%', maxWidth: '720px', height: '90vh',
         display: 'flex', flexDirection: 'column',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.6)', overflow: 'hidden',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.5)', overflow: 'hidden',
       }}>
         {/* Header */}
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -504,38 +504,58 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                 </button>
               </div>
 
-              {mode === 'tenta' && (
-                <div style={{ padding: '16px', borderRadius: '12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
-                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#f59e0b', marginBottom: '6px' }}>📝 Tentamode</div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: '1.6' }}>
-                    Jarvis kör en gammal tenta med dig fråga för fråga och bedömer alla {goalsWithDecay.length} lärandemål.
-                  </div>
-
-                  {/* Next up preview */}
-                  {(() => {
-                    const doneIds = tentaHistory.filter(t => t.completed_at).map(t => t.old_exam_file_id).filter(Boolean)
-                    return null // Will be populated when exam files are loaded — shown dynamically
-                  })()}
-
-                  {tentaHistory.length > 0 && (
-                    <div style={{ marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
-                      <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '6px' }}>AVKLARADE TENTOR</div>
-                      {tentaHistory.filter(t => t.completed_at).map(t => (
-                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--muted2)', marginBottom: '3px', alignItems: 'center' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span style={{ color: '#10b981', fontSize: '10px' }}>✓</span>
-                            {t.file_name || 'Genererad'}
-                          </span>
-                          <span>{format(parseISO(t.completed_at), 'd MMM yyyy', { locale: sv })}</span>
+              {mode === 'tenta' && (() => {
+                // Deduplicate: one entry per unique file (most recent completion)
+                const seen = new Set()
+                const uniqueHistory = tentaHistory.filter(t => {
+                  const key = t.old_exam_file_id || t.file_name || 'generated'
+                  if (seen.has(key)) return false
+                  seen.add(key)
+                  return true
+                })
+                return (
+                  <div style={{ borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden', background: 'var(--surface2)' }}>
+                    {/* Header row */}
+                    <div style={{ padding: '12px 14px', borderBottom: uniqueHistory.length > 0 ? '1px solid var(--border)' : 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Zap size={13} color="#f59e0b" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text)' }}>Tentamode</div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '1px' }}>
+                          Jarvis kör tenta fråga för fråga · {goalsWithDecay.length} lärandemål
                         </div>
-                      ))}
-                      {tentaHistory.filter(t => t.completed_at).length === 0 && (
-                        <div style={{ fontSize: '12px', color: 'var(--muted)', fontStyle: 'italic' }}>Ingen avklarad tenta ännu — kör klart för att räkna.</div>
-                      )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
+
+                    {/* History list */}
+                    {uniqueHistory.length > 0 ? (
+                      <div style={{ padding: '8px 14px 10px' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.06em', marginBottom: '7px' }}>AVKLARADE</div>
+                        {uniqueHistory.map(t => (
+                          <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
+                              <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <Check size={8} color="#10b981" />
+                              </div>
+                              <span style={{ fontSize: '12px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {t.file_name || 'Genererad tenta'}
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '11px', color: 'var(--muted)', flexShrink: 0, marginLeft: '10px' }}>
+                              {format(parseISO(t.completed_at), 'd MMM', { locale: sv })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ padding: '12px 14px', fontSize: '12px', color: 'var(--muted)', fontStyle: 'italic' }}>
+                        Ingen avklarad tenta ännu — kör klart en session för att logga den.
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {mode === 'normal' && (
                 <div style={{ marginTop: '14px' }}>
