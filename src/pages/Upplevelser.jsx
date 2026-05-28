@@ -331,16 +331,23 @@ Returnera ENBART JSON utan backticks:
   ]
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '20px' }}>
-        <div style={{ fontSize: '22px', fontWeight: '600' }}>Upplevelser</div>
-        <div style={{ fontSize: '13px', color: 'var(--muted)', display: 'flex', gap: '16px', marginTop: '4px' }}>
-          <span>🌍 {allCountries.length} länder</span>
-          <span>✈️ {completedTrips.length} resor</span>
-          <span>⚡ {activeQuests.length} aktiva quests</span>
-          <span>🏆 {doneQuests.length} quests avklarade</span>
+    <div className="page-wrap">
+      <div className="page-header">
+        <div>
+          <div className="page-header-title">Upplevelser</div>
+          <div className="page-header-sub">
+            {allCountries.length} länder · {completedTrips.length} resor · {activeQuests.length} aktiva quests
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
+          <button onClick={() => { setShowNewTrip(true); setEditingTrip(null) }} className="btn btn-primary" style={{ fontSize: '12px' }}>
+            <Plus size={13} /> Ny resa
+          </button>
         </div>
       </div>
+
+      <div className="page-content-scroll">
+        <div style={{ padding: '0 0 24px' }}>
 
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
         {tabs.map(tab => (
@@ -348,7 +355,7 @@ Returnera ENBART JSON utan backticks:
             flex: 1, padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer',
             background: activeTab === tab.id ? 'var(--surface3)' : 'transparent',
             color: activeTab === tab.id ? 'var(--text)' : 'var(--muted)',
-            fontSize: '13px', fontWeight: '500', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s',
+            fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
           }}>{tab.label}</button>
         ))}
       </div>
@@ -363,13 +370,10 @@ Returnera ENBART JSON utan backticks:
                   padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
                   background: tripFilter === id ? 'var(--blue)' : 'var(--surface2)',
                   color: tripFilter === id ? 'white' : 'var(--muted)',
-                  fontSize: '12px', fontFamily: 'DM Sans, sans-serif', fontWeight: '500',
+                  fontSize: '12px', fontFamily: 'Inter, sans-serif', fontWeight: '500',
                 }}>{label}</button>
               ))}
             </div>
-            <button onClick={() => { setShowNewTrip(true); setEditingTrip(null) }} className="btn btn-primary" style={{ fontSize: '13px' }}>
-              <Plus size={14} /> Ny resa
-            </button>
           </div>
 
           {(showNewTrip && !editingTrip) && (
@@ -639,6 +643,8 @@ Returnera ENBART JSON utan backticks:
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
     </div>
   )
 }

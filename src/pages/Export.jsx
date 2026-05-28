@@ -181,11 +181,16 @@ export default function ExportPage() {
   }
 
   return (
-    <div style={{ padding: '28px', maxWidth: '800px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ fontSize: '22px', fontWeight: '700', letterSpacing: '-0.3px' }}>Exportera data</div>
-        <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '3px' }}>Ladda ner dina datapunkter som Excel-filer</div>
+    <div className="page-wrap">
+      <div className="page-header">
+        <div>
+          <div className="page-header-title">Exportera data</div>
+          <div className="page-header-sub">Ladda ner dina datapunkter som Excel-filer</div>
+        </div>
       </div>
+
+      <div className="page-content-scroll">
+        <div style={{ padding: '0 0 24px' }}>
 
       {/* Period selector */}
       <div className="card" style={{ marginBottom: '20px' }}>
@@ -248,6 +253,8 @@ export default function ExportPage() {
       </div>
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
     </div>
   )
 }

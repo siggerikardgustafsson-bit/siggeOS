@@ -251,23 +251,25 @@ export default function InsightsPage() {
   )
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+    <div className="page-wrap">
+      <div className="page-header">
         <div>
-          <div style={{ fontSize: '22px', fontWeight: '600' }}>Insights</div>
-          <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Senaste 90 dagarna</div>
+          <div className="page-header-title">Insights</div>
+          <div className="page-header-sub">Senaste 90 dagarna</div>
         </div>
         <button onClick={generateWeeklyReport} disabled={generatingReport} style={{
-          display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px',
+          display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 13px',
           borderRadius: '8px', border: '1px solid rgba(139,92,246,0.3)',
-          background: 'linear-gradient(135deg, rgba(59,130,246,0.1), rgba(139,92,246,0.1))',
-          color: '#a78bfa', cursor: 'pointer', fontSize: '13px', fontFamily: 'DM Sans, sans-serif', fontWeight: '600',
+          background: 'rgba(139,92,246,0.08)',
+          color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif', fontWeight: '600',
         }}>
-          {generatingReport ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={13} />}
-          Veckorapport från Jarvis
+          {generatingReport ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={12} />}
+          Veckorapport
         </button>
       </div>
+
+      <div className="page-content-scroll">
+        <div style={{ padding: '0 0 24px' }}>
 
       {/* Jarvis weekly report */}
       {weeklyReport && (
@@ -475,6 +477,8 @@ export default function InsightsPage() {
       </div>
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
     </div>
   )
 }
