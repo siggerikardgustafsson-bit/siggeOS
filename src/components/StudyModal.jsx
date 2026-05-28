@@ -66,6 +66,8 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   const [currentTentaFileId, setCurrentTentaFileId] = useState(null)
   const [sessionId, setSessionId] = useState(null)
   const [uploadingMaterial, setUploadingMaterial] = useState(false)
+  const [pendingTentaFile, setPendingTentaFile] = useState(null)
+  const [tentaRotationInfo, setTentaRotationInfo] = useState(null)
   const { seconds, formatted: timerFormatted } = useTimer(step === 'chat')
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -93,7 +95,13 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   }
 
   async function fetchTentaHistory() {
-    const { data } = await supabase.from('tenta_sessions').select('*').eq('user_id', user.id).eq('exam_id', exam.id).order('completed_at', { ascending: false })
+    const { data } = await supabase
+      .from('tenta_sessions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('exam_id', exam.id)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
     setTentaHistory(data || [])
   }
 
@@ -199,25 +207,57 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     if (sessData) setSessionId(sessData.id)
 
     const { data: oldExamData } = await supabase.from('exam_old_files').select('id, file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
-    const { data: matData } = await supabase.from('course_materials').select('file_name, content').eq('exam_id', exam.id).eq('user_id', user.id)
+
+    // Always fetch FRESH history from DB — never rely on stale React state
+    const { data: freshHistory } = await supabase
+      .from('tenta_sessions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('exam_id', exam.id)
+      .not('completed_at', 'is', null)
+      .order('completed_at', { ascending: false })
+    const completedSessions = freshHistory || []
 
     let chosenExamFile = null
+    let rotationInfo = null
+
     if (oldExamData && oldExamData.length > 0) {
-      const doneIds = tentaHistory.map(t => t.old_exam_file_id).filter(Boolean)
+      const doneIds = completedSessions.map(t => t.old_exam_file_id).filter(Boolean)
       const undone = oldExamData.filter(e => !doneIds.includes(e.id))
-      chosenExamFile = undone.length > 0 ? undone[0] : oldExamData[0]
+
+      if (undone.length > 0) {
+        // Pick first untouched exam
+        chosenExamFile = undone[0]
+        rotationInfo = { type: 'new', remaining: undone.length - 1, total: oldExamData.length }
+      } else {
+        // All done — rotate: pick the one done longest ago
+        const sortedByOldest = [...oldExamData].sort((a, b) => {
+          const aLast = completedSessions.filter(t => t.old_exam_file_id === a.id)[0]?.completed_at || '1970-01-01'
+          const bLast = completedSessions.filter(t => t.old_exam_file_id === b.id)[0]?.completed_at || '1970-01-01'
+          return aLast < bLast ? -1 : 1
+        })
+        chosenExamFile = sortedByOldest[0]
+        const lastDoneDate = completedSessions.find(t => t.old_exam_file_id === chosenExamFile.id)?.completed_at
+        rotationInfo = { type: 'rotation', lastDone: lastDoneDate, total: oldExamData.length }
+      }
       setCurrentTentaFileId(chosenExamFile.id)
+    } else {
+      rotationInfo = { type: 'generated' }
     }
 
-    const historyForFile = chosenExamFile ? tentaHistory.filter(t => t.old_exam_file_id === chosenExamFile.id) : []
-    const isPreviouslyDone = historyForFile.length > 0
-    const lastDone = isPreviouslyDone ? historyForFile[0] : null
+    setTentaRotationInfo(rotationInfo)
 
-    await supabase.from('tenta_sessions').insert({
-      user_id: user.id, exam_id: exam.id,
+    // Store file info for insertion at endSession — don't insert here
+    setPendingTentaFile({
       old_exam_file_id: chosenExamFile?.id || null,
       file_name: chosenExamFile?.file_name || 'Genererad tenta',
     })
+
+    const historyForFile = chosenExamFile
+      ? completedSessions.filter(t => t.old_exam_file_id === chosenExamFile.id)
+      : []
+    const isPreviouslyDone = historyForFile.length > 0
+    const lastDone = isPreviouslyDone ? historyForFile[0] : null
 
     const systemPrompt = buildSystemPrompt(chosen, true, chosenExamFile, isPreviouslyDone, lastDone)
     const materialIds = courseMaterials.map(m => m.id)
@@ -322,6 +362,16 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   }
 
   async function endSession() {
+    // Insert tenta_sessions record NOW (when actually completed) with completed_at timestamp
+    if (mode === 'tenta' && pendingTentaFile) {
+      await supabase.from('tenta_sessions').insert({
+        user_id: user.id,
+        exam_id: exam.id,
+        old_exam_file_id: pendingTentaFile.old_exam_file_id,
+        file_name: pendingTentaFile.file_name,
+        completed_at: new Date().toISOString(),
+      })
+    }
     if (sessionId && seconds > 60) {
       await supabase.from('study_sessions').update({
         hours: Math.round(seconds / 360) / 10,
@@ -460,15 +510,28 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                   <div style={{ fontSize: '12px', color: 'var(--muted)', lineHeight: '1.6' }}>
                     Jarvis kör en gammal tenta med dig fråga för fråga och bedömer alla {goalsWithDecay.length} lärandemål.
                   </div>
+
+                  {/* Next up preview */}
+                  {(() => {
+                    const doneIds = tentaHistory.filter(t => t.completed_at).map(t => t.old_exam_file_id).filter(Boolean)
+                    return null // Will be populated when exam files are loaded — shown dynamically
+                  })()}
+
                   {tentaHistory.length > 0 && (
                     <div style={{ marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
-                      <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '6px' }}>TIDIGARE GJORDA</div>
-                      {tentaHistory.map(t => (
-                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--muted2)', marginBottom: '3px' }}>
-                          <span>{t.file_name || 'Genererad'}</span>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '6px' }}>AVKLARADE TENTOR</div>
+                      {tentaHistory.filter(t => t.completed_at).map(t => (
+                        <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--muted2)', marginBottom: '3px', alignItems: 'center' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ color: '#10b981', fontSize: '10px' }}>✓</span>
+                            {t.file_name || 'Genererad'}
+                          </span>
                           <span>{format(parseISO(t.completed_at), 'd MMM yyyy', { locale: sv })}</span>
                         </div>
                       ))}
+                      {tentaHistory.filter(t => t.completed_at).length === 0 && (
+                        <div style={{ fontSize: '12px', color: 'var(--muted)', fontStyle: 'italic' }}>Ingen avklarad tenta ännu — kör klart för att räkna.</div>
+                      )}
                     </div>
                   )}
                 </div>
