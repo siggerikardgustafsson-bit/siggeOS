@@ -272,7 +272,7 @@ export default function JournalPage() {
 
       <div className="page-content-scroll">
         <div style={{ padding: '12px 12px 0', maxWidth: '1000px', margin: '0 auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '12px', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '12px', alignItems: 'stretch' }}>
 
             {/* ── LEFT: Calendar + stats ── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -340,11 +340,17 @@ export default function JournalPage() {
               </div>
             </div>
 
-            {/* ── RIGHT: Entries + form ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* ── RIGHT: single glass panel ── */}
+            <div style={{
+              background: 'var(--surface)', backdropFilter: 'var(--glass-blur)',
+              WebkitBackdropFilter: 'var(--glass-blur)',
+              border: '1px solid var(--glass-border)', borderRadius: '16px',
+              padding: '16px', boxShadow: 'var(--glass-shadow)',
+              display: 'flex', flexDirection: 'column', gap: '12px',
+            }}>
 
-              {/* Date header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 2px' }}>
+              {/* Date header inside the panel */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text)', textTransform: 'capitalize' }}>
                   {format(selectedDate, "EEEE d MMMM", { locale: sv })}
                 </div>
@@ -356,10 +362,9 @@ export default function JournalPage() {
               {/* FORM — new or edit */}
               {showForm && (
                 <div style={{
-                  background: 'var(--surface)', backdropFilter: 'var(--glass-blur)',
-                  WebkitBackdropFilter: 'var(--glass-blur)',
-                  border: '1px solid var(--glass-border)', borderRadius: '16px',
-                  padding: '20px', boxShadow: 'var(--glass-shadow)',
+                  background: 'var(--surface2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px', padding: '16px',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>
@@ -436,26 +441,18 @@ export default function JournalPage() {
                 </div>
               )}
 
-              {/* Empty state — fills height */}
+              {/* Empty state */}
               {selectedEntries.length === 0 && !showForm && (
                 <div style={{
-                  background: 'var(--surface)', backdropFilter: 'var(--glass-blur)',
-                  WebkitBackdropFilter: 'var(--glass-blur)',
-                  border: '1px solid var(--glass-border)', borderRadius: '16px',
-                  boxShadow: 'var(--glass-shadow)',
-                  display: 'flex', flexDirection: 'column',
+                  flex: 1, display: 'flex', flexDirection: 'column',
                   alignItems: 'center', justifyContent: 'center',
-                  minHeight: '470px', padding: '40px 24px', textAlign: 'center',
-                  gap: '12px',
+                  textAlign: 'center', gap: '10px', padding: '40px 0',
                 }}>
-                  <div style={{ fontSize: '32px', opacity: 0.15 }}>✍️</div>
-                  <div style={{ fontSize: '15px', fontWeight: '500', color: 'var(--text)' }}>
-                    {format(selectedDate, "EEEE d MMMM", { locale: sv })}
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--muted)', maxWidth: '240px', lineHeight: '1.6' }}>
+                  <div style={{ fontSize: '28px', opacity: 0.12 }}>✍️</div>
+                  <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6' }}>
                     Ingen entry loggad. Hur var dagen?
                   </div>
-                  <button onClick={openNewForm} className="btn btn-primary" style={{ fontSize: '12px', marginTop: '8px' }}>
+                  <button onClick={openNewForm} className="btn btn-primary" style={{ fontSize: '12px', marginTop: '4px' }}>
                     <Plus size={13} /> Skriv entry
                   </button>
                 </div>
@@ -464,10 +461,9 @@ export default function JournalPage() {
               {/* Entries */}
               {selectedEntries.map(entry => (
                 <div key={entry.id} style={{
-                  background: 'var(--surface)', backdropFilter: 'var(--glass-blur)',
-                  WebkitBackdropFilter: 'var(--glass-blur)',
-                  border: '1px solid var(--glass-border)', borderRadius: '16px',
-                  padding: '18px', boxShadow: 'var(--glass-shadow)',
+                  background: 'var(--surface2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px', padding: '14px',
                   transition: 'border-color 0.15s',
                 }}>
                   {/* Entry header */}
