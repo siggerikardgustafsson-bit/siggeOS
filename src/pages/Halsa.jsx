@@ -3,36 +3,45 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Save, Loader, Upload, TrendingDown, Moon, Smartphone, Wine, Cigarette, Pill, Apple, X, Plus } from 'lucide-react'
+import { Loader, Upload, Apple, X, Plus, Edit2, Check, Scale, Moon, Wine, Syringe, Utensils, Pill } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 const DEFAULT_SUPPLEMENTS = ['Kreatin', 'D-vitamin', 'Omega-3', 'Multivitamin', 'Magnesium']
-
 const NICOTINE_TYPES = [
-  { id: 'snus',       label: 'Snus',       emoji: '🟫' },
-  { id: 'vape',       label: 'Vape',       emoji: '💨' },
+  { id: 'snus', label: 'Snus', emoji: '🟫' },
+  { id: 'vape', label: 'Vape', emoji: '💨' },
   { id: 'cigaretter', label: 'Cigaretter', emoji: '🚬' },
 ]
 
-function MiniLineChart({ data, dataKey, color, unit = '' }) {
-  if (!data || data.length < 2) return (
-    <div style={{ height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: '12px' }}>
-      Inte tillräckligt med data
+function Widget({ title, icon, color = 'var(--accent)', children, action }) {
+  return (
+    <div style={{
+      background: 'var(--surface)', backdropFilter: 'var(--glass-blur)',
+      WebkitBackdropFilter: 'var(--glass-blur)',
+      border: '1px solid var(--glass-border)', borderRadius: '16px',
+      padding: '18px', boxShadow: 'var(--glass-shadow)',
+      position: 'relative', overflow: 'hidden',
+    }}>
+      <div style={{ position: 'absolute', top: 0, left: '15%', right: '15%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border2), transparent)' }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '8px', background: color + '18', border: '1px solid ' + color + '33', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {icon}
+          </div>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text)' }}>{title}</span>
+        </div>
+        {action}
+      </div>
+      {children}
     </div>
   )
+}
+
+function SaveBtn({ onClick, saving, saved }) {
   return (
-    <ResponsiveContainer width="100%" height={60}>
-      <LineChart data={data}>
-        <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} dot={false} />
-        <XAxis dataKey="date" hide />
-        <YAxis hide domain={['auto', 'auto']} />
-        <Tooltip
-          contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12px' }}
-          formatter={v => [`${v}${unit}`, '']}
-          labelFormatter={l => format(parseISO(l), 'd MMM', { locale: sv })}
-        />
-      </LineChart>
-    </ResponsiveContainer>
+    <button onClick={onClick} disabled={saving} className="btn btn-primary" style={{ fontSize: '11px', padding: '5px 12px' }}>
+      {saving ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : saved ? <><Check size={12} /> Sparat</> : <><Check size={12} /> Spara</>}
+    </button>
   )
 }
 
@@ -42,577 +51,415 @@ export default function HalsaPage() {
   const [logs, setLogs] = useState([])
   const [supplements, setSupplements] = useState(DEFAULT_SUPPLEMENTS)
   const [newSupplement, setNewSupplement] = useState('')
-  const [saving, setSaving] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState(null)
-  const [activeTab, setActiveTab] = useState('log') // log | graphs | supplements
+  const [activeTab, setActiveTab] = useState('log')
+  const [editingLog, setEditingLog] = useState(null)
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const [todayLog, setTodayLog] = useState(null)
+  const [savingWidget, setSavingWidget] = useState({})
+  const [savedWidget, setSavedWidget] = useState({})
 
-  const [form, setForm] = useState({
-    date: today,
-    weight_kg: '',
-    sleep_hours: '',
-    sleep_quality: 7,
-    screen_time_minutes: '',
-    alcohol_units: '',
-    nicotine: [],
-    retatrutide_dose_mg: '',
-    retatrutide_injected: false,
-    energy: 7,
-    fasting: false,
-    calories: '',
-    protein_g: '',
-    water_liters: '',
-    supplements_taken: [],
-    notes: '',
-  })
+  // Per-widget form state
+  const [weightForm, setWeightForm] = useState({ date: today, weight_kg: '' })
+  const [sleepForm, setSleepForm] = useState({ date: today, sleep_hours: '', sleep_quality: 7 })
+  const [substanceForm, setSubstanceForm] = useState({ date: today, alcohol_units: '', nicotine: [], marijuana: false })
+  const [retForm, setRetForm] = useState({ date: today, retatrutide_injected: false, retatrutide_dose_mg: '' })
+  const [nutritionForm, setNutritionForm] = useState({ date: today, fasting: false, calories: '', protein_g: '', water_liters: '' })
+  const [suppForm, setSuppForm] = useState({ date: today, supplements_taken: [] })
 
-  const [timeWindow, setTimeWindow] = useState('90') // days, or 'all'
-
-  useEffect(() => {
-    if (user) { fetchLogs(); fetchTodayLog() }
-  }, [user, timeWindow])
+  useEffect(() => { if (user) { fetchLogs(); fetchTodayLog() } }, [user])
 
   async function fetchLogs() {
-    let query = supabase
-      .from('health_logs')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: false })
-
-    if (timeWindow !== 'all') {
-      const since = format(subDays(new Date(), parseInt(timeWindow)), 'yyyy-MM-dd')
-      query = query.gte('date', since)
-    }
-
-    const { data } = await query
+    const since = format(subDays(new Date(), 90), 'yyyy-MM-dd')
+    const { data } = await supabase.from('health_logs').select('*').eq('user_id', user.id).gte('date', since).order('date', { ascending: false })
     setLogs(data || [])
   }
 
   async function fetchTodayLog() {
-    const { data } = await supabase
-      .from('health_logs')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('date', today)
-      .single()
-
+    const { data } = await supabase.from('health_logs').select('*').eq('user_id', user.id).eq('date', today).single()
     if (data) {
       setTodayLog(data)
-      setForm(f => ({
-        ...f,
-        weight_kg: data.weight_kg || '',
-        sleep_hours: data.sleep_hours || '',
-        sleep_quality: data.sleep_quality || 7,
-        screen_time_minutes: data.screen_time_minutes || '',
-        alcohol_units: data.alcohol_units || '',
-        nicotine: data.nicotine ? ['snus'] : [], // legacy boolean
-        retatrutide_dose_mg: data.retatrutide_dose_mg || '',
-        energy: data.energy || 7,
-      }))
+      setWeightForm(f => ({ ...f, weight_kg: data.weight_kg || '' }))
+      setSleepForm(f => ({ ...f, sleep_hours: data.sleep_hours || '', sleep_quality: data.sleep_quality || 7 }))
+      setSubstanceForm(f => ({ ...f, alcohol_units: data.alcohol_units || '', nicotine: data.nicotine ? ['snus'] : [] }))
+      if (data.retatrutide_dose_mg) setRetForm(f => ({ ...f, retatrutide_injected: true, retatrutide_dose_mg: data.retatrutide_dose_mg }))
     }
   }
 
-  async function saveLog() {
-    setSaving(true)
-
-    const payload = {
-      user_id: user.id,
-      date: form.date,
-      weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : null,
-      sleep_hours: form.sleep_hours ? parseFloat(form.sleep_hours) : null,
-      sleep_quality: form.sleep_quality,
-      screen_time_minutes: form.screen_time_minutes ? parseInt(form.screen_time_minutes) : null,
-      alcohol_units: form.alcohol_units ? parseFloat(form.alcohol_units) : null,
-      nicotine: form.nicotine.length > 0,
-      retatrutide_dose_mg: form.retatrutide_injected ? parseFloat(form.retatrutide_dose_mg) || 2.5 : null,
-      energy: form.energy,
-      source: 'manual',
-    }
-
-    await supabase.from('health_logs').upsert(payload, { onConflict: 'user_id,date' })
-
-    // Log nutrition if provided
-    if (form.calories || form.protein_g || form.water_liters) {
-      await supabase.from('nutrition_logs').upsert({
-        user_id: user.id,
-        date: form.date,
-        total_calories: form.fasting ? 0 : (form.calories ? parseInt(form.calories) : null),
-        protein_g: form.protein_g ? parseInt(form.protein_g) : null,
-        water_liters: form.water_liters ? parseFloat(form.water_liters) : null,
-      }, { onConflict: 'user_id,date' })
-    }
-
-    // Update health score
-    let score = 50
-    if (form.sleep_hours) {
-      const sleepScore = form.sleep_hours >= 7 && form.sleep_hours <= 9 ? 25 : form.sleep_hours >= 6 ? 15 : 5
-      score += sleepScore
-    }
-    if (form.alcohol_units === '' || parseFloat(form.alcohol_units) === 0) score += 15
-    if (form.screen_time_minutes && parseInt(form.screen_time_minutes) <= 360) score += 10
-    score = Math.min(score, 100)
-
-    const { data: existing } = await supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', form.date).single()
-    if (existing) {
-      await supabase.from('daily_scores').update({ score_health: score }).eq('id', existing.id)
-    } else {
-      await supabase.from('daily_scores').insert({ user_id: user.id, date: form.date, score_health: score })
-    }
-
+  async function saveWidget(widget, payload) {
+    setSavingWidget(s => ({ ...s, [widget]: true }))
+    await supabase.from('health_logs').upsert({ user_id: user.id, source: 'manual', ...payload }, { onConflict: 'user_id,date' })
     await fetchLogs()
-    setSaving(false)
+    setSavingWidget(s => ({ ...s, [widget]: false }))
+    setSavedWidget(s => ({ ...s, [widget]: true }))
+    setTimeout(() => setSavedWidget(s => ({ ...s, [widget]: false })), 2000)
   }
 
-  // Apple Health XML import
+  async function saveNutrition(payload) {
+    setSavingWidget(s => ({ ...s, nutrition: true }))
+    await supabase.from('nutrition_logs').upsert({ user_id: user.id, ...payload }, { onConflict: 'user_id,date' })
+    setSavingWidget(s => ({ ...s, nutrition: false }))
+    setSavedWidget(s => ({ ...s, nutrition: true }))
+    setTimeout(() => setSavedWidget(s => ({ ...s, nutrition: false })), 2000)
+  }
+
+  async function openEditLog(log) {
+    setEditingLog({
+      ...log,
+      weight_kg: log.weight_kg || '',
+      sleep_hours: log.sleep_hours || '',
+      sleep_quality: log.sleep_quality || 7,
+      alcohol_units: log.alcohol_units || '',
+      nicotine: log.nicotine ? ['snus'] : [],
+      retatrutide_dose_mg: log.retatrutide_dose_mg || '',
+      retatrutide_injected: !!log.retatrutide_dose_mg,
+    })
+  }
+
+  async function saveEditLog() {
+    if (!editingLog) return
+    await supabase.from('health_logs').update({
+      date: editingLog.date,
+      weight_kg: editingLog.weight_kg ? parseFloat(editingLog.weight_kg) : null,
+      sleep_hours: editingLog.sleep_hours ? parseFloat(editingLog.sleep_hours) : null,
+      sleep_quality: editingLog.sleep_quality,
+      alcohol_units: editingLog.alcohol_units ? parseFloat(editingLog.alcohol_units) : null,
+      nicotine: editingLog.nicotine?.length > 0,
+      retatrutide_dose_mg: editingLog.retatrutide_injected ? parseFloat(editingLog.retatrutide_dose_mg) || 2.5 : null,
+    }).eq('id', editingLog.id)
+    await fetchLogs()
+    setEditingLog(null)
+  }
+
   async function handleFileImport(e) {
     const file = e.target.files[0]
     if (!file) return
     setImporting(true)
     setImportResult(null)
-
     const text = await file.text()
-    const parser = new DOMParser()
-    const xml = parser.parseFromString(text, 'text/xml')
-
+    const xml = new DOMParser().parseFromString(text, 'text/xml')
     const records = xml.querySelectorAll('Record')
-    const weightMap = {}
-    const stepsMap = {}
-
+    const weightMap = {}, stepsMap = {}
     records.forEach(r => {
-      const type = r.getAttribute('type')
-      const dateStr = r.getAttribute('startDate')?.slice(0, 10)
-      const value = parseFloat(r.getAttribute('value'))
-
+      const type = r.getAttribute('type'), dateStr = r.getAttribute('startDate')?.slice(0,10), value = parseFloat(r.getAttribute('value'))
       if (!dateStr || isNaN(value)) return
-
-      if (type === 'HKQuantityTypeIdentifierBodyMass') {
-        // Convert lbs to kg if needed
-        const unit = r.getAttribute('unit')
-        const kg = unit === 'lb' ? value * 0.453592 : value
-        if (!weightMap[dateStr] || kg < weightMap[dateStr]) weightMap[dateStr] = Math.round(kg * 10) / 10
-      }
-
-      if (type === 'HKQuantityTypeIdentifierStepCount') {
-        stepsMap[dateStr] = (stepsMap[dateStr] || 0) + Math.round(value)
-      }
+      if (type === 'HKQuantityTypeIdentifierBodyMass') { const kg = r.getAttribute('unit') === 'lb' ? value * 0.453592 : value; if (!weightMap[dateStr] || kg < weightMap[dateStr]) weightMap[dateStr] = Math.round(kg*10)/10 }
+      if (type === 'HKQuantityTypeIdentifierStepCount') stepsMap[dateStr] = (stepsMap[dateStr]||0) + Math.round(value)
     })
-
-    // Upsert all collected data
     const dates = new Set([...Object.keys(weightMap), ...Object.keys(stepsMap)])
     let count = 0
-
     for (const date of dates) {
       const update = {}
       if (weightMap[date]) update.weight_kg = weightMap[date]
       if (stepsMap[date]) update.steps = stepsMap[date]
-      if (Object.keys(update).length > 0) {
-        await supabase.from('health_logs').upsert({
-          user_id: user.id,
-          date,
-          ...update,
-          source: 'apple_health',
-        }, { onConflict: 'user_id,date' })
-        count++
-      }
+      if (Object.keys(update).length > 0) { await supabase.from('health_logs').upsert({ user_id: user.id, date, ...update, source: 'apple_health' }, { onConflict: 'user_id,date' }); count++ }
     }
-
     await fetchLogs()
-    setImportResult({ weights: Object.keys(weightMap).length, steps: Object.keys(stepsMap).length, total: count })
+    setImportResult({ weights: Object.keys(weightMap).length, steps: Object.keys(stepsMap).length })
     setImporting(false)
     e.target.value = ''
   }
 
-  // Chart data — null and 0 both treated as missing (never show 0 as a data point)
-  const chartData = logs.slice().reverse().map(l => ({
-    date: l.date,
-    weight: l.weight_kg > 0 ? l.weight_kg : null,
-    sleep: l.sleep_hours > 0 ? l.sleep_hours : null,
-    steps: l.steps > 0 ? l.steps : null,
-    screen: l.screen_time_minutes > 0 ? Math.round(l.screen_time_minutes / 60 * 10) / 10 : null,
-    alcohol: l.alcohol_units > 0 ? l.alcohol_units : null,
-    energy: l.energy > 0 ? l.energy : null,
-  }))
-
-  // Latest stats
   const latestWeight = logs.find(l => l.weight_kg)?.weight_kg
-  const latestSteps = logs.find(l => l.steps)?.steps
-  const avgSleep = logs.slice(0, 7).filter(l => l.sleep_hours).reduce((s, l, _, a) => s + l.sleep_hours / a.length, 0)
-  const avgAlcohol = logs.slice(0, 7).filter(l => l.alcohol_units).reduce((s, l, _, a) => s + l.alcohol_units / a.length, 0)
-  const avgSteps = logs.slice(0, 7).filter(l => l.steps).reduce((s, l, _, a) => s + l.steps / a.length, 0)
+  const avgSleep = logs.slice(0,7).filter(l => l.sleep_hours).reduce((s,l,_,a) => s+l.sleep_hours/a.length, 0)
+  const avgSteps = logs.slice(0,7).filter(l => l.steps).reduce((s,l,_,a) => s+l.steps/a.length, 0)
+  const chartData = logs.slice().reverse().map(l => ({ date: l.date, weight: l.weight_kg||null, sleep: l.sleep_hours||null, steps: l.steps||null, alcohol: l.alcohol_units||null }))
 
-  const tabs = [
-    { id: 'log',         label: 'Logga' },
-    { id: 'graphs',      label: 'Grafer' },
-    { id: 'supplements', label: 'Tillskott' },
-  ]
+  const tabs = [{ id:'log', label:'Logga' }, { id:'grafer', label:'Grafer' }, { id:'historik', label:'Historik' }]
 
   return (
     <div className="page-wrap">
-
-      {/* Sticky header */}
       <div className="page-header">
         <div>
           <div className="page-header-title">Hälsa</div>
-          <div className="page-header-sub" style={{ display: 'flex', gap: '12px' }}>
-            {latestWeight && <span style={{ color: '#10b981' }}>⚖ {latestWeight} kg</span>}
-            {avgSleep > 0 && <span style={{ color: '#06b6d4' }}>💤 {avgSleep.toFixed(1)}h</span>}
-            {avgSteps > 0 && <span style={{ color: '#f59e0b' }}>{Math.round(avgSteps).toLocaleString('sv-SE')} steg</span>}
+          <div className="page-header-sub" style={{ display:'flex', gap:'10px' }}>
+            {latestWeight && <span style={{ color:'#10b981' }}>⚖ {latestWeight} kg</span>}
+            {avgSleep > 0 && <span style={{ color:'#06b6d4' }}>💤 {avgSleep.toFixed(1)}h</span>}
+            {avgSteps > 0 && <span style={{ color:'#f59e0b' }}>{Math.round(avgSteps).toLocaleString('sv-SE')} steg</span>}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '7px' }}>
-          <input ref={fileRef} type="file" accept=".xml" onChange={handleFileImport} style={{ display: 'none' }} />
-          <button onClick={() => fileRef.current?.click()} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+        <div style={{ display:'flex', gap:'7px' }}>
+          <input ref={fileRef} type="file" accept=".xml" onChange={handleFileImport} style={{ display:'none' }} />
+          <button onClick={() => fileRef.current?.click()} className="btn btn-ghost" style={{ fontSize:'12px' }}>
             <Apple size={13} /> Apple Health
           </button>
         </div>
       </div>
 
-      {/* Scrollable content */}
       <div className="page-content-scroll">
-      <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
+        <div style={{ padding:'12px 12px 0', maxWidth:'960px', margin:'0 auto' }}>
 
-      {/* Import result */}
-      {importResult && (
-        <div style={{ padding: '12px 16px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '13px', color: '#10b981' }}>
-            ✓ Importerade {importResult.weights} viktvärden och {importResult.steps} stegtillfällen
-          </span>
-          <button onClick={() => setImportResult(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={14} /></button>
-        </div>
-      )}
-
-      {importing && (
-        <div style={{ padding: '12px 16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--muted)' }}>
-          <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Importerar Apple Health-data...
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-            flex: 1, padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer',
-            background: activeTab === tab.id ? 'var(--surface3)' : 'transparent',
-            color: activeTab === tab.id ? 'var(--text)' : 'var(--muted)',
-            fontSize: '13px', fontWeight: '500', fontFamily: 'DM Sans, sans-serif',
-            transition: 'all 0.15s',
-          }}>{tab.label}</button>
-        ))}
-      </div>
-
-      {/* LOG TAB */}
-      {activeTab === 'log' && (
-        <div className="card">
-          {/* Date */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Datum</label>
-            <input className="input" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-          </div>
-
-          {/* Body */}
-          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px', letterSpacing: '0.05em' }}>KROPP</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Vikt (kg)</label>
-              <input className="input" type="number" step="0.1" placeholder="77.0" value={form.weight_kg} onChange={e => setForm(f => ({ ...f, weight_kg: e.target.value }))} />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Energi {form.energy}/10</label>
-              <input type="range" min="1" max="10" value={form.energy} onChange={e => setForm(f => ({ ...f, energy: parseInt(e.target.value) }))} style={{ width: '100%', accentColor: '#f59e0b', marginTop: '8px' }} />
-            </div>
-          </div>
-
-          {/* Sleep */}
-          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px', letterSpacing: '0.05em' }}>SÖMN</div>
-          {todayLog?.source === 'journal' && (
-            <div style={{ padding: '8px 12px', background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: '8px', marginBottom: '12px', fontSize: '12px', color: '#06b6d4', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              💤 Sömndata hämtad från journal
-              {todayLog.sleep_type && todayLog.sleep_type !== 'normal' && (
-                <span style={{ color: 'var(--muted)' }}>· {todayLog.sleep_type === 'uppdelad' ? '✂️ Uppdelad' : '🌙 Nattjobb'}{todayLog.sleep_note ? ` — ${todayLog.sleep_note}` : ''}</span>
-              )}
+          {/* Import feedback */}
+          {(importResult || importing) && (
+            <div style={{ padding:'10px 14px', background:'rgba(16,185,129,0.1)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:'10px', marginBottom:'12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              {importing
+                ? <span style={{ fontSize:'13px', color:'var(--muted)', display:'flex', alignItems:'center', gap:'8px' }}><Loader size={13} style={{ animation:'spin 1s linear infinite' }} /> Importerar...</span>
+                : <span style={{ fontSize:'13px', color:'#10b981' }}>✓ {importResult.weights} viktvärden · {importResult.steps} stegdagar</span>}
+              {!importing && <button onClick={() => setImportResult(null)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer' }}><X size={13} /></button>}
             </div>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Timmar</label>
-              <input className="input" type="number" step="0.5" placeholder="7.5" value={form.sleep_hours} onChange={e => setForm(f => ({ ...f, sleep_hours: e.target.value }))} />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Kvalitet {form.sleep_quality}/10</label>
-              <input type="range" min="1" max="10" value={form.sleep_quality} onChange={e => setForm(f => ({ ...f, sleep_quality: parseInt(e.target.value) }))} style={{ width: '100%', accentColor: '#06b6d4', marginTop: '8px' }} />
-            </div>
-          </div>
 
-          {/* Substances */}
-          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px', letterSpacing: '0.05em' }}>SUBSTANSER</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Alkohol (enheter)</label>
-              <input className="input" type="number" step="0.5" placeholder="0" value={form.alcohol_units} onChange={e => setForm(f => ({ ...f, alcohol_units: e.target.value }))} />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Skärmtid (minuter)</label>
-              <input className="input" type="number" placeholder="360" value={form.screen_time_minutes} onChange={e => setForm(f => ({ ...f, screen_time_minutes: e.target.value }))} />
-            </div>
-          </div>
-
-          {/* Nicotine toggles */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '8px' }}>Nikotin</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {NICOTINE_TYPES.map(n => {
-                const active = form.nicotine.includes(n.id)
-                return (
-                  <button key={n.id} onClick={() => setForm(f => ({
-                    ...f,
-                    nicotine: active ? f.nicotine.filter(x => x !== n.id) : [...f.nicotine, n.id]
-                  }))} style={{
-                    padding: '8px 14px', borderRadius: '8px', border: `1px solid ${active ? '#f59e0b' : 'var(--border)'}`,
-                    background: active ? 'rgba(245,158,11,0.15)' : 'transparent',
-                    color: active ? '#f59e0b' : 'var(--muted)',
-                    cursor: 'pointer', fontSize: '13px', fontFamily: 'DM Sans, sans-serif',
-                    display: 'flex', alignItems: 'center', gap: '5px',
-                  }}>
-                    {n.emoji} {n.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Marijuana */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '8px' }}>Övrigt</label>
-            <button onClick={() => setForm(f => ({ ...f, marijuana: !f.marijuana }))} style={{
-              padding: '8px 14px', borderRadius: '8px',
-              border: `1px solid ${form.marijuana ? '#10b981' : 'var(--border)'}`,
-              background: form.marijuana ? 'rgba(16,185,129,0.15)' : 'transparent',
-              color: form.marijuana ? '#10b981' : 'var(--muted)',
-              cursor: 'pointer', fontSize: '13px', fontFamily: 'DM Sans, sans-serif',
-            }}>
-              🌿 Marijuana
-            </button>
-          </div>
-
-          {/* Retatrutide */}
-          <div style={{ marginBottom: '20px', padding: '14px', background: 'rgba(139,92,246,0.06)', borderRadius: '10px', border: '1px solid rgba(139,92,246,0.15)' }}>
-            <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600', marginBottom: '10px' }}>💉 RETATRUTIDE</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: form.retatrutide_injected ? '10px' : '0' }}>
-              <input type="checkbox" id="retinjected" checked={form.retatrutide_injected}
-                onChange={e => setForm(f => ({ ...f, retatrutide_injected: e.target.checked }))}
-                style={{ accentColor: '#8b5cf6', width: '16px', height: '16px', cursor: 'pointer' }} />
-              <label htmlFor="retinjected" style={{ fontSize: '13px', cursor: 'pointer' }}>Injicerade idag</label>
-            </div>
-            {form.retatrutide_injected && (
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Dos (mg)</label>
-                <input className="input" type="number" step="0.5" placeholder="2.5" value={form.retatrutide_dose_mg}
-                  onChange={e => setForm(f => ({ ...f, retatrutide_dose_mg: e.target.value }))}
-                  style={{ maxWidth: '120px' }} />
-              </div>
-            )}
-          </div>
-
-          {/* Nutrition (optional) */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              KOST <span style={{ fontWeight: '400', color: 'var(--muted)', fontSize: '11px' }}>(valfritt)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-              <input type="checkbox" id="fasting" checked={form.fasting}
-                onChange={e => setForm(f => ({ ...f, fasting: e.target.checked }))}
-                style={{ accentColor: '#f59e0b', width: '16px', height: '16px', cursor: 'pointer' }} />
-              <label htmlFor="fasting" style={{ fontSize: '13px', cursor: 'pointer' }}>🕐 Fastedag</label>
-            </div>
-            {!form.fasting && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Kalorier</label>
-                  <input className="input" type="number" placeholder="2000" value={form.calories} onChange={e => setForm(f => ({ ...f, calories: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Protein (g)</label>
-                  <input className="input" type="number" placeholder="150" value={form.protein_g} onChange={e => setForm(f => ({ ...f, protein_g: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Vatten (L)</label>
-                  <input className="input" type="number" step="0.1" placeholder="2.5" value={form.water_liters} onChange={e => setForm(f => ({ ...f, water_liters: e.target.value }))} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button onClick={saveLog} className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center' }}>
-            {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={14} /> Spara hälsolog</>}
-          </button>
-        </div>
-      )}
-
-      {/* GRAPHS TAB */}
-      {activeTab === 'graphs' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-          {/* Time window selector */}
-          <div style={{ display: 'flex', gap: '6px' }}>
-            {[
-              { label: '4v', value: '28' },
-              { label: '3 mån', value: '90' },
-              { label: '6 mån', value: '180' },
-              { label: '1 år', value: '365' },
-              { label: 'Allt', value: 'all' },
-            ].map(({ label, value }) => (
-              <button key={value} onClick={() => setTimeWindow(value)} style={{
-                padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                background: timeWindow === value ? 'var(--blue)' : 'var(--surface2)',
-                color: timeWindow === value ? 'white' : 'var(--muted)',
-                fontSize: '12px', fontFamily: 'DM Sans, sans-serif', fontWeight: '500',
-                transition: 'all 0.15s',
-              }}>{label}</button>
+          {/* Tabs */}
+          <div style={{ display:'flex', gap:'4px', marginBottom:'14px', background:'var(--surface)', borderRadius:'10px', padding:'4px', backdropFilter:'var(--glass-blur)' }}>
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+                flex:1, padding:'8px', borderRadius:'7px', border:'none', cursor:'pointer',
+                background: activeTab===tab.id ? 'var(--surface3)' : 'transparent',
+                color: activeTab===tab.id ? 'var(--text)' : 'var(--muted)',
+                fontSize:'13px', fontWeight:'500', fontFamily:'DM Sans, sans-serif', transition:'all 0.15s',
+              }}>{tab.label}</button>
             ))}
           </div>
-          {[
-            { label: 'Vikt', dataKey: 'weight', color: '#10b981', unit: ' kg', refLine: 75, refLabel: 'Mål 75kg', connectNulls: true },
-            { label: 'Steg', dataKey: 'steps', color: '#f59e0b', unit: ' steg', refLine: 8000, refLabel: 'Mål 8 000' },
-            { label: 'Sömn', dataKey: 'sleep', color: '#06b6d4', unit: 'h', refLine: 7.5, refLabel: 'Mål 7.5h' },
-            { label: 'Skärmtid', dataKey: 'screen', color: '#8b5cf6', unit: 'h', refLine: 6, refLabel: 'Mål 6h' },
-            { label: 'Alkohol (enheter)', dataKey: 'alcohol', color: '#ef4444', unit: ' enh' },
-            { label: 'Energi', dataKey: 'energy', color: '#f59e0b', unit: '/10' },
-          ].map(({ label, dataKey, color, unit, refLine, refLabel, connectNulls }) => {
-            const filtered = chartData.filter(d => d[dataKey] != null)
-            if (filtered.length === 0) return null
-            const latest = filtered[filtered.length - 1]?.[dataKey]
-            // For weight: use full chartData with connectNulls to draw line between measurements
-            const graphData = connectNulls ? chartData : filtered
-            return (
-              <div key={dataKey} className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: '500' }}>{label}</div>
-                  {latest && <div className="mono" style={{ fontSize: '13px', color }}>{latest}{unit}</div>}
+
+          {/* ── LOG TAB ── */}
+          {activeTab === 'log' && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+
+              {/* VIKT */}
+              <Widget title="Vikt" icon={<Scale size={14} color="#10b981" />} color="#10b981"
+                action={<SaveBtn onClick={() => saveWidget('weight', { date: weightForm.date, weight_kg: weightForm.weight_kg ? parseFloat(weightForm.weight_kg) : null })} saving={savingWidget.weight} saved={savedWidget.weight} />}>
+                <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                  <input type="date" className="input" value={weightForm.date} onChange={e => setWeightForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
+                  <input type="number" step="0.1" placeholder="kg" className="input" value={weightForm.weight_kg} onChange={e => setWeightForm(f => ({...f, weight_kg:e.target.value}))} style={{ fontSize:'14px', maxWidth:'90px', fontWeight:'600' }} />
                 </div>
-                <ResponsiveContainer width="100%" height={80}>
-                  <LineChart data={graphData}>
-                    <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} dot={false} connectNulls={!!connectNulls} />
-                    <XAxis dataKey="date" hide />
-                    <YAxis hide domain={['auto', 'auto']} />
-                    {refLine && <ReferenceLine y={refLine} stroke={color} strokeDasharray="3 3" opacity={0.4} label={{ value: refLabel, fontSize: 10, fill: color, opacity: 0.6 }} />}
-                    <Tooltip
-                      contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12px' }}
-                      formatter={v => v != null ? [`${v}${unit}`, label] : null}
-                      labelFormatter={l => format(parseISO(l), 'd MMM', { locale: sv })}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )
-          })}
-
-          {/* Recent logs table */}
-          <div className="card">
-            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px' }}>SENASTE 14 DAGAR</div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                <thead>
-                  <tr style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
-                    {['Datum', 'Vikt', 'Sömn', 'Typ', 'Steg', 'Energi', 'Alkohol', 'Ret.'].map(h => (
-                      <th key={h} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '500' }}>{h}</th>
+                {logs.slice(0,5).filter(l => l.weight_kg).length > 0 && (
+                  <div style={{ marginTop:'10px', display:'flex', gap:'4px', flexWrap:'wrap' }}>
+                    {logs.slice(0,5).filter(l => l.weight_kg).map(l => (
+                      <span key={l.id} style={{ fontSize:'11px', padding:'2px 7px', borderRadius:'6px', background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--muted)' }}>
+                        {format(parseISO(l.date),'d/M')} — {l.weight_kg}kg
+                      </span>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.slice(0, 14).map(log => (
-                    <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <td style={{ padding: '8px', color: 'var(--muted)' }}>{format(parseISO(log.date), 'd MMM', { locale: sv })}</td>
-                      <td className="mono" style={{ padding: '8px', color: '#10b981' }}>{log.weight_kg ? `${log.weight_kg}` : '—'}</td>
-                      <td className="mono" style={{ padding: '8px', color: '#06b6d4' }}>{log.sleep_hours ? `${log.sleep_hours}h` : '—'}</td>
-                      <td style={{ padding: '8px', fontSize: '11px', color: 'var(--muted)' }} title={log.sleep_note || ''}>
-                        {log.sleep_type === 'uppdelad' ? '✂️' : log.sleep_type === 'nattjobb' ? '🌙' : log.sleep_hours ? '😴' : '—'}
-                      </td>
-                      <td className="mono" style={{ padding: '8px', color: '#f59e0b' }}>{log.steps ? log.steps.toLocaleString('sv-SE') : '—'}</td>
-                      <td className="mono" style={{ padding: '8px' }}>{log.energy ? `${log.energy}/10` : '—'}</td>
-                      <td className="mono" style={{ padding: '8px', color: log.alcohol_units > 0 ? '#ef4444' : 'var(--muted)' }}>{log.alcohol_units > 0 ? log.alcohol_units : '—'}</td>
-                      <td style={{ padding: '8px' }}>{log.nicotine ? '✓' : '—'}</td>
-                      <td style={{ padding: '8px', color: '#a78bfa' }}>{log.retatrutide_dose_mg ? `${log.retatrutide_dose_mg}mg` : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+                  </div>
+                )}
+              </Widget>
 
-      {/* SUPPLEMENTS TAB */}
-      {activeTab === 'supplements' && (
-        <div>
-          <div className="card" style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '14px' }}>DAGLIGA TILLSKOTT — {format(new Date(), 'd MMM', { locale: sv })}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-              {supplements.map(supp => {
-                const taken = form.supplements_taken.includes(supp)
-                return (
-                  <button key={supp} onClick={() => setForm(f => ({
-                    ...f,
-                    supplements_taken: taken
-                      ? f.supplements_taken.filter(s => s !== supp)
-                      : [...f.supplements_taken, supp]
-                  }))} style={{
-                    display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '12px 14px', borderRadius: '8px',
-                    border: `1px solid ${taken ? '#10b981' : 'var(--border)'}`,
-                    background: taken ? 'rgba(16,185,129,0.08)' : 'transparent',
-                    cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif',
-                    transition: 'all 0.15s',
-                  }}>
-                    <div style={{
-                      width: '20px', height: '20px', borderRadius: '50%',
-                      border: `2px solid ${taken ? '#10b981' : 'var(--border)'}`,
-                      background: taken ? '#10b981' : 'transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      {taken && <span style={{ color: 'white', fontSize: '12px' }}>✓</span>}
+              {/* SÖMN */}
+              <Widget title="Sömn" icon={<Moon size={14} color="#8b5cf6" />} color="#8b5cf6"
+                action={<SaveBtn onClick={() => saveWidget('sleep', { date: sleepForm.date, sleep_hours: sleepForm.sleep_hours ? parseFloat(sleepForm.sleep_hours) : null, sleep_quality: sleepForm.sleep_quality })} saving={savingWidget.sleep} saved={savedWidget.sleep} />}>
+                {todayLog?.source === 'journal' && (
+                  <div style={{ padding:'6px 10px', background:'rgba(6,182,212,0.08)', border:'1px solid rgba(6,182,212,0.2)', borderRadius:'7px', marginBottom:'10px', fontSize:'11px', color:'#06b6d4' }}>
+                    💤 Hämtad från journal
+                  </div>
+                )}
+                <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom:'10px' }}>
+                  <input type="date" className="input" value={sleepForm.date} onChange={e => setSleepForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
+                  <input type="number" step="0.5" placeholder="h" className="input" value={sleepForm.sleep_hours} onChange={e => setSleepForm(f => ({...f, sleep_hours:e.target.value}))} style={{ fontSize:'14px', maxWidth:'70px', fontWeight:'600' }} />
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
+                  <span style={{ fontSize:'11px', color:'var(--muted)' }}>Kvalitet</span>
+                  <span style={{ fontSize:'11px', color:'#8b5cf6', fontWeight:'600' }}>{sleepForm.sleep_quality}/10</span>
+                </div>
+                <input type="range" min="1" max="10" value={sleepForm.sleep_quality} onChange={e => setSleepForm(f => ({...f, sleep_quality:parseInt(e.target.value)}))} style={{ width:'100%', accentColor:'#8b5cf6' }} />
+              </Widget>
+
+              {/* SUBSTANSER */}
+              <Widget title="Alkohol & Nikotin" icon={<Wine size={14} color="#f59e0b" />} color="#f59e0b"
+                action={<SaveBtn onClick={() => saveWidget('substance', { date: substanceForm.date, alcohol_units: substanceForm.alcohol_units ? parseFloat(substanceForm.alcohol_units) : null, nicotine: substanceForm.nicotine.length > 0, marijuana: substanceForm.marijuana || false })} saving={savingWidget.substance} saved={savedWidget.substance} />}>
+                <div style={{ display:'flex', gap:'8px', marginBottom:'12px', alignItems:'center' }}>
+                  <input type="date" className="input" value={substanceForm.date} onChange={e => setSubstanceForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
+                </div>
+                <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom:'12px' }}>
+                  <span style={{ fontSize:'12px', color:'var(--muted)', whiteSpace:'nowrap' }}>Alkohol (enheter)</span>
+                  <input type="number" step="0.5" placeholder="0" className="input" value={substanceForm.alcohol_units} onChange={e => setSubstanceForm(f => ({...f, alcohol_units:e.target.value}))} style={{ maxWidth:'80px', fontSize:'14px', fontWeight:'600' }} />
+                </div>
+                <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+                  {NICOTINE_TYPES.map(n => {
+                    const active = substanceForm.nicotine.includes(n.id)
+                    return (
+                      <button key={n.id} onClick={() => setSubstanceForm(f => ({ ...f, nicotine: active ? f.nicotine.filter(x=>x!==n.id) : [...f.nicotine,n.id] }))} style={{
+                        padding:'5px 10px', borderRadius:'7px', border:'1px solid '+(active?'#f59e0b':'var(--border)'),
+                        background: active?'rgba(245,158,11,0.12)':'var(--surface2)', color: active?'#f59e0b':'var(--muted)',
+                        fontSize:'12px', cursor:'pointer', fontFamily:'DM Sans, sans-serif',
+                      }}>{n.emoji} {n.label}</button>
+                    )
+                  })}
+                  <button onClick={() => setSubstanceForm(f => ({...f, marijuana: !f.marijuana}))} style={{
+                    padding:'5px 10px', borderRadius:'7px', border:'1px solid '+(substanceForm.marijuana?'#10b981':'var(--border)'),
+                    background: substanceForm.marijuana?'rgba(16,185,129,0.12)':'var(--surface2)', color: substanceForm.marijuana?'#10b981':'var(--muted)',
+                    fontSize:'12px', cursor:'pointer', fontFamily:'DM Sans, sans-serif',
+                  }}>🌿 Marijuana</button>
+                </div>
+              </Widget>
+
+              {/* RETATRUTIDE */}
+              <Widget title="Retatrutide 💉" icon={<Syringe size={14} color="#a78bfa" />} color="#a78bfa"
+                action={<SaveBtn onClick={() => saveWidget('ret', { date: retForm.date, retatrutide_dose_mg: retForm.retatrutide_injected ? parseFloat(retForm.retatrutide_dose_mg)||2.5 : null })} saving={savingWidget.ret} saved={savedWidget.ret} />}>
+                <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
+                  <input type="date" className="input" value={retForm.date} onChange={e => setRetForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom: retForm.retatrutide_injected ? '10px' : '0' }}>
+                  <input type="checkbox" id="retinj" checked={retForm.retatrutide_injected} onChange={e => setRetForm(f => ({...f, retatrutide_injected:e.target.checked}))} style={{ accentColor:'#a78bfa', width:'15px', height:'15px', cursor:'pointer' }} />
+                  <label htmlFor="retinj" style={{ fontSize:'13px', cursor:'pointer', color:'var(--text)' }}>Injicerade idag</label>
+                </div>
+                {retForm.retatrutide_injected && (
+                  <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                    <span style={{ fontSize:'12px', color:'var(--muted)' }}>Dos (mg)</span>
+                    <input type="number" step="0.5" placeholder="2.5" className="input" value={retForm.retatrutide_dose_mg} onChange={e => setRetForm(f => ({...f, retatrutide_dose_mg:e.target.value}))} style={{ maxWidth:'90px', fontSize:'14px' }} />
+                  </div>
+                )}
+              </Widget>
+
+              {/* KOST */}
+              <Widget title="Kost" icon={<Utensils size={14} color="#34d399" />} color="#34d399"
+                action={<SaveBtn onClick={() => saveNutrition({ date: nutritionForm.date, total_calories: nutritionForm.fasting ? 0 : (nutritionForm.calories ? parseInt(nutritionForm.calories) : null), protein_g: nutritionForm.protein_g ? parseInt(nutritionForm.protein_g) : null, water_liters: nutritionForm.water_liters ? parseFloat(nutritionForm.water_liters) : null })} saving={savingWidget.nutrition} saved={savedWidget.nutrition} />}>
+                <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
+                  <input type="date" className="input" value={nutritionForm.date} onChange={e => setNutritionForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
+                  <input type="checkbox" id="fasting" checked={nutritionForm.fasting} onChange={e => setNutritionForm(f => ({...f, fasting:e.target.checked}))} style={{ accentColor:'#34d399', width:'15px', height:'15px', cursor:'pointer' }} />
+                  <label htmlFor="fasting" style={{ fontSize:'13px', cursor:'pointer', color:'var(--text)' }}>🕐 Fastedag</label>
+                </div>
+                {!nutritionForm.fasting && (
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
+                    {[['Kalorier', 'calories', 'kcal'], ['Protein (g)', 'protein_g', 'g'], ['Vatten (l)', 'water_liters', 'l']].map(([label, key, unit]) => (
+                      <div key={key}>
+                        <div style={{ fontSize:'10px', color:'var(--muted)', marginBottom:'4px' }}>{label}</div>
+                        <input type="number" placeholder={unit} className="input" value={nutritionForm[key]} onChange={e => setNutritionForm(f => ({...f, [key]:e.target.value}))} style={{ fontSize:'13px' }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Widget>
+
+              {/* KOSTTILLSKOTT */}
+              <Widget title="Kosttillskott" icon={<Pill size={14} color="#06b6d4" />} color="#06b6d4"
+                action={<SaveBtn onClick={() => saveWidget('supps', { date: suppForm.date, supplements_taken: suppForm.supplements_taken })} saving={savingWidget.supps} saved={savedWidget.supps} />}>
+                <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
+                  <input type="date" className="input" value={suppForm.date} onChange={e => setSuppForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'10px' }}>
+                  {supplements.map(supp => {
+                    const taken = suppForm.supplements_taken.includes(supp)
+                    return (
+                      <button key={supp} onClick={() => setSuppForm(f => ({ ...f, supplements_taken: taken ? f.supplements_taken.filter(s=>s!==supp) : [...f.supplements_taken, supp] }))} style={{
+                        display:'flex', alignItems:'center', gap:'10px', padding:'8px 12px', borderRadius:'8px',
+                        border:'1px solid '+(taken?'#06b6d4':'var(--border)'), background: taken?'rgba(6,182,212,0.08)':'var(--surface2)',
+                        cursor:'pointer', fontFamily:'DM Sans, sans-serif', transition:'all 0.15s',
+                      }}>
+                        <div style={{ width:'16px', height:'16px', borderRadius:'50%', border:'2px solid '+(taken?'#06b6d4':'var(--border)'), background: taken?'#06b6d4':'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                          {taken && <Check size={10} color="white" />}
+                        </div>
+                        <span style={{ fontSize:'13px', color: taken?'#06b6d4':'var(--text)' }}>💊 {supp}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <div style={{ display:'flex', gap:'6px', borderTop:'1px solid var(--border)', paddingTop:'10px' }}>
+                  <input className="input" placeholder="Lägg till..." value={newSupplement} onChange={e => setNewSupplement(e.target.value)} onKeyDown={e => { if (e.key==='Enter' && newSupplement.trim()) { setSupplements(p => [...p, newSupplement.trim()]); setNewSupplement('') } }} style={{ fontSize:'12px' }} />
+                  <button onClick={() => { if (newSupplement.trim()) { setSupplements(p => [...p, newSupplement.trim()]); setNewSupplement('') } }} className="btn btn-ghost" style={{ padding:'8px', flexShrink:0 }}><Plus size={13} /></button>
+                </div>
+              </Widget>
+            </div>
+          )}
+
+          {/* ── GRAFER TAB ── */}
+          {activeTab === 'grafer' && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+              {[
+                { key:'weight', label:'Vikt', color:'#10b981', unit:'kg', refLine:75, refLabel:'Mål' },
+                { key:'sleep',  label:'Sömn', color:'#8b5cf6', unit:'h' },
+                { key:'steps',  label:'Steg/dag', color:'#f59e0b', unit:'' },
+                { key:'alcohol',label:'Alkohol', color:'#ef4444', unit:' enheter' },
+              ].map(({ key, label, color, unit, refLine, refLabel }) => (
+                <div key={key} style={{ background:'var(--surface)', backdropFilter:'var(--glass-blur)', WebkitBackdropFilter:'var(--glass-blur)', border:'1px solid var(--glass-border)', borderRadius:'16px', padding:'16px', boxShadow:'var(--glass-shadow)' }}>
+                  <div style={{ fontSize:'13px', fontWeight:'600', color:'var(--text)', marginBottom:'4px' }}>{label}</div>
+                  <div style={{ fontSize:'12px', color, fontWeight:'700', marginBottom:'8px' }}>
+                    {chartData.filter(d => d[key]).slice(-1)[0]?.[key]}{unit}
+                  </div>
+                  <ResponsiveContainer width="100%" height={80}>
+                    <LineChart data={chartData}>
+                      <Line type="monotone" dataKey={key} stroke={color} strokeWidth={2} dot={false} connectNulls />
+                      <XAxis dataKey="date" hide />
+                      <YAxis hide domain={['auto','auto']} />
+                      {refLine && <ReferenceLine y={refLine} stroke={color} strokeDasharray="3 3" opacity={0.4} label={{ value:refLabel, fontSize:10, fill:color }} />}
+                      <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'8px', fontSize:'12px' }} formatter={v => v!=null ? [`${v}${unit}`, label] : null} labelFormatter={l => format(parseISO(l),'d MMM',{locale:sv})} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── HISTORIK TAB ── */}
+          {activeTab === 'historik' && (
+            <div style={{ background:'var(--surface)', backdropFilter:'var(--glass-blur)', WebkitBackdropFilter:'var(--glass-blur)', border:'1px solid var(--glass-border)', borderRadius:'16px', padding:'16px', boxShadow:'var(--glass-shadow)' }}>
+              <div style={{ fontSize:'12px', color:'var(--muted)', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'12px' }}>
+                Senaste 30 dagar
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
+                {logs.slice(0,30).map(log => (
+                  <div key={log.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 12px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'10px', transition:'border-color 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border2)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                    <span style={{ fontSize:'12px', color:'var(--muted)', minWidth:'60px' }}>
+                      {format(parseISO(log.date), 'EEE d/M', { locale:sv })}
+                    </span>
+                    <div style={{ display:'flex', gap:'10px', flex:1, flexWrap:'wrap' }}>
+                      {log.weight_kg && <span style={{ fontSize:'12px', color:'#10b981' }}>⚖ {log.weight_kg}kg</span>}
+                      {log.sleep_hours && <span style={{ fontSize:'12px', color:'#8b5cf6' }}>💤 {log.sleep_hours}h</span>}
+                      {log.steps && <span style={{ fontSize:'12px', color:'#f59e0b' }}>👟 {log.steps.toLocaleString('sv-SE')}</span>}
+                      {log.alcohol_units > 0 && <span style={{ fontSize:'12px', color:'#ef4444' }}>🍺 {log.alcohol_units}</span>}
+                      {log.nicotine && <span style={{ fontSize:'12px', color:'#f59e0b' }}>🟫 nikotin</span>}
+                      {log.retatrutide_dose_mg && <span style={{ fontSize:'12px', color:'#a78bfa' }}>💉 {log.retatrutide_dose_mg}mg</span>}
                     </div>
-                    <span style={{ fontSize: '14px', color: taken ? '#10b981' : 'var(--text)' }}>💊 {supp}</span>
-                  </button>
-                )
-              })}
+                    <button onClick={() => openEditLog(log)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'7px', padding:'4px 8px', cursor:'pointer', color:'var(--muted)', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexShrink:0, transition:'all 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.color='var(--accent)'; e.currentTarget.style.borderColor='var(--accent-border)' }}
+                      onMouseLeave={e => { e.currentTarget.style.color='var(--muted)'; e.currentTarget.style.borderColor='var(--border)' }}>
+                      <Edit2 size={11} /> Redigera
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
+          )}
 
-            {/* Add supplement */}
-            <div style={{ display: 'flex', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
-              <input
-                className="input"
-                placeholder="Lägg till tillskott..."
-                value={newSupplement}
-                onChange={e => setNewSupplement(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && newSupplement.trim()) {
-                    setSupplements(prev => [...prev, newSupplement.trim()])
-                    setNewSupplement('')
-                  }
-                }}
-              />
-              <button
-                onClick={() => { if (newSupplement.trim()) { setSupplements(prev => [...prev, newSupplement.trim()]); setNewSupplement('') } }}
-                className="btn btn-primary" style={{ flexShrink: 0 }}
-              >
-                <Plus size={14} />
-              </button>
+        </div>
+      </div>
+
+      {/* Edit modal */}
+      {editingLog && (
+        <div onClick={() => setEditingLog(null)} style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.7)', backdropFilter:'blur(6px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'20px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'var(--surface)', backdropFilter:'blur(32px)', border:'1px solid var(--glass-border)', borderRadius:'18px', padding:'24px', width:'100%', maxWidth:'480px', boxShadow:'var(--glass-shadow)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+              <div style={{ fontSize:'15px', fontWeight:'600', color:'var(--text)' }}>Redigera logg</div>
+              <button onClick={() => setEditingLog(null)} style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer' }}><X size={16} /></button>
             </div>
-          </div>
-
-          <div style={{ fontSize: '12px', color: 'var(--muted)', padding: '0 4px' }}>
-            Tillskott-loggning sparas tillsammans med hälsologen. Bocka av och tryck "Spara hälsolog" under Logga-fliken.
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px', marginBottom:'16px' }}>
+              <div>
+                <label style={{ fontSize:'11px', color:'var(--muted)', display:'block', marginBottom:'4px' }}>Datum</label>
+                <input type="date" className="input" value={editingLog.date} onChange={e => setEditingLog(l => ({...l, date:e.target.value}))} />
+              </div>
+              <div>
+                <label style={{ fontSize:'11px', color:'var(--muted)', display:'block', marginBottom:'4px' }}>Vikt (kg)</label>
+                <input type="number" step="0.1" className="input" value={editingLog.weight_kg} onChange={e => setEditingLog(l => ({...l, weight_kg:e.target.value}))} />
+              </div>
+              <div>
+                <label style={{ fontSize:'11px', color:'var(--muted)', display:'block', marginBottom:'4px' }}>Sömn (h)</label>
+                <input type="number" step="0.5" className="input" value={editingLog.sleep_hours} onChange={e => setEditingLog(l => ({...l, sleep_hours:e.target.value}))} />
+              </div>
+              <div>
+                <label style={{ fontSize:'11px', color:'var(--muted)', display:'block', marginBottom:'4px' }}>Alkohol (enheter)</label>
+                <input type="number" step="0.5" className="input" value={editingLog.alcohol_units} onChange={e => setEditingLog(l => ({...l, alcohol_units:e.target.value}))} />
+              </div>
+            </div>
+            <div style={{ marginBottom:'16px' }}>
+              <label style={{ fontSize:'11px', color:'var(--muted)', display:'block', marginBottom:'6px' }}>Nikotin</label>
+              <div style={{ display:'flex', gap:'6px' }}>
+                {NICOTINE_TYPES.map(n => {
+                  const active = editingLog.nicotine?.includes(n.id)
+                  return <button key={n.id} onClick={() => setEditingLog(l => ({ ...l, nicotine: active ? l.nicotine.filter(x=>x!==n.id) : [...(l.nicotine||[]),n.id] }))} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid '+(active?'#f59e0b':'var(--border)'), background: active?'rgba(245,158,11,0.12)':'var(--surface2)', color: active?'#f59e0b':'var(--muted)', fontSize:'12px', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>{n.emoji} {n.label}</button>
+                })}
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:'8px', justifyContent:'flex-end' }}>
+              <button onClick={() => setEditingLog(null)} className="btn btn-ghost" style={{ fontSize:'12px' }}>Avbryt</button>
+              <button onClick={saveEditLog} className="btn btn-primary" style={{ fontSize:'12px' }}><Check size={13} /> Spara</button>
+            </div>
           </div>
         </div>
       )}
-
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-    </div>
-      </div>
     </div>
   )
 }
