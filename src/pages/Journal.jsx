@@ -235,6 +235,18 @@ export default function JournalPage() {
   const adjustedFirstDay = (() => { const d = startOfMonth(currentMonth).getDay(); return d === 0 ? 6 : d - 1 })()
   const entryDates = new Set(entries.map(e => e.date))
 
+  // Calculate streak - consecutive days with entries ending today
+  const streak = (() => {
+    let count = 0
+    let d = new Date()
+    while (true) {
+      const ds = format(d, 'yyyy-MM-dd')
+      if (entryDates.has(ds)) { count++; d = new Date(d.getTime() - 86400000) }
+      else break
+    }
+    return count
+  })()
+
   return (
     <div className="page-wrap">
       <div className="page-header">
@@ -250,44 +262,73 @@ export default function JournalPage() {
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding: '12px 12px 0', maxWidth: '960px', margin: '0 auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '12px', alignItems: 'start' }}>
+        <div style={{ padding: '12px 12px 0', maxWidth: '1000px', margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '12px', alignItems: 'stretch', minHeight: 'calc(100vh - 140px)' }}>
 
-            {/* ── LEFT: Calendar ── */}
-            <div style={{
-              background: 'var(--surface)', backdropFilter: 'var(--glass-blur)',
-              WebkitBackdropFilter: 'var(--glass-blur)',
-              border: '1px solid var(--glass-border)', borderRadius: '16px',
-              padding: '16px', boxShadow: 'var(--glass-shadow)',
-              position: 'sticky', top: '70px',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="btn btn-ghost" style={{ padding: '5px 8px' }}>
-                  <ChevronLeft size={14} />
-                </button>
-                <span style={{ fontSize: '13px', fontWeight: '600', textTransform: 'capitalize', color: 'var(--text)' }}>
-                  {format(currentMonth, 'MMMM yyyy', { locale: sv })}
-                </span>
-                <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="btn btn-ghost" style={{ padding: '5px 8px' }}>
-                  <ChevronRight size={14} />
-                </button>
+            {/* ── LEFT: Calendar + stats ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', position: 'sticky', top: '70px', alignSelf: 'start' }}>
+
+              {/* Calendar widget */}
+              <div style={{
+                background: 'var(--surface)', backdropFilter: 'var(--glass-blur)',
+                WebkitBackdropFilter: 'var(--glass-blur)',
+                border: '1px solid var(--glass-border)', borderRadius: '16px',
+                padding: '16px', boxShadow: 'var(--glass-shadow)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="btn btn-ghost" style={{ padding: '5px 8px' }}>
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span style={{ fontSize: '13px', fontWeight: '600', textTransform: 'capitalize', color: 'var(--text)' }}>
+                    {format(currentMonth, 'MMMM yyyy', { locale: sv })}
+                  </span>
+                  <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="btn btn-ghost" style={{ padding: '5px 8px' }}>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', marginBottom: '4px' }}>
+                  {['M','T','O','T','F','L','S'].map((d, i) => (
+                    <div key={i} style={{ textAlign: 'center', fontSize: '10px', color: 'var(--muted)', padding: '3px 0', fontWeight: '500' }}>{d}</div>
+                  ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px' }}>
+                  {Array.from({ length: adjustedFirstDay }).map((_, i) => <div key={'e'+i} />)}
+                  {daysInMonth.map(day => (
+                    <div key={day.toISOString()} style={{ display: 'flex', justifyContent: 'center' }}>
+                      <CalendarDay date={day} hasEntry={entryDates.has(format(day, 'yyyy-MM-dd'))} isSelected={isSameDay(day, selectedDate)} onClick={setSelectedDate} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--muted)' }}>
+                  <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#10b981' }} />
+                  Entry loggad
+                </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', marginBottom: '4px' }}>
-                {['M','T','O','T','F','L','S'].map((d, i) => (
-                  <div key={i} style={{ textAlign: 'center', fontSize: '10px', color: 'var(--muted)', padding: '3px 0', fontWeight: '500' }}>{d}</div>
-                ))}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px' }}>
-                {Array.from({ length: adjustedFirstDay }).map((_, i) => <div key={'e'+i} />)}
-                {daysInMonth.map(day => (
-                  <div key={day.toISOString()} style={{ display: 'flex', justifyContent: 'center' }}>
-                    <CalendarDay date={day} hasEntry={entryDates.has(format(day, 'yyyy-MM-dd'))} isSelected={isSameDay(day, selectedDate)} onClick={setSelectedDate} />
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--muted)' }}>
-                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#10b981' }} />
-                Entry loggad
+
+              {/* Month stats widget */}
+              <div style={{
+                background: 'var(--surface)', backdropFilter: 'var(--glass-blur)',
+                WebkitBackdropFilter: 'var(--glass-blur)',
+                border: '1px solid var(--glass-border)', borderRadius: '16px',
+                padding: '16px', boxShadow: 'var(--glass-shadow)',
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '12px' }}>
+                  {format(currentMonth, 'MMMM', { locale: sv })}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {[
+                    { label: 'Entries', value: entries.length, color: 'var(--accent)' },
+                    { label: 'Streak', value: streak + 'd 🔥', color: '#f59e0b' },
+                  ].map(s => (
+                    <div key={s.label} style={{
+                      background: 'var(--surface2)', borderRadius: '10px',
+                      padding: '10px 12px', border: '1px solid var(--border)',
+                    }}>
+                      <div style={{ fontSize: '18px', fontWeight: '700', color: s.color, letterSpacing: '-0.02em', lineHeight: 1 }}>{s.value}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
