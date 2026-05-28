@@ -307,7 +307,13 @@ serve(async (req) => {
           if (g.one_year) gp.push(`1 år: ${g.one_year}`)
           if (g.three_year) gp.push(`3 år: ${g.three_year}`)
           if (g.ten_year) gp.push(`10 år: ${g.ten_year}`)
+          if (g.future_plan) gp.push(`Framtidsplan: ${g.future_plan}`)
+          const targetWeight = g.target_weight || g.body_weight_goal
+          if (targetWeight) gp.push(`Kroppsviktsmål: ${targetWeight} kg${g.body_weight_deadline ? ' till ' + g.body_weight_deadline : ''}`)
           if (g.monthly_income_goal) gp.push(`Inkomstmål: ${g.monthly_income_goal} kr/mån`)
+          const attachments = g.attachments || {}
+          const attachmentLines = Object.entries(attachments).flatMap(([section, files]: [string, any]) => (files || []).map((file: any) => `${section}: ${file.name}`))
+          if (attachmentLines.length) gp.push(`Bifogade profil-PDF:er: ${attachmentLines.join('; ')}`)
           if (gp.length) parts.push(`MÅL:\n${gp.join('\n')}`)
         }
         if (settings.jarvis_personality) parts.push(`PERSONLIGHET:\n${settings.jarvis_personality}`)

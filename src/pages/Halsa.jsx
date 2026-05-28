@@ -56,6 +56,7 @@ export default function HalsaPage() {
   const [activeTab, setActiveTab] = useState('log')
   const [graphPeriod, setGraphPeriod] = useState(30)
   const [editingLog, setEditingLog] = useState(null)
+  const [userSettings, setUserSettings] = useState(null)
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const [todayLog, setTodayLog] = useState(null)
@@ -70,7 +71,7 @@ export default function HalsaPage() {
   const [nutritionForm, setNutritionForm] = useState({ date: today, fasting: false, calories: '', protein_g: '', water_liters: '' })
   const [suppForm, setSuppForm] = useState({ date: today, supplements_taken: [] })
 
-  useEffect(() => { if (user) { fetchLogs(); fetchTodayLog() } }, [user])
+  useEffect(() => { if (user) { fetchLogs(); fetchTodayLog(); fetchUserSettings() } }, [user])
 
   async function fetchLogs() {
     const since = format(subDays(new Date(), 90), 'yyyy-MM-dd')
@@ -87,6 +88,15 @@ export default function HalsaPage() {
       setSubstanceForm(f => ({ ...f, alcohol_units: data.alcohol_units || '', nicotine: data.nicotine ? ['snus'] : [] }))
       if (data.retatrutide_dose_mg) setRetForm(f => ({ ...f, retatrutide_injected: true, retatrutide_dose_mg: data.retatrutide_dose_mg }))
     }
+  }
+
+  async function fetchUserSettings() {
+    const { data } = await supabase
+      .from('user_settings')
+      .select('goals')
+      .eq('user_id', user.id)
+      .single()
+    setUserSettings(data || null)
   }
 
   async function saveWidget(widget, payload) {
@@ -164,6 +174,8 @@ export default function HalsaPage() {
   }
 
   const latestWeight = logs.find(l => l.weight_kg)?.weight_kg
+  const targetWeightRaw = userSettings?.goals?.target_weight || userSettings?.goals?.body_weight_goal
+  const targetWeight = targetWeightRaw ? parseFloat(targetWeightRaw) : null
   const avgSleep = logs.slice(0,7).filter(l => l.sleep_hours).reduce((s,l,_,a) => s+l.sleep_hours/a.length, 0)
   const avgSteps = logs.slice(0,7).filter(l => l.steps).reduce((s,l,_,a) => s+l.steps/a.length, 0)
   const chartData = logs.slice().reverse().map(l => ({ date: l.date, weight: l.weight_kg||null, sleep: l.sleep_hours||null, steps: l.steps||null, alcohol: l.alcohol_units||null }))
@@ -177,6 +189,7 @@ export default function HalsaPage() {
           <div className="page-header-title">Hälsa</div>
           <div className="page-header-sub" style={{ display:'flex', gap:'10px' }}>
             {latestWeight && <span style={{ color:'#10b981' }}>⚖ {latestWeight} kg</span>}
+            {targetWeight && <span style={{ color:'#f59e0b' }}>mål {targetWeight} kg</span>}
             {avgSleep > 0 && <span style={{ color:'#06b6d4' }}>💤 {avgSleep.toFixed(1)}h</span>}
             {avgSteps > 0 && <span style={{ color:'#f59e0b' }}>{Math.round(avgSteps).toLocaleString('sv-SE')} steg</span>}
           </div>
@@ -399,7 +412,7 @@ export default function HalsaPage() {
 
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
                   {[
-                    { key:'weight', label:'Vikt', color:'#10b981', unit:'kg', refLine:75, refLabel:'Mål 75kg', data:filteredData },
+                    { key:'weight', label:'Vikt', color:'#10b981', unit:'kg', refLine:targetWeight, refLabel:targetWeight ? `Mål ${targetWeight}kg` : '', data:filteredData },
                     { key:'sleep',  label:'Sömn', color:'#8b5cf6', unit:'h', data:filteredData },
                     { key:'steps',  label:'Steg/dag', color:'#f59e0b', unit:' steg', data:filteredData },
                   ].map(({ key, label, color, unit, refLine, refLabel, data }) => (

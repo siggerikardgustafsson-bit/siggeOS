@@ -109,7 +109,8 @@ export default function Dashboard() {
       const stTop=sTs.length?sTs.reduce((b,t)=>t.tier>b.tier?t:b,sTs[0]):null
 
       const wLogs=(healthData||[]).filter(h=>h.weight_kg).slice(0,14)
-      const wGoal=userSettings?.goals?.target_weight||75
+      const wGoalRaw = userSettings?.goals?.target_weight || userSettings?.goals?.body_weight_goal || 75
+      const wGoal = parseFloat(wGoalRaw) || 75
       const wNew=wLogs[0]?.weight_kg||bw,wOld=wLogs[wLogs.length-1]?.weight_kg||bw
       const wD=Math.round((wNew-wOld)*10)/10,wK=Math.max(0,Math.round((bw-wGoal)*10)/10)
       const wP=wK<=0?100:Math.max(0,Math.round((1-wK/Math.max(0.1,bw-wGoal+wK))*100))

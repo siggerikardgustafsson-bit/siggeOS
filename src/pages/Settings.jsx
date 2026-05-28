@@ -28,6 +28,41 @@ const PRESET_BG = [
   { id: 'balkans', label: 'Balkan', url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1920&q=80' },
 ]
 
+
+const DEFAULT_GOALS = {
+  one_year: '',
+  three_year: '',
+  ten_year: '',
+  future_plan: '',
+  monthly_income_goal: '',
+  body_weight_goal: '',
+  body_weight_deadline: '',
+  attachments: {
+    about_me: [],
+    one_year: [],
+    three_year: [],
+    ten_year: [],
+    future_plan: [],
+  },
+}
+
+function mergeGoals(savedGoals = {}) {
+  return {
+    ...DEFAULT_GOALS,
+    ...savedGoals,
+    attachments: {
+      ...DEFAULT_GOALS.attachments,
+      ...(savedGoals.attachments || {}),
+    },
+  }
+}
+
+function formatFileSize(bytes = 0) {
+  if (!bytes) return '0 KB'
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function SectionHeader({ icon: Icon, title, subtitle }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
@@ -72,6 +107,40 @@ function SettingRow({ label, sub, children }) {
   )
 }
 
+
+function ContextFileUpload({ field, files = [], onUpload, onRemove }) {
+  return (
+    <div style={{ marginTop: '10px' }}>
+      <label className="btn btn-ghost" style={{ fontSize: '12px', width: '100%', justifyContent: 'center', cursor: 'pointer' }}>
+        <Upload size={13} /> Bifoga PDF som Jarvis-kontext
+        <input
+          type="file"
+          accept="application/pdf,.pdf"
+          multiple
+          onChange={e => onUpload(field, e.target.files, e)}
+          style={{ display: 'none' }}
+        />
+      </label>
+
+      {files.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+          {files.map(file => (
+            <div key={file.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '9px', background: 'var(--surface2)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '12px', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{file.name}</div>
+                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '1px' }}>{formatFileSize(file.size)} · PDF · Jarvis-kontext</div>
+              </div>
+              <button onClick={() => onRemove(field, file.id)} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '3px' }} title="Ta bort fil">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const { user, signOut } = useAuth()
   const { theme, setTheme, accent, setAccent, bgImage, setBgImage, blurId, setBlurId, dimId, setDimId, compact, setCompact, BACKGROUNDS, BLUR_LEVELS, DIM_LEVELS } = useTheme()
@@ -82,7 +151,7 @@ export default function SettingsPage() {
 
   // Profile & goals
   const [aboutMe, setAboutMe] = useState('')
-  const [goals, setGoals] = useState({ one_year: '', three_year: '', ten_year: '', monthly_income_goal: '' })
+  const [goals, setGoals] = useState(DEFAULT_GOALS)
   const [jarvisStyle, setJarvisStyle] = useState(70) // 0=diplomatic, 100=brutal
   const [jarvisLang, setJarvisLang] = useState('svenska')
   const [jarvisPersonality, setJarvisPersonality] = useState('')
@@ -99,7 +168,7 @@ export default function SettingsPage() {
     const { data } = await supabase.from('user_settings').select('*').eq('user_id', user.id).single()
     if (data) {
       setAboutMe(data.about_me || '')
-      setGoals(data.goals || { one_year: '', three_year: '', ten_year: '', monthly_income_goal: '' })
+      setGoals(mergeGoals(data.goals))
       setJarvisStyle(data.jarvis_style ?? 70)
       setJarvisLang(data.jarvis_lang || 'svenska')
       setJarvisPersonality(data.jarvis_personality || '')
@@ -123,6 +192,53 @@ export default function SettingsPage() {
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+
+  function getContextFiles(field) {
+    return goals.attachments?.[field] || []
+  }
+
+  function handleContextFileUpload(field, fileList, event) {
+    const files = Array.from(fileList || [])
+    if (!files.length) return
+
+    files.forEach(file => {
+      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) return
+
+      const reader = new FileReader()
+      reader.onload = ev => {
+        const uploadedFile = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: file.name,
+          type: file.type || 'application/pdf',
+          size: file.size,
+          dataUrl: ev.target.result,
+          uploadedAt: new Date().toISOString(),
+        }
+
+        setGoals(g => ({
+          ...g,
+          attachments: {
+            ...(g.attachments || {}),
+            [field]: [...(g.attachments?.[field] || []), uploadedFile],
+          },
+        }))
+      }
+      reader.readAsDataURL(file)
+    })
+
+    if (event?.target) event.target.value = ''
+  }
+
+  function removeContextFile(field, fileId) {
+    setGoals(g => ({
+      ...g,
+      attachments: {
+        ...(g.attachments || {}),
+        [field]: (g.attachments?.[field] || []).filter(file => file.id !== fileId),
+      },
+    }))
   }
 
   function handleBgUpload(e) {
@@ -312,22 +428,41 @@ export default function SettingsPage() {
               <div className="card">
                 <SectionHeader icon={User} title="Om mig" subtitle="Jarvis använder detta som kontext i alla samtal" />
                 <textarea className="input" rows={5} placeholder="Berätta om dig själv — vem du är, vad du jobbar med, vad som driver dig..." value={aboutMe} onChange={e => setAboutMe(e.target.value)} style={{ resize: 'vertical', lineHeight: '1.6' }} />
+                <ContextFileUpload field="about_me" files={getContextFiles('about_me')} onUpload={handleContextFileUpload} onRemove={removeContextFile} />
               </div>
 
               <div className="card">
-                <SectionHeader icon={Target} title="Långsiktiga mål" subtitle="Vad siktar du på?" />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <SectionHeader icon={Target} title="Långsiktiga mål" subtitle="Redigera mål och bifoga kontext som Jarvis kan använda" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
                     <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>1 ÅRS MÅL</label>
-                    <textarea className="input" rows={2} placeholder="Vad vill du uppnå det närmaste året?" value={goals.one_year} onChange={e => setGoals(g => ({ ...g, one_year: e.target.value }))} style={{ resize: 'vertical' }} />
+                    <textarea className="input" rows={3} placeholder="Vad vill du uppnå det närmaste året?" value={goals.one_year} onChange={e => setGoals(g => ({ ...g, one_year: e.target.value }))} style={{ resize: 'vertical' }} />
+                    <ContextFileUpload field="one_year" files={getContextFiles('one_year')} onUpload={handleContextFileUpload} onRemove={removeContextFile} />
                   </div>
                   <div>
                     <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>3 ÅRS MÅL</label>
-                    <textarea className="input" rows={2} placeholder="Var befinner du dig om 3 år?" value={goals.three_year} onChange={e => setGoals(g => ({ ...g, three_year: e.target.value }))} style={{ resize: 'vertical' }} />
+                    <textarea className="input" rows={3} placeholder="Var befinner du dig om 3 år?" value={goals.three_year} onChange={e => setGoals(g => ({ ...g, three_year: e.target.value }))} style={{ resize: 'vertical' }} />
+                    <ContextFileUpload field="three_year" files={getContextFiles('three_year')} onUpload={handleContextFileUpload} onRemove={removeContextFile} />
                   </div>
                   <div>
                     <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>10 ÅRS VISION</label>
-                    <textarea className="input" rows={2} placeholder="Hur ser ditt liv ut om 10 år?" value={goals.ten_year} onChange={e => setGoals(g => ({ ...g, ten_year: e.target.value }))} style={{ resize: 'vertical' }} />
+                    <textarea className="input" rows={3} placeholder="Hur ser ditt liv ut om 10 år?" value={goals.ten_year} onChange={e => setGoals(g => ({ ...g, ten_year: e.target.value }))} style={{ resize: 'vertical' }} />
+                    <ContextFileUpload field="ten_year" files={getContextFiles('ten_year')} onUpload={handleContextFileUpload} onRemove={removeContextFile} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>FRAMTIDSPLAN</label>
+                    <textarea className="input" rows={4} placeholder="Din övergripande plan: hälsa, karriär, ekonomi, relationer, resor, sidoprojekt och livsstil..." value={goals.future_plan} onChange={e => setGoals(g => ({ ...g, future_plan: e.target.value }))} style={{ resize: 'vertical', lineHeight: '1.6' }} />
+                    <ContextFileUpload field="future_plan" files={getContextFiles('future_plan')} onUpload={handleContextFileUpload} onRemove={removeContextFile} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>KROPPSVIKTSMÅL (kg)</label>
+                      <input className="input" type="number" step="0.1" placeholder="t.ex. 82" value={goals.body_weight_goal} onChange={e => setGoals(g => ({ ...g, body_weight_goal: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>DATUM FÖR VIKTMÅL</label>
+                      <input className="input" type="date" value={goals.body_weight_deadline} onChange={e => setGoals(g => ({ ...g, body_weight_deadline: e.target.value }))} />
+                    </div>
                   </div>
                   <div>
                     <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>INKOMSTMÅL (kr/mån netto)</label>

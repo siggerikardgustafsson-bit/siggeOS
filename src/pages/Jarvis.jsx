@@ -114,7 +114,7 @@ export default function Jarvis() {
   async function buildContext() {
     const today = format(new Date(), 'yyyy-MM-dd')
 
-    const [scoresRes, healthRes, journalRes, tasksRes, csnRes, insightsRes, summariesRes] = await Promise.all([
+    const [scoresRes, healthRes, journalRes, tasksRes, csnRes, insightsRes, summariesRes, settingsRes] = await Promise.all([
       supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).single(),
       supabase.from('health_logs').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(3),
       supabase.from('journal_entries').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(2),
@@ -122,6 +122,7 @@ export default function Jarvis() {
       supabase.rpc('get_csn_usage', { p_user_id: user.id }),
       supabase.from('jarvis_insights').select('insight, category, updated_at').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(15),
       supabase.from('jarvis_conversations').select('summary, key_points, created_at').eq('user_id', user.id).not('summary', 'is', null).order('created_at', { ascending: false }).limit(4),
+      supabase.from('user_settings').select('about_me, goals, jarvis_style, jarvis_lang, jarvis_personality').eq('user_id', user.id).single(),
     ])
 
     const insightsBlock = (insightsRes.data || []).length > 0
@@ -130,6 +131,17 @@ export default function Jarvis() {
 
     const summariesBlock = (summariesRes.data || []).length > 0
       ? `\nTIDIGARE KONVERSATIONER (sammanfattningar):\n${summariesRes.data.map(s => `${format(new Date(s.created_at), 'yyyy-MM-dd')}: ${s.summary}${s.key_points?.length ? '\n  Nyckelp: ' + s.key_points.join(', ') : ''}`).join('\n')}`
+      : ''
+
+    const settings = settingsRes.data
+    const goalData = settings?.goals || {}
+    const targetWeight = goalData.target_weight || goalData.body_weight_goal
+    const attachments = goalData.attachments || {}
+    const attachmentLines = Object.entries(attachments)
+      .flatMap(([section, files]) => (files || []).map(file => `${section}: ${file.name}`))
+
+    const profileBlock = settings
+      ? `\nPROFIL & MÅL FRÅN INSTÄLLNINGAR:\n${settings.about_me ? `Om mig: ${settings.about_me}\n` : ''}${goalData.one_year ? `1 års mål: ${goalData.one_year}\n` : ''}${goalData.three_year ? `3 års mål: ${goalData.three_year}\n` : ''}${goalData.ten_year ? `10 års vision: ${goalData.ten_year}\n` : ''}${goalData.future_plan ? `Framtidsplan: ${goalData.future_plan}\n` : ''}${targetWeight ? `Kroppsviktsmål: ${targetWeight} kg${goalData.body_weight_deadline ? ` till ${goalData.body_weight_deadline}` : ''}\n` : ''}${goalData.monthly_income_goal ? `Inkomstmål: ${goalData.monthly_income_goal} kr/mån netto\n` : ''}${attachmentLines.length ? `Bifogade profil-PDF:er: ${attachmentLines.join('; ')}\n` : ''}${settings.jarvis_personality ? `Jarvis-personlighet: ${settings.jarvis_personality}` : ''}`
       : ''
 
     const ctx = `
@@ -147,7 +159,8 @@ ${(tasksRes.data||[]).map(t => `${t.title} [${t.tag}]${t.deadline ? ' deadline:'
 
 CSN: ${Math.round(csnRes.data||0)} kr av 114 500 kr förbrukat (${((csnRes.data||0)/114500*100).toFixed(1)}%)
 ${insightsBlock}
-${summariesBlock}`
+${summariesBlock}
+${profileBlock}`
 
     setContext(ctx)
   }
