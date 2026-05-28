@@ -272,10 +272,10 @@ export default function JournalPage() {
 
       <div className="page-content-scroll">
         <div style={{ padding: '12px 12px 0', maxWidth: '1000px', margin: '0 auto' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '12px', alignItems: 'start' }}>
 
             {/* ── LEFT: Calendar + stats ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', position: 'sticky', top: '70px', alignSelf: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
 
               {/* Calendar widget */}
               <div style={{
@@ -337,47 +337,6 @@ export default function JournalPage() {
                   ))}
                 </div>
 
-                {/* Recent entries list */}
-                <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '10px' }}>
-                  Senaste entries
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {recentEntries.map(e => (
-                    <div key={e.id}
-                      onClick={() => {
-                        const d = parseISO(e.date)
-                        setSelectedDate(d)
-                        if (!isSameMonth(d, currentMonth)) setCurrentMonth(d)
-                      }}
-                      style={{
-                        padding: '9px 11px', borderRadius: '10px',
-                        background: 'var(--surface2)', border: '1px solid var(--border)',
-                        cursor: 'pointer', transition: 'border-color 0.15s',
-                      }}
-                      onMouseEnter={ev => ev.currentTarget.style.borderColor = 'var(--border2)'}
-                      onMouseLeave={ev => ev.currentTarget.style.borderColor = 'var(--border)'}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text)', textTransform: 'capitalize' }}>
-                          {format(parseISO(e.date), 'EEE d MMM', { locale: sv })}
-                        </span>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          {e.mood && <span style={{ fontSize: '10px', color: '#ec4899' }}>😊{e.mood}</span>}
-                          {e.energy && <span style={{ fontSize: '10px', color: '#f59e0b' }}>⚡{e.energy}</span>}
-                        </div>
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: '1.4',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {e.content?.slice(0, 60)}
-                      </div>
-                    </div>
-                  ))}
-                  {recentEntries.length === 0 && (
-                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontStyle: 'italic', textAlign: 'center', padding: '12px 0' }}>
-                      Inga entries än
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -486,7 +445,7 @@ export default function JournalPage() {
                   boxShadow: 'var(--glass-shadow)',
                   display: 'flex', flexDirection: 'column',
                   alignItems: 'center', justifyContent: 'center',
-                  minHeight: '420px', padding: '40px 24px', textAlign: 'center',
+                  minHeight: '470px', padding: '40px 24px', textAlign: 'center',
                   gap: '12px',
                 }}>
                   <div style={{ fontSize: '32px', opacity: 0.15 }}>✍️</div>
