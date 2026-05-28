@@ -190,7 +190,7 @@ export default function ExportPage() {
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding: '0 0 24px' }}>
+        <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
 
       {/* Period selector */}
       <div className="card" style={{ marginBottom: '20px' }}>

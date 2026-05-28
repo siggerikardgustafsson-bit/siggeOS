@@ -347,7 +347,7 @@ Returnera ENBART JSON utan backticks:
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding: '0 0 24px' }}>
+        <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
 
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
         {tabs.map(tab => (

@@ -269,7 +269,7 @@ export default function InsightsPage() {
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding: '0 0 24px' }}>
+        <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
 
       {/* Jarvis weekly report */}
       {weeklyReport && (
