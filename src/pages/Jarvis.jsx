@@ -317,10 +317,18 @@ ${profileBlock}`
   const hour = new Date().getHours()
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'transparent' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden',
+      background: 'var(--surface)',
+      backdropFilter: 'var(--glass-blur)',
+      WebkitBackdropFilter: 'var(--glass-blur)',
+      border: '1px solid var(--glass-border)',
+      borderRadius: '18px',
+      boxShadow: 'var(--glass-shadow)',
+    }}>
 
       {/* HEADER — matches page-header class */}
-      <div className="page-header" style={{ marginBottom: '0', flexShrink: 0 }}>
+      <div className="page-header" style={{ marginBottom: '0', flexShrink: 0, borderRadius: '18px 18px 0 0', boxShadow: 'none' }}>
         <div>
           <div className="page-header-title">Jarvis</div>
           <div className="page-header-sub">
