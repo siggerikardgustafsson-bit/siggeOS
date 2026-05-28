@@ -319,21 +319,12 @@ ${profileBlock}`
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'transparent' }}>
 
-      {/* STICKY HEADER */}
-      <div style={{
-        padding: '14px 24px',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        flexShrink: 0,
-        background: 'var(--surface)',
-        backdropFilter: 'blur(28px)',
-        WebkitBackdropFilter: 'blur(28px)',
-        position: 'sticky', top: 0, zIndex: 10,
-      }}>
+      {/* HEADER — matches page-header class */}
+      <div className="page-header" style={{ margin: '10px 10px 0', flexShrink: 0 }}>
         <div>
-          <div style={{ fontSize: '17px', fontWeight: '600', color: 'var(--text)', letterSpacing: '-0.02em' }}>Jarvis</div>
-          <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>
-            {insights.length > 0 ? insights.length + ' insikter sparade' : 'Personlig AI'}
+          <div className="page-header-title">Jarvis</div>
+          <div className="page-header-sub">
+            {insights.length > 0 ? `${insights.length} insikter sparade` : 'Personlig AI'}
           </div>
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -342,24 +333,25 @@ ${profileBlock}`
             borderRadius: '8px', border: '1px solid ' + (showInsights ? 'var(--accent-border)' : 'var(--border)'),
             background: showInsights ? 'var(--accent-soft)' : 'var(--surface2)',
             color: showInsights ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', fontSize: '12px',
+            fontFamily: 'Inter, sans-serif',
           }}>
             <Brain size={12} /> Minne
             {showInsights ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           </button>
           {hour < 12 && (
-            <button onClick={() => generateBrief('morning')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.25)', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', cursor: 'pointer', fontSize: '12px' }}>
+            <button onClick={() => generateBrief('morning')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.25)', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
               <Sun size={12} /> Morning brief
             </button>
           )}
           {hour >= 18 && (
-            <button onClick={() => generateBrief('evening')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(139,92,246,0.25)', background: 'rgba(139,92,246,0.08)', color: '#a78bfa', cursor: 'pointer', fontSize: '12px' }}>
+            <button onClick={() => generateBrief('evening')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(139,92,246,0.25)', background: 'rgba(139,92,246,0.08)', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
               <Moon size={12} /> Kväll
             </button>
           )}
-          <button onClick={() => generateBrief('weekly')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(52,211,153,0.25)', background: 'rgba(52,211,153,0.08)', color: '#34d399', cursor: 'pointer', fontSize: '12px' }}>
+          <button onClick={() => generateBrief('weekly')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(52,211,153,0.25)', background: 'rgba(52,211,153,0.08)', color: '#34d399', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
             <Zap size={12} /> Vecka
           </button>
-          <button onClick={summarizeAndSave} disabled={messages.length < 4 || loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px' }}>
+          <button onClick={summarizeAndSave} disabled={messages.length < 4 || loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
             <Zap size={12} /> Spara
           </button>
         </div>
@@ -468,24 +460,20 @@ ${profileBlock}`
       </div>
 
       {/* INPUT */}
-      <div style={{
-        padding: '12px 16px',
-        borderTop: '1px solid var(--border)',
-        background: 'var(--surface)',
-        backdropFilter: 'blur(28px)',
-        WebkitBackdropFilter: 'blur(28px)',
-        flexShrink: 0,
-      }}>
+      <div style={{ padding: '10px 10px 10px', flexShrink: 0 }}>
         <div style={{
           display: 'flex', gap: '8px', alignItems: 'flex-end',
-          background: 'var(--surface2)',
-          border: '1px solid var(--border)',
+          background: 'var(--surface)',
+          backdropFilter: 'var(--glass-blur)',
+          WebkitBackdropFilter: 'var(--glass-blur)',
+          border: '1px solid var(--glass-border)',
           borderRadius: '16px',
           padding: '8px 8px 8px 16px',
+          boxShadow: 'var(--glass-shadow)',
           transition: 'border-color 0.15s',
         }}
         onFocusCapture={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
-        onBlurCapture={e => e.currentTarget.style.borderColor = 'var(--border)'}
+        onBlurCapture={e => e.currentTarget.style.borderColor = 'var(--glass-border)'}
         >
           <textarea
             ref={inputRef}
@@ -499,7 +487,7 @@ ${profileBlock}`
               flex: 1, background: 'none', border: 'none', outline: 'none',
               color: 'var(--text)', fontSize: '14px', lineHeight: '1.5',
               resize: 'none', maxHeight: '120px', overflow: 'auto',
-              padding: '4px 0',
+              padding: '4px 0', fontFamily: 'Inter, sans-serif',
             }}
           />
           <button onClick={sendMessage} disabled={loading || !input.trim()} style={{
