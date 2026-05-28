@@ -16,33 +16,39 @@ export default function AppLayout() {
       display: 'flex',
       height: '100vh',
       overflow: 'hidden',
-      padding: '10px',
-      gap: '10px',
+      padding: '0',
+      gap: '0',
       boxSizing: 'border-box',
     }}>
 
-      {/* Sidebar — floating widget */}
-      <div className="hidden-mobile app-sidebar-floating" style={{ flexShrink: 0 }}>
+      {/* Sidebar — floating glass panel */}
+      <div className="hidden-mobile" style={{
+        flexShrink: 0,
+        padding: '10px 0 10px 10px',
+        boxSizing: 'border-box',
+        height: '100vh',
+      }}>
         <div style={{
           height: '100%',
-          borderRadius: '0',
+          borderRadius: '18px',
           overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+          boxShadow: 'var(--glass-shadow)',
         }}>
-          <Sidebar floating />
+          <Sidebar />
         </div>
       </div>
 
-      {/* Main content — this is the scroll container, needed for sticky to work */}
+      {/* Main content */}
       <main style={{
         flex: 1,
         overflowY: 'auto',
         overflowX: 'hidden',
         background: 'transparent',
         minHeight: 0,
-        borderRadius: '0',
         display: 'flex',
         flexDirection: 'column',
+        padding: '10px',
+        boxSizing: 'border-box',
       }}>
         <Outlet />
       </main>
@@ -56,7 +62,6 @@ export default function AppLayout() {
         .hidden-mobile { display: flex; }
         .show-mobile { display: none; }
 
-        /* page-wrap fills main and handles its own layout */
         .page-wrap {
           display: flex;
           flex-direction: column;
@@ -64,12 +69,11 @@ export default function AppLayout() {
           gap: 0;
         }
 
-        /* Floating sticky header */
         .page-header {
           position: sticky;
-          top: 10px;
+          top: 0;
           z-index: 30;
-          margin: 0 0 0;
+          margin: 0 0 12px 0;
           flex-shrink: 0;
           padding: 12px 20px;
           display: flex;
@@ -105,10 +109,9 @@ export default function AppLayout() {
           margin-top: 3px;
         }
 
-        /* Scrollable content with iOS fade */
         .page-content-scroll {
           flex: 1;
-          padding: 12px 0 24px;
+          padding: 0 0 24px 0;
           -webkit-mask-image: linear-gradient(
             to bottom,
             transparent 0px,
@@ -126,7 +129,20 @@ export default function AppLayout() {
         @media (max-width: 768px) {
           .hidden-mobile { display: none !important; }
           .show-mobile { display: block; }
-          .page-content-scroll { padding-bottom: 80px; }
+
+          main {
+            padding: 0 !important;
+          }
+
+          .page-header {
+            top: 10px;
+            margin: 10px 10px 12px 10px;
+          }
+
+          .page-content-scroll {
+            padding: 0 10px 80px 10px;
+          }
+
           * { max-width: 100vw; }
         }
       `}</style>
