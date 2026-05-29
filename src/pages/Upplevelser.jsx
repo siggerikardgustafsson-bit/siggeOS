@@ -88,7 +88,7 @@ function CountryPicker({ selected, onChange }) {
         width: '100%', padding: '10px 12px', borderRadius: '8px',
         border: '1px solid var(--border)', background: 'var(--surface)',
         color: selected.length ? 'var(--text)' : 'var(--muted)',
-        cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif',
+        cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif',
         fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <span>
@@ -106,7 +106,7 @@ function CountryPicker({ selected, onChange }) {
           {COUNTRIES.map(c => (
             <button key={c} onClick={() => toggle(c)} style={{
               width: '100%', padding: '8px 12px', border: 'none',
-              cursor: 'pointer', textAlign: 'left', fontFamily: 'DM Sans, sans-serif',
+              cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif',
               fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px',
               color: selected.includes(c) ? 'var(--text)' : 'var(--muted)',
               background: selected.includes(c) ? 'rgba(59,130,246,0.08)' : 'none',
@@ -340,7 +340,7 @@ Returnera ENBART JSON utan backticks:
           </div>
         </div>
         <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
-          <button onClick={() => { setShowNewTrip(true); setEditingTrip(null) }} className="btn btn-primary" style={{ fontSize: '12px' }}>
+          <button onClick={() => { setShowNewTrip(true); setEditingTrip(null) }} className="btn btn-primary">
             <Plus size={13} /> Ny resa
           </button>
         </div>
@@ -577,7 +577,7 @@ Returnera ENBART JSON utan backticks:
               display: 'flex', alignItems: 'center', gap: '7px', padding: '10px 16px',
               borderRadius: '8px', border: '1px solid rgba(239,68,68,0.3)',
               background: 'rgba(239,68,68,0.08)', color: '#f87171',
-              cursor: 'pointer', fontSize: '13px', fontFamily: 'DM Sans, sans-serif', fontWeight: '600',
+              cursor: 'pointer', fontSize: '13px', fontFamily: 'Inter, sans-serif', fontWeight: '600',
             }}>
               {generatingQuests ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Flame size={13} />}
               Generera nya quests
@@ -602,13 +602,13 @@ Returnera ENBART JSON utan backticks:
                           display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px',
                           borderRadius: '6px', border: '1px solid rgba(16,185,129,0.3)',
                           background: 'rgba(16,185,129,0.08)', color: '#10b981',
-                          cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif',
+                          cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
                         }}><Check size={12} /> Avklarad</button>
                         <button onClick={() => skipQuest(quest.id)} style={{
                           display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 10px',
                           borderRadius: '6px', border: '1px solid var(--border)',
                           background: 'transparent', color: 'var(--muted)',
-                          cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif',
+                          cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
                         }}><SkipForward size={12} /> Skippa</button>
                       </div>
                     </div>

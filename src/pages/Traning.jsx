@@ -519,10 +519,10 @@ export default function TraningPage() {
               🟠 Koppla Strava
             </button>
           )}
-          <button onClick={() => csvRef.current?.click()} disabled={csvImporting} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+          <button onClick={() => csvRef.current?.click()} disabled={csvImporting} className="btn btn-ghost">
             {csvImporting ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : '📥 CSV'}
           </button>
-          <button onClick={() => setView(view === 'calendar' ? 'overview' : 'calendar')} className="btn btn-ghost" style={{ fontSize: '13px' }}>
+          <button onClick={() => setView(view === 'calendar' ? 'overview' : 'calendar')} className="btn btn-ghost">
             <Calendar size={14} /> {view === 'calendar' ? 'Översikt' : 'Kalender'}
           </button>
           <button onClick={() => setView(view === 'log' ? 'overview' : 'log')} className="btn btn-primary">
@@ -723,13 +723,13 @@ export default function TraningPage() {
         <div>
           {/* Month navigation */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <button onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}>
+            <button onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))} className="btn btn-ghost btn-icon">
               <ChevronLeft size={15} />
             </button>
             <div style={{ fontSize: '15px', fontWeight: '600', textTransform: 'capitalize' }}>
               {format(calendarMonth, 'MMMM yyyy', { locale: sv })}
             </div>
-            <button onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))} className="btn btn-ghost" style={{ padding: '7px 10px' }}>
+            <button onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))} className="btn btn-ghost btn-icon">
               <ChevronRight size={15} />
             </button>
           </div>
@@ -885,7 +885,7 @@ export default function TraningPage() {
                     alignItems: 'center',
                     gap: '6px',
                     fontSize: '13px',
-                    fontFamily: 'DM Sans, sans-serif',
+                    fontFamily: 'Inter, sans-serif',
                     fontWeight: '500',
                     transition: 'all 0.15s',
                   }}

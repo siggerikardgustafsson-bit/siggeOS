@@ -186,7 +186,7 @@ export default function EkonomiPage() {
           <div className="page-header-sub">{format(selectedMonth, 'MMMM yyyy', { locale: sv })}</div>
         </div>
         <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
-          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost" style={{ padding: "7px 10px" }}>←</button><button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost" style={{ fontSize: "12px" }}>Idag</button><button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost" style={{ padding: "7px 10px" }}>→</button>
+          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost btn-icon">←</button><button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost">Idag</button><button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost btn-icon">→</button>
         </div>
       </div>
       <div className="page-content-scroll">
@@ -199,7 +199,7 @@ export default function EkonomiPage() {
             flex: 1, padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer',
             background: activeTab === tab.id ? 'var(--surface3)' : 'transparent',
             color: activeTab === tab.id ? 'var(--text)' : 'var(--muted)',
-            fontSize: '13px', fontWeight: '500', fontFamily: 'DM Sans, sans-serif',
+            fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif',
             transition: 'all 0.15s',
           }}>{tab.label}</button>
         ))}
@@ -298,7 +298,7 @@ export default function EkonomiPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {fixedCosts.map(fc => (
                 <div key={fc.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '13px' }}>{fc.name}</span>
+                  <span>{fc.name}</span>
                   <span className="mono" style={{ fontSize: '13px', color: 'var(--muted)' }}>{fc.amount.toLocaleString('sv-SE')} kr</span>
                 </div>
               ))}
@@ -323,7 +323,7 @@ export default function EkonomiPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '16px' }}>{tx.type === 'income' ? '💰' : cat?.emoji || '📦'}</span>
                         <div>
-                          <div style={{ fontSize: '13px' }}>{tx.description || tx.source || cat?.label || 'Utgift'}</div>
+                          <div>{tx.description || tx.source || cat?.label || 'Utgift'}</div>
                           <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{format(new Date(tx.date), 'd MMM', { locale: sv })}</div>
                         </div>
                       </div>
@@ -364,7 +364,7 @@ export default function EkonomiPage() {
                 flex: 1, padding: '8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
                 background: logType === t.id ? (t.id === 'income' ? '#10b981' : '#ef4444') : 'transparent',
                 color: logType === t.id ? 'white' : 'var(--muted)',
-                fontSize: '14px', fontWeight: '600', fontFamily: 'DM Sans, sans-serif',
+                fontSize: '14px', fontWeight: '600', fontFamily: 'Inter, sans-serif',
                 transition: 'all 0.15s',
               }}>{t.label}</button>
             ))}
@@ -384,7 +384,7 @@ export default function EkonomiPage() {
                       padding: '8px 4px', borderRadius: '8px', border: `1px solid ${expenseForm.category === cat.id ? cat.color : 'var(--border)'}`,
                       background: expenseForm.category === cat.id ? cat.color + '20' : 'transparent',
                       color: expenseForm.category === cat.id ? cat.color : 'var(--muted)',
-                      cursor: 'pointer', fontSize: '11px', fontFamily: 'DM Sans, sans-serif',
+                      cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
                     }}>
                       <span style={{ fontSize: '16px' }}>{cat.emoji}</span>
@@ -435,7 +435,7 @@ export default function EkonomiPage() {
                       border: `1px solid ${incomeForm.source === src ? '#10b981' : 'var(--border)'}`,
                       background: incomeForm.source === src ? 'rgba(16,185,129,0.15)' : 'transparent',
                       color: incomeForm.source === src ? '#10b981' : 'var(--muted)',
-                      cursor: 'pointer', fontSize: '13px', fontFamily: 'DM Sans, sans-serif',
+                      cursor: 'pointer', fontSize: '13px', fontFamily: 'Inter, sans-serif',
                     }}>{src}</button>
                   ))}
                 </div>

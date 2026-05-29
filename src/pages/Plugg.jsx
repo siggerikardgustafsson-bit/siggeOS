@@ -366,7 +366,7 @@ export default function PluggPage() {
           <div className="page-header-sub">{courses.length} aktiva kurser</div>
         </div>
         <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
-          <button onClick={syncMandatory} disabled={syncingMandatory} className="btn btn-ghost" style={{ fontSize: "12px" }}>{syncingMandatory ? <Loader size={13} style={{ animation: "spin 1s linear infinite" }} /> : null} Synka</button>
+          <button onClick={syncMandatory} disabled={syncingMandatory} className="btn btn-ghost">{syncingMandatory ? <Loader size={13} style={{ animation: "spin 1s linear infinite" }} /> : null} Synka</button>
         </div>
       </div>
       <div className="page-content-scroll">
@@ -757,16 +757,16 @@ export default function PluggPage() {
                         )}
 
                         <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
-                          <button onClick={() => copyGoals(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+                          <button onClick={() => copyGoals(course.id)} className="btn btn-ghost">
                             {copied === course.id ? <><Check size={12} /> Kopierat!</> : <><Copy size={12} /> Kopiera mål</>}
                           </button>
-                          <button onClick={() => estimateTime(course.id)} disabled={estimatingTime === course.id} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+                          <button onClick={() => estimateTime(course.id)} disabled={estimatingTime === course.id} className="btn btn-ghost">
                             {estimatingTime === course.id ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Estimerar...</> : <><Zap size={12} /> Estimera tid</>}
                           </button>
-                          <button onClick={() => archiveCourse(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+                          <button onClick={() => archiveCourse(course.id)} className="btn btn-ghost">
                             <Archive size={12} /> Arkivera
                           </button>
-                          <button onClick={() => deleteCourse(course.id)} className="btn btn-danger" style={{ fontSize: '12px' }}>
+                          <button onClick={() => deleteCourse(course.id)} className="btn btn-danger">
                             <Trash2 size={12} /> Ta bort
                           </button>
                         </div>
@@ -789,7 +789,7 @@ export default function PluggPage() {
                 {mandatoryUnmatched.map(s => (
                   <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: '8px', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
                     <div>
-                      <div style={{ fontSize: '13px' }}>{s.title}</div>
+                      <div>{s.title}</div>
                       <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{format(parseISO(s.date), 'd MMM yyyy', { locale: sv })}</div>
                     </div>
                     <button onClick={() => toggleMandatoryAttended(s.id, s.attended)} style={{

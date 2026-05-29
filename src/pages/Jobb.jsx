@@ -161,7 +161,7 @@ function KanbanColumn({ title, color, tasks, onEdit, onMove, onDelete }) {
                     <button key={s.id} onClick={e => { e.stopPropagation(); onMove(task.id, s.id) }}
                       style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px',
                         background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                        color: 'var(--muted)', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>
+                        color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
                       → {s.label}
                     </button>
                   ))}
@@ -427,7 +427,7 @@ export default function JobbPage() {
           <div className="page-header-sub">{totalHours.toFixed(1)}h PA denna månad</div>
         </div>
         <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
-          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost" style={{ padding: "7px 10px" }}>←</button><button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost" style={{ fontSize: "12px" }}>Idag</button><button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost" style={{ padding: "7px 10px" }}>→</button>
+          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost btn-icon">←</button><button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost">Idag</button><button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost btn-icon">→</button>
         </div>
       </div>
       <div className="page-content-scroll">
@@ -445,7 +445,7 @@ export default function JobbPage() {
             flex: 1, padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer',
             background: activeTab === tab.id ? 'var(--surface3)' : 'transparent',
             color: activeTab === tab.id ? 'var(--text)' : 'var(--muted)',
-            fontSize: '13px', fontWeight: '500', fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s',
+            fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
           }}>{tab.label}</button>
         ))}
       </div>
@@ -488,13 +488,13 @@ export default function JobbPage() {
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {calendarConnected ? (
-                  <button onClick={syncCalendar} className="btn btn-ghost" style={{ fontSize: '12px' }} disabled={loadingCalendar}>
+                  <button onClick={syncCalendar} className="btn btn-ghost" disabled={loadingCalendar}>
                     {loadingCalendar
                       ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Synkar...</>
                       : <><Calendar size={13} /> Synka nu</>}
                   </button>
                 ) : (
-                  <button onClick={connectGoogleCalendar} className="btn btn-primary" style={{ fontSize: '12px' }}>
+                  <button onClick={connectGoogleCalendar} className="btn btn-primary">
                     <ExternalLink size={13} /> Koppla Google
                   </button>
                 )}
@@ -562,7 +562,7 @@ export default function JobbPage() {
                         }} style={{
                           fontSize: '10px', padding: '3px 8px', borderRadius: '5px', cursor: 'pointer',
                           border: '1px solid var(--border)', background: 'transparent',
-                          color: 'var(--muted)', fontFamily: 'DM Sans, sans-serif',
+                          color: 'var(--muted)', fontFamily: 'Inter, sans-serif',
                         }}>
                           {isSov ? '→ Vaken' : '→ Sov'}
                         </button>
@@ -610,13 +610,13 @@ export default function JobbPage() {
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
             <button onClick={() => { setShowNewTask(true); setEditingTask(null); setTaskForm({ title: '', description: '', deadline: '', tag: 'Övrig verksamhet', priority: 'medium', notes: '' }) }}
-              className="btn btn-primary" style={{ fontSize: '13px' }}>
+              className="btn btn-primary">
               <Plus size={14} /> Nytt uppdrag
             </button>
             <button onClick={() => setShowNewPayment(true)} className="btn btn-ghost" style={{ fontSize: '13px', color: '#10b981', borderColor: 'rgba(16,185,129,0.3)' }}>
               <DollarSign size={14} /> Logga betalning
             </button>
-            <button onClick={() => setShowNewContact(true)} className="btn btn-ghost" style={{ fontSize: '13px' }}>
+            <button onClick={() => setShowNewContact(true)} className="btn btn-ghost">
               <MessageSquare size={14} /> Logga kontakt
             </button>
           </div>
@@ -748,7 +748,7 @@ export default function JobbPage() {
                 {erikPayments.map(p => (
                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                     <div>
-                      <div style={{ fontSize: '13px' }}>{p.description || 'Betalning'}</div>
+                      <div>{p.description || 'Betalning'}</div>
                       <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{format(parseISO(p.date), 'd MMM', { locale: sv })}</div>
                     </div>
                     <div className="mono" style={{ fontSize: '14px', fontWeight: '600', color: '#10b981' }}>
@@ -757,7 +757,7 @@ export default function JobbPage() {
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', fontWeight: '600' }}>
-                  <span style={{ fontSize: '13px' }}>Totalt</span>
+                  <span>Totalt</span>
                   <span className="mono" style={{ fontSize: '14px', color: '#10b981' }}>{totalErikThisMonth.toLocaleString('sv-SE')} kr</span>
                 </div>
               </div>

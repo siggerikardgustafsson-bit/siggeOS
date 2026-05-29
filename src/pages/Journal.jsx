@@ -46,7 +46,7 @@ function CalendarDay({ date, hasEntry, isSelected, onClick }) {
   return (
     <button onClick={() => onClick(date)} style={{
       width: '34px', height: '34px', borderRadius: '8px', border: 'none',
-      cursor: 'pointer', fontSize: '12px', fontFamily: 'DM Sans, sans-serif',
+      cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
       fontWeight: isSelected || today ? '600' : '400',
       background: isSelected ? 'var(--accent)' : today ? 'var(--accent-soft)' : 'transparent',
       color: isSelected ? 'white' : today ? 'var(--accent)' : 'var(--text)',
@@ -265,7 +265,7 @@ export default function JournalPage() {
             {entries.length} {entries.length === 1 ? 'entry' : 'entries'} i {format(currentMonth, 'MMMM', { locale: sv })}
           </div>
         </div>
-        <button onClick={openNewForm} className="btn btn-primary" style={{ fontSize: '12px' }}>
+        <button onClick={openNewForm} className="btn btn-primary">
           <Plus size={14} /> Ny entry
         </button>
       </div>
@@ -354,7 +354,7 @@ export default function JournalPage() {
                 <div style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text)', textTransform: 'capitalize' }}>
                   {format(selectedDate, "EEEE d MMMM", { locale: sv })}
                 </div>
-                <button onClick={openNewForm} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+                <button onClick={openNewForm} className="btn btn-ghost">
                   <Plus size={13} /> Lägg till
                 </button>
               </div>
@@ -414,7 +414,7 @@ export default function JournalPage() {
                         flex: 1, padding: '6px', borderRadius: '8px', border: '1px solid ' + (form.sleep_type === t.id ? 'rgba(6,182,212,0.4)' : 'var(--border)'),
                         cursor: 'pointer', background: form.sleep_type === t.id ? 'rgba(6,182,212,0.1)' : 'var(--surface2)',
                         color: form.sleep_type === t.id ? '#06b6d4' : 'var(--muted)', fontSize: '12px',
-                        fontFamily: 'DM Sans, sans-serif', transition: 'all 0.15s',
+                        fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
                       }}>{t.label}</button>
                     ))}
                   </div>
@@ -433,7 +433,7 @@ export default function JournalPage() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                    <button onClick={() => { setShowForm(false); setEditingEntry(null); setForm(EMPTY_FORM) }} className="btn btn-ghost" style={{ fontSize: '12px' }}>Avbryt</button>
+                    <button onClick={() => { setShowForm(false); setEditingEntry(null); setForm(EMPTY_FORM) }} className="btn btn-ghost">Avbryt</button>
                     <button onClick={saveEntry} className="btn btn-primary" disabled={saving || !form.content.trim()} style={{ fontSize: '12px', opacity: saving || !form.content.trim() ? 0.6 : 1 }}>
                       {saving ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={13} /> {editingEntry ? 'Spara ändringar' : 'Spara'}</>}
                     </button>

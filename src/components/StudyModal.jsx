@@ -616,7 +616,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                   {mode === 'tenta' ? 'Laddar tenta...' : 'Startar...'}
                 </div>
               ) : (
-                <button onClick={startSession} disabled={mode === 'normal' && selectedGoals.length === 0} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px' }}>
+                <button onClick={startSession} disabled={mode === 'normal' && selectedGoals.length === 0} className="btn btn-primary btn-full">
                   {mode === 'tenta' ? <><Zap size={15} /> Starta tentamode</> : <><Brain size={15} /> Starta · {selectedGoals.length} mål</>}
                 </button>
               )}
