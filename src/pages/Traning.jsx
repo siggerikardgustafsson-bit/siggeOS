@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight, RefreshCw, Link, Upload } from 'lucide-react'
 import ExerciseModal from '../components/ExerciseModal'
 import RunModal from '../components/RunModal'
 
@@ -511,16 +511,16 @@ export default function TraningPage() {
         <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
           <input ref={csvRef} type="file" accept=".csv" onChange={handleCsvImport} style={{ display: 'none' }} />
           {stravaConnected ? (
-            <button onClick={syncStrava} disabled={stravaSyncing} className="btn btn-ghost" style={{ fontSize: '12px', color: '#fc4c02', borderColor: 'rgba(252,76,2,0.25)' }}>
-              {stravaSyncing ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Synkar...</> : '🟠 Synka Strava'}
+            <button onClick={syncStrava} disabled={stravaSyncing} className="btn btn-ghost" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)' }}>
+              {stravaSyncing ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Synkar...</> : <><RefreshCw size={13} /> Strava</>}
             </button>
           ) : (
-            <button onClick={connectStrava} className="btn btn-ghost" style={{ fontSize: '12px', color: '#fc4c02', borderColor: 'rgba(252,76,2,0.25)' }}>
-              🟠 Koppla Strava
+            <button onClick={connectStrava} className="btn btn-ghost" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)' }}>
+              <Link size={13} /> Koppla Strava
             </button>
           )}
           <button onClick={() => csvRef.current?.click()} disabled={csvImporting} className="btn btn-ghost">
-            {csvImporting ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : '📥 CSV'}
+            {csvImporting ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : <><Upload size={13} /> CSV</>}
           </button>
           <button onClick={() => setView(view === 'calendar' ? 'overview' : 'calendar')} className="btn btn-ghost">
             <Calendar size={14} /> {view === 'calendar' ? 'Översikt' : 'Kalender'}

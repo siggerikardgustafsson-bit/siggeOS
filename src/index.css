@@ -272,14 +272,14 @@ select.input option { background: #1a1a2e; color: #fff; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn:not(:disabled):active { transform: scale(0.96); }
 
-/* Primary — solid accent fill, matches screenshot */
+/* Primary — gradient fill */
 .btn-primary {
-  background: var(--accent);
+  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 78%, #000) 100%);
   color: #fff;
   box-shadow: 0 2px 10px var(--accent-glow);
 }
 .btn-primary:not(:disabled):hover {
-  background: color-mix(in srgb, var(--accent) 85%, #fff);
+  filter: brightness(1.08);
   box-shadow: 0 4px 18px var(--accent-glow);
 }
 
