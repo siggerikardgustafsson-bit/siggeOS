@@ -622,23 +622,26 @@ Mål-IDs (kopiera exakt):
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                     {goalsWithDecay.map(goal => {
                       const selected = selectedGoals.includes(goal.id)
-                      const m = goal.effectiveMastery
+                      // Use live masteryUpdates if available (updates during session)
+                      const liveMastery = masteryUpdates[goal.id] ?? goal.effectiveMastery
                       const needsReview = goal.last_studied && differenceInDays(new Date(), parseISO(goal.last_studied)) >= 3
+                      const wasUpdatedThisSession = masteryUpdates[goal.id] != null
                       return (
                         <div key={goal.id} onClick={() => setSelectedGoals(prev => prev.includes(goal.id) ? prev.filter(id => id !== goal.id) : [...prev, goal.id])} style={{
                           display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px',
                           borderRadius: '9px', cursor: 'pointer', transition: 'all 0.12s',
-                          background: selected ? 'var(--accent-soft)' : 'var(--modal-surface2)',
-                          border: '1px solid ' + (selected ? 'var(--accent-border)' : 'var(--modal-border)'),
+                          background: wasUpdatedThisSession ? 'rgba(16,185,129,0.05)' : selected ? 'var(--accent-soft)' : 'var(--modal-surface2)',
+                          border: '1px solid ' + (wasUpdatedThisSession ? 'rgba(16,185,129,0.20)' : selected ? 'var(--accent-border)' : 'var(--modal-border)'),
                         }}>
                           <div style={{ width: '17px', height: '17px', borderRadius: '4px', flexShrink: 0, border: '2px solid ' + (selected ? 'var(--accent)' : 'var(--modal-border)'), background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {selected && <Check size={10} color="white" />}
                           </div>
-                          <MasteryRing value={m} size={34} />
+                          <MasteryRing value={liveMastery} size={34} />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: '13px', lineHeight: '1.4' }}>{goal.description}</div>
                             <div style={{ display: 'flex', gap: '8px', marginTop: '2px', fontSize: '10px', color: 'var(--muted)' }}>
-                              {needsReview && <span style={{ color: '#f59e0b' }}>⚠️ Repeteras</span>}
+                              {wasUpdatedThisSession && <span style={{ color: '#10b981', fontWeight: 600 }}>↑ uppdaterad</span>}
+                              {!wasUpdatedThisSession && needsReview && <span style={{ color: '#f59e0b' }}>⚠ Repeteras</span>}
                               {goal.last_studied ? <span>Senast {format(parseISO(goal.last_studied), 'd MMM', { locale: sv })}</span> : <span>Ej studerad</span>}
                             </div>
                           </div>
