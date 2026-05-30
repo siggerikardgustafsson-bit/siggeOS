@@ -214,21 +214,14 @@ export default function InsightsPage() {
       if (freshData.trainingData?.length) lines.push('Träning pass/vecka: ' + freshData.trainingData.slice(-6).map(d => `${d.week}:${d.pass}pass`).join(', '))
       if (freshData.studyData?.length) lines.push('Plugg timmar/vecka: ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
 
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 800,
-          system: 'Du är Jarvis, Sigges personliga AI. Returnera BARA en JSON-array. Inga backticks. Inga förklaringar.',
-          messages: [{ role: 'user', content: `Data:\n${lines.join('\n')}\n\nGe 4-6 korta observationer:\n[{"icon":"📈","category":"träning","text":"En konkret mening."}]` }],
-        }),
+      const { data: rd, error } = await supabase.functions.invoke('insights-ai', {
+        body: { lines: lines.join('\n') },
       })
-      const json = await resp.json()
-      const raw = json.content?.[0]?.text?.trim()
+      if (error) throw new Error(error.message)
+      const raw = rd?.content?.trim()
       if (!raw) throw new Error('Tomt svar')
       const match = raw.match(/\[[\s\S]*\]/)
-      if (!match) throw new Error('Ingen array')
+      if (!match) throw new Error('Ingen array: ' + raw.slice(0, 80))
       const arr = JSON.parse(match[0])
       if (Array.isArray(arr) && arr.length > 0) setAiObservations(arr)
     } catch(e) {
