@@ -89,18 +89,23 @@ export default function Dashboard() {
       function estRun(km){const all=(runData||[]).filter(r=>r.pace_per_km&&r.distance_km>=km*0.5);if(!all.length)return null;const best=all.reduce((b,r)=>r.pace_per_km<b.pace_per_km?r:b,all[0]);return{time_seconds:Math.round(best.pace_per_km*km),date:best.date}}
       function rd(o,d){if(!o)return null;return getDecayedValue(o.time_seconds,o.date,d)}
 
+      // rd: compute time_seconds from pace_per_km if missing (e.g. Strava imports)
+      function rd(o,km,d){if(!o)return null;const t=o.time_seconds||(o.pace_per_km&&km?Math.round(o.pace_per_km*km):null);if(!t)return null;return getDecayedValue(t,o.date,d)}
       const r5=bestRun(5)||estRun(5),r10=bestRun(10)||estRun(10)
       const rH=bestRun(21.1,0.03),rM=bestRun(42.2,0.02),r1=bestRun(1)||estRun(1)
-      const r5D=rd(r5,90),r10D=rd(r10,90),rHD=rd(rH,90),rMD=rd(rM,90)
-      const vo2=r5D?estimateVO2max(r5D.value):null
+      const r1D=rd(r1,1,365),r5D=rd(r5,5,180),r10D=rd(r10,10,180),rHD=rd(rH,21.1,180),rMD=rd(rM,42.2,180)
+      const vo2=r5D?estimateVO2max(r5D.value):r1D?estimateVO2max(Math.round(r1D.value*5.5)):null
       const vo2T=vo2?getTier(vo2,VO2MAX_THRESHOLDS,true):null
+      const r1T=r1D?getTier(r1D.value,RUN_5K_THRESHOLDS.map(t=>t*0.195),false):null
       const r5T=r5D?getTier(r5D.value,RUN_5K_THRESHOLDS,false):null
       const r10T=r10D?getTier(r10D.value,RUN_10K_THRESHOLDS,false):null
       const rHT=rHD?getTier(rHD.value,RUN_HALF_THRESHOLDS,false):null
       const rMT=rMD?getTier(rMD.value,RUN_MARA_THRESHOLDS,false):null
       const kTs=[vo2T,r5T,r10T,rHT,rMT].filter(Boolean)
-      const kTop=kTs.length?kTs.reduce((b,t)=>t.tier>b.tier?t:b,kTs[0]):null
+      const hasRunData=!!(runData?.length)
+      const kTop=kTs.length?kTs.reduce((b,t)=>t.tier>b.tier?t:b,kTs[0]):hasRunData?{tier:1,label:'Botten 50%',color:'#6b7280'}:null
 
+      // PRs decay at 60 days as intended
       function getPR(kws){const f=(prData||[]).find(p=>kws.some(k=>p.exercise_name?.toLowerCase().includes(k)));if(!f)return null;const d=f.updated_at?.slice(0,10)||f.date||format(subDays(todayDate,1),'yyyy-MM-dd');return getDecayedValue(f.weight_kg,d,60)}
       const bD=getPR(['bänkpress','bench']),sD=getPR(['knäböj','squat']),dlD=getPR(['marklyft','deadlift']),oD=getPR(['militärpress','ohp','overhead']),puD=getPR(['pull-up','pullup','chins'])
       const bT=bD?getTier(bD.value/bw,BENCH_THRESHOLDS,true):null,sT=sD?getTier(sD.value/bw,SQUAT_THRESHOLDS,true):null
@@ -145,9 +150,9 @@ export default function Dashboard() {
       const skH=!!(skillData?.length)
 
       const cats = [
-        {id:'kondition',name:'Kondition',icon:'⚡',tier:kTop,hasData:kTs.length>0,pct:kTop?Math.round((kTop.tier/8)*100):0,decayWarning:[r5D,r10D,rHD,rMD].some(d=>d?.stale),trend:r5D?.daysSince<14?'up':'neutral',
-          metrics:[{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',highlight:true},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—'},{label:'VO2max',value:vo2?vo2+' ml/kg/min':'—'}],
-          details:[{label:'1km PR',value:r1?formatRunTime(Math.round(rd(r1,90)?.value||0)):'—'},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',tierInfo:r5T},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',tierInfo:r10T},{label:'Halvmara',value:rHD?formatRunTime(Math.round(rHD.value)):'—',tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT},{label:'VO2max',value:vo2?vo2+' ml/kg/min':'—',tierInfo:vo2T}],
+        {id:'kondition',name:'Kondition',icon:'⚡',tier:kTop,hasData:hasRunData,pct:kTop?Math.round((kTop.tier/8)*100):0,decayWarning:[r5D,r10D,rHD,rMD].some(d=>d?.stale),trend:r5D?.daysSince<14?'up':'neutral',
+          metrics:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',highlight:true},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—'},{label:'VO2max (est)',value:vo2?vo2+' ml/kg/min':'—'}],
+          details:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—'},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',tierInfo:r5T},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',tierInfo:r10T},{label:'Halvmara',value:rHD?formatRunTime(Math.round(rHD.value)):'—',tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT},{label:'VO2max',value:vo2?vo2+' ml/kg/min':'—',tierInfo:vo2T}],
           chartData:(runData||[]).filter(r=>r.distance_km>=4.5&&r.distance_km<=11).slice(0,20).reverse().map(r=>({date:r.date.slice(5),Pace:r.pace_per_km?Math.round(r.pace_per_km/60*10)/10:null})),
           chartLines:[{key:'Pace',label:'Pace (min/km)',color:'#4f8ef7'}],navTarget:'/traning',navLabel:'Träning'},
         {id:'styrka',name:'Styrka',icon:'🏋️',tier:stTop,hasData:sTs.length>0,pct:stTop?Math.round((stTop.tier/8)*100):0,decayWarning:[bD,sD,dlD,oD,puD].some(d=>d?.stale),trend:'neutral',
