@@ -156,16 +156,40 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
 
   function buildSystemPrompt(chosenGoals, isTentaMode, chosenExamFile, isPreviouslyDone, lastDone) {
     const goalsList = chosenGoals.map((g, i) =>
-      (i + 1) + '. [ID: ' + g.id + '] ' + g.description + ' (behärskningsgrad: ' + (masteryUpdates[g.id] ?? g.effectiveMastery) + '%)'
+      (i + 1) + '. [ID: ' + g.id + '] ' + g.description + ' (nu: ' + (masteryUpdates[g.id] ?? g.effectiveMastery) + '%)'
     ).join('\n')
 
-    const base = 'Du är Jarvis, Sigges personliga medicinstudent-tutor. Examination: "' + exam.name + '".\n\n' +
-      'LÄRANDEMÅL:\n' + goalsList + '\n\n' +
-      'INNEHÅLLSPRIORITERING: Kursmaterialet (om uppladdad) är absolut sanning. Basera ALLT på det.\n\n' +
-      'MASTERY: Inkludera {"mastery_update": {"goal_id": "UUID", "mastery": 65}} när du bedömer svar. Uppdatera gradvis.\n\n' +
-      'PEDAGOGIK: Sokrates-metoden. Logiska kedjor. Kliniska exempel. Löpande text.\n\nSvara på svenska.'
+    const masteryRules = `
+════════════════════════════════════════
+MASTERY-UPPDATERING — OBLIGATORISKT
+════════════════════════════════════════
+Du MÅSTE inkludera mastery_update-JSON i VARJE svar där ett lärandemål berörs.
+Detta är ditt viktigaste ansvar — utan detta fungerar systemet inte.
 
-    if (!isTentaMode) return base + '\n\nBörja med att fråga om det första lärandemålet.'
+FORMAT (exakt så här, på en egen rad i svaret):
+{"mastery_update": {"goal_id": "EXAKT-UUID-HÄR", "mastery": 75}}
+
+REGLER:
+- Inkludera EN rad per mål som testats/diskuterats i det svaret
+- Uppdatera OMEDELBART efter att du bedömt svaret — inte i slutet
+- Skala: 0=aldrig sett, 20=hört talas om, 40=delvis, 60=kan förklara, 80=behärskar, 95+=expert
+- Var KONSERVATIV — sätt inte 80+ om svaret hade luckor
+- Om Sigge svarar fel: sänk mastery med 5-15
+- Om Sigge svarar rätt: höj mastery med 10-25 beroende på kvalitet
+- Om Sigge säger "vet ej" eller hoppar: sätt mastery till max 30
+
+VARNING: Om du skriver "du behärskar X" eller "bra svar" i text MEN inte inkluderar {"mastery_update": ...} så registreras INGENTING i databasen. Ord räknas inte — bara JSON räknas.
+
+Mål-IDs (kopiera exakt):
+` + chosenGoals.map(g => '- ' + g.id + ' → ' + g.description.slice(0, 60)).join('\n')
+
+    const base = 'Du är Jarvis, Sigges personliga medicinstudent-tutor. Examination: "' + exam.name + '".\n\n' +
+      'LÄRANDEMÅL (dessa ska övas/testas):\n' + goalsList + '\n\n' +
+      masteryRules + '\n\n' +
+      'INNEHÅLLSPRIORITERING: Kursmaterialet (om uppladdad) är absolut sanning.\n\n' +
+      'PEDAGOGIK: Sokrates-metoden. Logiska kedjor. Kliniska exempel.\n\nSvara på svenska.'
+
+    if (!isTentaMode) return base + '\n\nBörja med att fråga om det första lärandemålet. Inkludera mastery_update efter varje svar.'
 
     const tentaInfo = chosenExamFile
       ? 'DU KÖR TENTAMODE MED: "' + chosenExamFile.file_name + '". ' +
@@ -173,27 +197,43 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
         ' Kör frågorna EN I TAGET. Tenta-texten finns i kursmaterialet nedan.'
       : 'DU KÖR TENTAMODE. Inga gamla tentor — generera realistiska frågor baserade på kursmaterialet.'
 
-    return base + '\n\nTENTAMODE:\n' + tentaInfo + '\nVänta på svar. Ge feedback + poäng 0-10. Uppdatera mastery. Summera i slutet.\nBÖRJA DIREKT med info om tentan och FRÅGA 1.'
+    return base + '\n\nTENTAMODE:\n' + tentaInfo +
+      '\nKör EN fråga → vänta på svar → ge feedback → inkludera {"mastery_update": ...} för berörd/a mål → nästa fråga.' +
+      '\nI SLUTET: summera score och inkludera mastery_update för ALLA mål som testades.' +
+      '\nBÖRJA DIREKT med info om tentan och FRÅGA 1.'
   }
 
   async function processMasteryUpdates(content, goalsForSession) {
-    const regex = /\{"mastery_update"\s*:\s*\{"goal_id"\s*:\s*"([^"]+)"\s*,\s*"mastery"\s*:\s*(\d+)[^}]*\}\}/g
+    // Match mastery_update JSON in various formats Jarvis might produce
+    const patterns = [
+      /\{"mastery_update"\s*:\s*\{"goal_id"\s*:\s*"([^"]+)"\s*,\s*"mastery"\s*:\s*(\d+)[^}]*\}\}/g,
+      /\{"goal_id"\s*:\s*"([^"]+)"\s*,\s*"mastery"\s*:\s*(\d+)[^}]*\}/g,
+    ]
+
     const updates = {}
-    let match
-    while ((match = regex.exec(content)) !== null) {
-      const goal_id = match[1]
-      const mastery = Math.min(100, Math.max(0, parseInt(match[2])))
-      updates[goal_id] = mastery
-      const goal = goalsForSession.find(g => g.id === goal_id)
-      await supabase.from('learning_goals').update({
-        mastery, last_studied: new Date().toISOString(),
-        study_count: (goal?.study_count || 0) + 1,
-      }).eq('id', goal_id)
+    for (const regex of patterns) {
+      let match
+      while ((match = regex.exec(content)) !== null) {
+        const goal_id = match[1]
+        const mastery = Math.min(100, Math.max(0, parseInt(match[2])))
+        if (!updates[goal_id]) updates[goal_id] = mastery
+      }
     }
+
     if (Object.keys(updates).length > 0) {
+      await Promise.all(Object.entries(updates).map(async ([goal_id, mastery]) => {
+        const goal = goalsForSession.find(g => g.id === goal_id)
+        if (!goal) return // skip if goal_id doesn't match any in session
+        await supabase.from('learning_goals').update({
+          mastery,
+          last_studied: new Date().toISOString(),
+          study_count: (goal?.study_count || 0) + 1,
+        }).eq('id', goal_id)
+      }))
       setMasteryUpdates(prev => ({ ...prev, ...updates }))
       onMasteryUpdate?.()
     }
+    return Object.keys(updates).length
   }
 
   async function startTentaSession(chosen) {
@@ -353,8 +393,12 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
     const materialIds = (await supabase.from('course_materials').select('id').eq('exam_id', exam.id).eq('user_id', user.id)).data?.map(m => m.id) || []
     try {
       const content = await callAnthropic(trimmedMessages, systemPrompt, currentTentaFileId || null, materialIds)
-      setMessages(prev => [...prev, { role: 'assistant', content: content || 'Inget svar.' }])
-      if (content) await processMasteryUpdates(content, sessionGoals)
+      const updatedCount = content ? await processMasteryUpdates(content, sessionGoals) : 0
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: content || 'Inget svar.',
+        masteryCount: updatedCount,
+      }])
     } catch(e) {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Något gick fel. Försök igen.' }])
     }
@@ -649,6 +693,22 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
                     }}>
                       <MarkdownMessage content={cleaned} userMessage={msg.role === 'user'} />
                     </div>
+                    {/* Mastery update indicator */}
+                    {msg.role === 'assistant' && typeof msg.masteryCount === 'number' && (
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                        fontSize: '10px', padding: '2px 8px', borderRadius: '6px',
+                        alignSelf: 'flex-start',
+                        background: msg.masteryCount > 0 ? 'rgba(16,185,129,0.10)' : 'rgba(255,255,255,0.04)',
+                        border: '1px solid ' + (msg.masteryCount > 0 ? 'rgba(16,185,129,0.22)' : 'rgba(255,255,255,0.08)'),
+                        color: msg.masteryCount > 0 ? '#10b981' : 'var(--muted)',
+                      }}>
+                        {msg.masteryCount > 0
+                          ? <><Check size={9} /> {msg.masteryCount} mål loggade</>
+                          : '— inga mål loggade'
+                        }
+                      </div>
+                    )}
                     {options.length > 0 && (
                       <div style={{ maxWidth: '82%', display: 'flex', flexDirection: 'column', gap: '5px', alignSelf: 'flex-start' }}>
                         {options.map((opt, oi) => (
