@@ -209,23 +209,26 @@ export default function InsightsPage() {
     setLoadingObs(true)
     try {
       const lines = []
-      if (freshData.weightData?.length) lines.push('Vikt (senaste veckor): ' + freshData.weightData.slice(-6).map(d => `${d.week}:${d.vikt}kg`).join(', '))
-      if (freshData.sleepData?.length) lines.push('Sömn (timmar/vecka): ' + freshData.sleepData.slice(-6).map(d => `${d.week}:${d.sömn}h`).join(', '))
-      if (freshData.trainingData?.length) lines.push('Träning (pass/vecka): ' + freshData.trainingData.slice(-6).map(d => `${d.week}:${d.pass}pass`).join(', '))
-      if (freshData.studyData?.length) lines.push('Plugg (timmar/vecka): ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
+      if (freshData.weightData?.length) lines.push('Vikt senaste veckor: ' + freshData.weightData.slice(-6).map(d => `${d.week}:${d.vikt}kg`).join(', '))
+      if (freshData.sleepData?.length) lines.push('Sömn timmar/vecka: ' + freshData.sleepData.slice(-6).map(d => `${d.week}:${d.sömn}h`).join(', '))
+      if (freshData.trainingData?.length) lines.push('Träning pass/vecka: ' + freshData.trainingData.slice(-6).map(d => `${d.week}:${d.pass}pass`).join(', '))
+      if (freshData.studyData?.length) lines.push('Plugg timmar/vecka: ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
 
-      const { data: rd, error } = await supabase.functions.invoke('jarvis-chat', {
-        body: {
-          messages: [{ role: 'user', content: `Här är Sigges data:\n${lines.join('\n')}\n\nGe 4-6 korta konkreta observationer. Returnera BARA en JSON-array:\n[{"icon":"📈","category":"träning","text":"En mening om vad du ser."}]` }],
-          context: 'Analysera och returnera JSON.',
-          systemPrompt: 'Du är Jarvis. Returnera BARA en JSON-array. Inga backticks. Inga förklaringar. Bara arrayen.',
-        },
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 800,
+          system: 'Du är Jarvis, Sigges personliga AI. Returnera BARA en JSON-array. Inga backticks. Inga förklaringar.',
+          messages: [{ role: 'user', content: `Data:\n${lines.join('\n')}\n\nGe 4-6 korta observationer:\n[{"icon":"📈","category":"träning","text":"En konkret mening."}]` }],
+        }),
       })
-      if (error) throw new Error(error.message)
-      const raw = rd?.content?.trim()
+      const json = await resp.json()
+      const raw = json.content?.[0]?.text?.trim()
       if (!raw) throw new Error('Tomt svar')
       const match = raw.match(/\[[\s\S]*\]/)
-      if (!match) throw new Error('Ingen array: ' + raw.slice(0, 100))
+      if (!match) throw new Error('Ingen array')
       const arr = JSON.parse(match[0])
       if (Array.isArray(arr) && arr.length > 0) setAiObservations(arr)
     } catch(e) {
