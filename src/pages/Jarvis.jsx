@@ -90,29 +90,83 @@ export default function Jarvis() {
 
   useEffect(() => {
     if (!user) return
-    loadTodayHistory()
+    loadRecentHistory()
     buildContext()
     loadInsights()
     loadConvSummaries()
+
+    // Auto-save summary when leaving the page
+    return () => { autoSave() }
   }, [user])
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  async function autoSave() {
+    // Silently summarize if enough messages — no spinner needed
+    try {
+      const msgs = window.__jarvisMessages
+      if (!msgs || msgs.length < 6) return
+      const { data } = await supabase.functions.invoke('jarvis-chat', {
+        body: {
+          messages: [{ role: 'user', content: 'Sammanfatta konversationen i max 2 meningar + 3-5 nyckelpoäng. Returnera BARA JSON: {"summary":"...","key_points":["..."],"insights":[{"insight":"...","category":"mönster"}]}' }],
+          context: msgs.map(m => `${m.role}: ${m.content?.slice(0, 300)}`).join('\n'),
+          systemPrompt: 'Sammanfatta. Returnera bara JSON.',
+        },
+      })
+      if (!data?.content) return
+      const clean = data.content.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(clean)
+      const today = format(new Date(), 'yyyy-MM-dd')
+      await supabase.from('jarvis_conversations').update({
+        summary: parsed.summary, key_points: parsed.key_points,
+      }).eq('user_id', user.id).gte('created_at', today + 'T00:00:00').eq('role', 'assistant')
+        .order('created_at', { ascending: false }).limit(1)
+      if (parsed.insights?.length) {
+        for (const ins of parsed.insights) {
+          if (!ins.insight || ins.insight.length < 10) continue
+          const { data: ex } = await supabase.from('jarvis_insights').select('id').eq('user_id', user.id).ilike('insight', `%${ins.insight.slice(0, 30)}%`).single()
+          if (ex) await supabase.from('jarvis_insights').update({ insight: ins.insight, updated_at: new Date().toISOString() }).eq('id', ex.id)
+          else await supabase.from('jarvis_insights').insert({ user_id: user.id, insight: ins.insight, category: ins.category || 'mönster', confidence: 75 })
+        }
+      }
+    } catch(e) { /* silent */ }
+  }
 
-  async function loadTodayHistory() {
-    const today = format(new Date(), 'yyyy-MM-dd')
+  // Keep messages in window ref so autoSave (called on unmount) can access latest state
+  useEffect(() => { window.__jarvisMessages = messages }, [messages])
+
+  async function loadRecentHistory() {
+    // Load last 7 days of messages for continuity across sessions
+    const since = format(subDays(new Date(), 7), 'yyyy-MM-dd')
     const { data } = await supabase
       .from('jarvis_conversations')
       .select('role, content, created_at')
       .eq('user_id', user.id)
-      .gte('created_at', today + 'T00:00:00')
+      .gte('created_at', since + 'T00:00:00')
       .order('created_at')
-      .limit(50)
-    if (data?.length) setMessages(data.map(d => ({ role: d.role, content: d.content })))
+      .limit(80)
+    if (data?.length) {
+      // Group by day — show last session fully, previous sessions abbreviated
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const todayMsgs = data.filter(d => d.created_at.startsWith(today))
+      const prevMsgs = data.filter(d => !d.created_at.startsWith(today))
+
+      const msgs = []
+      if (prevMsgs.length > 0) {
+        // Add a single system-style divider showing previous context
+        const days = [...new Set(prevMsgs.map(d => d.created_at.slice(0, 10)))]
+        msgs.push({
+          role: 'assistant',
+          content: `_Tidigare konversationer (${days.length} dag${days.length > 1 ? 'ar' : ''}) laddade i minnet._`,
+          isHistoryMarker: true,
+        })
+      }
+      msgs.push(...(todayMsgs.length ? todayMsgs : data.slice(-20)).map(d => ({ role: d.role, content: d.content })))
+      setMessages(msgs)
+    }
   }
 
-  async function loadInsights() {
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
     const { data } = await supabase
       .from('jarvis_insights')
       .select('*')
@@ -500,7 +554,16 @@ ${profileBlock}`
           </div>
         )}
 
-        {messages.map((msg, i) => (
+        {messages.map((msg, i) => {
+          // History divider
+          if (msg.isHistoryMarker) return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 4px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+              <span style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: '500', whiteSpace: 'nowrap', fontStyle: 'italic' }}>{msg.content.replace(/_/g, '')}</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+            </div>
+          )
+          return (
           <div key={i} style={{
             display: 'flex',
             flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
@@ -531,7 +594,8 @@ ${profileBlock}`
               <MarkdownMessage content={msg.content} userMessage={msg.role === 'user'} />
             </div>
           </div>
-        ))}
+          )
+        })}
 
         {loading && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>

@@ -61,6 +61,8 @@ export default function InsightsPage() {
   const [loading, setLoading] = useState(true)
   const [generatingReport, setGeneratingReport] = useState(false)
   const [weeklyReport, setWeeklyReport] = useState('')
+  const [aiObservations, setAiObservations] = useState([])
+  const [loadingObs, setLoadingObs] = useState(false)
   const [data, setData] = useState({
     weightData: [],
     sleepData: [],
@@ -200,6 +202,26 @@ export default function InsightsPage() {
 
     setData({ weightData, sleepData, stepsData, studyData, trainingData, incomeData, paData, examProgress, prData })
     setLoading(false)
+    generateObservations({ weightData, sleepData, studyData, trainingData })
+  }
+
+  async function generateObservations(freshData) {
+    setLoadingObs(true)
+    try {
+      const { data: rd } = await supabase.functions.invoke('jarvis-chat', {
+        body: {
+          messages: [{ role: 'user', content: `Analysera denna data och ge 4-6 korta, konkreta observationer. Varje observation ska vara 1-2 meningar. Hitta mönster, avvikelser och kopplingar. Returnera BARA JSON-array: [{"icon":"📈","category":"träning","text":"..."},{"icon":"😴","category":"sömn","text":"..."}]` }],
+          context: JSON.stringify(freshData),
+          systemPrompt: 'Du är Jarvis. Ge korta, brutalt ärliga observationer om Sigges data. Inga floskler. Returnera bara JSON-array.',
+        },
+      })
+      if (rd?.content) {
+        const clean = rd.content.replace(/```json|```/g, '').trim()
+        const arr = JSON.parse(clean)
+        if (Array.isArray(arr)) setAiObservations(arr)
+      }
+    } catch(e) { console.error('Obs failed:', e) }
+    setLoadingObs(false)
   }
 
   function groupByWeek(items, field) {
@@ -276,6 +298,41 @@ export default function InsightsPage() {
         <div className="card" style={{ marginBottom: '24px', borderColor: 'rgba(139,92,246,0.2)', background: 'rgba(139,92,246,0.04)' }}>
           <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600', marginBottom: '10px' }}>JARVIS VECKORAPPORT</div>
           <div style={{ fontSize: '14px', lineHeight: '1.7', color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{weeklyReport}</div>
+        </div>
+      )}
+
+      {/* AI OBSERVATIONS */}
+      {(loadingObs || aiObservations.length > 0) && (
+        <div style={{ marginBottom: '24px', background: 'var(--surface2)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '16px', backdropFilter: 'var(--glass-blur)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <div style={{ width: 20, height: 20, borderRadius: '6px', background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+              </div>
+              <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text)' }}>Jarvis observerar</span>
+            </div>
+            <button onClick={() => generateObservations(data)} disabled={loadingObs} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {loadingObs ? <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={11} />}
+              {loadingObs ? 'Analyserar...' : 'Uppdatera'}
+            </button>
+          </div>
+          {loadingObs && aiObservations.length === 0 ? (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', color: 'var(--muted)', fontSize: '13px' }}>
+              <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Jarvis analyserar din data...
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+              {aiObservations.map((obs, i) => (
+                <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '16px', flexShrink: 0, lineHeight: 1.3 }}>{obs.icon}</span>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '3px' }}>{obs.category}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: '1.5' }}>{obs.text}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
