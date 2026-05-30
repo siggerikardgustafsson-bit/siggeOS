@@ -69,10 +69,11 @@ export default function AppLayout() {
           z-index: 30;
           margin: 0 0 12px 0;
           flex-shrink: 0;
-          padding: 12px 20px;
+          padding: 10px 16px;
           display: flex;
           justify-content: space-between;
           align-items: center;
+          gap: 8px;
           background: var(--surface);
           backdrop-filter: blur(32px);
           -webkit-backdrop-filter: blur(32px);
@@ -80,6 +81,7 @@ export default function AppLayout() {
           border-radius: 16px;
           box-shadow: var(--glass-shadow);
           overflow: hidden;
+          min-height: 0;
         }
 
         .page-header::before {
@@ -95,49 +97,93 @@ export default function AppLayout() {
           font-weight: 500;
           color: var(--text);
           letter-spacing: -0.01em;
+          white-space: nowrap;
         }
 
         .page-header-sub {
           font-size: 11px;
           color: var(--muted);
           margin-top: 3px;
+          white-space: nowrap;
+        }
+
+        .page-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: nowrap;
+          flex-shrink: 0;
         }
 
         .page-content-scroll {
           flex: 1;
           padding: 0 0 24px 0;
-          -webkit-mask-image: linear-gradient(
-            to bottom,
-            transparent 0px,
-            rgba(0,0,0,0.7) 20px,
-            black 40px
-          );
-          mask-image: linear-gradient(
-            to bottom,
-            transparent 0px,
-            rgba(0,0,0,0.7) 20px,
-            black 40px
-          );
         }
 
+        /* Mobile */
         @media (max-width: 768px) {
           .hidden-mobile { display: none !important; }
           .show-mobile { display: block; }
 
           main {
-            padding: 0 !important;
+            padding: 8px 8px 0 8px !important;
           }
 
           .page-header {
-            top: 10px;
-            margin: 10px 10px 12px 10px;
+            top: 0;
+            margin: 0 0 10px 0;
+            padding: 8px 12px;
+            border-radius: 14px;
+            flex-wrap: wrap;
+            gap: 6px;
           }
+
+          .page-header-title { font-size: 14px; }
+          .page-header-sub   { font-size: 10px; margin-top: 1px; }
+
+          .page-header-actions {
+            gap: 5px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            max-width: 100%;
+          }
+          .page-header-actions::-webkit-scrollbar { display: none; }
 
           .page-content-scroll {
-            padding: 0 10px 80px 10px;
+            padding: 0 0 90px 0;
           }
 
-          * { max-width: 100vw; }
+          /* Kill all horizontal overflow */
+          * { max-width: 100%; box-sizing: border-box; }
+
+          /* Responsive grids */
+          .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+          .grid-2 { grid-template-columns: 1fr !important; }
+          .grid-auto { grid-template-columns: 1fr !important; }
+
+          /* Dashboard specific */
+          .dashboard-bottom { grid-template-columns: 1fr !important; }
+          .dashboard-header-row { flex-wrap: wrap; gap: 4px; }
+
+          /* Widgets single col */
+          .widget-grid-2 { grid-template-columns: 1fr !important; }
+
+          /* Input font sizes — prevent iOS zoom */
+          input, textarea, select { font-size: 16px !important; }
+
+          /* Buttons don't overflow */
+          .btn { white-space: nowrap; flex-shrink: 0; font-size: 12px !important; padding: 6px 11px !important; }
+          .btn-full { font-size: 14px !important; padding: 13px !important; }
+
+          /* page-header buttons extra compact */
+          .page-header .btn { font-size: 11px !important; padding: 5px 9px !important; }
+          .page-header .btn-icon { padding: 5px !important; }
+        }
+
+        @media (max-width: 400px) {
+          main { padding: 6px 6px 0 6px !important; }
+          .page-header { padding: 7px 10px; }
         }
       `}</style>
     </div>

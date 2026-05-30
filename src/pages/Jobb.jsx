@@ -426,7 +426,7 @@ export default function JobbPage() {
           <div className="page-header-title">Jobb</div>
           <div className="page-header-sub">{totalHours.toFixed(1)}h PA denna månad</div>
         </div>
-        <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+        <div className="page-header-actions">
           <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost btn-icon">←</button><button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost">Idag</button><button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost btn-icon">→</button>
         </div>
       </div>

@@ -211,24 +211,24 @@ export default function Dashboard() {
     <div style={{ padding:'0 0 80px', maxWidth:'1100px', margin:'0 auto' }}>
 
       {/* HEADER */}
-      <div style={{ padding:'10px 24px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+      <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'4px' }} className="dashboard-header-row">
+        <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
           <span style={{ fontSize:'13px', fontWeight:600, color:'var(--text)' }}>Sigge Gustafsson</span>
           <span style={{ fontSize:'12px', color:'var(--muted)' }}>{todayDisplay}</span>
           <span style={{ fontSize:'11px', color:'var(--muted)' }}>· {bodyWeight} kg</span>
         </div>
         {overallTier && (
-          <span style={{ fontSize:'11px', color:'var(--muted)' }}>T{overallTier}/8 · {TIER_NAMES[overallTier]}</span>
+          <span style={{ fontSize:'11px', color:'var(--muted)', flexShrink:0 }}>T{overallTier}/8 · {TIER_NAMES[overallTier]}</span>
         )}
       </div>
 
-      <div style={{ padding:'16px 24px', display:'flex', flexDirection:'column', gap:'14px' }}>
+      <div style={{ padding:'14px 14px', display:'flex', flexDirection:'column', gap:'12px' }}>
 
         {/* CATEGORY CARDS */}
         {loading ? (
           <div style={{ color:'var(--muted)', fontSize:'14px', padding:'60px 0', textAlign:'center' }}>Laddar...</div>
         ) : (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px' }}>
+          <div className="grid-4" style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px' }}>
             {categories.map((cat,i) => (
               <div key={cat.id} className={'fade-up fade-up-delay-'+Math.min(i+1,7)}>
                 <CategoryCard category={cat} onClick={setSelectedCategory} />
@@ -238,7 +238,7 @@ export default function Dashboard() {
         )}
 
         {/* BOTTOM ROW — graph + today side by side */}
-        <div style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 230px', gap:'14px', alignItems:'start' }}>
+        <div className="dashboard-bottom" style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 230px', gap:'12px', alignItems:'start' }}>
 
           {/* GRAPH */}
           <div className="widget" style={{ padding:'18px' }}>

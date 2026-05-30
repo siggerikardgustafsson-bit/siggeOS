@@ -229,7 +229,7 @@ export default function HalsaPage() {
 
           {/* ── LOG TAB ── */}
           {activeTab === 'log' && (
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+            <div className="widget-grid-2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
 
               {/* VIKT */}
               <Widget title="Vikt" icon={<Scale size={14} color="#10b981" />} color="#10b981"

@@ -34,33 +34,38 @@ export default function BottomNav() {
       {showMore && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 200,
-          background: 'rgba(0,0,0,0.6)',
-          backdropFilter: 'blur(8px)',
+          background: 'rgba(0,0,0,0.55)',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
         }} onClick={() => setShowMore(false)}>
           <div style={{
-            position: 'absolute', bottom: '70px', left: 0, right: 0,
+            position: 'absolute', bottom: 'calc(60px + env(safe-area-inset-bottom))',
+            left: '8px', right: '8px',
             background: 'var(--surface)',
-            backdropFilter: 'blur(20px)',
-            borderTop: '1px solid var(--border)',
+            backdropFilter: 'blur(32px)',
+            WebkitBackdropFilter: 'blur(32px)',
+            border: '1px solid var(--glass-border)',
+            borderRadius: '20px',
             padding: '16px',
+            boxShadow: 'var(--glass-shadow)',
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--muted)' }}>ALLA SIDOR</div>
-              <button onClick={() => setShowMore(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}>
-                <X size={18} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--muted)', letterSpacing: '0.08em' }}>ALLA SIDOR</div>
+              <button onClick={() => setShowMore(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
+                <X size={16} />
               </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
               {moreNav.map(({ to, icon: Icon, label }) => (
                 <NavLink key={to} to={to} onClick={() => setShowMore(false)} style={({ isActive }) => ({
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px',
-                  padding: '12px 8px', borderRadius: '10px', textDecoration: 'none',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+                  padding: '14px 8px', borderRadius: '12px', textDecoration: 'none',
                   background: isActive ? 'var(--accent-soft)' : 'var(--surface2)',
                   border: `1px solid ${isActive ? 'var(--accent-border)' : 'var(--border)'}`,
                   color: isActive ? 'var(--accent)' : 'var(--muted2)',
                   fontSize: '11px', fontWeight: '500', transition: 'all 0.15s',
                 })}>
-                  <Icon size={18} />
+                  <Icon size={20} />
                   {label}
                 </NavLink>
               ))}
@@ -73,21 +78,22 @@ export default function BottomNav() {
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
         background: 'var(--surface)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderTop: '1px solid var(--border)',
+        backdropFilter: 'blur(32px)',
+        WebkitBackdropFilter: 'blur(32px)',
+        borderTop: '1px solid var(--glass-border)',
         display: 'flex', zIndex: 100,
         paddingBottom: 'env(safe-area-inset-bottom)',
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.2)',
+        boxShadow: '0 -4px 24px rgba(0,0,0,0.25)',
       }}>
         {primaryNav.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} end={to === '/'} style={({ isActive }) => ({
             flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-            justifyContent: 'center', padding: '10px 4px', textDecoration: 'none',
+            justifyContent: 'center', padding: '10px 4px 8px', textDecoration: 'none',
             color: isActive ? 'var(--accent)' : 'var(--muted)', fontSize: '10px',
-            gap: '3px', transition: 'color 0.15s',
+            fontWeight: '500', gap: '4px', transition: 'color 0.15s',
+            minWidth: '44px',
           })}>
-            <Icon size={20} />
+            <Icon size={22} />
             {label}
           </NavLink>
         ))}
@@ -95,11 +101,12 @@ export default function BottomNav() {
         {/* Mer-knapp */}
         <button onClick={() => setShowMore(!showMore)} style={{
           flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-          justifyContent: 'center', padding: '10px 4px', background: 'none', border: 'none',
+          justifyContent: 'center', padding: '10px 4px 8px', background: 'none', border: 'none',
           color: showMore ? 'var(--accent)' : 'var(--muted)', fontSize: '10px',
-          gap: '3px', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+          fontWeight: '500', gap: '4px', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+          minWidth: '44px',
         }}>
-          <Grid size={20} />
+          <Grid size={22} />
           Mer
         </button>
       </nav>

@@ -508,7 +508,7 @@ export default function TraningPage() {
           <div className="page-header-title">Träning</div>
           <div className="page-header-sub">{thisWeekSessions.length} pass denna vecka</div>
         </div>
-        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
+        <div className="page-header-actions">
           <input ref={csvRef} type="file" accept=".csv" onChange={handleCsvImport} style={{ display: 'none' }} />
           {stravaConnected ? (
             <button onClick={syncStrava} disabled={stravaSyncing} className="btn btn-ghost" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)' }}>

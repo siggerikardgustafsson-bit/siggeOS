@@ -339,7 +339,7 @@ Returnera ENBART JSON utan backticks:
             {allCountries.length} länder · {completedTrips.length} resor · {activeQuests.length} aktiva quests
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
+        <div className="page-header-actions">
           <button onClick={() => { setShowNewTrip(true); setEditingTrip(null) }} className="btn btn-primary">
             <Plus size={13} /> Ny resa
           </button>

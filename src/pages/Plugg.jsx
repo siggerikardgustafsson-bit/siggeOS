@@ -365,7 +365,7 @@ export default function PluggPage() {
           <div className="page-header-title">Plugg</div>
           <div className="page-header-sub">{courses.length} aktiva kurser</div>
         </div>
-        <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+        <div className="page-header-actions">
           <button onClick={syncMandatory} disabled={syncingMandatory} className="btn btn-ghost">{syncingMandatory ? <Loader size={13} style={{ animation: "spin 1s linear infinite" }} /> : null} Synka</button>
         </div>
       </div>
@@ -638,7 +638,7 @@ export default function PluggPage() {
                                     <div style={{ marginBottom: '12px' }}>
                                       <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>POÄNG</div>
                                       {editingExamPoints === exam.id ? (
-                                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                        <div className="page-header-actions">
                                           <input className="input" type="number" placeholder="Fick" value={examPointsForm.points_earned} onChange={e => setExamPointsForm(f => ({ ...f, points_earned: e.target.value }))} style={{ width: '70px', padding: '6px 8px' }} />
                                           <span style={{ color: 'var(--muted)' }}>/</span>
                                           <input className="input" type="number" placeholder="Max" value={examPointsForm.points_max} onChange={e => setExamPointsForm(f => ({ ...f, points_max: e.target.value }))} style={{ width: '70px', padding: '6px 8px' }} />
@@ -886,7 +886,7 @@ export default function PluggPage() {
                           borderLeft: `3px solid ${exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : 'var(--border)'}` }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ fontSize: '13px', fontWeight: '500' }}>{exam.name}</div>
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <div className="page-header-actions">
                               {GRADES.map(g => (
                                 <button key={g} onClick={() => updateExamGrade(exam.id, exam.grade === g ? null : g)} style={{
                                   padding: '3px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',

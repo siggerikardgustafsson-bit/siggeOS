@@ -185,7 +185,7 @@ export default function EkonomiPage() {
           <div className="page-header-title">Ekonomi</div>
           <div className="page-header-sub">{format(selectedMonth, 'MMMM yyyy', { locale: sv })}</div>
         </div>
-        <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+        <div className="page-header-actions">
           <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost btn-icon">←</button><button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost">Idag</button><button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost btn-icon">→</button>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default function EkonomiPage() {
       {activeTab === 'overview' && (
         <>
           {/* Balance cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', WebkitFlex: '1', gap: '12px', marginBottom: '16px' }}>
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                 <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Inkomst (netto)</span>
