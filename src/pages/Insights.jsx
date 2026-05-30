@@ -208,19 +208,33 @@ export default function InsightsPage() {
   async function generateObservations(freshData) {
     setLoadingObs(true)
     try {
-      const { data: rd } = await supabase.functions.invoke('jarvis-chat', {
+      // Summarize data to avoid hitting token limits
+      const summary = {
+        vikt: freshData.weightData?.slice(-8) || [],
+        sömn: freshData.sleepData?.slice(-8) || [],
+        träning: freshData.trainingData?.slice(-8) || [],
+        plugg: freshData.studyData?.slice(-8) || [],
+      }
+      const { data: rd, error } = await supabase.functions.invoke('jarvis-chat', {
         body: {
-          messages: [{ role: 'user', content: `Analysera denna data och ge 4-6 korta, konkreta observationer. Varje observation ska vara 1-2 meningar. Hitta mönster, avvikelser och kopplingar. Returnera BARA JSON-array: [{"icon":"📈","category":"träning","text":"..."},{"icon":"😴","category":"sömn","text":"..."}]` }],
-          context: JSON.stringify(freshData),
-          systemPrompt: 'Du är Jarvis. Ge korta, brutalt ärliga observationer om Sigges data. Inga floskler. Returnera bara JSON-array.',
+          messages: [{ role: 'user', content: 'Analysera denna data och ge 4-6 korta konkreta observationer på svenska. Returnera BARA en JSON-array (inga backticks, inget annat): [{"icon":"📈","category":"träning","text":"..."}]' }],
+          context: JSON.stringify(summary),
+          systemPrompt: 'Du är Jarvis. Analysera data och returnera en JSON-array med observationer. Returnera BARA arrayen, inget annat, inga backticks.',
         },
       })
-      if (rd?.content) {
-        const clean = rd.content.replace(/```json|```/g, '').trim()
-        const arr = JSON.parse(clean)
-        if (Array.isArray(arr)) setAiObservations(arr)
-      }
-    } catch(e) { console.error('Obs failed:', e) }
+      if (error) throw new Error(error.message)
+      const raw = rd?.content?.trim()
+      if (!raw) throw new Error('Tomt svar')
+      // Find JSON array in response even if there's surrounding text
+      const match = raw.match(/\[[\s\S]*\]/)
+      if (!match) throw new Error('Ingen array i svar: ' + raw.slice(0, 100))
+      const arr = JSON.parse(match[0])
+      if (Array.isArray(arr) && arr.length > 0) setAiObservations(arr)
+    } catch(e) {
+      console.error('Obs failed:', e)
+      // Show a fallback so the panel doesn't just disappear
+      setAiObservations([{ icon: '⚠️', category: 'fel', text: 'Kunde inte ladda observationer. Prova "Uppdatera".' }])
+    }
     setLoadingObs(false)
   }
 
