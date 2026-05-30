@@ -87,7 +87,6 @@ export default function Dashboard() {
 
       function bestRun(km,tol=0.05){const el=(runData||[]).filter(r=>r.distance_km>=km*(1-tol)&&r.distance_km<=km*(1+tol)&&(r.time_seconds||r.pace_per_km));if(!el.length)return null;return el.reduce((b,r)=>{const tb=b.time_seconds||(b.pace_per_km*km);const tr=r.time_seconds||(r.pace_per_km*km);return tr<tb?r:b},el[0])}
       function estRun(km){const all=(runData||[]).filter(r=>r.pace_per_km&&r.distance_km>=km*0.5);if(!all.length)return null;const best=all.reduce((b,r)=>r.pace_per_km<b.pace_per_km?r:b,all[0]);return{time_seconds:Math.round(best.pace_per_km*km),date:best.date}}
-      function rd(o,d){if(!o)return null;return getDecayedValue(o.time_seconds,o.date,d)}
 
       // rd: compute time_seconds from pace_per_km if missing (e.g. Strava imports)
       function rd(o,km,d){if(!o)return null;const t=o.time_seconds||(o.pace_per_km&&km?Math.round(o.pace_per_km*km):null);if(!t)return null;return getDecayedValue(t,o.date,d)}
