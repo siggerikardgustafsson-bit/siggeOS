@@ -36,13 +36,13 @@ const TOOLS = [
   },
   {
     name: 'fetch_journal',
-    description: 'Hämtar journalanteckningar med humör, energi, highlights och reflektioner. Använd när han frågar om hur han mått, tankar, specifika perioder eller vill reflektera.',
+    description: 'Hämtar journalanteckningar med humör, energi, highlights, utmaningar och reflektioner. Använd PROAKTIVT när: han frågar om hur han mått, tankar, en specifik period, vill reflektera, nämner att han känt på ett visst sätt, eller när du behöver bakgrundskontext om hans mående. Kan hämta från hela historiken — ange date_from="2020-01-01" för att söka långt tillbaka.',
     input_schema: {
       type: 'object',
       properties: {
-        date_from: { type: 'string', description: 'Startdatum YYYY-MM-DD' },
+        date_from: { type: 'string', description: 'Startdatum YYYY-MM-DD. Utelämna för senaste 90 dagarna. Sätt "2020-01-01" för hela historiken.' },
         date_to: { type: 'string', description: 'Slutdatum YYYY-MM-DD' },
-        limit: { type: 'number', description: 'Max antal (default 20)' },
+        limit: { type: 'number', description: 'Max antal (default 50, max 200)' },
       },
       required: [],
     },
@@ -211,12 +211,12 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         .from('journal_entries')
         .select('id, date, mood, energy, sleep_hours, highlights, challenges, gratitude, tomorrow_focus, content')
         .eq('user_id', userId)
-        .gte('date', input.date_from || thirtyDaysAgo)
+        .gte('date', input.date_from || ninetyDaysAgo)
         .lte('date', input.date_to || today)
         .order('date', { ascending: false })
-        .limit(input.limit || 20)
+        .limit(Math.min(input.limit || 50, 200))
 
-      if (!data?.length) return 'Inga journalanteckningar hittades.'
+      if (!data?.length) return 'Inga journalanteckningar hittades för angiven period.'
 
       const rows = data.map((r: any) => [
         `📅 ${r.date}`,
@@ -227,11 +227,11 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         r.challenges ? `utmaningar: ${r.challenges}` : '',
         r.gratitude ? `tacksamhet: ${r.gratitude}` : '',
         r.tomorrow_focus ? `imorgon: ${r.tomorrow_focus}` : '',
-        r.content ? `\n${r.content.slice(0, 300)}` : '',
+        r.content ? `\n${r.content.slice(0, 500)}` : '',
         `[id:${r.id}]`,
       ].filter(Boolean).join(' | ')).join('\n\n')
 
-      return `Journal (${data.length} entries):\n${rows}`
+      return `Journal (${data.length} entries, ${input.date_from || ninetyDaysAgo} → ${input.date_to || today}):\n${rows}`
     }
 
     // ─── FETCH ECONOMY ─────────────────────────────────────────────────────────
@@ -576,6 +576,18 @@ Du har tillgång till 10 verktyg för att hämta Sigges data. Använd dem PROAKT
 - Frågar han om sitt score/progress/trend → fetch_scores direkt
 - Morning/evening brief → hämta fetch_health + fetch_workouts + fetch_scores parallellt
 - Analysera en period → hämta relevant data för perioden
+
+JOURNAL — KRITISKT:
+- Nämner han att han känt på ett visst sätt HISTORISKT → fetch_journal med date_from bakåt i tid
+- Frågar om en specifik period (t.ex. "hur mådde jag i januari") → fetch_journal med exakta datum
+- Vill reflektera eller jämföra perioder → fetch_journal för båda perioderna
+- Vill titta på hela historiken → fetch_journal med date_from="2020-01-01" och limit=200
+- Sätt aldrig en godtycklig 30-dagarsgräns — hämta så långt tillbaka som frågan kräver
+
+MINNE — KRITISKT:
+- Alla insikter i kontexten (LONG-TERM INSIKTER) är permanent minne du byggt upp — använd dem aktivt
+- När du lär dig något nytt om Sigge, säg det explicit i svaret så extraktionen kan spara det
+- Tänk på dig själv som en läkare som bygger en patientjournal — ju mer du vet, desto bättre hjälp
 
 IDs finns i varje rad som [id:UUID] — använd dessa vid update/delete-actions.`
 
