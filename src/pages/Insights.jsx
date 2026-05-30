@@ -86,7 +86,7 @@ export default function InsightsPage() {
       supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('journal_entries').select('date,energy,mood,sleep_hours').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('study_sessions').select('date,hours,course_id').eq('user_id', user.id).gte('date', since90).order('date'),
-      supabase.from('training_sessions').select('date,session_type,duration_min').eq('user_id', user.id).gte('date', since90).order('date'),
+      supabase.from('training_sessions').select('date,session_type,duration_minutes').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('income_logs').select('date,amount,source').eq('user_id', user.id).gte('date', since180).order('date'),
       supabase.from('expense_logs').select('date,amount,category').eq('user_id', user.id).gte('date', since180).order('date'),
       supabase.from('pa_shifts').select('date,hours_worked,is_night_shift').eq('user_id', user.id).gte('date', since180).order('date'),
@@ -208,32 +208,29 @@ export default function InsightsPage() {
   async function generateObservations(freshData) {
     setLoadingObs(true)
     try {
-      // Summarize data to avoid hitting token limits
-      const summary = {
-        vikt: freshData.weightData?.slice(-8) || [],
-        sömn: freshData.sleepData?.slice(-8) || [],
-        träning: freshData.trainingData?.slice(-8) || [],
-        plugg: freshData.studyData?.slice(-8) || [],
-      }
+      const lines = []
+      if (freshData.weightData?.length) lines.push('Vikt (senaste veckor): ' + freshData.weightData.slice(-6).map(d => `${d.week}:${d.vikt}kg`).join(', '))
+      if (freshData.sleepData?.length) lines.push('Sömn (timmar/vecka): ' + freshData.sleepData.slice(-6).map(d => `${d.week}:${d.sömn}h`).join(', '))
+      if (freshData.trainingData?.length) lines.push('Träning (pass/vecka): ' + freshData.trainingData.slice(-6).map(d => `${d.week}:${d.pass}pass`).join(', '))
+      if (freshData.studyData?.length) lines.push('Plugg (timmar/vecka): ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
+
       const { data: rd, error } = await supabase.functions.invoke('jarvis-chat', {
         body: {
-          messages: [{ role: 'user', content: 'Analysera denna data och ge 4-6 korta konkreta observationer på svenska. Returnera BARA en JSON-array (inga backticks, inget annat): [{"icon":"📈","category":"träning","text":"..."}]' }],
-          context: JSON.stringify(summary),
-          systemPrompt: 'Du är Jarvis. Analysera data och returnera en JSON-array med observationer. Returnera BARA arrayen, inget annat, inga backticks.',
+          messages: [{ role: 'user', content: `Här är Sigges data:\n${lines.join('\n')}\n\nGe 4-6 korta konkreta observationer. Returnera BARA en JSON-array:\n[{"icon":"📈","category":"träning","text":"En mening om vad du ser."}]` }],
+          context: 'Analysera och returnera JSON.',
+          systemPrompt: 'Du är Jarvis. Returnera BARA en JSON-array. Inga backticks. Inga förklaringar. Bara arrayen.',
         },
       })
       if (error) throw new Error(error.message)
       const raw = rd?.content?.trim()
       if (!raw) throw new Error('Tomt svar')
-      // Find JSON array in response even if there's surrounding text
       const match = raw.match(/\[[\s\S]*\]/)
-      if (!match) throw new Error('Ingen array i svar: ' + raw.slice(0, 100))
+      if (!match) throw new Error('Ingen array: ' + raw.slice(0, 100))
       const arr = JSON.parse(match[0])
       if (Array.isArray(arr) && arr.length > 0) setAiObservations(arr)
     } catch(e) {
-      console.error('Obs failed:', e)
-      // Show a fallback so the panel doesn't just disappear
-      setAiObservations([{ icon: '⚠️', category: 'fel', text: 'Kunde inte ladda observationer. Prova "Uppdatera".' }])
+      console.error('Obs failed:', e.message)
+      setAiObservations([{ icon: '⚠️', category: 'fel', text: 'Kunde inte ladda. Prova "Uppdatera".' }])
     }
     setLoadingObs(false)
   }
