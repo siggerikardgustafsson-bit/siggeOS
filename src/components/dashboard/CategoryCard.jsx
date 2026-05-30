@@ -5,6 +5,18 @@ const TIER_COLORS = {
   4:'#fbbf24',5:'#34d399',6:'#22d3ee',7:'#f472b6',8:'#fbbf24',
 }
 
+// Nästa tier — kort krav per kategori
+const NEXT_TIER_SHORT = {
+  kondition: ['—','5km < 28:00','5km < 24:00','5km < 22:00','5km < 20:00','5km < 18:30','5km < 17:00','Top 1% ✓'],
+  styrka:    ['—','Bänk ≥ 0.75x BW','Bänk ≥ 1.0x BW','Bänk ≥ 1.15x BW','Bänk ≥ 1.3x BW','Bänk ≥ 1.5x BW','Bänk ≥ 1.65x BW','Top 1% ✓'],
+  kropp:     ['—','Logga vikt regelbundet','BMI/fettprocent','Optimal komposition','Elite','Elite','Elite','Elite'],
+  somn:      ['—','Snitt ≥ 6.5h/natt','Snitt ≥ 7.0h/natt','Snitt ≥ 7.5h/natt','Snitt ≥ 8.0h/natt','Snitt ≥ 8.5h + konsistens','≥ 8.5h + variation < 12 min','Top 1% ✓'],
+  plugg:     ['—','Mastery ≥ 20%','Mastery ≥ 40%','Mastery ≥ 60%','Mastery ≥ 80%','Expert ✓','',''],
+  ekonomi:   ['—','Netto ≥ 12 000 kr/mån','Netto ≥ 18 000 kr/mån','Netto ≥ 22 000 kr/mån','Netto ≥ 28 000 kr/mån','Netto ≥ 35 000 kr/mån','Netto ≥ 45 000 kr/mån','Top 1% ✓'],
+  valmående: ['—','Energi ≥ 5, humör ≥ 5','Energi ≥ 6, stress ≤ 5','Energi ≥ 7, humör ≥ 7','Energi ≥ 8, stress ≤ 3','Energi ≥ 9, stress ≤ 2','Allt toppklass','Top 1% ✓'],
+  fardigheter:['—','1–30 min/vecka','30–60 min/vecka','60–120 min/vecka','120–240 min/vecka','240+ min/vecka ✓','',''],
+}
+
 const CAT_PATHS = {
   kondition:   'M13 10V3L4 14h7v7l9-11h-7z',
   styrka:      'M6 4v16M18 4v16M3 8h4m10 0h4M3 16h4m10 0h4',
@@ -54,6 +66,8 @@ export default function CategoryCard({ category, onClick }) {
   const tierNum = tier?.tier || 0
   const color = TIER_COLORS[tierNum]
   const ringPct = pct != null ? pct : 0
+  const nextReq = hasData && tierNum > 0 && tierNum < 8 ? (NEXT_TIER_SHORT[id]?.[tierNum] || null) : null
+  const nextColor = TIER_COLORS[tierNum + 1] || color
 
   return (
     <div onClick={() => onClick(category)} className="widget cat-card fade-up"
@@ -113,19 +127,38 @@ export default function CategoryCard({ category, onClick }) {
       </div>
 
       {/* Footer */}
-      <div style={{ marginTop: '8px', paddingTop: '7px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {tier && hasData ? (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 7px', borderRadius: '20px', background: color + '12', border: '1px solid ' + color + '28' }}>
-            <div style={{ width: 4, height: 4, borderRadius: '50%', background: color }} />
-            <span style={{ fontSize: '9px', fontWeight: 700, color: color, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tier.label}</span>
+      <div style={{ marginTop: '8px', paddingTop: '7px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {tier && hasData ? (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 7px', borderRadius: '20px', background: color + '12', border: '1px solid ' + color + '28' }}>
+              <div style={{ width: 4, height: 4, borderRadius: '50%', background: color }} />
+              <span style={{ fontSize: '9px', fontWeight: 700, color: color, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{tier.label}</span>
+            </div>
+          ) : (
+            <span style={{ fontSize: '9px', color: 'var(--muted)' }}>—</span>
+          )}
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            {decayWarning && <span style={{ fontSize: '9px', color: 'var(--amber)' }}>⚠</span>}
+            <span style={{ fontSize: '10px', color: 'var(--muted)' }}>→</span>
           </div>
-        ) : (
-          <span style={{ fontSize: '9px', color: 'var(--muted)' }}>—</span>
-        )}
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          {decayWarning && <span style={{ fontSize: '9px', color: 'var(--amber)' }}>⚠</span>}
-          <span style={{ fontSize: '10px', color: 'var(--muted)' }}>→</span>
         </div>
+
+        {/* Nästa tier — compact one-liner */}
+        {nextReq && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '5px',
+            padding: '4px 7px', borderRadius: '7px',
+            background: nextColor + '08',
+            border: '1px solid ' + nextColor + '20',
+          }}>
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke={nextColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+            <span style={{ fontSize: '9px', color: nextColor, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {nextReq}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

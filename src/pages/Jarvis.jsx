@@ -167,12 +167,67 @@ export default function Jarvis() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Auto-extract insights every 4 assistant messages (background, no spinner)
+  useEffect(() => {
+    const assistantCount = messages.filter(m => m.role === 'assistant' && !m.isHistoryMarker).length
+    if (assistantCount > 0 && assistantCount % 4 === 0) {
+      extractAndSaveInsights(messages)
+    }
+  }, [messages])
+
+  async function extractAndSaveInsights(msgs) {
+    if (!user || msgs.length < 4) return
+    try {
+      const { data } = await supabase.functions.invoke('jarvis-chat', {
+        body: {
+          messages: [{ role: 'user', content: `Extrahera ALLA relevanta insikter om Sigge från denna konversation. Var aggressiv — spara allt som är relevant om hans beteende, mönster, mål, känslor, prestationer, vanor och utmaningar. Komprimera varje insikt till max 20 ord. Returnera BARA JSON-array (minst 3, max 15):
+[{"insight":"...","category":"hälsa|träning|plugg|ekonomi|socialt|mönster|mål|personlighet|relation","key":"unik_nyckel_för_dedup"}]` }],
+          context: msgs.filter(m => !m.isHistoryMarker).slice(-20).map(m => `${m.role}: ${m.content?.slice(0, 400)}`).join('\n'),
+          systemPrompt: 'Extrahera insikter. Komprimera hårt. Returnera bara JSON-array.',
+        },
+      })
+      if (!data?.content) return
+      const clean = data.content.replace(/```json|```/g, '').trim()
+      const arr = JSON.parse(clean)
+      if (!Array.isArray(arr)) return
+      for (const ins of arr) {
+        if (!ins.insight || ins.insight.length < 8) continue
+        // Dedup: match on first 25 chars of insight or key
+        const matchStr = ins.key || ins.insight.slice(0, 25)
+        const { data: existing } = await supabase.from('jarvis_insights')
+          .select('id, insight')
+          .eq('user_id', user.id)
+          .ilike('insight', `%${matchStr.slice(0, 20)}%`)
+          .maybeSingle()
+        if (existing) {
+          // Update if new version is different
+          if (existing.insight !== ins.insight) {
+            await supabase.from('jarvis_insights').update({
+              insight: ins.insight,
+              updated_at: new Date().toISOString(),
+            }).eq('id', existing.id)
+          }
+        } else {
+          await supabase.from('jarvis_insights').insert({
+            user_id: user.id,
+            insight: ins.insight,
+            category: ins.category || 'mönster',
+            confidence: 80,
+          })
+        }
+      }
+      await loadInsights()
+    } catch(e) { /* silent background task */ }
+  }
+
+  async function loadInsights() {
     const { data } = await supabase
       .from('jarvis_insights')
       .select('*')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
-      .limit(20)
+      .limit(100) // load all — no arbitrary cap
     setInsights(data || [])
   }
 
@@ -196,8 +251,8 @@ export default function Jarvis() {
       supabase.from('journal_entries').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(2),
       supabase.from('erik_tasks').select('*').eq('user_id', user.id).neq('status', 'klart').limit(5),
       supabase.rpc('get_csn_usage', { p_user_id: user.id }),
-      supabase.from('jarvis_insights').select('insight, category, updated_at').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(15),
-      supabase.from('jarvis_conversations').select('summary, key_points, created_at').eq('user_id', user.id).not('summary', 'is', null).order('created_at', { ascending: false }).limit(4),
+      supabase.from('jarvis_insights').select('insight, category, updated_at').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(200),
+      supabase.from('jarvis_conversations').select('summary, key_points, created_at').eq('user_id', user.id).not('summary', 'is', null).order('created_at', { ascending: false }).limit(10),
       supabase.from('user_settings').select('about_me, goals, jarvis_style, jarvis_lang, jarvis_personality').eq('user_id', user.id).single(),
     ])
 
