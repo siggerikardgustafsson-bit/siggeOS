@@ -344,7 +344,7 @@ export default function TraningPage() {
 
   function addSet(exIdx) {
     setExercises(prev => prev.map((ex, i) => i === exIdx
-      ? { ...ex, sets: [...ex.sets, { reps: '', weight: '' }] }
+      ? { ...ex, sets: [...ex.sets, { reps: '', weight: '', is_dropset: false }] }
       : ex
     ))
   }
@@ -390,6 +390,7 @@ export default function TraningPage() {
           set_number: setIdx + 1,
           reps: s.reps ? parseInt(s.reps) : null,
           weight_kg: s.weight ? parseFloat(s.weight) : null,
+          is_dropset: s.is_dropset || false,
         }))
       ).filter(r => r.exercise_name)
 
@@ -701,8 +702,13 @@ export default function TraningPage() {
                               </div>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                                 {sets.map((s, i) => (
-                                  <span key={i} className="mono" style={{ fontSize: '12px', padding: '3px 8px', background: 'var(--accent-soft)', borderRadius: '5px', color: 'var(--accent)' }}>
-                                    {s.reps}×{s.weight_kg}kg
+                                  <span key={i} className="mono" style={{
+                                    fontSize: '12px', padding: '3px 8px', borderRadius: '5px',
+                                    background: s.is_dropset ? 'rgba(245,158,11,0.12)' : 'var(--accent-soft)',
+                                    color: s.is_dropset ? '#f59e0b' : 'var(--accent)',
+                                    border: s.is_dropset ? '1px solid rgba(245,158,11,0.25)' : 'none',
+                                  }}>
+                                    {s.reps}×{s.weight_kg}kg{s.is_dropset ? ' ↓' : ''}
                                   </span>
                                 ))}
                               </div>
@@ -922,19 +928,34 @@ export default function TraningPage() {
 
                   {/* Sets */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '30px 1fr 1fr 30px', gap: '6px', fontSize: '11px', color: 'var(--muted)', padding: '0 4px' }}>
-                      <span>Set</span><span>Reps</span><span>Kg</span><span></span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 32px 28px', gap: '6px', fontSize: '11px', color: 'var(--muted)', padding: '0 4px' }}>
+                      <span>Set</span><span>Reps</span><span>Kg</span><span style={{ textAlign: 'center' }}>DS</span><span></span>
                     </div>
                     {ex.sets.map((set, setIdx) => (
-                      <div key={setIdx} style={{ display: 'grid', gridTemplateColumns: '30px 1fr 1fr 30px', gap: '6px', alignItems: 'center' }}>
+                      <div key={setIdx} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 32px 28px', gap: '6px', alignItems: 'center' }}>
                         <span className="mono" style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>{setIdx + 1}</span>
                         <input className="input" type="number" placeholder="Reps" value={set.reps} onChange={e => updateSet(exIdx, setIdx, 'reps', e.target.value)} style={{ padding: '8px 10px', textAlign: 'center' }} />
                         <input className="input" type="number" placeholder="Kg" value={set.weight} onChange={e => updateSet(exIdx, setIdx, 'weight', e.target.value)} style={{ padding: '8px 10px', textAlign: 'center' }} />
-                        {ex.sets.length > 1 && (
+                        <button
+                          onClick={() => updateSet(exIdx, setIdx, 'is_dropset', !set.is_dropset)}
+                          title="Dropset"
+                          style={{
+                            width: '32px', height: '32px', borderRadius: '7px', border: 'none', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            background: set.is_dropset ? 'rgba(245,158,11,0.15)' : 'var(--surface)',
+                            border: '1px solid ' + (set.is_dropset ? 'rgba(245,158,11,0.4)' : 'var(--border)'),
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={set.is_dropset ? '#f59e0b' : 'var(--muted)'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+                          </svg>
+                        </button>
+                        {ex.sets.length > 1 ? (
                           <button onClick={() => removeSet(exIdx, setIdx)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>
                             <X size={13} />
                           </button>
-                        )}
+                        ) : <span />}
                       </div>
                     ))}
                     <button onClick={() => addSet(exIdx)} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '6px', color: 'var(--muted)', padding: '6px', cursor: 'pointer', fontSize: '12px', marginTop: '4px' }}>
