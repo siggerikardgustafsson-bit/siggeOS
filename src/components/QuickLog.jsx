@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAuth } from './context/AuthContext'
-import { supabase } from './lib/supabase'
+import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { Plus, X, Heart, Dumbbell, DollarSign, TrendingUp, BookOpen, Check, Loader } from 'lucide-react'
 
