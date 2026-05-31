@@ -71,6 +71,7 @@ export default function Dashboard() {
       const [
         { data: runData }, { data: prData }, { data: healthData },
         { data: studyData }, { data: paData }, { data: skillData }, { data: userSettings },
+        { data: exData },
       ] = await Promise.all([
         supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
         supabase.from('personal_records').select('exercise_name,weight_kg,reps,date,updated_at').eq('user_id',userId).order('weight_kg',{ascending:false}),
@@ -79,6 +80,11 @@ export default function Dashboard() {
         supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',since30),
         supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since30),
         supabase.from('user_settings').select('goals').eq('user_id',userId).single(),
+        supabase.from('training_exercises')
+          .select('exercise_name,reps,weight_kg,training_sessions!inner(date,user_id)')
+          .eq('training_sessions.user_id', userId)
+          .gte('training_sessions.date', format(subDays(todayDate, 60), 'yyyy-MM-dd'))
+          .not('weight_kg','is',null).not('reps','is',null),
       ])
 
       const latestW = (healthData||[]).find(h=>h.weight_kg)
@@ -104,11 +110,55 @@ export default function Dashboard() {
       const hasRunData=!!(runData?.length)
       const kTop=kTs.length?kTs.reduce((b,t)=>t.tier>b.tier?t:b,kTs[0]):hasRunData?{tier:1,label:'Botten 50%',color:'#6b7280'}:null
 
-      // PRs decay at 60 days as intended
-      function getPR(kws){const f=(prData||[]).find(p=>kws.some(k=>p.exercise_name?.toLowerCase().includes(k)));if(!f)return null;const d=f.updated_at?.slice(0,10)||f.date||format(subDays(todayDate,1),'yyyy-MM-dd');return getDecayedValue(f.weight_kg,d,60)}
-      const bD=getPR(['bänkpress','bench']),sD=getPR(['knäböj','squat']),dlD=getPR(['marklyft','deadlift']),oD=getPR(['militärpress','ohp','overhead']),puD=getPR(['pull-up','pullup','chins'])
-      const bT=bD?getTier(bD.value/bw,BENCH_THRESHOLDS,true):null,sT=sD?getTier(sD.value/bw,SQUAT_THRESHOLDS,true):null
-      const dlT=dlD?getTier(dlD.value/bw,DEADLIFT_THRESHOLDS,true):null,oT=oD?getTier(oD.value/bw,OHP_THRESHOLDS,true):null,puT=puD?getTier(puD.value,PULLUP_THRESHOLDS,true):null
+      // Epley formula: e1RM = weight * (1 + reps/30)
+      // Brzyckis formula for low reps (≤10): e1RM = weight / (1.0278 - 0.0278*reps)
+      function epley(weight, reps) {
+        if (!weight || !reps || reps < 1) return null
+        if (reps === 1) return weight
+        if (reps <= 10) return Math.round(weight / (1.0278 - 0.0278 * reps)) // Brzycki
+        return Math.round(weight * (1 + reps / 30)) // Epley
+      }
+
+      // Get best estimated 1RM for an exercise from both PRs and recent sets (60 days)
+      function getE1RM(keywords) {
+        const since60 = format(subDays(todayDate, 60), 'yyyy-MM-dd')
+        let best = 0
+
+        // From personal_records (with decay)
+        const pr = (prData || []).find(p => keywords.some(k => p.exercise_name?.toLowerCase().includes(k)))
+        if (pr) {
+          const d = pr.updated_at?.slice(0, 10) || pr.date || format(subDays(todayDate, 1), 'yyyy-MM-dd')
+          const decayed = getDecayedValue(pr.weight_kg, d, 60)
+          if (decayed) {
+            const e = epley(decayed.value, pr.reps || 1)
+            if (e > best) best = e
+          }
+        }
+
+        // From recent training_exercises (last 60 days, no extra decay needed)
+        const sets = (exData || []).filter(e =>
+          keywords.some(k => e.exercise_name?.toLowerCase().includes(k)) &&
+          e.training_sessions?.date >= since60
+        )
+        for (const s of sets) {
+          const e = epley(s.weight_kg, s.reps)
+          if (e && e > best) best = e
+        }
+
+        return best > 0 ? best : null
+      }
+
+      const bE1RM = getE1RM(['bänkpress','bench'])
+      const sE1RM = getE1RM(['knäböj','squat'])
+      const dlE1RM = getE1RM(['marklyft','deadlift'])
+      const oE1RM = getE1RM(['militärpress','ohp','overhead'])
+      const puE1RM = getE1RM(['pull-up','pullup','chins','weighted pull'])
+
+      const bT = bE1RM ? getTier(bE1RM/bw, BENCH_THRESHOLDS, true) : null
+      const sT = sE1RM ? getTier(sE1RM/bw, SQUAT_THRESHOLDS, true) : null
+      const dlT = dlE1RM ? getTier(dlE1RM/bw, DEADLIFT_THRESHOLDS, true) : null
+      const oT = oE1RM ? getTier(oE1RM/bw, OHP_THRESHOLDS, true) : null
+      const puT = puE1RM ? getTier(puE1RM, PULLUP_THRESHOLDS, true) : null
       const sTs=[bT,sT,dlT,oT,puT].filter(Boolean)
       const stTop=sTs.length?sTs.reduce((b,t)=>t.tier>b.tier?t:b,sTs[0]):null
 
@@ -154,9 +204,9 @@ export default function Dashboard() {
           details:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—'},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',tierInfo:r5T},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',tierInfo:r10T},{label:'Halvmara',value:rHD?formatRunTime(Math.round(rHD.value)):'—',tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT},{label:'VO2max',value:vo2?vo2+' ml/kg/min':'—',tierInfo:vo2T}],
           chartData:(runData||[]).filter(r=>r.distance_km>=4.5&&r.distance_km<=11).slice(0,20).reverse().map(r=>({date:r.date.slice(5),Pace:r.pace_per_km?Math.round(r.pace_per_km/60*10)/10:null})),
           chartLines:[{key:'Pace',label:'Pace (min/km)',color:'#4f8ef7'}],navTarget:'/traning',navLabel:'Träning'},
-        {id:'styrka',name:'Styrka',icon:'🏋️',tier:stTop,hasData:sTs.length>0,pct:stTop?Math.round((stTop.tier/8)*100):0,decayWarning:[bD,sD,dlD,oD,puD].some(d=>d?.stale),trend:'neutral',
-          metrics:[{label:'Bänkpress',value:bD?bD.value+' kg':'—',highlight:true},{label:'Marklyft',value:dlD?dlD.value+' kg':'—'},{label:'Knäböj',value:sD?sD.value+' kg':'—'}],
-          details:[{label:'Bänkpress',value:bD?bD.value+' kg ('+Math.round(bD.value/bw*100)/100+'x)':'—',tierInfo:bT},{label:'Knäböj',value:sD?sD.value+' kg ('+Math.round(sD.value/bw*100)/100+'x)':'—',tierInfo:sT},{label:'Marklyft',value:dlD?dlD.value+' kg ('+Math.round(dlD.value/bw*100)/100+'x)':'—',tierInfo:dlT},{label:'Militärpress',value:oD?oD.value+' kg':'—',tierInfo:oT},{label:'Pull-ups',value:puD?puD.value+' reps':'—',tierInfo:puT}],
+        {id:'styrka',name:'Styrka',icon:'🏋️',tier:stTop,hasData:sTs.length>0,pct:stTop?Math.round((stTop.tier/8)*100):0,decayWarning:false,trend:'neutral',
+          metrics:[{label:'Bänk e1RM',value:bE1RM?Math.round(bE1RM)+' kg':'—',highlight:true},{label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg':'—'},{label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg':'—'}],
+          details:[{label:'Bänkpress e1RM',value:bE1RM?Math.round(bE1RM)+' kg ('+Math.round(bE1RM/bw*100)/100+'x BW)':'—',tierInfo:bT},{label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg ('+Math.round(sE1RM/bw*100)/100+'x BW)':'—',tierInfo:sT},{label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg ('+Math.round(dlE1RM/bw*100)/100+'x BW)':'—',tierInfo:dlT},{label:'Militärpress e1RM',value:oE1RM?Math.round(oE1RM)+' kg':'—',tierInfo:oT},{label:'Weighted pull-up e1RM',value:puE1RM?'+'+Math.round(puE1RM)+' kg':'—',tierInfo:puT}],
           chartData:[],chartLines:[],navTarget:'/traning',navLabel:'Träning'},
         {id:'kropp',name:'Kropp',icon:'⚖️',tier:null,hasData:!!latestW?.weight_kg,pct:wP,decayWarning:false,trend:wD<0?'up':wD>0?'down':'neutral',
           metrics:[{label:'Aktuell vikt',value:bw+' kg',highlight:true},{label:'Kvar ('+wGoal+'kg)',value:wK+' kg'},{label:'Trend 14d',value:(wD>0?'+':'')+wD+' kg'}],
