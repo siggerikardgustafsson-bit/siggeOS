@@ -8,14 +8,24 @@ import ExerciseModal from '../components/ExerciseModal'
 import RunModal from '../components/RunModal'
 
 const EXERCISE_LIBRARY = {
-  'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Pushups'],
-  'Rygg': ['Marklyft', 'Latsdrag', 'Rodd', 'Weighted pull-up', 'Pullups', 'Hyperextensions'],
+  'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Armhävningar'],
+  'Rygg': ['Marklyft', 'Latsdrag', 'Rodd', 'Pull-ups', 'Weighted pull-up', 'Hyperextensions'],
   'Ben': ['Knäböj', 'Benpress', 'Utfall', 'Leg curl', 'Leg extension', 'Kalvhävningar'],
   'Axlar': ['Militärpress', 'Sidolyft', 'Framåtlyft', 'Face pulls', 'Shrugs'],
   'Armar': ['Bicepscurl', 'Hammercurl', 'Tryckkpress', 'Skullcrusher', 'Kabeldrag'],
   'Core': ['Plankan', 'Situps', 'Crunches', 'Russian twist', 'Bäckenlyft'],
   'Övrigt': [],
 }
+
+// Exercises where weight_kg = added weight above BW (0 = bodyweight only)
+const BW_EXERCISES = new Set([
+  'pull-ups','pullups','pull up','pull-up','weighted pull-up',
+  'dips','dip',
+  'armhävningar','pushups','push-ups','push ups',
+  'chin-ups','chinups','chins',
+  'muscle up','muscle-up',
+  'ring dips','plankan',
+])
 
 const RUN_PR_DISTANCES = [
   { label: '5 km',       meters: 5000 },
@@ -85,6 +95,7 @@ export default function TraningPage() {
   const [saving, setSaving] = useState(false)
   const [expandedSession, setExpandedSession] = useState(null)
   const [showExercisePicker, setShowExercisePicker] = useState(false)
+  const [editingSession, setEditingSession] = useState(null) // session being edited
   const [customExercise, setCustomExercise] = useState('')
 
   // Strava
@@ -264,6 +275,41 @@ export default function TraningPage() {
     if (imported > 0) { await fetchSessions(); await fetchRunPRs() }
     setCsvImporting(false)
     e.target.value = ''
+  }
+
+  function openEditSession(session) {
+    const grouped = {}
+    for (const ex of session.training_exercises || []) {
+      if (!grouped[ex.exercise_name]) grouped[ex.exercise_name] = []
+      grouped[ex.exercise_name].push({ reps: ex.reps ?? '', weight: ex.weight_kg ?? '', is_dropset: ex.is_dropset || false })
+    }
+    const exList = Object.entries(grouped).map(([name, sets]) => ({ name, sets }))
+    setEditingSession({ id: session.id, date: session.date, sessionType: session.session_type, feeling: session.feeling || '', notes: session.notes || '', exercises: exList.length ? exList : [{ name: '', sets: [{ reps: '', weight: '', is_dropset: false }] }] })
+  }
+
+  async function saveEditSession() {
+    if (!editingSession) return
+    const { id, date, sessionType, feeling, notes, exercises } = editingSession
+    await supabase.from('training_sessions').update({ date, session_type: sessionType, feeling: feeling ? parseInt(feeling) : null, notes: notes || null }).eq('id', id)
+    await supabase.from('training_exercises').delete().eq('session_id', id)
+    const rows = exercises.flatMap((ex, _) => ex.sets.map((s, si) => ({ session_id: id, exercise_name: ex.name, set_number: si + 1, reps: s.reps ? parseInt(s.reps) : null, weight_kg: s.weight !== '' ? parseFloat(s.weight) : null, is_dropset: s.is_dropset || false }))).filter(r => r.exercise_name)
+    if (rows.length) await supabase.from('training_exercises').insert(rows)
+    setEditingSession(null)
+    fetchSessions()
+  }
+
+  function updateEditSet(exIdx, setIdx, field, value) {
+    setEditingSession(prev => ({ ...prev, exercises: prev.exercises.map((ex, i) => i !== exIdx ? ex : { ...ex, sets: ex.sets.map((s, si) => si === setIdx ? { ...s, [field]: value } : s) }) }))
+  }
+  function addEditSet(exIdx) {
+    setEditingSession(prev => ({ ...prev, exercises: prev.exercises.map((ex, i) => i !== exIdx ? ex : { ...ex, sets: [...ex.sets, { reps: '', weight: '', is_dropset: false }] }) }))
+  }
+  function removeEditSet(exIdx, setIdx) {
+    setEditingSession(prev => ({ ...prev, exercises: prev.exercises.map((ex, i) => i !== exIdx ? ex : { ...ex, sets: ex.sets.filter((_, si) => si !== setIdx) }) }))
+  }
+  function deleteSession(id) {
+    if (!window.confirm('Ta bort detta pass?')) return
+    supabase.from('training_sessions').delete().eq('id', id).then(() => fetchSessions())
   }
 
   async function fetchSessions() {
@@ -683,7 +729,16 @@ export default function TraningPage() {
                         </div>
                       </div>
 
-                      {isExpanded && session.training_exercises?.length > 0 && (
+                          {/* Action buttons */}
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
+                            <button onClick={e => { e.stopPropagation(); openEditSession(session) }} className="btn btn-ghost btn-sm">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              Redigera
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); deleteSession(session.id) }} className="btn btn-danger btn-sm">
+                              <X size={12} /> Ta bort
+                            </button>
+                          </div>
                         <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
                           {Object.entries(
                             session.training_exercises.reduce((acc, ex) => {
@@ -927,41 +982,40 @@ export default function TraningPage() {
                   </div>
 
                   {/* Sets */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 32px 28px', gap: '6px', fontSize: '11px', color: 'var(--muted)', padding: '0 4px' }}>
-                      <span>Set</span><span>Reps</span><span>Kg</span><span style={{ textAlign: 'center' }}>DS</span><span></span>
-                    </div>
-                    {ex.sets.map((set, setIdx) => (
-                      <div key={setIdx} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 32px 28px', gap: '6px', alignItems: 'center' }}>
-                        <span className="mono" style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>{setIdx + 1}</span>
-                        <input className="input" type="number" placeholder="Reps" value={set.reps} onChange={e => updateSet(exIdx, setIdx, 'reps', e.target.value)} style={{ padding: '8px 10px', textAlign: 'center' }} />
-                        <input className="input" type="number" placeholder="Kg" value={set.weight} onChange={e => updateSet(exIdx, setIdx, 'weight', e.target.value)} style={{ padding: '8px 10px', textAlign: 'center' }} />
-                        <button
-                          onClick={() => updateSet(exIdx, setIdx, 'is_dropset', !set.is_dropset)}
-                          title="Dropset"
-                          style={{
-                            width: '32px', height: '32px', borderRadius: '7px', border: 'none', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                            background: set.is_dropset ? 'rgba(245,158,11,0.15)' : 'var(--surface)',
-                            border: '1px solid ' + (set.is_dropset ? 'rgba(245,158,11,0.4)' : 'var(--border)'),
-                            transition: 'all 0.15s',
-                          }}
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={set.is_dropset ? '#f59e0b' : 'var(--muted)'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-                          </svg>
-                        </button>
-                        {ex.sets.length > 1 ? (
-                          <button onClick={() => removeSet(exIdx, setIdx)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>
-                            <X size={13} />
-                          </button>
-                        ) : <span />}
+                  {(() => {
+                    const isBW = BW_EXERCISES.has(ex.name.toLowerCase().trim())
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 32px 28px', gap: '6px', fontSize: '11px', color: 'var(--muted)', padding: '0 4px' }}>
+                          <span>Set</span><span>Reps</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            {isBW ? '+Kg' : 'Kg'}
+                            {isBW && <span style={{ fontSize: '9px', color: 'var(--accent)', fontWeight: 600 }}>BW</span>}
+                          </span>
+                          <span style={{ textAlign: 'center' }}>DS</span><span></span>
+                        </div>
+                        {ex.sets.map((set, setIdx) => (
+                          <div key={setIdx} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 32px 28px', gap: '6px', alignItems: 'center' }}>
+                            <span className="mono" style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center' }}>{setIdx + 1}</span>
+                            <input className="input" type="number" placeholder="Reps" value={set.reps} onChange={e => updateSet(exIdx, setIdx, 'reps', e.target.value)} style={{ padding: '8px 10px', textAlign: 'center' }} />
+                            <input className="input" type="number"
+                              placeholder={isBW ? '0 = BW' : 'Kg'}
+                              value={set.weight}
+                              onChange={e => updateSet(exIdx, setIdx, 'weight', e.target.value)}
+                              style={{ padding: '8px 10px', textAlign: 'center' }}
+                            />
+                            <button onClick={() => updateSet(exIdx, setIdx, 'is_dropset', !set.is_dropset)} title="Dropset" style={{ width: '32px', height: '32px', borderRadius: '7px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: set.is_dropset ? 'rgba(245,158,11,0.15)' : 'var(--surface)', border: '1px solid ' + (set.is_dropset ? 'rgba(245,158,11,0.4)' : 'var(--border)'), transition: 'all 0.15s' }}>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={set.is_dropset ? '#f59e0b' : 'var(--muted)'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                            </button>
+                            {ex.sets.length > 1 ? (
+                              <button onClick={() => removeSet(exIdx, setIdx)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={13} /></button>
+                            ) : <span />}
+                          </div>
+                        ))}
+                        <button onClick={() => addSet(exIdx)} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '6px', color: 'var(--muted)', padding: '6px', cursor: 'pointer', fontSize: '12px', marginTop: '4px' }}>+ Set</button>
                       </div>
-                    ))}
-                    <button onClick={() => addSet(exIdx)} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '6px', color: 'var(--muted)', padding: '6px', cursor: 'pointer', fontSize: '12px', marginTop: '4px' }}>
-                      + Set
-                    </button>
-                  </div>
+                    )
+                  })()}
                 </div>
               ))}
 
@@ -1103,6 +1157,51 @@ export default function TraningPage() {
 
       {showRunModal && (
         <RunModal onClose={() => setShowRunModal(false)} />
+      )}
+
+      {/* EDIT SESSION MODAL */}
+      {editingSession && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={e => e.target === e.currentTarget && setEditingSession(null)}>
+          <div style={{ background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '18px', width: '100%', maxWidth: '560px', maxHeight: '85vh', overflowY: 'auto', padding: '20px', boxShadow: 'var(--glass-shadow)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div style={{ fontSize: '15px', fontWeight: '600' }}>Redigera pass</div>
+              <button onClick={() => setEditingSession(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>DATUM</label>
+                <input className="input" type="date" value={editingSession.date} onChange={e => setEditingSession(p => ({ ...p, date: e.target.value }))} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>KÄNSLA (1–10)</label>
+                <input className="input" type="number" min="1" max="10" value={editingSession.feeling} onChange={e => setEditingSession(p => ({ ...p, feeling: e.target.value }))} placeholder="—" />
+              </div>
+            </div>
+
+            {editingSession.exercises.map((ex, exIdx) => (
+              <div key={exIdx} style={{ marginBottom: '16px', padding: '12px', background: 'var(--surface2)', borderRadius: '10px' }}>
+                <input className="input" value={ex.name} onChange={e => setEditingSession(p => ({ ...p, exercises: p.exercises.map((x, i) => i !== exIdx ? x : { ...x, name: e.target.value }) }))} placeholder="Övning..." style={{ marginBottom: '10px' }} />
+                <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 24px', gap: '6px', fontSize: '11px', color: 'var(--muted)', padding: '0 2px', marginBottom: '4px' }}>
+                  <span>Set</span><span>Reps</span><span>{BW_EXERCISES.has(ex.name.toLowerCase().trim()) ? '+Kg' : 'Kg'}</span><span></span>
+                </div>
+                {ex.sets.map((s, si) => (
+                  <div key={si} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 24px', gap: '6px', alignItems: 'center', marginBottom: '5px' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--muted)', textAlign: 'center' }}>{si + 1}</span>
+                    <input className="input" type="number" placeholder="Reps" value={s.reps} onChange={e => updateEditSet(exIdx, si, 'reps', e.target.value)} style={{ padding: '7px 10px', textAlign: 'center' }} />
+                    <input className="input" type="number" placeholder={BW_EXERCISES.has(ex.name.toLowerCase().trim()) ? '0=BW' : 'Kg'} value={s.weight} onChange={e => updateEditSet(exIdx, si, 'weight', e.target.value)} style={{ padding: '7px 10px', textAlign: 'center' }} />
+                    {ex.sets.length > 1 ? <button onClick={() => removeEditSet(exIdx, si)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={12} /></button> : <span />}
+                  </div>
+                ))}
+                <button onClick={() => addEditSet(exIdx)} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '6px', color: 'var(--muted)', padding: '5px', cursor: 'pointer', fontSize: '12px', width: '100%', marginTop: '4px' }}>+ Set</button>
+              </div>
+            ))}
+
+            <button onClick={saveEditSession} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '4px' }}>
+              <Save size={14} /> Spara ändringar
+            </button>
+          </div>
+        </div>
       )}
     </div>
       </div>
