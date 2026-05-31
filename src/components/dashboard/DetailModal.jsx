@@ -94,7 +94,7 @@ export default function DetailModal({ category, onClose }) {
   const [period, setPeriod] = useState('30d')
   if (!category) return null
 
-  const { name, icon, tier, metrics, details, chartData, chartLines, navTarget, navLabel, id } = category
+  const { name, icon, tier, metrics, details, chartData, chartLines, navTarget, navLabel, id, perExercise } = category
   const tierNum = tier?.tier || 0
   const tierColor = TIER_COLORS[tierNum]
   const requirements = TIER_REQUIREMENTS[id] || []
@@ -251,19 +251,38 @@ export default function DetailModal({ category, onClose }) {
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                {nextTierReqs.reqs.map((req, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                    <div style={{
-                      width: 16, height: 16, borderRadius: '5px', flexShrink: 0, marginTop: '1px',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid ' + tierColor + '40',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <div style={{ width: 5, height: 5, borderRadius: '2px', background: tierColor + '70' }} />
+                {nextTierReqs.reqs.map((req, i) => {
+                  // For styrka: check if this requirement is already met via perExercise
+                  let isMet = false
+                  if (id === 'styrka' && category.perExercise?.length) {
+                    const reqLower = req.toLowerCase()
+                    const ex = category.perExercise.find(e =>
+                      reqLower.includes(e.label.toLowerCase()) ||
+                      (reqLower.includes('bänk') && e.label === 'Bänk') ||
+                      (reqLower.includes('knäböj') && e.label === 'Knäböj') ||
+                      (reqLower.includes('mark') && e.label === 'Mark') ||
+                      (reqLower.includes('ohp') && e.label === 'OHP') ||
+                      (reqLower.includes('pull') && e.label === 'Pull-up')
+                    )
+                    if (ex) isMet = ex.tier.tier > tierNum
+                  }
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                      <div style={{
+                        width: 16, height: 16, borderRadius: '5px', flexShrink: 0, marginTop: '1px',
+                        background: isMet ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)',
+                        border: '1px solid ' + (isMet ? 'rgba(16,185,129,0.4)' : tierColor + '40'),
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {isMet
+                          ? <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          : <div style={{ width: 5, height: 5, borderRadius: '2px', background: tierColor + '70' }} />
+                        }
+                      </div>
+                      <span style={{ fontSize: '13px', color: isMet ? 'rgba(16,185,129,0.7)' : 'rgba(255,255,255,0.78)', lineHeight: 1.5, textDecoration: isMet ? 'line-through' : 'none' }}>{req}</span>
                     </div>
-                    <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.78)', lineHeight: 1.5 }}>{req}</span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
