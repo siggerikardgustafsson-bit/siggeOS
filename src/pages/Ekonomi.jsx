@@ -6,14 +6,14 @@ import { sv } from 'date-fns/locale'
 import { Plus, X, Save, Loader, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Map } from 'lucide-react'
 
 const EXPENSE_CATEGORIES = [
-  { id: 'mat',             label: 'Mat',             color: '#f97316', emoji: '🍔' },
-  { id: 'nöje',            label: 'Nöje',            color: '#ec4899', emoji: '🎉' },
-  { id: 'transport',       label: 'Transport',       color: '#3b82f6', emoji: '🚇' },
-  { id: 'kläder',          label: 'Kläder',          color: '#8b5cf6', emoji: '👕' },
-  { id: 'hälsa',           label: 'Hälsa',           color: '#10b981', emoji: '💊' },
-  { id: 'prenumerationer', label: 'Prenumerationer', color: '#06b6d4', emoji: '📱' },
-  { id: 'hyra',            label: 'Hyra',            color: '#f59e0b', emoji: '🏠' },
-  { id: 'övrigt',          label: 'Övrigt',          color: '#6b7280', emoji: '📦' },
+  { id: 'mat',             label: 'Mat',             color: '#f97316', emoji: '' },
+  { id: 'nöje',            label: 'Nöje',            color: '#ec4899', emoji: '' },
+  { id: 'transport',       label: 'Transport',       color: '#3b82f6', emoji: '' },
+  { id: 'kläder',          label: 'Kläder',          color: '#8b5cf6', emoji: '' },
+  { id: 'hälsa',           label: 'Hälsa',           color: '#10b981', emoji: '' },
+  { id: 'prenumerationer', label: 'Prenumerationer', color: '#06b6d4', emoji: '' },
+  { id: 'hyra',            label: 'Hyra',            color: '#f59e0b', emoji: '' },
+  { id: 'övrigt',          label: 'Övrigt',          color: '#6b7280', emoji: '' },
 ]
 
 const INCOME_SOURCES = ['PA-jobb', 'Erik Norling', 'CSN', 'Skatteåterbäring', 'Övrigt']
@@ -285,7 +285,7 @@ export default function EkonomiPage() {
                 ) : expensesByCategory.sort((a, b) => b.value - a.value).map(cat => (
                   <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
-                    <div style={{ flex: 1, fontSize: '13px' }}>{cat.emoji} {cat.label}</div>
+                    <div style={{ flex: 1, fontSize: '13px' }}>{cat.label}</div>
                     <div className="mono" style={{ fontSize: '13px', fontWeight: '500' }}>{cat.value.toLocaleString('sv-SE')} kr</div>
                     <div style={{ fontSize: '11px', color: 'var(--muted)', width: '35px', textAlign: 'right' }}>
                       {((cat.value / (totalExpenses || 1)) * 100).toFixed(0)}%
@@ -325,7 +325,7 @@ export default function EkonomiPage() {
                   return (
                     <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '16px' }}>{tx.type === 'income' ? '💰' : cat?.emoji || '📦'}</span>
+                        <span style={{ fontSize: '16px' }}>{tx.type === 'income' ? '' : cat?.emoji || ''}</span>
                         <div>
                           <div>{tx.description || tx.source || cat?.label || 'Utgift'}</div>
                           <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{format(new Date(tx.date), 'd MMM', { locale: sv })}</div>
@@ -520,7 +520,7 @@ export default function EkonomiPage() {
       {/* SAVINGS TAB */}
       {activeTab === 'savings' && (
         <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <div style={{ fontSize: '32px', marginBottom: '12px' }}>🏦</div>
+          <div style={{ fontSize: '32px', marginBottom: '12px' }}></div>
           <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '8px' }}>Sparmål</div>
           <div style={{ color: 'var(--muted)', fontSize: '13px', lineHeight: '1.6' }}>
             Du har inga aktiva sparmål just nu.<br />

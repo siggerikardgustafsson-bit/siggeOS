@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
 import { supabase } from '../../lib/supabase'
+import { Dumbbell, Briefcase, FileText, Stethoscope, CheckSquare, Clock } from 'lucide-react'
 
 const EVENT_TYPES = {
-  training:  { color: '#4f8ef7', icon: '🏃', label: 'Träning' },
-  pa_shift:  { color: '#34d399', icon: '💼', label: 'PA-pass' },
-  exam:      { color: '#f87171', icon: '📝', label: 'Tenta' },
-  mandatory: { color: '#a78bfa', icon: '🏥', label: 'Obligatorisk' },
-  task:      { color: '#fbbf24', icon: '✓',  label: 'Uppgift' },
+  training:  { color: '#4f8ef7', Icon: Dumbbell,     label: 'Träning' },
+  pa_shift:  { color: '#34d399', Icon: Briefcase,    label: 'PA-pass' },
+  exam:      { color: '#f87171', Icon: FileText,      label: 'Tenta' },
+  mandatory: { color: '#a78bfa', Icon: Stethoscope,  label: 'Obligatorisk' },
+  task:      { color: '#fbbf24', Icon: CheckSquare,  label: 'Uppgift' },
 }
 
 export default function TodayWidget({ userId }) {
@@ -90,13 +91,11 @@ export default function TodayWidget({ userId }) {
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* Shimmer */}
       <div style={{
         position: 'absolute', top: 0, left: '20%', right: '20%', height: '1px',
         background: 'linear-gradient(90deg, transparent, var(--border2), transparent)',
       }} />
 
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
         <div>
           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Idag</div>
@@ -114,11 +113,8 @@ export default function TodayWidget({ userId }) {
         </div>
       </div>
 
-      {/* Events */}
       {loading ? (
-        <div style={{ color: 'var(--muted)', fontSize: '12px', padding: '12px 0', textAlign: 'center' }}>
-          Laddar...
-        </div>
+        <div style={{ color: 'var(--muted)', fontSize: '12px', padding: '12px 0', textAlign: 'center' }}>Laddar...</div>
       ) : events.length === 0 ? (
         <div style={{ color: 'var(--muted)', fontSize: '12px', padding: '12px 0', textAlign: 'center', fontStyle: 'italic' }}>
           Inga schemalagda händelser idag
@@ -127,6 +123,7 @@ export default function TodayWidget({ userId }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {events.map((ev, i) => {
             const cfg = EVENT_TYPES[ev.type]
+            const IconComp = cfg.Icon
             return (
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
@@ -136,7 +133,9 @@ export default function TodayWidget({ userId }) {
                 borderRadius: '10px',
                 borderLeft: '2px solid ' + cfg.color,
               }}>
-                <span style={{ fontSize: '14px', flexShrink: 0 }}>{cfg.icon}</span>
+                <span style={{ color: cfg.color, flexShrink: 0, display: 'flex' }}>
+                  <IconComp size={14} />
+                </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {ev.title}
@@ -146,7 +145,9 @@ export default function TodayWidget({ userId }) {
                   )}
                 </div>
                 {ev.time && (
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: cfg.color, flexShrink: 0 }}>{ev.time}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: 600, color: cfg.color, flexShrink: 0 }}>
+                    <Clock size={10} /> {ev.time}
+                  </span>
                 )}
               </div>
             )

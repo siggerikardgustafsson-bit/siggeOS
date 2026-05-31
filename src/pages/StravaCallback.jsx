@@ -46,7 +46,7 @@ export default function StravaCallback() {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ fontSize: '32px' }}>🟠</div>
+      <div style={{ fontSize: '32px' }}></div>
       <div style={{ fontSize: '16px', color: 'var(--text)' }}>{status}</div>
     </div>
   )

@@ -455,7 +455,7 @@ export default function PluggPage() {
                           )}
                           {mandatoryForCourse.length > 0 && (
                             <div style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(139,92,246,0.15)', color: '#a78bfa', fontWeight: '600' }}>
-                              🎓 {attendedCount}/{mandatoryForCourse.length}
+                               {attendedCount}/{mandatoryForCourse.length}
                             </div>
                           )}
                         </div>
@@ -466,7 +466,7 @@ export default function PluggPage() {
                       </div>
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                         <button onClick={e => { e.stopPropagation(); setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, end_date: course.end_date || '' }) }}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', opacity: 0.6 }}>✏️</button>
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', opacity: 0.6 }}>️</button>
                         {isExpanded ? <ChevronUp size={16} color="var(--muted)" /> : <ChevronDown size={16} color="var(--muted)" />}
                       </div>
                     </div>
@@ -486,10 +486,10 @@ export default function PluggPage() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', cursor: 'pointer' }}
                                       onClick={() => setExpandedExam(expandedExam === `mand-${session.id}` ? null : `mand-${session.id}`)}>
                                       <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎓 {session.title}</div>
+                                        <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}> {session.title}</div>
                                         <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', display: 'flex', gap: '8px' }}>
                                           <span>{format(parseISO(session.date), 'd MMM yyyy', { locale: sv })}</span>
-                                          {timeStr && <span style={{ color: '#8b5cf6', fontWeight: '600' }}>🕐 {timeStr}</span>}
+                                          {timeStr && <span style={{ color: '#8b5cf6', fontWeight: '600' }}> {timeStr}</span>}
                                         </div>
                                       </div>
                                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0, marginLeft: '8px' }}>
@@ -504,7 +504,7 @@ export default function PluggPage() {
                                     {expandedExam === `mand-${session.id}` && (
                                       <div style={{ padding: '0 12px 10px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
                                         <div style={{ fontSize: '13px', lineHeight: '1.6' }}>{session.title}</div>
-                                        {timeStr && <div style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '600', marginTop: '4px' }}>🕐 {timeStr}</div>}
+                                        {timeStr && <div style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: '600', marginTop: '4px' }}> {timeStr}</div>}
                                         {session.course_hint && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px', fontStyle: 'italic' }}>{session.course_hint}</div>}
                                       </div>
                                     )}
@@ -542,7 +542,7 @@ export default function PluggPage() {
                                         display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px',
                                         border: '1px solid rgba(139,92,246,0.3)', background: 'rgba(139,92,246,0.1)', color: '#a78bfa',
                                         cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif', fontWeight: '600',
-                                      }}>📚 Plugga</button>
+                                      }}> Plugga</button>
                                     )}
                                     <button onClick={e => { e.stopPropagation(); setShowFilesFor(showFiles ? null : exam.id) }} style={{
                                       display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px',
@@ -575,7 +575,7 @@ export default function PluggPage() {
                                     {/* Lärandemål PDF */}
                                     {examGoalList.filter(g => g.source_file && g.source_file !== 'manual').length > 0 && (
                                       <div style={{ marginBottom: '10px' }}>
-                                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginBottom: '5px' }}>📋 Lärandemål (importerade från PDF)</div>
+                                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginBottom: '5px' }}> Lärandemål (importerade från PDF)</div>
                                         {[...new Set(examGoalList.filter(g => g.source_file && g.source_file !== 'manual').map(g => g.source_file))].map(fname => (
                                           <div key={fname} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', marginBottom: '4px' }}>
                                             <FileText size={11} color="#3b82f6" />
@@ -597,7 +597,7 @@ export default function PluggPage() {
                                     {/* Gamla tentor */}
                                     {examFilesForExam.length > 0 && (
                                       <div style={{ marginBottom: '10px' }}>
-                                        <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '600', marginBottom: '5px' }}>📝 Gamla tentor</div>
+                                        <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '600', marginBottom: '5px' }}> Gamla tentor</div>
                                         {examFilesForExam.map(f => (
                                           <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', marginBottom: '4px' }}>
                                             <FileText size={11} color="#f59e0b" />
@@ -613,7 +613,7 @@ export default function PluggPage() {
                                     {/* Kursmaterial */}
                                     {examMaterials.length > 0 && (
                                       <div style={{ marginBottom: '10px' }}>
-                                        <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600', marginBottom: '5px' }}>📗 Kursmaterial</div>
+                                        <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600', marginBottom: '5px' }}> Kursmaterial</div>
                                         {examMaterials.map(m => (
                                           <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', marginBottom: '4px' }}>
                                             <FileText size={11} color="#10b981" />
@@ -648,7 +648,7 @@ export default function PluggPage() {
                                       ) : (
                                         <button onClick={() => { setEditingExamPoints(exam.id); setExamPointsForm({ points_earned: exam.points_earned || '', points_max: exam.points_max || '' }) }}
                                           style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '6px', padding: '5px 10px', cursor: 'pointer', color: 'var(--muted)', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
-                                          {exam.points_earned && exam.points_max ? `✏️ ${exam.points_earned}/${exam.points_max}p` : '+ Poäng'}
+                                          {exam.points_earned && exam.points_max ? `️ ${exam.points_earned}/${exam.points_max}p` : '+ Poäng'}
                                         </button>
                                       )}
                                     </div>

@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { Check, ChevronRight, User, Target, Brain, Zap } from 'lucide-react'
+import { Check, ChevronRight, User, Target, Brain, Zap, LayoutDashboard, MessageSquare, TrendingUp, Plus, Settings, Activity, Dumbbell, Heart, DollarSign, GraduationCap, BookOpen } from 'lucide-react'
 
 const STEPS = [
-  { id: 'welcome',     icon: '👋', title: 'Välkommen till ditt OS' },
-  { id: 'profile',     icon: '🧬', title: 'Vem är du?' },
-  { id: 'goals',       icon: '🎯', title: 'Vad siktar du på?' },
-  { id: 'jarvis',      icon: '🤖', title: 'Konfigurera Jarvis' },
-  { id: 'done',        icon: '🚀', title: 'Allt klart!' },
+  { id: 'welcome',     Icon: LayoutDashboard, title: 'Välkommen till ditt OS' },
+  { id: 'profile',     Icon: User,            title: 'Vem är du?' },
+  { id: 'goals',       Icon: Target,          title: 'Vad siktar du på?' },
+  { id: 'jarvis',      Icon: Brain,           title: 'Konfigurera Jarvis' },
+  { id: 'done',        Icon: Zap,             title: 'Allt klart!' },
 ]
 
 const ACCENT = 'var(--accent)'
@@ -141,7 +141,9 @@ export default function Onboarding({ onComplete }) {
 
           {/* Step header */}
           <div style={{ marginBottom: '24px' }}>
-            <div style={{ fontSize: '28px', marginBottom: '6px' }}>{currentStep.icon}</div>
+            <div style={{ width: 44, height: 44, borderRadius: '12px', background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
+              {currentStep.Icon && <currentStep.Icon size={20} color="var(--accent)" />}
+            </div>
             <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.3px' }}>{currentStep.title}</div>
           </div>
 
@@ -153,13 +155,13 @@ export default function Onboarding({ onComplete }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {[
-                  { icon: '📊', text: 'Tracka hälsa, träning, plugg, ekonomi och mer' },
-                  { icon: '🤖', text: 'Jarvis — din personliga AI-coach som känner dig på djupet' },
-                  { icon: '📈', text: 'Tier-system som visar din framgång över tid' },
-                  { icon: '⚡', text: 'Snabblogg vad som helst direkt från vilken sida som helst' },
+                  { Icon: Activity,       text: 'Tracka hälsa, träning, plugg, ekonomi och mer' },
+                  { Icon: MessageSquare,  text: 'Jarvis — din personliga AI-coach som känner dig på djupet' },
+                  { Icon: TrendingUp,     text: 'Tier-system som visar din framgång över tid' },
+                  { Icon: Plus,           text: 'Snabblogg vad som helst direkt från vilken sida som helst' },
                 ].map((f, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'var(--surface2)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: '18px' }}>{f.icon}</span>
+                    <div style={{ width:28, height:28, borderRadius:'8px', background:'var(--accent-soft)', border:'1px solid var(--accent-border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><f.Icon size={14} color='var(--accent)' /></div>
                     <span style={{ fontSize: '13px', color: 'var(--text)' }}>{f.text}</span>
                   </div>
                 ))}
@@ -259,7 +261,7 @@ export default function Onboarding({ onComplete }) {
                 padding: '12px 14px', borderRadius: '12px',
                 background: 'var(--accent-soft)', border: '1px solid var(--accent-border)',
               }}>
-                <div style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: 600, marginBottom: '4px' }}>💡 Tips</div>
+                <div style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: 600, marginBottom: '4px', display:'flex', alignItems:'center', gap:'5px' }}><Zap size={12} /> Tips</div>
                 <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.6 }}>
                   Jarvis lär sig mer om dig efter varje konversation och lagrar insikter automatiskt. Ju mer du använder den, desto bättre blir den.
                 </div>
@@ -275,12 +277,12 @@ export default function Onboarding({ onComplete }) {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {[
-                  { icon: '➕', text: 'Tryck på + knappen för snabblogg' },
-                  { icon: '🤖', text: 'Fråga Jarvis vad som helst om ditt liv' },
-                  { icon: '⚙️', text: 'Fyll i mer info i Inställningar → Profil' },
+                  { Icon: Plus,          text: 'Tryck på + knappen för snabblogg' },
+                  { Icon: MessageSquare, text: 'Fråga Jarvis vad som helst om ditt liv' },
+                  { Icon: Settings,      text: 'Fyll i mer info i Inställningar → Profil' },
                 ].map((t, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'var(--surface2)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: '16px' }}>{t.icon}</span>
+                    <div style={{ width:28, height:28, borderRadius:'8px', background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><t.Icon size={14} color='var(--accent)' /></div>
                     <span style={{ fontSize: '13px', color: 'var(--text)' }}>{t.text}</span>
                   </div>
                 ))}
@@ -301,7 +303,7 @@ export default function Onboarding({ onComplete }) {
               className="btn btn-primary"
               style={{ flex: 1, justifyContent: 'center', padding: '12px', fontSize: '14px', opacity: !canProceed() ? 0.5 : 1 }}
             >
-              {saving ? 'Sparar...' : isLast ? '🚀 Kom igång!' : (
+              {saving ? 'Sparar...' : isLast ? 'Kom igång!' : (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
                   {step === 0 ? 'Sätt igång' : 'Nästa'} <ChevronRight size={15} />
                 </span>

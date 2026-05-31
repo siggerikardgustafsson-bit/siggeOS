@@ -226,7 +226,7 @@ export default function InsightsPage() {
       if (Array.isArray(arr) && arr.length > 0) setAiObservations(arr)
     } catch(e) {
       console.error('Obs failed:', e.message)
-      setAiObservations([{ icon: '⚠️', category: 'fel', text: 'Kunde inte ladda. Prova "Uppdatera".' }])
+      setAiObservations([{ icon: '!', category: 'fel', text: 'Kunde inte ladda. Prova "Uppdatera".' }])
     }
     setLoadingObs(false)
   }

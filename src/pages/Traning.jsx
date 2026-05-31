@@ -253,7 +253,7 @@ export default function TraningPage() {
       const notes = [
         name,
         elevationM ? `${Math.round(elevationM)}m↑` : '',
-        avgHr ? `❤️ ${Math.round(avgHr)}bpm` : ''
+        avgHr ? `${Math.round(avgHr)}bpm` : ''
       ].filter(Boolean).join(' · ')
 
       const { error } = await supabase.from('training_sessions').insert({
@@ -845,11 +845,11 @@ export default function TraningPage() {
                         </div>
                         {daySessions.length > 0 && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            {hasGym && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: '500' }}>💪 Gym</div>}
+                            {hasGym && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: '500' }}>Gym</div>}
                             {hasRun && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(16,185,129,0.15)', color: '#34d399', fontWeight: '500' }}>
-                              🏃 {daySessions.find(s => s.session_type === 'run')?.distance_km ? `${daySessions.find(s => s.session_type === 'run').distance_km}km` : 'Löp'}
+                              {daySessions.find(s => s.session_type === 'run')?.distance_km ? `${daySessions.find(s => s.session_type === 'run').distance_km}km` : 'Löp'}
                             </div>}
-                            {hasOther && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(236,72,153,0.15)', color: '#f472b6', fontWeight: '500' }}>⚡ Aktivitet</div>}
+                            {hasOther && <div style={{ fontSize: '10px', padding: '2px 5px', borderRadius: '3px', background: 'rgba(236,72,153,0.15)', color: '#f472b6', fontWeight: '500' }}>Aktivitet</div>}
                           </div>
                         )}
                       </div>
@@ -895,7 +895,7 @@ export default function TraningPage() {
                         </>
                       )}
                       {daySess.filter(s => s.session_type === 'run').map(s => (
-                        <div key={s.id} style={{ fontSize: '13px', color: '#34d399' }}>🏃 {s.distance_km}km {s.duration_minutes && `· ${s.duration_minutes}min`}</div>
+                        <div key={s.id} style={{ fontSize: '13px', color: '#34d399' }}>{s.distance_km}km {s.duration_minutes && `· ${s.duration_minutes}min`}</div>
                       ))}
                     </div>
                   )

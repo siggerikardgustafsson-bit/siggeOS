@@ -502,7 +502,7 @@ export default function JobbPage() {
             </div>
             {calendarConnected && (
               <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--muted)', padding: '8px 10px', background: 'rgba(16,185,129,0.06)', borderRadius: '6px' }}>
-                💡 Pass som innehåller "assistanstid" eller "hos hw" i titeln importeras automatiskt. Synka varannan vecka för att hålla listan uppdaterad.
+                Pass som innehåller "assistanstid" eller "hos hw" i titeln importeras automatiskt. Synka varannan vecka för att hålla listan uppdaterad.
               </div>
             )}
           </div>
@@ -524,7 +524,7 @@ export default function JobbPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {isSov ? '😴' : '👁️'}
+                          {isSov ? 'Sovpass' : 'Vak'}
                           {format(parseISO(shift.date), 'EEEE d MMM', { locale: sv })}
                           {shift.client_name && ` · ${shift.client_name}`}
                           <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px',
@@ -685,7 +685,7 @@ export default function JobbPage() {
                 </div>
               </div>
               <div style={{ padding: '8px 12px', background: 'rgba(16,185,129,0.08)', borderRadius: '6px', marginBottom: '12px', fontSize: '12px', color: '#10b981' }}>
-                💡 Räknas inte mot CSN-fribeloppet
+                Räknas inte mot CSN-fribeloppet
               </div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                 <button onClick={() => setShowNewPayment(false)} className="btn btn-ghost">Avbryt</button>
@@ -821,7 +821,7 @@ export default function JobbPage() {
                         <td className="mono" style={{ padding: '10px 8px' }}>{shift.start_time ? format(parseISO(shift.start_time), 'HH:mm') : '—'}</td>
                         <td className="mono" style={{ padding: '10px 8px' }}>{shift.end_time ? format(parseISO(shift.end_time), 'HH:mm') : '—'}</td>
                         <td className="mono" style={{ padding: '10px 8px', color: '#10b981', fontWeight: '600' }}>{shift.hours_worked?.toFixed(1)}</td>
-                        <td style={{ padding: '10px 8px' }}>{shift.shift_type === 'sov' ? '😴 Sov' : '👁️ Vaken'}</td>
+                        <td style={{ padding: '10px 8px' }}>{shift.shift_type === 'sov' ? 'Sov Sov' : 'Vak Vaken'}</td>
                         <td className="mono" style={{ padding: '10px 8px', color: '#f59e0b' }}>{pay ? `~${pay.toLocaleString('sv-SE')} kr` : '—'}</td>
                       </tr>
                     )

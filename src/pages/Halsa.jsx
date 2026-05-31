@@ -8,9 +8,9 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceL
 
 const DEFAULT_SUPPLEMENTS = ['Kreatin', 'D-vitamin', 'Omega-3', 'Multivitamin', 'Magnesium']
 const NICOTINE_TYPES = [
-  { id: 'snus', label: 'Snus', emoji: '🟫' },
-  { id: 'vape', label: 'Vape', emoji: '💨' },
-  { id: 'cigaretter', label: 'Cigaretter', emoji: '🚬' },
+  { id: 'snus', label: 'Snus' },
+  { id: 'vape', label: 'Vape' },
+  { id: 'cigaretter', label: 'Cigaretter' },
 ]
 
 function Widget({ title, icon, color = 'var(--accent)', children, action }) {
@@ -190,7 +190,7 @@ export default function HalsaPage() {
           <div className="page-header-sub" style={{ display:'flex', gap:'10px' }}>
             {latestWeight && <span style={{ color:'#10b981' }}>⚖ {latestWeight} kg</span>}
             {targetWeight && <span style={{ color:'#f59e0b' }}>mål {targetWeight} kg</span>}
-            {avgSleep > 0 && <span style={{ color:'#06b6d4' }}>💤 {avgSleep.toFixed(1)}h</span>}
+            {avgSleep > 0 && <span style={{ color:'#06b6d4' }}> {avgSleep.toFixed(1)}h</span>}
             {avgSteps > 0 && <span style={{ color:'#f59e0b' }}>{Math.round(avgSteps).toLocaleString('sv-SE')} steg</span>}
           </div>
         </div>
@@ -254,7 +254,7 @@ export default function HalsaPage() {
                 action={<SaveBtn onClick={() => saveWidget('sleep', { date: sleepForm.date, sleep_hours: sleepForm.sleep_hours ? parseFloat(sleepForm.sleep_hours) : null, sleep_quality: sleepForm.sleep_quality })} saving={savingWidget.sleep} saved={savedWidget.sleep} />}>
                 {todayLog?.source === 'journal' && (
                   <div style={{ padding:'6px 10px', background:'rgba(6,182,212,0.08)', border:'1px solid rgba(6,182,212,0.2)', borderRadius:'7px', marginBottom:'10px', fontSize:'11px', color:'#06b6d4' }}>
-                    💤 Hämtad från journal
+                     Hämtad från journal
                   </div>
                 )}
                 <div style={{ display:'flex', gap:'8px', alignItems:'center', marginBottom:'10px' }}>
@@ -286,19 +286,19 @@ export default function HalsaPage() {
                         padding:'5px 10px', borderRadius:'7px', border:'1px solid '+(active?'#f59e0b':'var(--border)'),
                         background: active?'rgba(245,158,11,0.12)':'var(--surface2)', color: active?'#f59e0b':'var(--muted)',
                         fontSize:'12px', cursor:'pointer', fontFamily:'DM Sans, sans-serif',
-                      }}>{n.emoji} {n.label}</button>
+                      }}>{n.label}</button>
                     )
                   })}
                   <button onClick={() => setSubstanceForm(f => ({...f, marijuana: !f.marijuana}))} style={{
                     padding:'5px 10px', borderRadius:'7px', border:'1px solid '+(substanceForm.marijuana?'#10b981':'var(--border)'),
                     background: substanceForm.marijuana?'rgba(16,185,129,0.12)':'var(--surface2)', color: substanceForm.marijuana?'#10b981':'var(--muted)',
                     fontSize:'12px', cursor:'pointer', fontFamily:'DM Sans, sans-serif',
-                  }}>🌿 Marijuana</button>
+                  }}> Marijuana</button>
                 </div>
               </Widget>
 
               {/* RETATRUTIDE */}
-              <Widget title="Retatrutide 💉" icon={<Syringe size={14} color="#a78bfa" />} color="#a78bfa"
+              <Widget title="Retatrutide " icon={<Syringe size={14} color="#a78bfa" />} color="#a78bfa"
                 action={<SaveBtn onClick={() => saveWidget('ret', { date: retForm.date, retatrutide_dose_mg: retForm.retatrutide_injected ? parseFloat(retForm.retatrutide_dose_mg)||2.5 : null })} saving={savingWidget.ret} saved={savedWidget.ret} />}>
                 <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
                   <input type="date" className="input" value={retForm.date} onChange={e => setRetForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
@@ -323,7 +323,7 @@ export default function HalsaPage() {
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'10px' }}>
                   <input type="checkbox" id="fasting" checked={nutritionForm.fasting} onChange={e => setNutritionForm(f => ({...f, fasting:e.target.checked}))} style={{ accentColor:'#34d399', width:'15px', height:'15px', cursor:'pointer' }} />
-                  <label htmlFor="fasting" style={{ fontSize:'13px', cursor:'pointer', color:'var(--text)' }}>🕐 Fastedag</label>
+                  <label htmlFor="fasting" style={{ fontSize:'13px', cursor:'pointer', color:'var(--text)' }}> Fastedag</label>
                 </div>
                 {!nutritionForm.fasting && (
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
@@ -355,7 +355,7 @@ export default function HalsaPage() {
                         <div style={{ width:'16px', height:'16px', borderRadius:'50%', border:'2px solid '+(taken?'#06b6d4':'var(--border)'), background: taken?'#06b6d4':'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                           {taken && <Check size={10} color="white" />}
                         </div>
-                        <span style={{ fontSize:'13px', color: taken?'#06b6d4':'var(--text)' }}>💊 {supp}</span>
+                        <span style={{ fontSize:'13px', color: taken?'#06b6d4':'var(--text)' }}> {supp}</span>
                       </button>
                     )
                   })}
@@ -490,11 +490,11 @@ export default function HalsaPage() {
                     </span>
                     <div style={{ display:'flex', gap:'10px', flex:1, flexWrap:'wrap' }}>
                       {log.weight_kg && <span style={{ fontSize:'12px', color:'#10b981' }}>⚖ {log.weight_kg}kg</span>}
-                      {log.sleep_hours && <span style={{ fontSize:'12px', color:'#8b5cf6' }}>💤 {log.sleep_hours}h</span>}
-                      {log.steps && <span style={{ fontSize:'12px', color:'#f59e0b' }}>👟 {log.steps.toLocaleString('sv-SE')}</span>}
-                      {log.alcohol_units > 0 && <span style={{ fontSize:'12px', color:'#ef4444' }}>🍺 {log.alcohol_units}</span>}
-                      {log.nicotine && <span style={{ fontSize:'12px', color:'#f59e0b' }}>🟫 nikotin</span>}
-                      {log.retatrutide_dose_mg && <span style={{ fontSize:'12px', color:'#a78bfa' }}>💉 {log.retatrutide_dose_mg}mg</span>}
+                      {log.sleep_hours && <span style={{ fontSize:'12px', color:'#8b5cf6' }}> {log.sleep_hours}h</span>}
+                      {log.steps && <span style={{ fontSize:'12px', color:'#f59e0b' }}> {log.steps.toLocaleString('sv-SE')}</span>}
+                      {log.alcohol_units > 0 && <span style={{ fontSize:'12px', color:'#ef4444' }}>{log.alcohol_units} enheter alkohol</span>}
+                      {log.nicotine && <span style={{ fontSize:'12px', color:'#f59e0b' }}>nikotin</span>}
+                      {log.retatrutide_dose_mg && <span style={{ fontSize:'12px', color:'#a78bfa' }}> {log.retatrutide_dose_mg}mg</span>}
                     </div>
                     <button onClick={() => openEditLog(log)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'7px', padding:'4px 8px', cursor:'pointer', color:'var(--muted)', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexShrink:0, transition:'all 0.15s' }}
                       onMouseEnter={e => { e.currentTarget.style.color='var(--accent)'; e.currentTarget.style.borderColor='var(--accent-border)' }}
@@ -541,7 +541,7 @@ export default function HalsaPage() {
               <div style={{ display:'flex', gap:'6px' }}>
                 {NICOTINE_TYPES.map(n => {
                   const active = editingLog.nicotine?.includes(n.id)
-                  return <button key={n.id} onClick={() => setEditingLog(l => ({ ...l, nicotine: active ? l.nicotine.filter(x=>x!==n.id) : [...(l.nicotine||[]),n.id] }))} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid '+(active?'#f59e0b':'var(--border)'), background: active?'rgba(245,158,11,0.12)':'var(--surface2)', color: active?'#f59e0b':'var(--muted)', fontSize:'12px', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>{n.emoji} {n.label}</button>
+                  return <button key={n.id} onClick={() => setEditingLog(l => ({ ...l, nicotine: active ? l.nicotine.filter(x=>x!==n.id) : [...(l.nicotine||[]),n.id] }))} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid '+(active?'#f59e0b':'var(--border)'), background: active?'rgba(245,158,11,0.12)':'var(--surface2)', color: active?'#f59e0b':'var(--muted)', fontSize:'12px', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>{n.label}</button>
                 })}
               </div>
             </div>

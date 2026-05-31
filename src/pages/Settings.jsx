@@ -554,7 +554,7 @@ export default function SettingsPage() {
                 <Toggle value={notifTraining} onChange={v => { setNotifTraining(v); saveProfile() }} />
               </SettingRow>
               <div style={{ marginTop: '14px', padding: '12px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '8px', fontSize: '12px', color: 'var(--amber)' }}>
-                💡 Notiser kräver att Sigge OS är öppen i webbläsaren. Native notiser kräver en installerad app.
+                Notiser kräver att Sigge OS är öppen i webbläsaren. Native notiser kräver en installerad app.
               </div>
             </div>
           )}

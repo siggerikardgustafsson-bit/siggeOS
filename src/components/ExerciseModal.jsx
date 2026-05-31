@@ -137,7 +137,7 @@ export default function ExerciseModal({ exerciseName, onClose }) {
               <div style={{ display: 'flex', gap: '16px', marginTop: '5px', fontSize: '13px', color: 'var(--muted)' }}>
                 <span>{sessions.length} pass</span>
                 <span>{allSets.length} set</span>
-                {allTimePR > 0 && <span style={{ color: '#f59e0b' }}>🏆 PR: {allTimePR}kg</span>}
+                {allTimePR > 0 && <span style={{ color: '#f59e0b' }}> PR: {allTimePR}kg</span>}
               </div>
             </div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
@@ -267,7 +267,7 @@ export default function ExerciseModal({ exerciseName, onClose }) {
                           <div key={weight} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
                             onClick={() => setSelectedWeight(selectedWeight === weight ? null : weight)}>
                             <div className="mono" style={{ minWidth: '52px', fontWeight: '600', fontSize: '13px', color: weight === allTimePR ? '#f59e0b' : 'var(--text)' }}>
-                              {weight}kg{weight === allTimePR ? ' 🏆' : ''}
+                              {weight}kg{weight === allTimePR ? ' ' : ''}
                             </div>
                             <div style={{ flex: 1, height: '7px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
                               <div style={{ height: '100%', width: `${pct}%`, background: selectedWeight === weight ? 'var(--accent)' : '#34d399', borderRadius: '4px', transition: 'width 0.5s, background 0.15s' }} />

@@ -23,12 +23,12 @@ Extrahera och analysera:
 Returnera ENDAST JSON, inget annat.`
 
 const SKILLS = [
-  { id: 'guitar',   label: 'Gitarr',   icon: '🎸', color: '#f59e0b' },
-  { id: 'spanish',  label: 'Spanska',  icon: '🇪🇸', color: '#ef4444' },
-  { id: 'serbian',  label: 'Serbiska', icon: '🇷🇸', color: '#3b82f6' },
-  { id: 'reading',  label: 'Läsning',  icon: '📖', color: '#8b5cf6' },
-  { id: 'piano',    label: 'Piano',    icon: '🎹', color: '#06b6d4' },
-  { id: 'other',    label: 'Annat',    icon: '✨', color: '#10b981' },
+  { id: 'guitar',   label: 'Gitarr',   icon: 'Music',      color: '#f59e0b' },
+  { id: 'spanish',  label: 'Spanska',  icon: 'Globe',      color: '#ef4444' },
+  { id: 'serbian',  label: 'Serbiska', icon: 'Globe',      color: '#3b82f6' },
+  { id: 'reading',  label: 'Läsning',  icon: 'BookMarked', color: '#8b5cf6' },
+  { id: 'piano',    label: 'Piano',    icon: 'Music',      color: '#06b6d4' },
+  { id: 'other',    label: 'Annat',    icon: 'Sparkles',   color: '#10b981' },
 ]
 
 const EMPTY_FORM = {
@@ -340,7 +340,7 @@ export default function JournalPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
                   {[
                     { label: 'Entries i månaden', value: entries.length, color: 'var(--accent)' },
-                    { label: 'Streak', value: streak > 0 ? streak + 'd 🔥' : '0d', color: streak > 0 ? '#f59e0b' : 'var(--muted)' },
+                    { label: 'Streak', value: streak > 0 ? streak + 'd ' : '0d', color: streak > 0 ? '#f59e0b' : 'var(--muted)' },
                   ].map(s => (
                     <div key={s.label} style={{
                       background: 'var(--surface2)', borderRadius: '10px',
@@ -444,7 +444,7 @@ export default function JournalPage() {
                     <input type="checkbox" id="travel" checked={form.is_travel_entry}
                       onChange={e => setForm(f => ({ ...f, is_travel_entry: e.target.checked }))}
                       style={{ accentColor: 'var(--accent)', width: '15px', height: '15px', cursor: 'pointer' }} />
-                    <label htmlFor="travel" style={{ fontSize: '12px', color: 'var(--muted)', cursor: 'pointer' }}>Reseentry ✈️</label>
+                    <label htmlFor="travel" style={{ fontSize: '12px', color: 'var(--muted)', cursor: 'pointer' }}>Reseentry ️</label>
                   </div>
 
                   {/* Skills — collapsible */}
@@ -483,7 +483,7 @@ export default function JournalPage() {
                                     onChange={e => setForm(f => ({ ...f, skills: f.skills.map((sk, si) => si === i ? { ...sk, id: e.target.value } : sk) }))}
                                     style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '7px 10px', color: 'var(--text)', fontSize: '13px', fontFamily: 'Inter, sans-serif', cursor: 'pointer', outline: 'none' }}
                                   >
-                                    {SKILLS.map(sk => <option key={sk.id} value={sk.id}>{sk.icon} {sk.label}</option>)}
+                                    {SKILLS.map(sk => <option key={sk.id} value={sk.id}>{sk.label}</option>)}
                                   </select>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
                                     <input
@@ -528,7 +528,7 @@ export default function JournalPage() {
                   alignItems: 'center', justifyContent: 'center',
                   textAlign: 'center', gap: '10px', padding: '40px 0',
                 }}>
-                  <div style={{ fontSize: '28px', opacity: 0.12 }}>✍️</div>
+                  <div style={{ fontSize: '28px', opacity: 0.12 }}>️</div>
                   <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6' }}>
                     Ingen entry loggad. Hur var dagen?
                   </div>
@@ -551,11 +551,11 @@ export default function JournalPage() {
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
                         {format(new Date(entry.created_at), 'HH:mm')}
-                        {entry.is_travel_entry && ' ✈️'}
+                        {entry.is_travel_entry && ' ️'}
                       </span>
-                      {entry.mood && <span style={{ fontSize: '11px', color: '#ec4899', fontWeight: '500' }}>😊 {entry.mood}/10</span>}
-                      {entry.energy && <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '500' }}>⚡ {entry.energy}/10</span>}
-                      {entry.sleep_hours && <span style={{ fontSize: '11px', color: '#06b6d4', fontWeight: '500' }}>💤 {entry.sleep_hours}h</span>}
+                      {entry.mood && <span style={{ fontSize: '11px', color: '#ec4899', fontWeight: '500' }}> {entry.mood}/10</span>}
+                      {entry.energy && <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '500' }}> {entry.energy}/10</span>}
+                      {entry.sleep_hours && <span style={{ fontSize: '11px', color: '#06b6d4', fontWeight: '500' }}> {entry.sleep_hours}h</span>}
                     </div>
                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                       <button onClick={() => openEditForm(entry)} style={{
@@ -595,7 +595,7 @@ export default function JournalPage() {
                       {entry.ai_extracted_people?.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: entry.ai_extracted_keywords?.length > 0 ? '6px' : '0' }}>
                           {entry.ai_extracted_people.map(p => (
-                            <span key={p} style={{ padding: '2px 7px', borderRadius: '5px', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: '11px' }}>👤 {p}</span>
+                            <span key={p} style={{ padding: '2px 7px', borderRadius: '5px', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: '11px' }}> {p}</span>
                           ))}
                         </div>
                       )}

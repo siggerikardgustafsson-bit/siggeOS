@@ -9,10 +9,10 @@ const TODAY = () => format(new Date(), 'yyyy-MM-dd')
 const EXPENSE_CATS = ['Mat', 'Transport', 'Nöje', 'Kläder', 'Hälsa', 'Prenumerationer', 'Hyra', 'Övrigt']
 const INCOME_SOURCES = ['PA-jobb', 'Erik Norling', 'CSN', 'Skatteåterbäring', 'Övrigt']
 const FEELING_OPTS = [
-  { v: 3, label: '😴 Trött' },
-  { v: 5, label: '😐 Ok' },
-  { v: 7, label: '💪 Bra' },
-  { v: 9, label: '🔥 Grym' },
+  { v: 3, label: 'Trött' },
+  { v: 5, label: 'Ok' },
+  { v: 7, label: 'Bra' },
+  { v: 9, label: 'Grym' },
 ]
 const EXERCISE_LIBRARY = {
   'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Armhävningar'],
@@ -149,10 +149,10 @@ function GymForm({ onSave, saving }) {
         <div style={labelStyle}>Typ</div>
         <div style={{ display: 'flex', gap: '6px' }}>
           {[
-            { id: 'gym',  label: '🏋️ Gym' },
-            { id: 'run',  label: '🏃 Löpning' },
-            { id: 'walk', label: '🚶 Promenad' },
-            { id: 'other',label: '⚡ Annat' },
+            { id: 'gym',  label: 'Gym' },
+            { id: 'run',  label: 'Löpning' },
+            { id: 'walk', label: 'Promenad' },
+            { id: 'other',label: 'Annat' },
           ].map(t => (
             <button key={t.id} onClick={() => setSessionType(t.id)} style={{ ...chipStyle(sessionType === t.id), flex: 1, fontSize: '11px' }}>
               {t.label}

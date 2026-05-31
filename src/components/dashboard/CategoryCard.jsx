@@ -143,7 +143,7 @@ export default function CategoryCard({ category, onClick }) {
             <span style={{ fontSize: '9px', color: 'var(--muted)' }}>—</span>
           )}
           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            {decayWarning && <span style={{ fontSize: '9px', color: 'var(--amber)' }}>⚠</span>}
+            {decayWarning && <span style={{ fontSize: '9px', color: 'var(--amber)' }}>!</span>}
             <span style={{ fontSize: '10px', color: 'var(--muted)' }}>→</span>
           </div>
         </div>

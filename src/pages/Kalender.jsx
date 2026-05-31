@@ -7,29 +7,30 @@ import {
   differenceInDays, isToday
 } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Loader, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader, RefreshCw, Dumbbell, Timer, Briefcase, FileText, GraduationCap, BookOpen, Heart, Clock } from 'lucide-react'
 
 const EVENT_TYPES = {
-  training:   { label: 'Träning',      color: '#3b82f6', emoji: '💪' },
-  run:        { label: 'Löpning',      color: '#10b981', emoji: '🏃' },
-  pa:         { label: 'PA-pass',      color: '#f97316', emoji: '🌙' },
-  exam:       { label: 'Tenta',        color: '#ef4444', emoji: '📝' },
-  mandatory:  { label: 'Obligatorisk', color: '#8b5cf6', emoji: '🎓' },
-  journal:    { label: 'Journal',      color: '#06b6d4', emoji: '📔' },
-  health:     { label: 'Hälsa',        color: '#10b981', emoji: '❤️' },
-  erik:       { label: 'Erik',         color: '#f59e0b', emoji: '💼' },
+  training:   { label: 'Träning',      color: '#3b82f6', Icon: Dumbbell },
+  run:        { label: 'Löpning',      color: '#10b981', Icon: Timer },
+  pa:         { label: 'PA-pass',      color: '#f97316', Icon: Briefcase },
+  exam:       { label: 'Tenta',        color: '#ef4444', Icon: FileText },
+  mandatory:  { label: 'Obligatorisk', color: '#8b5cf6', Icon: GraduationCap },
+  journal:    { label: 'Journal',      color: '#06b6d4', Icon: BookOpen },
+  health:     { label: 'Hälsa',        color: '#10b981', Icon: Heart },
+  erik:       { label: 'Erik',         color: '#f59e0b', Icon: Briefcase },
 }
 
 function EventDot({ type }) {
   const t = EVENT_TYPES[type] || EVENT_TYPES.training
+  const IconComp = t.Icon
   return (
     <div style={{
-      fontSize: '9px', padding: '1px 4px', borderRadius: '3px',
+      fontSize: '9px', padding: '1px 5px', borderRadius: '3px',
       background: t.color + '25', color: t.color, fontWeight: '600',
       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-      maxWidth: '100%',
+      maxWidth: '100%', display: 'flex', alignItems: 'center', gap: '3px',
     }}>
-      {t.emoji} {t.label}
+      <IconComp size={8} /> {t.label}
     </div>
   )
 }
@@ -71,7 +72,7 @@ export default function KalenderPage() {
       add(s.date, t, { label: s.session_type === 'run' ? `${s.distance_km?.toFixed(1) || '?'}km` : 'Gym', sub: s.duration_minutes ? `${s.duration_minutes}min` : '', notes: s.notes })
     }
     for (const s of paRes.data || []) {
-      add(s.date, 'pa', { label: `${s.shift_type === 'sov' ? '😴' : '👁️'} ${s.hours_worked?.toFixed(1)}h`, sub: s.shift_type })
+      add(s.date, 'pa', { label: `${s.hours_worked?.toFixed(1)}h${s.shift_type ? ' · ' + s.shift_type : ''}`, sub: s.shift_type })
     }
     for (const e of examRes.data || []) {
       add(e.exam_date, 'exam', { label: e.name, sub: e.courses?.name })
@@ -152,7 +153,7 @@ export default function KalenderPage() {
 
       {/* Filter chips */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
-        {Object.entries(EVENT_TYPES).map(([key, { label, color, emoji }]) => {
+        {Object.entries(EVENT_TYPES).map(([key, { label, color, Icon: IconComp }]) => {
           const active = filterTypes.has(key)
           return (
             <button key={key} onClick={() => {
@@ -163,9 +164,9 @@ export default function KalenderPage() {
               padding: '4px 10px', borderRadius: '20px', border: `1px solid ${active ? color : 'var(--border)'}`,
               background: active ? color + '18' : 'transparent', color: active ? color : 'var(--muted)',
               fontSize: '11px', fontWeight: '500', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-              transition: 'all 0.15s',
+              transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '5px',
             }}>
-              {emoji} {label}
+              <IconComp size={11} /> {label}
             </button>
           )
         })}
@@ -209,13 +210,14 @@ export default function KalenderPage() {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px' }}>
                     {dayEvents.slice(0, 4).map((ev, i) => {
                       const t = EVENT_TYPES[ev.type]
+                      const IconComp = t.Icon
                       return (
                         <div key={i} style={{
                           width: '14px', height: '14px', borderRadius: '3px',
                           background: t.color + '25', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '9px', flexShrink: 0,
+                          flexShrink: 0, color: t.color,
                         }} title={ev.label}>
-                          {t.emoji}
+                          <IconComp size={8} />
                         </div>
                       )
                     })}
@@ -245,10 +247,11 @@ export default function KalenderPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {selectedEvents.map((ev, i) => {
                   const t = EVENT_TYPES[ev.type]
+                  const IconComp = t.Icon
                   return (
                     <div key={i} style={{ padding: '10px 12px', borderRadius: '10px', background: t.color + '10', border: `1px solid ${t.color}25` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '14px' }}>{t.emoji}</span>
+                        <span style={{ color: t.color, display: 'flex' }}><IconComp size={14} /></span>
                         <span style={{ fontSize: '12px', fontWeight: '600', color: t.color }}>{t.label}</span>
                         {ev.type === 'mandatory' && (
                           <button onClick={() => toggleAttended(ev.id, ev.attended)} style={{
@@ -261,7 +264,7 @@ export default function KalenderPage() {
                         )}
                       </div>
                       <div style={{ fontSize: '13px', fontWeight: '500', lineHeight: '1.4' }}>{ev.label}</div>
-                      {ev.time && <div style={{ fontSize: '11px', color: t.color, fontWeight: '600', marginTop: '3px' }}>🕐 {ev.time}</div>}
+                      {ev.time && <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: t.color, fontWeight: '600', marginTop: '3px' }}><Clock size={10} /> {ev.time}</div>}
                       {ev.sub && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>{ev.sub}</div>}
                       {ev.notes && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', fontStyle: 'italic' }}>{ev.notes}</div>}
                     </div>

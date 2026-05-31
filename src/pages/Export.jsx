@@ -3,14 +3,14 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, subMonths } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Download, Loader, FileText, Table, CheckCircle } from 'lucide-react'
+import { Download, Loader, FileText, Table, CheckCircle, Dumbbell, Heart, BookOpen, DollarSign, Briefcase, GraduationCap, Zap, Package, Info } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 const EXPORTS = [
   {
     id: 'training',
     label: 'Träningspass',
-    emoji: '💪',
+    Icon: Dumbbell,
     description: 'Alla gympass och löppass med distans, tid, tempo och övningar',
     color: '#3b82f6',
     table: 'training_sessions',
@@ -20,7 +20,7 @@ const EXPORTS = [
   {
     id: 'health',
     label: 'Hälsadata',
-    emoji: '❤️',
+    Icon: Heart,
     description: 'Vikt, sömn, steg, energi, alkohol och nikotin per dag',
     color: '#10b981',
     table: 'health_logs',
@@ -30,7 +30,7 @@ const EXPORTS = [
   {
     id: 'journal',
     label: 'Journal',
-    emoji: '📔',
+    Icon: BookOpen,
     description: 'Alla journalanteckningar med humör, energi och reflektioner',
     color: '#06b6d4',
     table: 'journal_entries',
@@ -40,7 +40,7 @@ const EXPORTS = [
   {
     id: 'economy',
     label: 'Ekonomi',
-    emoji: '💰',
+    Icon: DollarSign,
     description: 'Inkomster och utgifter per kategori',
     color: '#8b5cf6',
     tables: [
@@ -51,7 +51,7 @@ const EXPORTS = [
   {
     id: 'pa',
     label: 'PA-pass',
-    emoji: '🌙',
+    Icon: Briefcase,
     description: 'PA-pass med timmar, lön och passtyp',
     color: '#f97316',
     table: 'pa_shifts',
@@ -61,7 +61,7 @@ const EXPORTS = [
   {
     id: 'study',
     label: 'Studielogg',
-    emoji: '📚',
+    Icon: GraduationCap,
     description: 'Studiesessioner och kursinfo',
     color: '#f59e0b',
     table: 'study_sessions',
@@ -71,7 +71,7 @@ const EXPORTS = [
   {
     id: 'scores',
     label: 'Dagsscore',
-    emoji: '⚡',
+    Icon: Zap,
     description: 'Dagliga scores för träning, hälsa, plugg och ekonomi',
     color: '#a78bfa',
     table: 'daily_scores',
@@ -81,7 +81,7 @@ const EXPORTS = [
   {
     id: 'all',
     label: 'Allt (fullständig export)',
-    emoji: '📦',
+    Icon: Package,
     description: 'Alla datapunkter i en Excel-fil med separata flikar',
     color: '#34d399',
     isAll: true,
@@ -221,7 +221,9 @@ export default function ExportPage() {
               background: exp.isAll ? 'rgba(52,211,153,0.04)' : 'var(--surface)',
             }}>
               <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                <div style={{ fontSize: '24px' }}>{exp.emoji}</div>
+                <div style={{ width: 36, height: 36, borderRadius: '10px', background: exp.color + '15', border: '1px solid ' + exp.color + '30', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {exp.Icon && <exp.Icon size={18} color={exp.color} />}
+                </div>
                 <div>
                   <div style={{ fontSize: '14px', fontWeight: '600', color: exp.color }}>{exp.label}</div>
                   <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>{exp.description}</div>
@@ -249,7 +251,10 @@ export default function ExportPage() {
       </div>
 
       <div style={{ marginTop: '20px', padding: '14px 16px', background: 'rgba(79,142,247,0.06)', border: '1px solid rgba(79,142,247,0.15)', borderRadius: '10px', fontSize: '13px', color: 'var(--muted)' }}>
-        💡 Filerna öppnas i Excel, Google Sheets eller Numbers. Välj "Allt" för en komplett export med alla moduler i separata flikar.
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+          <Info size={14} color='#4f8ef7' style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>Filerna öppnas i Excel, Google Sheets eller Numbers. Välj "Allt" för en komplett export med alla moduler i separata flikar.</span>
+        </div>
       </div>
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>

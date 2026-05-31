@@ -193,7 +193,7 @@ export default function DetailModal({ category, onClose }) {
             cursor: 'pointer', fontSize: '14px',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'all 0.15s',
-          }}>✕</button>
+          }}>×</button>
         </div>
 
         <div style={{ padding: '20px 24px' }}>

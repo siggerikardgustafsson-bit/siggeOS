@@ -42,7 +42,7 @@ export default function AuthCallback() {
 
         const data = await resp.json()
         if (data.success) {
-          setStatus('✓ Google Kalender kopplad! Synkar pass...')
+          setStatus('Google Kalender kopplad! Synkar pass...')
           // Trigger first sync
           await fetch(`${supabaseUrl}/functions/v1/google-calendar-sync`, {
             method: 'POST',
@@ -52,7 +52,7 @@ export default function AuthCallback() {
             },
             body: JSON.stringify({ action: 'sync' }),
           })
-          setStatus('✓ Klar! Dina pass har importerats.')
+          setStatus('Klar! Dina pass har importerats.')
         } else {
           setStatus('Kunde inte koppla: ' + (data.error || 'Okänt fel'))
         }

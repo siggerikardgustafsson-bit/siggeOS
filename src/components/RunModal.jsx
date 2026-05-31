@@ -125,7 +125,7 @@ export default function RunModal({ onClose }) {
         <div style={{ padding: '20px 24px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontSize: '20px', fontWeight: '700', letterSpacing: '-0.3px' }}>🏃 Löphistorik</div>
+              <div style={{ fontSize: '20px', fontWeight: '700', letterSpacing: '-0.3px' }}> Löphistorik</div>
               <div style={{ display: 'flex', gap: '16px', marginTop: '5px', fontSize: '13px', color: 'var(--muted)' }}>
                 <span>{runs.length} pass</span>
                 <span>{Math.round(totalKm)} km totalt</span>
@@ -294,7 +294,7 @@ export default function RunModal({ onClose }) {
                       {bestPaceInProg && (
                         <div style={{ padding: '14px 16px', borderRadius: '12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}>
                           <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '600', marginBottom: '6px' }}>
-                            🏆 BÄSTA TEMPO — {DISTANCES.find(d => d.km === selectedDist)?.label}
+                             BÄSTA TEMPO — {DISTANCES.find(d => d.km === selectedDist)?.label}
                           </div>
                           <div style={{ display: 'flex', gap: '24px' }}>
                             <div>
