@@ -729,8 +729,10 @@ export default function TraningPage() {
                         </div>
                       </div>
 
+                      {isExpanded && (
+                        <>
                           {/* Action buttons */}
-                          <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }} onClick={e => e.stopPropagation()}>
                             <button onClick={e => { e.stopPropagation(); openEditSession(session) }} className="btn btn-ghost btn-sm">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                               Redigera
@@ -739,37 +741,41 @@ export default function TraningPage() {
                               <X size={12} /> Ta bort
                             </button>
                           </div>
-                        <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
-                          {Object.entries(
-                            session.training_exercises.reduce((acc, ex) => {
-                              if (!acc[ex.exercise_name]) acc[ex.exercise_name] = []
-                              acc[ex.exercise_name].push(ex)
-                              return acc
-                            }, {})
-                          ).map(([name, sets]) => (
-                            <div key={name} style={{ marginBottom: '10px' }}>
-                              <div
-                                onClick={e => { e.stopPropagation(); setSelectedExercise(name) }}
-                                style={{ fontSize: '13px', fontWeight: '600', marginBottom: '5px', color: 'var(--accent)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                              >
-                                {name}
-                                <TrendingUp size={11} />
-                              </div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                                {sets.map((s, i) => (
-                                  <span key={i} className="mono" style={{
-                                    fontSize: '12px', padding: '3px 8px', borderRadius: '5px',
-                                    background: s.is_dropset ? 'rgba(245,158,11,0.12)' : 'var(--accent-soft)',
-                                    color: s.is_dropset ? '#f59e0b' : 'var(--accent)',
-                                    border: s.is_dropset ? '1px solid rgba(245,158,11,0.25)' : 'none',
-                                  }}>
-                                    {s.reps}×{s.weight_kg}kg{s.is_dropset ? ' ↓' : ''}
-                                  </span>
-                                ))}
-                              </div>
+
+                          {session.training_exercises?.length > 0 && (
+                            <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+                              {Object.entries(
+                                session.training_exercises.reduce((acc, ex) => {
+                                  if (!acc[ex.exercise_name]) acc[ex.exercise_name] = []
+                                  acc[ex.exercise_name].push(ex)
+                                  return acc
+                                }, {})
+                              ).map(([name, sets]) => (
+                                <div key={name} style={{ marginBottom: '10px' }}>
+                                  <div
+                                    onClick={e => { e.stopPropagation(); setSelectedExercise(name) }}
+                                    style={{ fontSize: '13px', fontWeight: '600', marginBottom: '5px', color: 'var(--accent)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                  >
+                                    {name}
+                                    <TrendingUp size={11} />
+                                  </div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                                    {sets.map((s, i) => (
+                                      <span key={i} className="mono" style={{
+                                        fontSize: '12px', padding: '3px 8px', borderRadius: '5px',
+                                        background: s.is_dropset ? 'rgba(245,158,11,0.12)' : 'var(--accent-soft)',
+                                        color: s.is_dropset ? '#f59e0b' : 'var(--accent)',
+                                        border: s.is_dropset ? '1px solid rgba(245,158,11,0.25)' : 'none',
+                                      }}>
+                                        {s.reps}×{s.weight_kg}kg{s.is_dropset ? ' ↓' : ''}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )
@@ -1181,7 +1187,12 @@ export default function TraningPage() {
 
             {editingSession.exercises.map((ex, exIdx) => (
               <div key={exIdx} style={{ marginBottom: '16px', padding: '12px', background: 'var(--surface2)', borderRadius: '10px' }}>
-                <input className="input" value={ex.name} onChange={e => setEditingSession(p => ({ ...p, exercises: p.exercises.map((x, i) => i !== exIdx ? x : { ...x, name: e.target.value }) }))} placeholder="Övning..." style={{ marginBottom: '10px' }} />
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                  <input className="input" value={ex.name} onChange={e => setEditingSession(p => ({ ...p, exercises: p.exercises.map((x, i) => i !== exIdx ? x : { ...x, name: e.target.value }) }))} placeholder="Övning..." style={{ flex: 1 }} />
+                  {editingSession.exercises.length > 1 && (
+                    <button onClick={() => setEditingSession(p => ({ ...p, exercises: p.exercises.filter((_, i) => i !== exIdx) }))} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', flexShrink: 0 }}><X size={15} /></button>
+                  )}
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 24px', gap: '6px', fontSize: '11px', color: 'var(--muted)', padding: '0 2px', marginBottom: '4px' }}>
                   <span>Set</span><span>Reps</span><span>{BW_EXERCISES.has(ex.name.toLowerCase().trim()) ? '+Kg' : 'Kg'}</span><span></span>
                 </div>
@@ -1197,7 +1208,14 @@ export default function TraningPage() {
               </div>
             ))}
 
-            <button onClick={saveEditSession} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '4px' }}>
+            <button
+              onClick={() => setEditingSession(p => ({ ...p, exercises: [...p.exercises, { name: '', sets: [{ reps: '', weight: '', is_dropset: false }] }] }))}
+              style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '8px', color: 'var(--muted)', padding: '8px', cursor: 'pointer', fontSize: '13px', width: '100%', marginBottom: '14px' }}
+            >
+              + Lägg till övning
+            </button>
+
+            <button onClick={saveEditSession} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
               <Save size={14} /> Spara ändringar
             </button>
           </div>
