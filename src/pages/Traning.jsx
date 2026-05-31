@@ -7,14 +7,14 @@ import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, Chevro
 import ExerciseModal from '../components/ExerciseModal'
 import RunModal from '../components/RunModal'
 
-const EXERCISE_LIBRARY = {
+const BASE_EXERCISE_LIBRARY = {
   'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Armhävningar'],
   'Rygg': ['Marklyft', 'Latsdrag', 'Rodd', 'Pull-ups', 'Weighted pull-up', 'Hyperextensions'],
   'Ben': ['Knäböj', 'Benpress', 'Utfall', 'Leg curl', 'Leg extension', 'Kalvhävningar'],
   'Axlar': ['Militärpress', 'Sidolyft', 'Framåtlyft', 'Face pulls', 'Shrugs'],
   'Armar': ['Bicepscurl', 'Hammercurl', 'Tryckkpress', 'Skullcrusher', 'Kabeldrag'],
   'Core': ['Plankan', 'Situps', 'Crunches', 'Russian twist', 'Bäckenlyft'],
-  'Övrigt': [],
+  'Egna': [],
 }
 
 // Exercises where weight_kg = added weight above BW (0 = bodyweight only)
@@ -97,6 +97,7 @@ export default function TraningPage() {
   const [showExercisePicker, setShowExercisePicker] = useState(false)
   const [editingSession, setEditingSession] = useState(null) // session being edited
   const [customExercise, setCustomExercise] = useState('')
+  const [exerciseLibrary, setExerciseLibrary] = useState(BASE_EXERCISE_LIBRARY)
 
   // Strava
   const [stravaConnected, setStravaConnected] = useState(false)
@@ -124,8 +125,28 @@ export default function TraningPage() {
   const [showRunModal, setShowRunModal] = useState(false)
 
   useEffect(() => {
-    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus() }
+    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); loadCustomExercises() }
   }, [user])
+
+  async function loadCustomExercises() {
+    const { data } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).single()
+    const custom = data?.goals?.custom_exercises || []
+    if (custom.length > 0) {
+      setExerciseLibrary(prev => ({ ...prev, 'Egna': custom }))
+    }
+  }
+
+  async function saveCustomExercise(name) {
+    const { data } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).single()
+    const existing = data?.goals?.custom_exercises || []
+    if (existing.includes(name)) return
+    const updated = [...existing, name]
+    await supabase.from('user_settings').upsert({
+      user_id: user.id,
+      goals: { ...(data?.goals || {}), custom_exercises: updated }
+    }, { onConflict: 'user_id' })
+    setExerciseLibrary(prev => ({ ...prev, 'Egna': updated }))
+  }
 
   async function checkStravaStatus() {
     try {
@@ -1033,7 +1054,7 @@ export default function TraningPage() {
                       <div style={{ fontWeight: '600' }}>Välj övning</div>
                       <button onClick={() => setShowExercisePicker(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={16} /></button>
                     </div>
-                    {Object.entries(EXERCISE_LIBRARY).map(([category, exs]) => (
+                    {Object.entries(exerciseLibrary).map(([category, exs]) => (
                       <div key={category} style={{ marginBottom: '14px' }}>
                         <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '6px' }}>{category.toUpperCase()}</div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
@@ -1048,7 +1069,14 @@ export default function TraningPage() {
                     ))}
                     <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
                       <input className="input" value={customExercise} onChange={e => setCustomExercise(e.target.value)} placeholder="Egen övning..." />
-                      <button onClick={() => { if (customExercise) { updateExerciseName(showExercisePicker, customExercise); setShowExercisePicker(false); setCustomExercise('') } }} className="btn btn-primary" style={{ flexShrink: 0 }}>Lägg till</button>
+                      <button onClick={() => {
+                        if (customExercise.trim()) {
+                          updateExerciseName(showExercisePicker, customExercise.trim())
+                          saveCustomExercise(customExercise.trim())
+                          setShowExercisePicker(false)
+                          setCustomExercise('')
+                        }
+                      }} className="btn btn-primary" style={{ flexShrink: 0 }}>Spara</button>
                     </div>
                   </div>
                 </div>

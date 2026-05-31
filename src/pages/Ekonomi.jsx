@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { format, subMonths } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Plus, X, Save, Loader, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Map } from 'lucide-react'
 
@@ -64,9 +64,10 @@ function DonutChart({ data, size = 140 }) {
 
 export default function EkonomiPage() {
   const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState('overview') // overview | log | trips | savings
-  const [logType, setLogType] = useState('expense') // expense | income
+  const [activeTab, setActiveTab] = useState('overview')
+  const [logType, setLogType] = useState('expense')
   const [selectedMonth, setSelectedMonth] = useState(new Date())
+  const [salaryDay, setSalaryDay] = useState(25) // day of month salary arrives
 
   const [incomes, setIncomes] = useState([])
   const [expenses, setExpenses] = useState([])
@@ -76,17 +77,37 @@ export default function EkonomiPage() {
   const [csnLimit, setCsnLimit] = useState(114500)
   const [saving, setSaving] = useState(false)
 
+  // Compute salary period: salaryDay this month → salaryDay-1 next month
+  // If today is before salaryDay, period is salaryDay last month → salaryDay-1 this month
+  function getSalaryPeriod(referenceDate, day) {
+    const ref = new Date(referenceDate)
+    const year = ref.getFullYear()
+    const month = ref.getMonth() // 0-indexed
+
+    // Period start: salaryDay of the reference month
+    const periodStart = new Date(year, month, day)
+    // Period end: day-1 of next month
+    const periodEnd = new Date(year, month + 1, day - 1)
+
+    return {
+      start: format(periodStart, 'yyyy-MM-dd'),
+      end: format(periodEnd, 'yyyy-MM-dd'),
+      label: `${format(periodStart, 'd MMM', { locale: sv })} – ${format(periodEnd, 'd MMM yyyy', { locale: sv })}`,
+    }
+  }
+
+  const period = getSalaryPeriod(selectedMonth, salaryDay)
+
   // Forms
   const [expenseForm, setExpenseForm] = useState({ amount: '', category: 'mat', description: '', date: format(new Date(), 'yyyy-MM-dd') })
   const [incomeForm, setIncomeForm] = useState({ amount: '', source: 'PA-jobb', counts_toward_csn: true, notes: '', date: format(new Date(), 'yyyy-MM-dd') })
 
   useEffect(() => {
     if (user) fetchAll()
-  }, [user, selectedMonth])
+  }, [user, selectedMonth, salaryDay])
 
   async function fetchAll() {
-    const start = format(startOfMonth(selectedMonth), 'yyyy-MM-dd')
-    const end = format(endOfMonth(selectedMonth), 'yyyy-MM-dd')
+    const { start, end } = getSalaryPeriod(selectedMonth, salaryDay)
 
     // Half-year start for CSN
     const now = new Date()
@@ -106,6 +127,8 @@ export default function EkonomiPage() {
 
     const totalCsn = (csnRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0)
     const limit = settingsRes.data?.goals?.csn_fribelopp || 114500
+    const savedSalaryDay = settingsRes.data?.goals?.salary_day
+    if (savedSalaryDay) setSalaryDay(savedSalaryDay)
 
     setIncomes(incomesRes.data || [])
     setExpenses(expensesRes.data || [])
@@ -187,10 +210,12 @@ export default function EkonomiPage() {
       <div className="page-header">
         <div>
           <div className="page-header-title">Ekonomi</div>
-          <div className="page-header-sub">{format(selectedMonth, 'MMMM yyyy', { locale: sv })}</div>
+          <div className="page-header-sub">{period.label}</div>
         </div>
         <div className="page-header-actions">
-          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost btn-icon">←</button><button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost">Idag</button><button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost btn-icon">→</button>
+          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost btn-icon">←</button>
+          <button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost">Nu</button>
+          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost btn-icon">→</button>
         </div>
       </div>
       <div className="page-content-scroll">

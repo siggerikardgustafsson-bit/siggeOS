@@ -481,6 +481,11 @@ export default function SettingsPage() {
                     <input className="input" type="number" placeholder="114500" value={goals.csn_fribelopp || ''} onChange={e => setGoals(g => ({ ...g, csn_fribelopp: e.target.value ? parseInt(e.target.value) : '' }))} />
                     <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>Jarvis och Ekonomi-sidan använder detta för CSN-beräkningar. Uppdatera vid regeländring.</div>
                   </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>LÖNINGSDAG (dag i månaden)</label>
+                    <input className="input" type="number" min="1" max="31" placeholder="25" value={goals.salary_day || ''} onChange={e => setGoals(g => ({ ...g, salary_day: e.target.value ? parseInt(e.target.value) : '' }))} />
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>Ekonomi mäter perioder löning-till-löning från denna dag.</div>
+                  </div>
                 </div>
               </div>
 
