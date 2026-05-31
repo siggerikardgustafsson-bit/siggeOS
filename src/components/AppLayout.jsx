@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
+import QuickLog from './QuickLog'
 
 export default function AppLayout() {
   const location = useLocation()
@@ -51,6 +52,9 @@ export default function AppLayout() {
       <div className="show-mobile">
         <BottomNav />
       </div>
+
+      {/* Global quick-log FAB — visible on all pages */}
+      <QuickLog />
 
       <style>{`
         .hidden-mobile { display: flex; }
