@@ -199,7 +199,7 @@ export default function AppLayout() {
           .insights-obs-grid { grid-template-columns: 1fr !important; }
 
           /* Settings — sidebar becomes horizontal tab bar */
-          .settings-page { padding: 12px !important; }
+          .settings-page { padding: 12px 12px 100px 12px !important; }
           .settings-layout { grid-template-columns: 1fr !important; }
           .settings-nav {
             position: static !important;
@@ -229,9 +229,21 @@ export default function AppLayout() {
 
           /* Jarvis — ensure input stays at bottom above nav */
           .jarvis-input-area { padding-bottom: 0 !important; }
+          .jarvis-container {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 60px !important;
+            margin: 0 !important;
+            padding: 8px !important;
+            width: 100% !important;
+            height: auto !important;
+          }
 
           /* Dashboard — ensure cards don't overflow right */
-          .grid-4 .cat-card { width: 100% !important; overflow: hidden !important; }
+          .grid-4 > * { min-width: 0 !important; overflow: hidden !important; }
+          .cat-card { width: 100% !important; overflow: hidden !important; }
 
           /* FAB — above bottom nav on mobile */
           .quicklog-fab { bottom: 72px !important; right: 16px !important; width: 48px !important; height: 48px !important; }

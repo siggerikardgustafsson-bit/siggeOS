@@ -552,14 +552,13 @@ ${profileBlock}`
   const hour = new Date().getHours()
 
   return (
-    <div style={{
+    <div className="jarvis-container" style={{
       display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden',
       background: 'transparent',
       margin: '-10px',
       padding: '10px',
       boxSizing: 'border-box',
       width: 'calc(100% + 20px)',
-      /* iOS Safari fix — use small viewport height so keyboard doesn't break layout */
       maxHeight: '100%',
     }}>
 
