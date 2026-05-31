@@ -73,6 +73,7 @@ export default function EkonomiPage() {
   const [fixedCosts, setFixedCosts] = useState([])
   const [trips, setTrips] = useState([])
   const [csnUsage, setCsnUsage] = useState(0)
+  const [csnLimit, setCsnLimit] = useState(114500)
   const [saving, setSaving] = useState(false)
 
   // Forms
@@ -94,21 +95,24 @@ export default function EkonomiPage() {
       : `${now.getFullYear()}-07-01`
     const halfEnd = format(now, 'yyyy-MM-dd')
 
-    const [incomesRes, expensesRes, fixedRes, tripsRes, csnRes] = await Promise.all([
+    const [incomesRes, expensesRes, fixedRes, tripsRes, csnRes, settingsRes] = await Promise.all([
       supabase.from('income_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date', { ascending: false }),
       supabase.from('expense_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date', { ascending: false }),
       supabase.from('fixed_costs').select('*').eq('user_id', user.id).eq('active', true),
       supabase.from('trips').select('*').eq('user_id', user.id).in('status', ['planerad', 'pågående']).order('start_date'),
       supabase.from('income_logs').select('amount').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', halfEnd),
+      supabase.from('user_settings').select('goals').eq('user_id', user.id).single(),
     ])
 
     const totalCsn = (csnRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0)
+    const limit = settingsRes.data?.goals?.csn_fribelopp || 114500
 
     setIncomes(incomesRes.data || [])
     setExpenses(expensesRes.data || [])
     setFixedCosts(fixedRes.data || [])
     setTrips(tripsRes.data || [])
     setCsnUsage(totalCsn)
+    setCsnLimit(limit)
   }
 
   async function saveExpense() {
@@ -162,7 +166,7 @@ export default function EkonomiPage() {
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
   const fixedTotal = fixedCosts.reduce((sum, f) => sum + f.amount, 0)
   const balance = totalIncomeNet - totalExpenses - fixedTotal
-  const csnPct = (csnUsage / 114500) * 100
+  const csnPct = (csnUsage / csnLimit) * 100
   const csnWarn = csnPct >= 80
 
   // Group expenses by category for donut
@@ -259,7 +263,7 @@ export default function EkonomiPage() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <span className="mono" style={{ fontSize: '15px', fontWeight: '600' }}>{Math.round(csnUsage).toLocaleString('sv-SE')} kr</span>
-              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{Math.round(114500 - csnUsage).toLocaleString('sv-SE')} kr kvar</span>
+              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{Math.round(csnLimit - csnUsage).toLocaleString('sv-SE')} kr kvar</span>
             </div>
             <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${Math.min(csnPct, 100)}%`, background: csnWarn ? '#f59e0b' : '#10b981', borderRadius: '3px', transition: 'width 0.6s' }} />

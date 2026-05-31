@@ -150,6 +150,7 @@ export default function SettingsPage() {
   const bgFileRef = useRef()
 
   // Profile & goals
+  const [displayName, setDisplayName] = useState('')
   const [aboutMe, setAboutMe] = useState('')
   const [goals, setGoals] = useState(DEFAULT_GOALS)
   const [jarvisStyle, setJarvisStyle] = useState(70) // 0=diplomatic, 100=brutal
@@ -167,6 +168,7 @@ export default function SettingsPage() {
   async function loadProfile() {
     const { data } = await supabase.from('user_settings').select('*').eq('user_id', user.id).single()
     if (data) {
+      setDisplayName(data.display_name || '')
       setAboutMe(data.about_me || '')
       setGoals(mergeGoals(data.goals))
       setJarvisStyle(data.jarvis_style ?? 70)
@@ -181,6 +183,7 @@ export default function SettingsPage() {
     setSaving(true)
     await supabase.from('user_settings').upsert({
       user_id: user.id,
+      display_name: displayName,
       about_me: aboutMe,
       goals,
       jarvis_style: jarvisStyle,
@@ -427,6 +430,11 @@ export default function SettingsPage() {
             <>
               <div className="card">
                 <SectionHeader icon={User} title="Om mig" subtitle="Jarvis använder detta som kontext i alla samtal" />
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>VISNINGSNAMN</label>
+                  <input className="input" type="text" placeholder="t.ex. Sigge Gustafsson" value={displayName} onChange={e => setDisplayName(e.target.value)} />
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>Visas i Dashboard-headern</div>
+                </div>
                 <textarea className="input" rows={5} placeholder="Berätta om dig själv — vem du är, vad du jobbar med, vad som driver dig..." value={aboutMe} onChange={e => setAboutMe(e.target.value)} style={{ resize: 'vertical', lineHeight: '1.6' }} />
                 <ContextFileUpload field="about_me" files={getContextFiles('about_me')} onUpload={handleContextFileUpload} onRemove={removeContextFile} />
               </div>
@@ -467,6 +475,11 @@ export default function SettingsPage() {
                   <div>
                     <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>INKOMSTMÅL (kr/mån netto)</label>
                     <input className="input" type="number" placeholder="100000" value={goals.monthly_income_goal} onChange={e => setGoals(g => ({ ...g, monthly_income_goal: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>CSN FRIBELOPP (kr/halvår)</label>
+                    <input className="input" type="number" placeholder="114500" value={goals.csn_fribelopp || ''} onChange={e => setGoals(g => ({ ...g, csn_fribelopp: e.target.value ? parseInt(e.target.value) : '' }))} />
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>Jarvis och Ekonomi-sidan använder detta för CSN-beräkningar. Uppdatera vid regeländring.</div>
                   </div>
                 </div>
               </div>

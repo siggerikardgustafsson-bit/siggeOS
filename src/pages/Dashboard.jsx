@@ -46,7 +46,8 @@ export default function Dashboard() {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [categories, setCategories] = useState([])
   const [overallTier, setOverallTier] = useState(null)
-  const [bodyWeight, setBodyWeight] = useState(77)
+  const [bodyWeight, setBodyWeight] = useState(null)
+  const [displayName, setDisplayName] = useState('')
   const [userId, setUserId] = useState(null)
   const [graphPeriod, setGraphPeriod] = useState('30d')
   const [activeGraphCats, setActiveGraphCats] = useState(['somn','valmående','plugg'])
@@ -79,7 +80,7 @@ export default function Dashboard() {
         supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
         supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',since30),
         supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since30),
-        supabase.from('user_settings').select('goals').eq('user_id',userId).single(),
+        supabase.from('user_settings').select('goals,display_name').eq('user_id',userId).single(),
         supabase.from('training_exercises')
           .select('exercise_name,reps,weight_kg,training_sessions!inner(date,user_id)')
           .eq('training_sessions.user_id', userId)
@@ -88,8 +89,10 @@ export default function Dashboard() {
       ])
 
       const latestW = (healthData||[]).find(h=>h.weight_kg)
-      const bw = latestW?.weight_kg || 77
+      const goalWeight = userSettings?.goals?.body_weight_goal
+      const bw = latestW?.weight_kg || null
       setBodyWeight(bw)
+      if (userSettings?.display_name) setDisplayName(userSettings.display_name)
 
       // Best actual pace-based time for a target distance
       // A longer run gives your actual pace at that distance — not an estimate
@@ -349,9 +352,9 @@ export default function Dashboard() {
       {/* HEADER */}
       <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'4px' }} className="dashboard-header-row">
         <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
-          <span style={{ fontSize:'13px', fontWeight:600, color:'var(--text)' }}>Sigge Gustafsson</span>
+          <span style={{ fontSize:'13px', fontWeight:600, color:'var(--text)' }}>{displayName || 'Dashboard'}</span>
           <span style={{ fontSize:'12px', color:'var(--muted)' }}>{todayDisplay}</span>
-          <span style={{ fontSize:'11px', color:'var(--muted)' }}>· {bodyWeight} kg</span>
+          {bodyWeight && <span style={{ fontSize:'11px', color:'var(--muted)' }}>· {bodyWeight} kg</span>}
         </div>
         {overallTier && (
           <span style={{ fontSize:'11px', color:'var(--muted)', flexShrink:0 }}>T{overallTier}/8 · {TIER_NAMES[overallTier]}</span>

@@ -244,16 +244,30 @@ export default function Jarvis() {
 
   async function buildContext() {
     const today = format(new Date(), 'yyyy-MM-dd')
+    const since30 = format(subDays(new Date(), 30), 'yyyy-MM-dd')
+    const since7  = format(subDays(new Date(), 7),  'yyyy-MM-dd')
 
-    const [scoresRes, healthRes, journalRes, tasksRes, csnRes, insightsRes, summariesRes, settingsRes] = await Promise.all([
+    const [
+      scoresRes, healthRes, journalRes, tasksRes, csnRes,
+      insightsRes, summariesRes, settingsRes,
+      trainingRes, expenseRes, incomeRes, examsRes,
+    ] = await Promise.all([
       supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).single(),
-      supabase.from('health_logs').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(3),
-      supabase.from('journal_entries').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(2),
-      supabase.from('erik_tasks').select('*').eq('user_id', user.id).neq('status', 'klart').limit(5),
+      supabase.from('health_logs').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(5),
+      supabase.from('journal_entries').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(3),
+      supabase.from('erik_tasks').select('*').eq('user_id', user.id).neq('status', 'klart').limit(8),
       supabase.rpc('get_csn_usage', { p_user_id: user.id }),
       supabase.from('jarvis_insights').select('insight, category, updated_at').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(200),
       supabase.from('jarvis_conversations').select('summary, key_points, created_at').eq('user_id', user.id).not('summary', 'is', null).order('created_at', { ascending: false }).limit(10),
-      supabase.from('user_settings').select('about_me, goals, jarvis_style, jarvis_lang, jarvis_personality').eq('user_id', user.id).single(),
+      supabase.from('user_settings').select('about_me, goals, jarvis_style, jarvis_lang, jarvis_personality, display_name').eq('user_id', user.id).single(),
+      // NEW: last 7 training sessions
+      supabase.from('training_sessions').select('date,session_type,duration_minutes,distance_km,feeling,notes').eq('user_id', user.id).order('date', { ascending: false }).limit(7),
+      // NEW: expenses this month
+      supabase.from('expense_logs').select('date,amount,category,description').eq('user_id', user.id).gte('date', since30).order('date', { ascending: false }).limit(30),
+      // NEW: income this month
+      supabase.from('income_logs').select('date,amount,source,description').eq('user_id', user.id).gte('date', since30),
+      // NEW: upcoming exams (next 60 days)
+      supabase.from('course_exams').select('exam_date,name,courses(name)').eq('user_id', user.id).gte('exam_date', today).order('exam_date', { ascending: true }).limit(5),
     ])
 
     const insightsBlock = (insightsRes.data || []).length > 0
@@ -270,9 +284,36 @@ export default function Jarvis() {
     const attachments = goalData.attachments || {}
     const attachmentLines = Object.entries(attachments)
       .flatMap(([section, files]) => (files || []).map(file => `${section}: ${file.name}`))
+    // Use settings CSN limit if set, else fall back to known value
+    const csnLimit = goalData.csn_fribelopp || 114500
 
     const profileBlock = settings
-      ? `\nPROFIL & MÅL FRÅN INSTÄLLNINGAR:\n${settings.about_me ? `Om mig: ${settings.about_me}\n` : ''}${goalData.one_year ? `1 års mål: ${goalData.one_year}\n` : ''}${goalData.three_year ? `3 års mål: ${goalData.three_year}\n` : ''}${goalData.ten_year ? `10 års vision: ${goalData.ten_year}\n` : ''}${goalData.future_plan ? `Framtidsplan: ${goalData.future_plan}\n` : ''}${targetWeight ? `Kroppsviktsmål: ${targetWeight} kg${goalData.body_weight_deadline ? ` till ${goalData.body_weight_deadline}` : ''}\n` : ''}${goalData.monthly_income_goal ? `Inkomstmål: ${goalData.monthly_income_goal} kr/mån netto\n` : ''}${attachmentLines.length ? `Bifogade profil-PDF:er: ${attachmentLines.join('; ')}\n` : ''}${settings.jarvis_personality ? `Jarvis-personlighet: ${settings.jarvis_personality}` : ''}`
+      ? `\nPROFIL & MÅL FRÅN INSTÄLLNINGAR:\n${settings.display_name ? `Namn: ${settings.display_name}\n` : ''}${settings.about_me ? `Om mig: ${settings.about_me}\n` : ''}${goalData.one_year ? `1 års mål: ${goalData.one_year}\n` : ''}${goalData.three_year ? `3 års mål: ${goalData.three_year}\n` : ''}${goalData.ten_year ? `10 års vision: ${goalData.ten_year}\n` : ''}${goalData.future_plan ? `Framtidsplan: ${goalData.future_plan}\n` : ''}${targetWeight ? `Kroppsviktsmål: ${targetWeight} kg${goalData.body_weight_deadline ? ` till ${goalData.body_weight_deadline}` : ''}\n` : ''}${goalData.monthly_income_goal ? `Inkomstmål: ${goalData.monthly_income_goal} kr/mån netto\n` : ''}${attachmentLines.length ? `Bifogade profil-PDF:er: ${attachmentLines.join('; ')}\n` : ''}${settings.jarvis_personality ? `Jarvis-personlighet: ${settings.jarvis_personality}` : ''}`
+      : ''
+
+    // Training block
+    const trainBlock = (trainingRes.data || []).length > 0
+      ? `\nSENASTE TRÄNINGSPASS (7 st):\n${trainingRes.data.map(t =>
+          `${t.date}: ${t.session_type||'pass'}${t.duration_minutes ? ' '+t.duration_minutes+'min' : ''}${t.distance_km ? ' '+t.distance_km+'km' : ''}${t.feeling ? ' känsla:'+t.feeling+'/10' : ''}${t.notes ? ' – '+t.notes : ''}`
+        ).join('\n')}`
+      : '\nInget träningsdata senaste perioden.'
+
+    // Economy block
+    const totalExpenses = (expenseRes.data || []).reduce((s, e) => s + (e.amount || 0), 0)
+    const totalIncome   = (incomeRes.data  || []).reduce((s, i) => s + (i.amount || 0), 0)
+    const topCats = Object.entries(
+      (expenseRes.data || []).reduce((acc, e) => {
+        acc[e.category] = (acc[e.category] || 0) + e.amount; return acc
+      }, {})
+    ).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([cat, amt]) => `${cat}:${Math.round(amt)}kr`).join(', ')
+    const econBlock = `\nEKONOMI DENNA MÅNAD:\nInkomst: ${Math.round(totalIncome).toLocaleString('sv-SE')} kr | Utgifter: ${Math.round(totalExpenses).toLocaleString('sv-SE')} kr | Netto: ${Math.round(totalIncome - totalExpenses).toLocaleString('sv-SE')} kr\nStörsta utgiftskategorier: ${topCats || '—'}`
+
+    // Exams block
+    const examsBlock = (examsRes.data || []).length > 0
+      ? `\nKOMMAN DE TENTOR:\n${examsRes.data.map(e => {
+          const daysLeft = Math.ceil((new Date(e.exam_date) - new Date()) / 86400000)
+          return `${e.exam_date} (${daysLeft}d): ${e.name}${e.courses?.name ? ' – ' + e.courses.name : ''}`
+        }).join('\n')}`
       : ''
 
     const ctx = `
@@ -286,9 +327,12 @@ SENASTE JOURNAL:
 ${(journalRes.data||[]).map(j => `${j.date}: humör${j.mood||'-'}/10 energi${j.energy||'-'}/10 ${j.highlights||''}`).join('\n')}
 
 AKTIVA ERIK-UPPDRAG:
-${(tasksRes.data||[]).map(t => `${t.title} [${t.tag}]${t.deadline ? ' deadline:'+t.deadline : ''}`).join('\n') || 'Inga aktiva uppdrag'}
+${(tasksRes.data||[]).map(t => `${t.title} [${t.tag}]${t.deadline ? ' deadline:'+t.deadline : ''}${t.status ? ' ['+t.status+']' : ''}`).join('\n') || 'Inga aktiva uppdrag'}
 
-CSN: ${Math.round(csnRes.data||0)} kr av 114 500 kr förbrukat (${((csnRes.data||0)/114500*100).toFixed(1)}%)
+CSN-FRIBELOPP: ${Math.round(csnRes.data||0).toLocaleString('sv-SE')} kr av ${csnLimit.toLocaleString('sv-SE')} kr förbrukat (${((csnRes.data||0)/csnLimit*100).toFixed(1)}%) — kvar: ${Math.round(csnLimit-(csnRes.data||0)).toLocaleString('sv-SE')} kr
+${trainBlock}
+${econBlock}
+${examsBlock}
 ${insightsBlock}
 ${summariesBlock}
 ${profileBlock}`
