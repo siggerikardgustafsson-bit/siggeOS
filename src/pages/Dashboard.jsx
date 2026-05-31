@@ -91,27 +91,42 @@ export default function Dashboard() {
       const bw = latestW?.weight_kg || 77
       setBodyWeight(bw)
 
-      // Best actual run at each distance (±10% tolerance), 90 days
-      function bestActual(km) {
-        const tol = Math.max(0.5, km * 0.1)
-        const runs = (runData||[]).filter(r =>
-          r.distance_km >= km - tol && r.distance_km <= km + tol &&
+      // Best actual pace-based time for a target distance
+      // A longer run gives your actual pace at that distance — not an estimate
+      function bestActual(targetKm) {
+        // Direct runs within ±10%
+        const tol = Math.max(0.5, targetKm * 0.1)
+        const direct = (runData||[]).filter(r =>
+          r.distance_km >= targetKm - tol &&
+          r.distance_km <= targetKm + tol &&
           (r.time_seconds || r.pace_per_km)
         )
-        if (!runs.length) return null
-        return runs.reduce((b, r) => {
-          const bt = b.time_seconds || Math.round(b.pace_per_km * b.distance_km)
-          const rt = r.time_seconds || Math.round(r.pace_per_km * r.distance_km)
-          return rt < bt ? r : b
-        }, runs[0])
+        // Longer runs — if you ran 21km you actually ran 1km, 5km, 10km en route
+        const longer = (runData||[]).filter(r =>
+          r.distance_km > targetKm + tol &&
+          (r.time_seconds || r.pace_per_km)
+        )
+        const all = [...direct, ...longer]
+        if (!all.length) return null
+
+        return all.reduce((b, r) => {
+          // Use actual pace × targetKm — this IS your actual performance at that distance
+          const pace = r.pace_per_km || (r.time_seconds / r.distance_km)
+          const t = Math.round(pace * targetKm)
+          const bt = b._t
+          return t < bt ? { ...r, _t: t } : b
+        }, { ...all[0], _t: (() => {
+          const r = all[0]
+          const pace = r.pace_per_km || (r.time_seconds / r.distance_km)
+          return Math.round(pace * targetKm)
+        })() })
       }
 
       function toDecayed(run, targetKm) {
         if (!run) return null
-        const t = run.time_seconds || Math.round(run.pace_per_km * run.distance_km)
-        // Scale slightly if distance differs from target (e.g. 21.3km run → 21.1km time)
-        const scaled = Math.round(t * (targetKm / run.distance_km))
-        return getDecayedValue(scaled, run.date, 90)
+        const pace = run.pace_per_km || (run.time_seconds / run.distance_km)
+        const t = run._t || Math.round(pace * targetKm)
+        return getDecayedValue(t, run.date, 90)
       }
 
       const r1D  = toDecayed(bestActual(1), 1)
@@ -259,8 +274,8 @@ export default function Dashboard() {
 
       const cats = [
         {id:'kondition',name:'Kondition',icon:'⚡',tier:kTop,hasData:hasRunData,pct:kTop?Math.round((kTop.tier/8)*100):0,decayWarning:[r5D,r10D,rHD,rMD].some(d=>d?.stale),trend:r5D?.daysSince<14?'up':'neutral',
-          metrics:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',highlight:true},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—'},{label:'VO2max (est)',value:vo2?vo2+' ml/kg/min':'—'}],
-          details:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—'},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',tierInfo:r5T},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',tierInfo:r10T},{label:'Halvmara',value:rHD?formatRunTime(Math.round(rHD.value)):'—',tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT},{label:'VO2max',value:vo2?vo2+' ml/kg/min':'—',tierInfo:vo2T}],
+          metrics:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',highlight:true},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—'},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—'}],
+          details:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',tierInfo:r1T},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',tierInfo:r5T},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',tierInfo:r10T},{label:'Halvmara',value:rHD?formatRunTime(Math.round(rHD.value)):'—',tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT}],
           chartData:(runData||[]).filter(r=>r.distance_km>=4.5&&r.distance_km<=11).slice(0,20).reverse().map(r=>({date:r.date.slice(5),Pace:r.pace_per_km?Math.round(r.pace_per_km/60*10)/10:null})),
           chartLines:[{key:'Pace',label:'Pace (min/km)',color:'#4f8ef7'}],navTarget:'/traning',navLabel:'Träning'},
         {id:'styrka',name:'Styrka',icon:'🏋️',tier:stTop,hasData:sTs.length>0,pct:stTop?Math.round((stTop.tier/8)*100):0,decayWarning:false,trend:'neutral',
