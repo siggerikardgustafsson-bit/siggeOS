@@ -275,14 +275,14 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div style={{ padding: '28px', maxWidth: '820px', margin: '0 auto' }}>
+    <div className="settings-page" style={{ padding: '28px', maxWidth: '820px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <div style={{ fontSize: '22px', fontWeight: '700', letterSpacing: '-0.3px' }}>Inställningar</div>
         <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '3px' }}>Anpassa Sigge OS efter dina preferenser</div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', alignItems: 'start' }}>
+      <div className="settings-layout" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', alignItems: 'start' }}>
 
         {/* Sidebar nav */}
         <div className="card" style={{ padding: '8px', position: 'sticky', top: '24px' }}>

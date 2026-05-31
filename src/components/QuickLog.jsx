@@ -553,6 +553,7 @@ export default function QuickLog() {
       <button
         onClick={() => setOpen(true)}
         title="Snabblogg"
+        className="quicklog-fab"
         style={{
           position: 'fixed', bottom: '24px', right: '20px', zIndex: 200,
           width: '52px', height: '52px', borderRadius: '50%', border: 'none',

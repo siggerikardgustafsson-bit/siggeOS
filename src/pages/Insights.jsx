@@ -328,7 +328,7 @@ export default function InsightsPage() {
               <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Jarvis analyserar din data...
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+            <div className="insights-obs-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
               {aiObservations.map((obs, i) => (
                 <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px' }}>
                   <span style={{ fontSize: '16px', flexShrink: 0, lineHeight: 1.3 }}>{obs.icon}</span>
@@ -343,7 +343,7 @@ export default function InsightsPage() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '28px' }}>
+      <div className="insights-stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '28px' }}>
         <StatCard label="Vikt nu" value={latestWeight ? `${latestWeight}kg` : '—'} sub={weightDelta ? `${weightDelta > 0 ? '+' : ''}${weightDelta}kg senaste 90d` : null} color={COLORS.blue} trend={weightDelta < 0 ? 'down' : weightDelta > 0 ? 'up' : 'flat'} />
         <StatCard label="Sömn (snitt)" value={avgSleep ? `${avgSleep}h` : '—'} sub="senaste 90 dagarna" color={COLORS.purple} />
         <StatCard label="Plugg denna vecka" value={`${totalStudyThisWeek}h`} color={COLORS.amber} />
@@ -353,7 +353,7 @@ export default function InsightsPage() {
 
       {/* ===== HÄLSA ===== */}
       <SectionHeader title="Hälsa & kropp" color={COLORS.blue} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
+      <div className="insights-chart-grid" className="insights-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
         {/* Weight */}
         <div className="card">
           <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>VIKTUTVECKLING (kg)</div>
@@ -417,7 +417,7 @@ export default function InsightsPage() {
 
       {/* ===== TRÄNING ===== */}
       <SectionHeader title="Träning" color={COLORS.cyan} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
+      <div className="insights-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
         {/* Training frequency */}
         <div className="card">
           <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>TRÄNINGSPASS PER VECKA</div>
@@ -457,7 +457,7 @@ export default function InsightsPage() {
 
       {/* ===== PLUGG ===== */}
       <SectionHeader title="Plugg" color={COLORS.amber} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
+      <div className="insights-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
         {/* Study hours */}
         <div className="card">
           <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>STUDIETIMMAR PER VECKA</div>
@@ -503,7 +503,7 @@ export default function InsightsPage() {
 
       {/* ===== EKONOMI ===== */}
       <SectionHeader title="Ekonomi" color={COLORS.green} />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
+      <div className="insights-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
         {/* Income vs expense */}
         <div className="card">
           <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>INKOMST VS UTGIFT (kr)</div>

@@ -170,6 +170,45 @@ export default function AppLayout() {
           .dashboard-bottom { grid-template-columns: 1fr !important; }
           .dashboard-header-row { flex-wrap: wrap; gap: 4px; }
 
+          /* Category cards on mobile — prevent overflow */
+          .cat-card { min-height: 130px !important; padding: 10px !important; }
+          .cat-card .metric-value { font-size: 11px !important; }
+          .cat-card .metric-label { font-size: 9px !important; }
+
+          /* Insights */
+          .insights-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .insights-chart-grid { grid-template-columns: 1fr !important; }
+          .insights-obs-grid { grid-template-columns: 1fr !important; }
+
+          /* Settings — sidebar becomes horizontal tab bar */
+          .settings-page { padding: 12px !important; }
+          .settings-layout { grid-template-columns: 1fr !important; }
+          .settings-layout > .card:first-child {
+            position: static !important;
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            gap: 2px !important;
+            padding: 6px !important;
+            scrollbar-width: none !important;
+          }
+          .settings-layout > .card:first-child::-webkit-scrollbar { display: none; }
+          .settings-layout > .card:first-child button {
+            flex-shrink: 0 !important;
+            padding: 7px 12px !important;
+            border-left: none !important;
+            border-bottom: 2px solid transparent !important;
+            white-space: nowrap !important;
+            font-size: 12px !important;
+          }
+
+          /* Journal — stack calendar above entry */
+          .journal-layout { grid-template-columns: 1fr !important; }
+
+          /* FAB — above bottom nav on mobile */
+          .quicklog-fab { bottom: 72px !important; right: 16px !important; width: 48px !important; height: 48px !important; }
+
           /* Widgets single col */
           .widget-grid-2 { grid-template-columns: 1fr !important; }
 

@@ -76,7 +76,7 @@ export default function CategoryCard({ category, onClick }) {
 
   return (
     <div onClick={() => onClick(category)} className="widget cat-card fade-up"
-      style={{ padding: '14px', minHeight: '148px', display: 'flex', flexDirection: 'column' }}>
+      style={{ padding: '12px', minHeight: '140px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* Tier color ambient glow */}
       {hasData && tierNum > 0 && (
@@ -109,8 +109,8 @@ export default function CategoryCard({ category, onClick }) {
       </div>
 
       {/* Ring + metrics */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
-        <Ring pct={ringPct} color={hasData && tierNum > 0 ? color : 'var(--border)'} tier={tierNum} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+        <Ring pct={ringPct} color={hasData && tierNum > 0 ? color : 'var(--border)'} tier={tierNum} size={52} />
         <div style={{ flex: 1, minWidth: 0 }}>
           {hasData ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

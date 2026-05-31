@@ -347,7 +347,7 @@ export default function Dashboard() {
   const oLabel = overallTier ? TIER_NAMES[overallTier] : '—'
 
   return (
-    <div style={{ padding:'0 0 80px', maxWidth:'1100px', margin:'0 auto' }}>
+    <div style={{ padding:'0 0 80px', maxWidth:'1100px', margin:'0 auto', overflowX:'hidden' }}>
 
       {/* HEADER */}
       <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'4px' }} className="dashboard-header-row">
@@ -361,7 +361,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div style={{ padding:'14px 14px', display:'flex', flexDirection:'column', gap:'12px' }}>
+      <div style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'12px' }}>
 
         {/* CATEGORY CARDS */}
         {loading ? (
