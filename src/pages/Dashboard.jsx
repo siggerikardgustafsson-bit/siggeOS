@@ -115,34 +115,46 @@ export default function Dashboard() {
       function epley(weight, reps) {
         if (!weight || !reps || reps < 1) return null
         if (reps === 1) return weight
-        if (reps <= 10) return Math.round(weight / (1.0278 - 0.0278 * reps)) // Brzycki
-        return Math.round(weight * (1 + reps / 30)) // Epley
+        if (reps <= 10) return Math.round(weight / (1.0278 - 0.0278 * reps))
+        return Math.round(weight * (1 + reps / 30))
       }
 
-      // Get best estimated 1RM for an exercise from both PRs and recent sets (60 days)
-      function getE1RM(keywords) {
+      // For bodyweight exercises (pull-ups, dips, push-ups):
+      // weight_kg in DB may be 0 or null → use BW + added weight
+      // PULLUP_THRESHOLDS are in "added kg above BW" (0 = can do pull-ups, 20 = +20kg etc)
+      function epleyBW(addedWeight, reps, bodyweight) {
+        const totalWeight = bodyweight + (addedWeight || 0)
+        const e1RM_total = epley(totalWeight, reps)
+        return e1RM_total != null ? e1RM_total - bodyweight : null // return added kg equivalent
+      }
+
+      function getE1RM(keywords, isBW = false) {
         const since60 = format(subDays(todayDate, 60), 'yyyy-MM-dd')
         let best = 0
 
-        // From personal_records (with decay)
+        // From personal_records
         const pr = (prData || []).find(p => keywords.some(k => p.exercise_name?.toLowerCase().includes(k)))
         if (pr) {
           const d = pr.updated_at?.slice(0, 10) || pr.date || format(subDays(todayDate, 1), 'yyyy-MM-dd')
           const decayed = getDecayedValue(pr.weight_kg, d, 60)
           if (decayed) {
-            const e = epley(decayed.value, pr.reps || 1)
-            if (e > best) best = e
+            const e = isBW
+              ? epleyBW(decayed.value, pr.reps || 1, bw)
+              : epley(decayed.value, pr.reps || 1)
+            if (e != null && e > best) best = e
           }
         }
 
-        // From recent training_exercises (last 60 days, no extra decay needed)
+        // From recent training_exercises (last 60 days)
         const sets = (exData || []).filter(e =>
           keywords.some(k => e.exercise_name?.toLowerCase().includes(k)) &&
           e.training_sessions?.date >= since60
         )
         for (const s of sets) {
-          const e = epley(s.weight_kg, s.reps)
-          if (e && e > best) best = e
+          const e = isBW
+            ? epleyBW(s.weight_kg || 0, s.reps, bw)  // weight_kg=0 means unweighted
+            : epley(s.weight_kg, s.reps)
+          if (e != null && e > best) best = e
         }
 
         return best > 0 ? best : null
@@ -152,15 +164,38 @@ export default function Dashboard() {
       const sE1RM = getE1RM(['knäböj','squat'])
       const dlE1RM = getE1RM(['marklyft','deadlift'])
       const oE1RM = getE1RM(['militärpress','ohp','overhead'])
-      const puE1RM = getE1RM(['pull-up','pullup','chins','weighted pull'])
+      const puE1RM = getE1RM(['pull-up','pullup','chins','weighted pull'], true)
+      const dipE1RM = getE1RM(['dips','dip'], true)
 
-      const bT = bE1RM ? getTier(bE1RM/bw, BENCH_THRESHOLDS, true) : null
-      const sT = sE1RM ? getTier(sE1RM/bw, SQUAT_THRESHOLDS, true) : null
-      const dlT = dlE1RM ? getTier(dlE1RM/bw, DEADLIFT_THRESHOLDS, true) : null
-      const oT = oE1RM ? getTier(oE1RM/bw, OHP_THRESHOLDS, true) : null
-      const puT = puE1RM ? getTier(puE1RM, PULLUP_THRESHOLDS, true) : null
-      const sTs=[bT,sT,dlT,oT,puT].filter(Boolean)
-      const stTop=sTs.length?sTs.reduce((b,t)=>t.tier>b.tier?t:b,sTs[0]):null
+      const bT = bE1RM != null ? getTier(bE1RM/bw, BENCH_THRESHOLDS, true) : null
+      const sT = sE1RM != null ? getTier(sE1RM/bw, SQUAT_THRESHOLDS, true) : null
+      const dlT = dlE1RM != null ? getTier(dlE1RM/bw, DEADLIFT_THRESHOLDS, true) : null
+      const oT = oE1RM != null ? getTier(oE1RM/bw, OHP_THRESHOLDS, true) : null
+      const puT = puE1RM != null ? getTier(puE1RM, PULLUP_THRESHOLDS, true) : null
+      const dipT = dipE1RM != null ? getTier(dipE1RM, PULLUP_THRESHOLDS, true) : null
+
+      // Weighted average tier — not just max, not just min
+      // Exercises you haven't logged simply don't count
+      // Big 3 (bench/squat/deadlift) weighted 1.5x, accessories 1x
+      const tierEntries = [
+        bT && { t: bT, w: 1.5 },
+        sT && { t: sT, w: 1.5 },
+        dlT && { t: dlT, w: 1.5 },
+        oT && { t: oT, w: 1.0 },
+        puT && { t: puT, w: 1.0 },
+        dipT && { t: dipT, w: 0.8 },
+      ].filter(Boolean)
+
+      const sTs = tierEntries.map(e => e.t)
+      const stTop = (() => {
+        if (!tierEntries.length) return null
+        const totalW = tierEntries.reduce((s, e) => s + e.w, 0)
+        const avgTier = tierEntries.reduce((s, e) => s + e.t.tier * e.w, 0) / totalW
+        const rounded = Math.round(avgTier)
+        // Use the color/label from the tier that's closest to the average
+        const closest = sTs.reduce((b, t) => Math.abs(t.tier - rounded) < Math.abs(b.tier - rounded) ? t : b, sTs[0])
+        return { ...closest, tier: rounded }
+      })()
 
       const wLogs=(healthData||[]).filter(h=>h.weight_kg).slice(0,14)
       const wGoalRaw = userSettings?.goals?.target_weight || userSettings?.goals?.body_weight_goal || 75
