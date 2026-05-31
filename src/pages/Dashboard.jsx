@@ -174,28 +174,11 @@ export default function Dashboard() {
       const puT = puE1RM != null ? getTier(puE1RM, PULLUP_THRESHOLDS, true) : null
       const dipT = dipE1RM != null ? getTier(dipE1RM, PULLUP_THRESHOLDS, true) : null
 
-      // Weighted average tier — not just max, not just min
-      // Exercises you haven't logged simply don't count
-      // Big 3 (bench/squat/deadlift) weighted 1.5x, accessories 1x
-      const tierEntries = [
-        bT && { t: bT, w: 1.5 },
-        sT && { t: sT, w: 1.5 },
-        dlT && { t: dlT, w: 1.5 },
-        oT && { t: oT, w: 1.0 },
-        puT && { t: puT, w: 1.0 },
-        dipT && { t: dipT, w: 0.8 },
-      ].filter(Boolean)
-
-      const sTs = tierEntries.map(e => e.t)
-      const stTop = (() => {
-        if (!tierEntries.length) return null
-        const totalW = tierEntries.reduce((s, e) => s + e.w, 0)
-        const avgTier = tierEntries.reduce((s, e) => s + e.t.tier * e.w, 0) / totalW
-        const rounded = Math.round(avgTier)
-        // Use the color/label from the tier that's closest to the average
-        const closest = sTs.reduce((b, t) => Math.abs(t.tier - rounded) < Math.abs(b.tier - rounded) ? t : b, sTs[0])
-        return { ...closest, tier: rounded }
-      })()
+      // Tier = minimum across all logged exercises — must meet ALL criteria to level up
+      const sTs = [bT, sT, dlT, oT, puT, dipT].filter(Boolean)
+      const stTop = sTs.length
+        ? sTs.reduce((min, t) => t.tier < min.tier ? t : min, sTs[0])
+        : null
 
       const wLogs=(healthData||[]).filter(h=>h.weight_kg).slice(0,14)
       const wGoalRaw = userSettings?.goals?.target_weight || userSettings?.goals?.body_weight_goal || 75
