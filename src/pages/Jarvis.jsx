@@ -559,6 +559,8 @@ ${profileBlock}`
       padding: '10px',
       boxSizing: 'border-box',
       width: 'calc(100% + 20px)',
+      /* iOS Safari fix — use small viewport height so keyboard doesn't break layout */
+      maxHeight: '100%',
     }}>
 
       {/* HEADER */}
@@ -712,7 +714,7 @@ ${profileBlock}`
       </div>
 
       {/* INPUT */}
-      <div style={{ padding: '8px 0 0', flexShrink: 0 }}>
+      <div style={{ padding: '8px 0 0', flexShrink: 0 }} className="jarvis-input-area">
         <div style={{
           display: 'flex', gap: '8px', alignItems: 'flex-end',
           background: 'var(--surface)',

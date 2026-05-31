@@ -54,6 +54,7 @@ export default function AppLayout() {
         overflowX: 'hidden',
         background: 'transparent',
         minHeight: 0,
+        maxHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
         padding: '10px',
@@ -200,28 +201,37 @@ export default function AppLayout() {
           /* Settings — sidebar becomes horizontal tab bar */
           .settings-page { padding: 12px !important; }
           .settings-layout { grid-template-columns: 1fr !important; }
-          .settings-layout > .card:first-child {
+          .settings-nav {
             position: static !important;
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
             gap: 2px !important;
-            padding: 6px !important;
+            padding: 4px !important;
             scrollbar-width: none !important;
           }
-          .settings-layout > .card:first-child::-webkit-scrollbar { display: none; }
-          .settings-layout > .card:first-child button {
+          .settings-nav::-webkit-scrollbar { display: none; }
+          .settings-nav-btn {
             flex-shrink: 0 !important;
-            padding: 7px 12px !important;
+            width: auto !important;
+            padding: 7px 11px !important;
             border-left: none !important;
             border-bottom: 2px solid transparent !important;
+            border-radius: 8px !important;
             white-space: nowrap !important;
             font-size: 12px !important;
+            text-align: center !important;
           }
 
           /* Journal — stack calendar above entry */
           .journal-layout { grid-template-columns: 1fr !important; }
+
+          /* Jarvis — ensure input stays at bottom above nav */
+          .jarvis-input-area { padding-bottom: 0 !important; }
+
+          /* Dashboard — ensure cards don't overflow right */
+          .grid-4 .cat-card { width: 100% !important; overflow: hidden !important; }
 
           /* FAB — above bottom nav on mobile */
           .quicklog-fab { bottom: 72px !important; right: 16px !important; width: 48px !important; height: 48px !important; }

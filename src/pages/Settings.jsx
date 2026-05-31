@@ -285,9 +285,9 @@ export default function SettingsPage() {
       <div className="settings-layout" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', alignItems: 'start' }}>
 
         {/* Sidebar nav */}
-        <div className="card" style={{ padding: '8px', position: 'sticky', top: '24px' }}>
+        <div className="card settings-nav" style={{ padding: '8px', position: 'sticky', top: '24px' }}>
           {sections.map(s => (
-            <button key={s.id} onClick={() => setActiveSection(s.id)} style={{
+            <button key={s.id} onClick={() => setActiveSection(s.id)} className="settings-nav-btn" style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: '9px',
               padding: '9px 10px', borderRadius: '9px', border: 'none', cursor: 'pointer',
               background: activeSection === s.id ? 'var(--accent-soft)' : 'transparent',
