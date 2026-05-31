@@ -200,15 +200,23 @@ export default function Dashboard() {
 
       const totPA=(paData||[]).reduce((s,sh)=>s+(sh.estimated_pay||0),0)
       const sav=userSettings?.goals?.savings||null
-      const incT=totPA?getTier(totPA,INCOME_THRESHOLDS,true):null,savT=sav!=null?getTier(sav,SAVINGS_THRESHOLDS,true):null
-      const eTop=[incT,savT].filter(Boolean).reduce((b,t)=>t&&t.tier>(b?.tier||0)?t:b,null)
+      const incT=totPA?getTier(totPA,INCOME_THRESHOLDS,true):null
+      const savT=sav!=null?getTier(sav,SAVINGS_THRESHOLDS,true):null
+      // Ekonomi: min of logged metrics — weak link (high income doesn't offset zero savings)
+      const eTs=[incT,savT].filter(Boolean)
+      const eTop=eTs.length?eTs.reduce((min,t)=>t.tier<min.tier?t:min,eTs[0]):null
 
       function a7(field){const v=(healthData||[]).filter(h=>h.date>=s7&&h[field]!=null).map(h=>h[field]);return v.length?Math.round(v.reduce((s,x)=>s+x,0)/v.length*10)/10:null}
-      const aE=a7('energy_level'),aSt=a7('stress_level'),aMo=a7('mood'),aSteps=a7('steps')
-      const eT=aE!=null?getTier(aE,ENERGY_THRESHOLDS,true):null,stT=aSt!=null?getTier(aSt,STRESS_THRESHOLDS,false):null
-      const moT=aMo!=null?getTier(aMo,MOOD_THRESHOLDS,true):null,stpT=aSteps!=null?getTier(aSteps,STEPS_THRESHOLDS,true):null
-      const wTs=[eT,stT,moT,stpT].filter(Boolean)
-      const wTop=wTs.length?wTs.reduce((b,t)=>t.tier>b.tier?t:b,wTs[0]):null
+      const aE=a7('energy_level'),aMo=a7('mood'),aSteps=a7('steps')
+      // stress removed — can't be logged. Välmående = average tier of energy+mood+steps
+      const eT=aE!=null?getTier(aE,ENERGY_THRESHOLDS,true):null
+      const moT=aMo!=null?getTier(aMo,MOOD_THRESHOLDS,true):null
+      const stpT=aSteps!=null?getTier(aSteps,STEPS_THRESHOLDS,true):null
+      const wTs=[eT,moT,stpT].filter(Boolean)
+      const wTop=wTs.length?(() => {
+        const avg = Math.round(wTs.reduce((s,t)=>s+t.tier,0)/wTs.length)
+        return wTs.reduce((b,t)=>Math.abs(t.tier-avg)<Math.abs(b.tier-avg)?t:b,wTs[0])
+      })():null
 
       function am(sn){const l=(skillData||[]).filter(s=>s.skill===sn);return l.length?Math.round(l.reduce((s,x)=>s+x.minutes,0)/4):0}
       const spM=am('spanish'),srM=am('serbian'),gtM=am('guitar')
