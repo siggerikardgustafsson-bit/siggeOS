@@ -91,24 +91,58 @@ export default function Dashboard() {
       const bw = latestW?.weight_kg || 77
       setBodyWeight(bw)
 
-      function bestRun(km,tol=0.05){const el=(runData||[]).filter(r=>r.distance_km>=km*(1-tol)&&r.distance_km<=km*(1+tol)&&(r.time_seconds||r.pace_per_km));if(!el.length)return null;return el.reduce((b,r)=>{const tb=b.time_seconds||(b.pace_per_km*km);const tr=r.time_seconds||(r.pace_per_km*km);return tr<tb?r:b},el[0])}
-      function estRun(km){const all=(runData||[]).filter(r=>r.pace_per_km&&r.distance_km>=km*0.5);if(!all.length)return null;const best=all.reduce((b,r)=>r.pace_per_km<b.pace_per_km?r:b,all[0]);return{time_seconds:Math.round(best.pace_per_km*km),date:best.date}}
+      // Riegel's formula: T2 = T1 * (D2/D1)^1.06
+      // Predicts time at shorter distance from a longer run — more accurate than pace scaling
+      function riegelPredict(actualTimeSec, actualKm, targetKm) {
+        return Math.round(actualTimeSec * Math.pow(targetKm / actualKm, 1.06))
+      }
 
-      // rd: compute time_seconds from pace_per_km if missing (e.g. Strava imports)
-      function rd(o,km,d){if(!o)return null;const t=o.time_seconds||(o.pace_per_km&&km?Math.round(o.pace_per_km*km):null);if(!t)return null;return getDecayedValue(t,o.date,d)}
-      const r5=bestRun(5)||estRun(5),r10=bestRun(10)||estRun(10)
-      const rH=bestRun(21.1,0.03),rM=bestRun(42.2,0.02),r1=bestRun(1)||estRun(1)
-      const r1D=rd(r1,1,365),r5D=rd(r5,5,180),r10D=rd(r10,10,180),rHD=rd(rH,21.1,180),rMD=rd(rM,42.2,180)
-      const vo2=r5D?estimateVO2max(r5D.value):r1D?estimateVO2max(Math.round(r1D.value*5.5)):null
-      const vo2T=vo2?getTier(vo2,VO2MAX_THRESHOLDS,true):null
-      const r1T=r1D?getTier(r1D.value,RUN_5K_THRESHOLDS.map(t=>t*0.195),false):null
-      const r5T=r5D?getTier(r5D.value,RUN_5K_THRESHOLDS,false):null
-      const r10T=r10D?getTier(r10D.value,RUN_10K_THRESHOLDS,false):null
-      const rHT=rHD?getTier(rHD.value,RUN_HALF_THRESHOLDS,false):null
-      const rMT=rMD?getTier(rMD.value,RUN_MARA_THRESHOLDS,false):null
-      const kTs=[vo2T,r5T,r10T,rHT,rMT].filter(Boolean)
-      const hasRunData=!!(runData?.length)
-      const kTop=kTs.length?kTs.reduce((b,t)=>t.tier>b.tier?t:b,kTs[0]):hasRunData?{tier:1,label:'Botten 50%',color:'#6b7280'}:null
+      // For each distance: get best actual time OR predict from any longer run (90 days)
+      function bestTimeForDist(targetKm) {
+        const runs = (runData || []).filter(r => r.distance_km >= targetKm * 0.95 && (r.time_seconds || r.pace_per_km))
+        // Direct runs at this distance
+        const direct = runs.filter(r => r.distance_km <= targetKm * 1.15)
+        let best = null
+        for (const r of direct) {
+          const t = r.time_seconds || Math.round(r.pace_per_km * r.distance_km)
+          // Scale to exact distance if slightly off
+          const scaled = Math.round(t * (targetKm / r.distance_km))
+          if (!best || scaled < best.t) best = { t: scaled, date: r.date }
+        }
+        // Predict from longer runs via Riegel
+        const longer = (runData || []).filter(r => r.distance_km > targetKm * 1.05 && (r.time_seconds || r.pace_per_km))
+        for (const r of longer) {
+          const actualT = r.time_seconds || Math.round(r.pace_per_km * r.distance_km)
+          const predicted = riegelPredict(actualT, r.distance_km, targetKm)
+          if (!best || predicted < best.t) best = { t: predicted, date: r.date }
+        }
+        return best ? getDecayedValue(best.t, best.date, 90) : null
+      }
+
+      const r1D  = bestTimeForDist(1)
+      const r5D  = bestTimeForDist(5)
+      const r10D = bestTimeForDist(10)
+      const rHD  = bestTimeForDist(21.1)
+      // Mara optional — only if actually run
+      const rMraw = (runData||[]).filter(r=>r.distance_km>=40&&(r.time_seconds||r.pace_per_km))
+      const rMbest = rMraw.length ? rMraw.reduce((b,r)=>{const t=r.time_seconds||Math.round(r.pace_per_km*r.distance_km);const bt=b.time_seconds||Math.round(b.pace_per_km*b.distance_km);return t<bt?r:b},rMraw[0]) : null
+      const rMD  = rMbest ? getDecayedValue(rMbest.time_seconds||Math.round(rMbest.pace_per_km*rMbest.distance_km), rMbest.date, 90) : null
+
+      // Kondition tier = WEAK LINK of all four required distances (90d)
+      // Must have data in ALL of 1k, 5k, 10k, halvmara to get a tier
+      const r1T  = r1D  ? getTier(r1D.value,  RUN_5K_THRESHOLDS.map(t=>t*0.195), false) : null
+      const r5T  = r5D  ? getTier(r5D.value,  RUN_5K_THRESHOLDS, false) : null
+      const r10T = r10D ? getTier(r10D.value, RUN_10K_THRESHOLDS, false) : null
+      const rHT  = rHD  ? getTier(rHD.value,  RUN_HALF_THRESHOLDS, false) : null
+      const rMT  = rMD  ? getTier(rMD.value,  RUN_MARA_THRESHOLDS, false) : null
+
+      const hasRunData = !!(runData?.length)
+      // All four required — if any missing, no tier
+      const allFourPresent = r1D && r5D && r10D && rHD
+      const kTs = [r1T, r5T, r10T, rHT].filter(Boolean)
+      const kTop = allFourPresent && kTs.length === 4
+        ? kTs.reduce((min, t) => t.tier < min.tier ? t : min, kTs[0])
+        : hasRunData ? { tier: 1, label: 'Botten 50%', color: '#6b7280' } : null
 
       // Epley formula: e1RM = weight * (1 + reps/30)
       // Brzyckis formula for low reps (≤10): e1RM = weight / (1.0278 - 0.0278*reps)
@@ -213,10 +247,7 @@ export default function Dashboard() {
       const moT=aMo!=null?getTier(aMo,MOOD_THRESHOLDS,true):null
       const stpT=aSteps!=null?getTier(aSteps,STEPS_THRESHOLDS,true):null
       const wTs=[eT,moT,stpT].filter(Boolean)
-      const wTop=wTs.length?(() => {
-        const avg = Math.round(wTs.reduce((s,t)=>s+t.tier,0)/wTs.length)
-        return wTs.reduce((b,t)=>Math.abs(t.tier-avg)<Math.abs(b.tier-avg)?t:b,wTs[0])
-      })():null
+      const wTop=wTs.length?wTs.reduce((min,t)=>t.tier<min.tier?t:min,wTs[0]):null
 
       function am(sn){const l=(skillData||[]).filter(s=>s.skill===sn);return l.length?Math.round(l.reduce((s,x)=>s+x.minutes,0)/4):0}
       const spM=am('spanish'),srM=am('serbian'),gtM=am('guitar')
@@ -261,8 +292,8 @@ export default function Dashboard() {
           details:[{label:'Månadsnettoink.',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',tierInfo:incT},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—',tierInfo:savT}],
           chartData:[],chartLines:[],navTarget:'/ekonomi',navLabel:'Ekonomi'},
         {id:'valmående',name:'Välmående',icon:'🌱',tier:wTop,hasData:wTs.length>0,pct:wTop?Math.round((wTop.tier/8)*100):0,decayWarning:false,trend:aE?(aE>=7?'up':aE<=4?'down':'neutral'):'neutral',
-          metrics:[{label:'Energi snitt',value:aE!=null?aE+'/10':'—',highlight:true},{label:'Humör snitt',value:aMo!=null?aMo+'/10':'—'},{label:'Stress snitt',value:'—'}],
-          details:[{label:'Energi (7d)',value:aE!=null?aE+'/10':'—',tierInfo:eT},{label:'Stress (7d)',value:'—'},{label:'Humör (7d)',value:aMo!=null?aMo+'/10':'—',tierInfo:moT},{label:'Steg/dag',value:aSteps!=null?Math.round(aSteps).toLocaleString('sv-SE'):'—',tierInfo:stpT}],
+          metrics:[{label:'Energi snitt',value:aE!=null?aE+'/10':'—',highlight:true},{label:'Humör snitt',value:aMo!=null?aMo+'/10':'—'},{label:'Stress snitt',value:aSt!=null?aSt+'/10':'—'}],
+          details:[{label:'Energi (7d)',value:aE!=null?aE+'/10':'—',tierInfo:eT},{label:'Stress (7d)',value:aSt!=null?aSt+'/10':'—',tierInfo:stT},{label:'Humör (7d)',value:aMo!=null?aMo+'/10':'—',tierInfo:moT},{label:'Steg/dag',value:aSteps!=null?Math.round(aSteps).toLocaleString('sv-SE'):'—',tierInfo:stpT}],
           chartData:(healthData||[]).filter(h=>h.energy_level||h.mood).slice(0,14).reverse().map(h=>({date:h.date.slice(5),Energi:h.energy_level,Humör:h.mood,Stress:h.stress_level})),
           chartLines:[{key:'Energi',label:'Energi',color:'#fbbf24'},{key:'Humör',label:'Humör',color:'#34d399'},{key:'Stress',label:'Stress',color:'#f87171'}],
           navTarget:'/halsa',navLabel:'Hälsa'},

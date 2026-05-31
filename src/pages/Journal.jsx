@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, subMonths, addMonths, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Plus, Save, Loader, BookOpen, X, Edit2, Calendar } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Save, Loader, BookOpen, X, Edit2, Calendar, Music, Languages, ChevronDown, ChevronUp } from 'lucide-react'
 
 const JARVIS_JOURNAL_SYSTEM = `Du är Jarvis, Sigges personliga AI. Analysera denna journal-entry djupgående och returnera ENBART ett JSON-objekt utan markdown eller backticks.
 
@@ -22,9 +22,19 @@ Extrahera och analysera:
 
 Returnera ENDAST JSON, inget annat.`
 
+const SKILLS = [
+  { id: 'guitar',   label: 'Gitarr',   icon: '🎸', color: '#f59e0b' },
+  { id: 'spanish',  label: 'Spanska',  icon: '🇪🇸', color: '#ef4444' },
+  { id: 'serbian',  label: 'Serbiska', icon: '🇷🇸', color: '#3b82f6' },
+  { id: 'reading',  label: 'Läsning',  icon: '📖', color: '#8b5cf6' },
+  { id: 'piano',    label: 'Piano',    icon: '🎹', color: '#06b6d4' },
+  { id: 'other',    label: 'Annat',    icon: '✨', color: '#10b981' },
+]
+
 const EMPTY_FORM = {
   content: '', mood: 7, energy: 7, sleep_hours: 7.5,
   sleep_type: 'normal', sleep_note: '', social_score: 7, is_travel_entry: false,
+  skills: [], // [{ id, minutes }]
 }
 
 function Slider({ label, value, onChange, color = '#3b82f6' }) {
@@ -176,6 +186,11 @@ export default function JournalPage() {
           sleep_type: form.sleep_type, sleep_note: form.sleep_note,
           energy: form.energy, source: 'journal',
         }, { onConflict: 'user_id,date' })
+        if (form.skills?.length) {
+          await supabase.from('skill_logs').delete().eq('user_id', user.id).eq('date', dateStr)
+          const rows = form.skills.filter(s => s.minutes > 0).map(s => ({ user_id: user.id, date: dateStr, skill: s.id, minutes: s.minutes }))
+          if (rows.length) await supabase.from('skill_logs').insert(rows)
+        }
         await updateJournalScore(dateStr, form)
         runAIAnalysis(data.id, form.content)
         await fetchSelectedEntries()
@@ -431,6 +446,71 @@ export default function JournalPage() {
                       style={{ accentColor: 'var(--accent)', width: '15px', height: '15px', cursor: 'pointer' }} />
                     <label htmlFor="travel" style={{ fontSize: '12px', color: 'var(--muted)', cursor: 'pointer' }}>Reseentry ✈️</label>
                   </div>
+
+                  {/* Skills — collapsible */}
+                  {(() => {
+                    const hasSkills = form.skills?.length > 0
+                    return (
+                      <div style={{ marginBottom: '16px' }}>
+                        <button
+                          onClick={() => setForm(f => ({
+                            ...f,
+                            skills: hasSkills ? [] : [{ id: 'guitar', minutes: 30 }]
+                          }))}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            background: hasSkills ? 'rgba(139,92,246,0.08)' : 'var(--surface2)',
+                            border: '1px solid ' + (hasSkills ? 'rgba(139,92,246,0.25)' : 'var(--border)'),
+                            borderRadius: '8px', padding: '6px 12px', cursor: 'pointer',
+                            color: hasSkills ? '#a78bfa' : 'var(--muted)',
+                            fontSize: '12px', fontFamily: 'Inter, sans-serif', fontWeight: '500',
+                            transition: 'all 0.15s',
+                          }}
+                        >
+                          <Music size={12} />
+                          Färdigheter övade idag
+                          {hasSkills ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                        </button>
+
+                        {hasSkills && (
+                          <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {form.skills.map((s, i) => {
+                              const skill = SKILLS.find(sk => sk.id === s.id) || SKILLS[0]
+                              return (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <select
+                                    value={s.id}
+                                    onChange={e => setForm(f => ({ ...f, skills: f.skills.map((sk, si) => si === i ? { ...sk, id: e.target.value } : sk) }))}
+                                    style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '7px 10px', color: 'var(--text)', fontSize: '13px', fontFamily: 'Inter, sans-serif', cursor: 'pointer', outline: 'none' }}
+                                  >
+                                    {SKILLS.map(sk => <option key={sk.id} value={sk.id}>{sk.icon} {sk.label}</option>)}
+                                  </select>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                                    <input
+                                      type="number" min="5" max="240" step="5"
+                                      value={s.minutes}
+                                      onChange={e => setForm(f => ({ ...f, skills: f.skills.map((sk, si) => si === i ? { ...sk, minutes: parseInt(e.target.value) || 0 } : sk) }))}
+                                      style={{ width: '56px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '7px 8px', color: 'var(--text)', fontSize: '13px', fontFamily: 'Inter, sans-serif', outline: 'none', textAlign: 'center' }}
+                                    />
+                                    <span style={{ fontSize: '11px', color: 'var(--muted)' }}>min</span>
+                                  </div>
+                                  <button onClick={() => setForm(f => ({ ...f, skills: f.skills.filter((_, si) => si !== i) }))} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', flexShrink: 0 }}>
+                                    <X size={13} />
+                                  </button>
+                                </div>
+                              )
+                            })}
+                            <button
+                              onClick={() => setForm(f => ({ ...f, skills: [...f.skills, { id: 'guitar', minutes: 30 }] }))}
+                              style={{ alignSelf: 'flex-start', background: 'none', border: '1px dashed var(--border)', borderRadius: '7px', color: 'var(--muted)', padding: '5px 12px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}
+                            >
+                              + Lägg till
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                     <button onClick={() => { setShowForm(false); setEditingEntry(null); setForm(EMPTY_FORM) }} className="btn btn-ghost">Avbryt</button>
