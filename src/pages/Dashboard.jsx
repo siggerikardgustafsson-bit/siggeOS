@@ -91,45 +91,35 @@ export default function Dashboard() {
       const bw = latestW?.weight_kg || 77
       setBodyWeight(bw)
 
-      // Riegel's formula: T2 = T1 * (D2/D1)^1.06
-      // Predicts time at shorter distance from a longer run — more accurate than pace scaling
-      function riegelPredict(actualTimeSec, actualKm, targetKm) {
-        return Math.round(actualTimeSec * Math.pow(targetKm / actualKm, 1.06))
+      // Best actual run at each distance (±10% tolerance), 90 days
+      function bestActual(km) {
+        const tol = Math.max(0.5, km * 0.1)
+        const runs = (runData||[]).filter(r =>
+          r.distance_km >= km - tol && r.distance_km <= km + tol &&
+          (r.time_seconds || r.pace_per_km)
+        )
+        if (!runs.length) return null
+        return runs.reduce((b, r) => {
+          const bt = b.time_seconds || Math.round(b.pace_per_km * b.distance_km)
+          const rt = r.time_seconds || Math.round(r.pace_per_km * r.distance_km)
+          return rt < bt ? r : b
+        }, runs[0])
       }
 
-      // For each distance: get best actual time OR predict from any longer run (90 days)
-      function bestTimeForDist(targetKm) {
-        const runs = (runData || []).filter(r => r.distance_km >= targetKm * 0.95 && (r.time_seconds || r.pace_per_km))
-        // Direct runs at this distance
-        const direct = runs.filter(r => r.distance_km <= targetKm * 1.15)
-        let best = null
-        for (const r of direct) {
-          const t = r.time_seconds || Math.round(r.pace_per_km * r.distance_km)
-          // Scale to exact distance if slightly off
-          const scaled = Math.round(t * (targetKm / r.distance_km))
-          if (!best || scaled < best.t) best = { t: scaled, date: r.date }
-        }
-        // Predict from longer runs via Riegel
-        const longer = (runData || []).filter(r => r.distance_km > targetKm * 1.05 && (r.time_seconds || r.pace_per_km))
-        for (const r of longer) {
-          const actualT = r.time_seconds || Math.round(r.pace_per_km * r.distance_km)
-          const predicted = riegelPredict(actualT, r.distance_km, targetKm)
-          if (!best || predicted < best.t) best = { t: predicted, date: r.date }
-        }
-        return best ? getDecayedValue(best.t, best.date, 90) : null
+      function toDecayed(run, targetKm) {
+        if (!run) return null
+        const t = run.time_seconds || Math.round(run.pace_per_km * run.distance_km)
+        // Scale slightly if distance differs from target (e.g. 21.3km run → 21.1km time)
+        const scaled = Math.round(t * (targetKm / run.distance_km))
+        return getDecayedValue(scaled, run.date, 90)
       }
 
-      const r1D  = bestTimeForDist(1)
-      const r5D  = bestTimeForDist(5)
-      const r10D = bestTimeForDist(10)
-      const rHD  = bestTimeForDist(21.1)
-      // Mara optional — only if actually run
-      const rMraw = (runData||[]).filter(r=>r.distance_km>=40&&(r.time_seconds||r.pace_per_km))
-      const rMbest = rMraw.length ? rMraw.reduce((b,r)=>{const t=r.time_seconds||Math.round(r.pace_per_km*r.distance_km);const bt=b.time_seconds||Math.round(b.pace_per_km*b.distance_km);return t<bt?r:b},rMraw[0]) : null
-      const rMD  = rMbest ? getDecayedValue(rMbest.time_seconds||Math.round(rMbest.pace_per_km*rMbest.distance_km), rMbest.date, 90) : null
+      const r1D  = toDecayed(bestActual(1), 1)
+      const r5D  = toDecayed(bestActual(5), 5)
+      const r10D = toDecayed(bestActual(10), 10)
+      const rHD  = toDecayed(bestActual(21.1), 21.1)
+      const rMD  = toDecayed(bestActual(42.2), 42.2)
 
-      // Kondition tier = WEAK LINK of all four required distances (90d)
-      // Must have data in ALL of 1k, 5k, 10k, halvmara to get a tier
       const r1T  = r1D  ? getTier(r1D.value,  RUN_5K_THRESHOLDS.map(t=>t*0.195), false) : null
       const r5T  = r5D  ? getTier(r5D.value,  RUN_5K_THRESHOLDS, false) : null
       const r10T = r10D ? getTier(r10D.value, RUN_10K_THRESHOLDS, false) : null
@@ -137,10 +127,22 @@ export default function Dashboard() {
       const rMT  = rMD  ? getTier(rMD.value,  RUN_MARA_THRESHOLDS, false) : null
 
       const hasRunData = !!(runData?.length)
-      // All four required — if any missing, no tier
-      const allFourPresent = r1D && r5D && r10D && rHD
+
+      // Coverage check: a run of distance D covers all shorter required distances
+      // (e.g. a halvmara proves you can run 1km, 5km, 10km)
+      const longestRun = hasRunData
+        ? Math.max(...(runData||[]).map(r => r.distance_km || 0))
+        : 0
+      const covered1  = !!(r1D  || longestRun >= 1)
+      const covered5  = !!(r5D  || longestRun >= 5)
+      const covered10 = !!(r10D || longestRun >= 10)
+      const coveredH  = !!(rHD  || longestRun >= 21)
+
+      const allFourCovered = covered1 && covered5 && covered10 && coveredH
+
+      // Tier = weak link of distances with ACTUAL data
       const kTs = [r1T, r5T, r10T, rHT].filter(Boolean)
-      const kTop = allFourPresent && kTs.length === 4
+      const kTop = allFourCovered && kTs.length > 0
         ? kTs.reduce((min, t) => t.tier < min.tier ? t : min, kTs[0])
         : hasRunData ? { tier: 1, label: 'Botten 50%', color: '#6b7280' } : null
 
