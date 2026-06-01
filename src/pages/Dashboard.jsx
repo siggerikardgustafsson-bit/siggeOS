@@ -412,13 +412,26 @@ export default function Dashboard() {
   const oColor = overallTier ? (TIER_COLORS[overallTier]||'#6b7280') : '#6b7280'
   const oLabel = overallTier ? TIER_NAMES[overallTier] : '—'
 
+  const rankedCats = categories.filter(c => c.hasData && (c.tier?.tier || c.id === 'kropp'))
+  const weakestCat = rankedCats
+    .filter(c => c.tier?.tier)
+    .slice()
+    .sort((a,b)=>(a.tier?.tier || 99) - (b.tier?.tier || 99))[0]
+  const strongestCat = rankedCats
+    .filter(c => c.tier?.tier)
+    .slice()
+    .sort((a,b)=>(b.tier?.tier || 0) - (a.tier?.tier || 0))[0]
+  const maxxOpportunity = weakestCat
+    ? `Levela ${weakestCat.name.toLowerCase()} från T${weakestCat.tier.tier}`
+    : 'Logga mer data för tydligare next move'
+
   return (
     <div className="page-wrap">
 
       {/* HEADER — same structure as Träning, Hälsa etc */}
       <div className="page-header">
         <div>
-          <div className="page-header-title">{displayName || 'Dashboard'}</div>
+          <div className="page-header-title">{displayName || 'Maxx Board'}</div>
           <div className="page-header-sub">{todayDisplay}{bodyWeight ? ` · ${bodyWeight} kg` : ''}</div>
         </div>
         {overallTier && (
@@ -434,6 +447,48 @@ export default function Dashboard() {
 
       <div className="page-content-scroll">
         <div style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'12px', maxWidth:'1100px', margin:'0 auto' }}>
+
+          {/* MAXX HERO */}
+          {!loading && (
+            <div className="widget fade-up" style={{
+              padding:'18px', overflow:'hidden', position:'relative',
+              background:'linear-gradient(135deg, rgba(79,142,247,0.12), rgba(167,139,250,0.08) 44%, rgba(255,255,255,0.035))',
+            }}>
+              <div style={{ position:'absolute', right:-60, top:-70, width:210, height:210, borderRadius:'50%', background:oColor+'17', filter:'blur(34px)', pointerEvents:'none' }} />
+              <div style={{ display:'grid', gridTemplateColumns:'1.25fr 0.9fr 0.9fr', gap:'12px', alignItems:'stretch' }} className="grid-3">
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:'10px', color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.13em', fontWeight:800, marginBottom:'7px' }}>Today’s Maxx</div>
+                  <div style={{ fontSize:'24px', lineHeight:1.08, fontWeight:800, letterSpacing:'-0.055em', color:'var(--text)', marginBottom:'7px' }}>
+                    {maxxOpportunity}
+                  </div>
+                  <div style={{ fontSize:'12px', color:'var(--muted2)', maxWidth:'520px' }}>
+                    Fokus är att göra nästa level-up tydligare: status, bottleneck och konkret gap per kategori.
+                  </div>
+                </div>
+
+                <div style={{ padding:'13px', borderRadius:'16px', background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize:'10px', color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.11em', fontWeight:800, marginBottom:'8px' }}>Overall</div>
+                  <div style={{ display:'flex', alignItems:'baseline', gap:'7px' }}>
+                    <span style={{ fontSize:'34px', lineHeight:1, color:oColor, fontWeight:900, letterSpacing:'-0.07em' }}>{overallTier ? `T${overallTier}` : '—'}</span>
+                    <span style={{ fontSize:'12px', color:'var(--muted2)', fontWeight:600 }}>{oLabel}</span>
+                  </div>
+                  <div style={{ height:'6px', borderRadius:'999px', background:'rgba(255,255,255,0.07)', overflow:'hidden', marginTop:'12px' }}>
+                    <div style={{ width:overallTier ? `${Math.round((overallTier/8)*100)}%` : '0%', height:'100%', borderRadius:'999px', background:`linear-gradient(90deg, ${oColor}, rgba(255,255,255,0.72))`, boxShadow:'0 0 16px '+oColor+'55' }} />
+                  </div>
+                </div>
+
+                <div style={{ padding:'13px', borderRadius:'16px', background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize:'10px', color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.11em', fontWeight:800, marginBottom:'8px' }}>Bottleneck</div>
+                  <div style={{ fontSize:'18px', fontWeight:800, color:weakestCat ? (TIER_COLORS[weakestCat.tier?.tier] || 'var(--accent)') : 'var(--text)', letterSpacing:'-0.035em' }}>
+                    {weakestCat ? `${weakestCat.name} · T${weakestCat.tier.tier}` : 'Ingen tydlig'}
+                  </div>
+                  <div style={{ fontSize:'11px', color:'var(--muted2)', marginTop:'5px' }}>
+                    {strongestCat ? `Starkast just nu: ${strongestCat.name} T${strongestCat.tier.tier}` : 'Mer loggning ger bättre analys.'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* CATEGORY CARDS */}
           {loading ? (
@@ -455,7 +510,7 @@ export default function Dashboard() {
             <div className="widget" style={{ padding:'18px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
                 <span style={{ fontSize:'11px', fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.1em' }}>
-                  Tier-utveckling
+                  Maxx trend
                 </span>
                 <div style={{ display:'flex', gap:'4px' }}>
                   {['7d','30d','90d','1år'].map(p=>(

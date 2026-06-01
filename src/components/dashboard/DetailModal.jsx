@@ -114,191 +114,126 @@ export default function DetailModal({ category, onClose }) {
   const [period, setPeriod] = useState('30d')
   if (!category) return null
 
-  const { name, icon, tier, metrics, details, chartData, chartLines, navTarget, navLabel, id, perExercise } = category
+  const { name, tier, metrics = [], details = [], chartData, chartLines, navTarget, navLabel, id, perExercise } = category
+  const isBody = id === 'kropp'
   const tierNum = tier?.tier || 0
-  const tierColor = TIER_COLORS[tierNum]
+  const tierColor = isBody ? '#34d399' : (TIER_COLORS[tierNum] || '#6b7280')
+  const nextTier = tierNum > 0 && tierNum < 8 ? tierNum + 1 : null
   const requirements = TIER_REQUIREMENTS[id] || []
-  const nextTierReqs = requirements.find(r => r.tier === tierNum + 1)
-
+  const nextTierReqs = nextTier ? requirements.find(r => r.tier === nextTier) : null
   const periods = ['7d', '30d', '90d', '1år']
 
+  const scoredDetails = details.filter(d => d?.tierInfo?.tier)
+  const bottleneck = id === 'styrka' && perExercise?.length
+    ? perExercise.slice().sort((a,b)=>(a.tier?.tier || 0) - (b.tier?.tier || 0))[0]
+    : scoredDetails.slice().sort((a,b)=>(a.tierInfo?.tier || 0) - (b.tierInfo?.tier || 0))[0]
+
+  const completedCount = nextTier
+    ? scoredDetails.filter(d => (d.tierInfo?.tier || 0) >= nextTier).length
+    : scoredDetails.length
+  const progressDenom = Math.max(scoredDetails.length, nextTierReqs?.reqs?.length || 0, 1)
+  const progressPct = isBody
+    ? Math.max(0, Math.min(100, category.pct || 0))
+    : tierNum > 0
+      ? Math.round(Math.min(100, Math.max(12, ((tierNum - 1) / 7) * 100 + (completedCount / progressDenom) * 12)))
+      : 0
+
+  const primaryMetric = metrics[0]
+  const bottleneckLabel = bottleneck
+    ? bottleneck.label || bottleneck.exercise_name || 'Svagaste krav'
+    : isBody ? 'Målvikt / trend' : 'Logga mer data'
+  const bottleneckValue = bottleneck
+    ? bottleneck.valueText || bottleneck.value || bottleneck.mult || bottleneck.tier?.label || bottleneck.tierInfo?.label || ''
+    : ''
+
+  const objectiveRows = nextTierReqs?.reqs?.length
+    ? nextTierReqs.reqs.map((req, i) => {
+        const source = scoredDetails[i]
+        const done = source?.tierInfo?.tier >= nextTier
+        return { label: req, done, source }
+      })
+    : scoredDetails.map(d => ({ label: d.label + (d.value ? ` · ${d.value}` : ''), done: true, source: d }))
+
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.75)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '20px',
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: 'rgba(12,15,26,0.92)',
-          backdropFilter: 'blur(40px)',
-          WebkitBackdropFilter: 'blur(40px)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '20px',
-          width: '100%',
-          maxWidth: '560px',
-          maxHeight: '88vh',
-          overflowY: 'auto',
-          boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.08) inset',
-          scrollbarWidth: 'none',
-          position: 'relative',
-        }}
-      >
-        {/* Shimmer top */}
-        <div style={{
-          position: 'absolute', top: 0, left: '25%', right: '25%', height: '1px',
-          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
-        }} />
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.70)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: '100%', maxWidth: 680, maxHeight: '88vh', overflowY: 'auto', position: 'relative',
+        background: 'linear-gradient(180deg, rgba(18,22,35,0.94), rgba(10,12,20,0.92))',
+        backdropFilter: 'blur(42px)', WebkitBackdropFilter: 'blur(42px)',
+        border: '1px solid rgba(255,255,255,0.11)', borderRadius: 24,
+        boxShadow: '0 34px 90px rgba(0,0,0,0.68), 0 1px 0 rgba(255,255,255,0.08) inset',
+        scrollbarWidth: 'none',
+      }}>
+        <div style={{ position:'absolute', inset:0, pointerEvents:'none', background:`radial-gradient(circle at 82% 4%, ${tierColor}22, transparent 34%), radial-gradient(circle at 8% 18%, rgba(79,142,247,0.10), transparent 30%)` }} />
+        <div style={{ position:'absolute', top:0, left:'18%', right:'18%', height:1, background:'linear-gradient(90deg, transparent, rgba(255,255,255,0.24), transparent)' }} />
 
-        {/* Tier glow orb */}
-        {tierNum > 0 && (
-          <div style={{
-            position: 'absolute', top: -40, right: -40,
-            width: 160, height: 160, borderRadius: '50%',
-            background: tierColor + '18',
-            filter: 'blur(40px)',
-            pointerEvents: 'none',
-          }} />
-        )}
-
-        {/* Sticky header */}
-        <div style={{
-          padding: '20px 24px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.07)',
-          position: 'sticky', top: 0, zIndex: 10,
-          background: 'rgba(12,15,26,0.85)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          borderRadius: '20px 20px 0 0',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: '12px',
-              background: tierNum > 0 ? tierColor + '18' : 'rgba(255,255,255,0.06)',
-              border: '1px solid ' + (tierNum > 0 ? tierColor + '33' : 'rgba(255,255,255,0.08)'),
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <CatIcon id={id} color={tierNum > 0 ? tierColor : 'rgba(255,255,255,0.3)'} size={20} />
+        <div style={{ position:'sticky', top:0, zIndex:5, padding:'18px 22px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, borderBottom:'1px solid rgba(255,255,255,0.075)', borderRadius:'24px 24px 0 0', background:'rgba(12,15,26,0.72)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:13, minWidth:0 }}>
+            <div style={{ width:44, height:44, borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', background:tierColor+'18', border:'1px solid '+tierColor+'36', boxShadow:'0 1px 0 rgba(255,255,255,0.06) inset' }}>
+              <CatIcon id={id} color={tierColor} size={21} />
             </div>
-            <div>
-              <div style={{ fontSize: '17px', fontWeight: 600, color: 'rgba(255,255,255,0.92)', letterSpacing: '-0.02em' }}>
-                {name}
+            <div style={{ minWidth:0 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                <div style={{ fontSize:18, fontWeight:720, color:'rgba(255,255,255,0.94)', letterSpacing:'-0.035em' }}>{name}</div>
+                {!isBody && tierNum > 0 && <div style={{ padding:'3px 8px', borderRadius:999, background:tierColor+'16', border:'1px solid '+tierColor+'35', color:tierColor, fontSize:10, fontWeight:850, letterSpacing:'0.06em' }}>T{tierNum}</div>}
               </div>
-              {tier && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
-                  <div style={{
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: tierColor,
-                    boxShadow: '0 0 6px ' + tierColor,
-                  }} />
-                  <span style={{ fontSize: '12px', color: tierColor, fontWeight: 600 }}>{tier.label}</span>
-                </div>
-              )}
+              <div style={{ marginTop:3, color:'rgba(255,255,255,0.42)', fontSize:12 }}>{isBody ? 'Kroppslig status och trend' : nextTier ? `Maxx plan mot Tier ${nextTier}` : tierNum >= 8 ? 'Maxad kategori' : 'Börja logga data'}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{
-            width: 30, height: 30,
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: '8px', color: 'rgba(255,255,255,0.4)',
-            cursor: 'pointer', fontSize: '14px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.15s',
-          }}>×</button>
+          <button onClick={onClose} style={{ width:32, height:32, borderRadius:10, border:'1px solid rgba(255,255,255,0.11)', background:'rgba(255,255,255,0.055)', color:'rgba(255,255,255,0.5)', cursor:'pointer', fontSize:16 }}>×</button>
         </div>
 
-        <div style={{ padding: '20px 24px' }}>
-
-          {/* Current metrics */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: '10px' }}>
-              Aktuellt
+        <div style={{ position:'relative', padding:'22px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1.05fr 0.95fr', gap:12, marginBottom:12 }} className="grid-2">
+            <div style={{ border:'1px solid rgba(255,255,255,0.08)', borderRadius:18, padding:16, background:'rgba(255,255,255,0.045)', overflow:'hidden', position:'relative' }}>
+              <div style={{ position:'absolute', right:-30, top:-30, width:110, height:110, borderRadius:'50%', background:tierColor+'14', filter:'blur(28px)' }} />
+              <div style={{ fontSize:10, color:'rgba(255,255,255,0.36)', textTransform:'uppercase', letterSpacing:'0.12em', fontWeight:750, marginBottom:7 }}>Current level</div>
+              <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
+                <span style={{ fontSize:40, lineHeight:1, fontWeight:850, color:tierColor, letterSpacing:'-0.07em' }}>{isBody ? (primaryMetric?.value || '—') : tierNum ? `T${tierNum}` : '—'}</span>
+                {!isBody && tier?.label && <span style={{ color:'rgba(255,255,255,0.58)', fontSize:14, fontWeight:600 }}>{tier.label}</span>}
+              </div>
+              <div style={{ marginTop:14, height:7, borderRadius:999, background:'rgba(255,255,255,0.07)', overflow:'hidden' }}>
+                <div style={{ width:`${progressPct}%`, height:'100%', borderRadius:999, background:`linear-gradient(90deg, ${tierColor}, rgba(255,255,255,0.76))`, boxShadow:'0 0 18px '+tierColor+'55' }} />
+              </div>
+              <div style={{ display:'flex', justifyContent:'space-between', color:'rgba(255,255,255,0.38)', fontSize:11, marginTop:7 }}>
+                <span>{isBody ? 'Mot mål' : nextTier ? `Progress mot T${nextTier}` : 'Progress'}</span>
+                <span>{progressPct}%</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              {(details || metrics || []).map((m, i) => (
-                <div key={i} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '10px 14px',
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  borderRadius: '10px',
-                }}>
-                  <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)' }}>{m.label}</span>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: m.tierInfo?.color || 'rgba(255,255,255,0.85)' }}>
-                      {m.value}
-                    </div>
-                    {m.tierInfo && (
-                      <div style={{ fontSize: '10px', color: m.tierInfo.color, opacity: 0.7, marginTop: '1px' }}>
-                        {m.tierInfo.label}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+
+            <div style={{ border:'1px solid '+tierColor+'24', borderRadius:18, padding:16, background:tierColor+'0d' }}>
+              <div style={{ fontSize:10, color:tierColor, textTransform:'uppercase', letterSpacing:'0.12em', fontWeight:800, marginBottom:8 }}>Bottleneck</div>
+              <div style={{ fontSize:20, color:'rgba(255,255,255,0.92)', fontWeight:760, letterSpacing:'-0.04em', marginBottom:5 }}>{bottleneckLabel}</div>
+              <div style={{ color:'rgba(255,255,255,0.50)', fontSize:12, lineHeight:1.45 }}>{bottleneckValue ? String(bottleneckValue) : isBody ? 'Håll koll på vikttrend och loggningsfrekvens.' : 'Det här är den svagaste länken för nästa level-up.'}</div>
             </div>
           </div>
 
-          {/* Nästa nivå */}
-          {nextTierReqs && (
-            <div style={{
-              marginBottom: '20px',
-              background: tierColor + '0e',
-              border: '1px solid ' + tierColor + '2a',
-              borderRadius: '14px',
-              padding: '16px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <span style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                  Nästa nivå
-                </span>
-                <div style={{
-                  padding: '2px 9px', borderRadius: '20px',
-                  background: tierColor + '20',
-                  border: '1px solid ' + tierColor + '40',
-                  fontSize: '11px', fontWeight: 700, color: tierColor,
-                }}>
-                  {nextTierReqs.label}
-                </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, marginBottom:14 }} className="grid-3">
+            {metrics.slice(0, 6).map((m, i) => (
+              <div key={i} style={{ padding:'11px 12px', borderRadius:14, background:'rgba(255,255,255,0.038)', border:'1px solid rgba(255,255,255,0.07)' }}>
+                <div style={{ fontSize:10, color:'rgba(255,255,255,0.34)', marginBottom:4, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.label}</div>
+                <div style={{ fontSize:14, fontWeight:720, color:m.highlight ? tierColor : 'rgba(255,255,255,0.86)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.value}</div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                {nextTierReqs.reqs.map((req, i) => {
-                  // For styrka: check if this requirement is already met via perExercise
-                  let isMet = false
-                  if (id === 'styrka' && category.perExercise?.length) {
-                    const reqLower = req.toLowerCase()
-                    const ex = category.perExercise.find(e =>
-                      reqLower.includes(e.label.toLowerCase()) ||
-                      (reqLower.includes('bänk') && e.label === 'Bänk') ||
-                      (reqLower.includes('knäböj') && e.label === 'Knäböj') ||
-                      (reqLower.includes('mark') && e.label === 'Mark') ||
-                      (reqLower.includes('ohp') && e.label === 'OHP') ||
-                      (reqLower.includes('pull') && e.label === 'Pull-up')
-                    )
-                    if (ex) isMet = ex.tier.tier > tierNum
-                  }
+            ))}
+          </div>
+
+          {details.length > 0 && (
+            <div style={{ marginBottom:14, border:'1px solid rgba(255,255,255,0.075)', borderRadius:18, overflow:'hidden', background:'rgba(255,255,255,0.032)' }}>
+              <div style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,0.065)', fontSize:10, textTransform:'uppercase', letterSpacing:'0.12em', color:'rgba(255,255,255,0.36)', fontWeight:800 }}>Metrics breakdown</div>
+              <div style={{ padding:10, display:'grid', gap:7 }}>
+                {details.map((d, i) => {
+                  const dColor = d.tierInfo ? (TIER_COLORS[d.tierInfo.tier] || tierColor) : 'rgba(255,255,255,0.38)'
                   return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                      <div style={{
-                        width: 16, height: 16, borderRadius: '5px', flexShrink: 0, marginTop: '1px',
-                        background: isMet ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)',
-                        border: '1px solid ' + (isMet ? 'rgba(16,185,129,0.4)' : tierColor + '40'),
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        {isMet
-                          ? <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                          : <div style={{ width: 5, height: 5, borderRadius: '2px', background: tierColor + '70' }} />
-                        }
+                    <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'8px 10px', borderRadius:12, background:'rgba(255,255,255,0.032)' }}>
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ color:'rgba(255,255,255,0.82)', fontSize:13, fontWeight:620, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{d.label}</div>
+                        {d.tierInfo?.label && <div style={{ color:dColor, fontSize:10, marginTop:1 }}>{d.tierInfo.label}</div>}
                       </div>
-                      <span style={{ fontSize: '13px', color: isMet ? 'rgba(16,185,129,0.7)' : 'rgba(255,255,255,0.78)', lineHeight: 1.5, textDecoration: isMet ? 'line-through' : 'none' }}>{req}</span>
+                      <div style={{ color:dColor, fontSize:13, fontWeight:760, whiteSpace:'nowrap' }}>{d.value}</div>
                     </div>
                   )
                 })}
@@ -306,161 +241,49 @@ export default function DetailModal({ category, onClose }) {
             </div>
           )}
 
-          {/* Alla tier-nivåer */}
-          {requirements.length > 0 && (
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', marginBottom: '10px' }}>
-                Alla nivåer
+          {objectiveRows.length > 0 && !isBody && (
+            <div style={{ marginBottom:14, border:'1px solid '+tierColor+'24', borderRadius:18, background:tierColor+'08', overflow:'hidden' }}>
+              <div style={{ padding:'12px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid rgba(255,255,255,0.065)' }}>
+                <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:'0.12em', color:tierColor, fontWeight:850 }}>Level-up requirements</div>
+                {nextTier && <div style={{ fontSize:10, color:'rgba(255,255,255,0.42)' }}>Target T{nextTier}</div>}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                {requirements.map((t, i) => {
-                  const isCurrent = t.tier === tierNum
-                  const isPast = t.tier < tierNum
-                  const isNext = t.tier === tierNum + 1
-                  const tColor = TIER_COLORS[t.tier] || '#6b7280'
-                  return (
-                    <div key={i} style={{
-                      padding: '11px 14px',
-                      background: isCurrent ? tColor + '14' : isPast ? 'rgba(16,185,129,0.05)' : isNext ? tColor + '08' : 'rgba(255,255,255,0.02)',
-                      border: '1px solid ' + (isCurrent ? tColor + '50' : isPast ? 'rgba(16,185,129,0.18)' : isNext ? tColor + '25' : 'rgba(255,255,255,0.04)'),
-                      borderRadius: '10px',
-                      position: 'relative', overflow: 'hidden',
-                      transition: 'all 0.15s',
-                    }}>
-                      {isCurrent && (
-                        <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: '3px', background: tColor, borderRadius: '10px 0 0 10px' }} />
-                      )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: t.reqs.length ? '7px' : 0 }}>
-                        {/* Status icon */}
-                        <div style={{
-                          width: 18, height: 18, borderRadius: '5px', flexShrink: 0,
-                          background: isPast ? 'rgba(16,185,129,0.2)' : isCurrent ? tColor + '22' : 'rgba(255,255,255,0.05)',
-                          border: '1px solid ' + (isPast ? 'rgba(16,185,129,0.4)' : isCurrent ? tColor + '50' : 'rgba(255,255,255,0.08)'),
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          {isPast
-                            ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                            : isCurrent
-                              ? <div style={{ width: 6, height: 6, borderRadius: '50%', background: tColor }} />
-                              : <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
-                          }
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
-                          <span style={{ fontSize: '12px', fontWeight: 700, color: isPast ? '#10b981' : isCurrent ? tColor : 'rgba(255,255,255,0.3)' }}>
-                            T{t.tier}
-                          </span>
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: isPast ? 'rgba(16,185,129,0.7)' : isCurrent ? tColor : 'rgba(255,255,255,0.25)' }}>
-                            {t.label}
-                          </span>
-                          {isCurrent && (
-                            <span style={{ fontSize: '10px', color: tColor + '99', marginLeft: 'auto', fontStyle: 'italic' }}>← nu</span>
-                          )}
-                          {isPast && (
-                            <span style={{ fontSize: '10px', color: 'rgba(16,185,129,0.5)', marginLeft: 'auto' }}>klar</span>
-                          )}
-                        </div>
-                      </div>
-                      {t.reqs.length > 0 && (
-                        <div style={{ paddingLeft: '26px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {t.reqs.map((r, j) => {
-                            // Check if met for styrka
-                            let isMet = isPast
-                            if (!isPast && id === 'styrka' && category.perExercise?.length) {
-                              const reqLower = r.toLowerCase()
-                              const ex = category.perExercise.find(e =>
-                                (reqLower.includes('bänk') && e.label === 'Bänk') ||
-                                (reqLower.includes('knäböj') && e.label === 'Knäböj') ||
-                                (reqLower.includes('mark') && e.label === 'Mark') ||
-                                (reqLower.includes('ohp') || reqLower.includes('militär')) && e.label === 'OHP' ||
-                                (reqLower.includes('pull') && e.label === 'Pull-up')
-                              )
-                              if (ex) isMet = ex.tier.tier >= t.tier
-                            }
-                            return (
-                              <div key={j} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <div style={{ width: 4, height: 4, borderRadius: '50%', flexShrink: 0, background: isMet ? '#10b981' : isPast ? 'rgba(16,185,129,0.4)' : isNext ? tColor + '60' : 'rgba(255,255,255,0.12)' }} />
-                                <span style={{ fontSize: '12px', lineHeight: 1.4, color: isMet ? 'rgba(16,185,129,0.65)' : isPast ? 'rgba(16,185,129,0.5)' : isCurrent || isNext ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.2)', textDecoration: isMet || isPast ? 'line-through' : 'none' }}>
-                                  {r}
-                                </span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+              <div style={{ padding:10, display:'grid', gap:7 }}>
+                {objectiveRows.map((row, i) => (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:9, padding:'8px 10px', borderRadius:12, background:row.done ? 'rgba(52,211,153,0.075)' : 'rgba(255,255,255,0.035)', border:'1px solid '+(row.done ? 'rgba(52,211,153,0.16)' : 'rgba(255,255,255,0.05)') }}>
+                    <div style={{ width:16, height:16, borderRadius:5, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', background:row.done ? 'rgba(52,211,153,0.18)' : 'rgba(255,255,255,0.04)', border:'1px solid '+(row.done ? 'rgba(52,211,153,0.32)' : 'rgba(255,255,255,0.12)'), color:row.done ? '#34d399' : 'rgba(255,255,255,0.28)', fontSize:11, fontWeight:900 }}>{row.done ? '✓' : ''}</div>
+                    <div style={{ color:row.done ? 'rgba(255,255,255,0.74)' : 'rgba(255,255,255,0.88)', fontSize:13, lineHeight:1.35 }}>{row.label}</div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Chart */}
           {chartData && chartData.length > 1 && (
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase' }}>
-                  Historik
-                </div>
-                <div style={{ display: 'flex', gap: '4px' }}>
+            <div style={{ marginBottom:14 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <div style={{ fontSize:10, color:'rgba(255,255,255,0.36)', textTransform:'uppercase', letterSpacing:'0.12em', fontWeight:800 }}>History</div>
+                <div style={{ display:'flex', gap:4 }}>
                   {periods.map(p => (
-                    <button key={p} onClick={() => setPeriod(p)} style={{
-                      padding: '3px 9px', fontSize: '10px', borderRadius: '6px',
-                      background: period === p ? tierColor + '20' : 'transparent',
-                      border: '1px solid ' + (period === p ? tierColor + '55' : 'rgba(255,255,255,0.08)'),
-                      color: period === p ? tierColor : 'rgba(255,255,255,0.3)',
-                      cursor: 'pointer', fontWeight: period === p ? 700 : 400,
-                      transition: 'all 0.15s',
-                    }}>{p}</button>
+                    <button key={p} onClick={() => setPeriod(p)} style={{ padding:'3px 9px', fontSize:10, borderRadius:7, background:period === p ? tierColor+'18' : 'transparent', border:'1px solid '+(period === p ? tierColor+'4a' : 'rgba(255,255,255,0.08)'), color:period === p ? tierColor : 'rgba(255,255,255,0.34)', cursor:'pointer', fontWeight:period === p ? 750 : 500 }}>{p}</button>
                   ))}
                 </div>
               </div>
-              <div style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '12px', padding: '12px',
-              }}>
-                <ResponsiveContainer width="100%" height={140}>
+              <div style={{ background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:16, padding:12 }}>
+                <ResponsiveContainer width="100%" height={150}>
                   <LineChart data={chartData}>
-                    <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.25)' }} tickLine={false} axisLine={false} />
-                    <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.25)' }} tickLine={false} axisLine={false} width={36} />
+                    <XAxis dataKey="date" tick={{ fontSize:9, fill:'rgba(255,255,255,0.25)' }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize:9, fill:'rgba(255,255,255,0.25)' }} tickLine={false} axisLine={false} width={36} />
                     <Tooltip content={<CustomTooltip tierColor={tierColor} />} />
-                    {(chartLines || []).map((line, i) => (
-                      <Line key={i} type="monotone" dataKey={line.key}
-                        stroke={line.color || tierColor} strokeWidth={2}
-                        dot={false} name={line.label} />
-                    ))}
+                    {(chartLines || []).map((line, i) => <Line key={i} type="monotone" dataKey={line.key} stroke={line.color || tierColor} strokeWidth={2.2} dot={false} name={line.label} />)}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
           )}
 
-          {/* Nav button */}
           {navTarget && (
-            <button
-              onClick={() => { onClose(); navigate(navTarget) }}
-              style={{
-                width: '100%', padding: '12px',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '12px',
-                color: 'rgba(255,255,255,0.7)', fontWeight: 500, fontSize: '13px',
-                cursor: 'pointer', letterSpacing: '0.02em',
-                transition: 'all 0.15s',
-                backdropFilter: 'blur(10px)',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = tierColor + '18'
-                e.currentTarget.style.borderColor = tierColor + '44'
-                e.currentTarget.style.color = tierColor
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
-                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
-                e.currentTarget.style.color = 'rgba(255,255,255,0.7)'
-              }}
-            >
-              Gå till {navLabel} →
+            <button onClick={() => { onClose(); navigate(navTarget) }} style={{ width:'100%', padding:'13px', borderRadius:15, border:'1px solid '+tierColor+'30', background:tierColor+'10', color:tierColor, fontWeight:750, fontSize:13, cursor:'pointer', letterSpacing:'0.01em' }}>
+              Öppna {navLabel} →
             </button>
           )}
         </div>
