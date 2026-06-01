@@ -41,20 +41,30 @@ function Icon({ id, color, size = 14 }) {
 function Ring({ pct, color, tier, size = 62 }) {
   const r = 22, circ = 2 * Math.PI * r
   const offset = circ - (Math.min(pct, 100) / 100) * circ
+  const hasData = pct > 0 && tier > 0
+  const filterId = 'glow-' + (color || 'none').replace('#', '')
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} viewBox="0 0 56 56" style={{ transform: 'rotate(-90deg)' }}>
+      <svg width={size} height={size} viewBox="0 0 56 56" style={{ transform: 'rotate(-90deg)', overflow: 'visible' }}>
+        {hasData && (
+          <defs>
+            <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor={color} floodOpacity="0.7" />
+            </filter>
+          </defs>
+        )}
         <circle cx="28" cy="28" r={r} fill="none" stroke="var(--border)" strokeWidth="4" />
         <circle cx="28" cy="28" r={r} fill="none" stroke={color} strokeWidth="4"
-          strokeDasharray={circ} strokeDashoffset={pct > 0 ? offset : circ}
+          strokeDasharray={circ} strokeDashoffset={hasData ? offset : circ}
           strokeLinecap="round"
+          filter={hasData ? `url(#${filterId})` : undefined}
           style={{ transition: 'stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)' }} />
       </svg>
       <div style={{
         position: 'absolute', inset: 0,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       }}>
-        <span style={{ fontSize: '11px', fontWeight: 700, color: pct > 0 ? color : 'var(--muted)', lineHeight: 1 }}>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: hasData ? color : 'var(--muted)', lineHeight: 1 }}>
           {tier > 0 ? 'T' + tier : '—'}
         </span>
       </div>
