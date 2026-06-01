@@ -413,107 +413,112 @@ export default function Dashboard() {
   const oLabel = overallTier ? TIER_NAMES[overallTier] : '—'
 
   return (
-    <div style={{ padding:'0 0 80px', maxWidth:'1100px', margin:'0 auto', overflowX:'hidden' }}>
+    <div className="page-wrap">
 
-      {/* HEADER — simple, no card border */}
-      <div style={{ padding:'10px 14px 8px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px', flexWrap:'wrap' }}>
+      {/* HEADER — same structure as Träning, Hälsa etc */}
+      <div className="page-header">
         <div>
-          <div style={{ fontSize:'15px', fontWeight:600, color:'var(--text)', letterSpacing:'-0.01em' }}>{displayName || 'Dashboard'}</div>
-          <div style={{ fontSize:'11px', color:'var(--muted)', marginTop:'2px' }}>{todayDisplay}{bodyWeight ? ` · ${bodyWeight} kg` : ''}</div>
+          <div className="page-header-title">{displayName || 'Dashboard'}</div>
+          <div className="page-header-sub">{todayDisplay}{bodyWeight ? ` · ${bodyWeight} kg` : ''}</div>
         </div>
         {overallTier && (
-          <div style={{ display:'flex', alignItems:'center', gap:'6px', padding:'4px 11px', borderRadius:'20px', background: oColor + '12', border:'1px solid ' + oColor + '30' }}>
-            <div style={{ width:6, height:6, borderRadius:'50%', background:oColor, boxShadow:'0 0 6px ' + oColor }} />
-            <span style={{ fontSize:'12px', fontWeight:700, color:oColor }}>T{overallTier}/8</span>
-            <span style={{ fontSize:'11px', color: oColor + 'aa' }}>{oLabel}</span>
+          <div className="page-header-actions">
+            <div style={{ display:'flex', alignItems:'center', gap:'6px', padding:'4px 11px', borderRadius:'20px', background: oColor + '12', border:'1px solid ' + oColor + '30' }}>
+              <div style={{ width:6, height:6, borderRadius:'50%', background:oColor, boxShadow:'0 0 6px ' + oColor }} />
+              <span style={{ fontSize:'12px', fontWeight:700, color:oColor }}>T{overallTier}/8</span>
+              <span style={{ fontSize:'11px', color: oColor + 'aa' }}>{oLabel}</span>
+            </div>
           </div>
         )}
       </div>
 
-      <div style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'12px' }}>
+      <div className="page-content-scroll">
+        <div style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'12px', maxWidth:'1100px', margin:'0 auto' }}>
 
-        {/* CATEGORY CARDS */}
-        {loading ? (
-          <div style={{ color:'var(--muted)', fontSize:'14px', padding:'60px 0', textAlign:'center' }}>Laddar...</div>
-        ) : (
-          <div className="grid-4" style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px' }}>
-            {categories.map((cat,i) => (
-              <div key={cat.id} className={'fade-up fade-up-delay-'+Math.min(i+1,7)}>
-                <CategoryCard category={cat} onClick={setSelectedCategory} />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* BOTTOM ROW — graph + today side by side */}
-        <div className="dashboard-bottom" style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 230px', gap:'12px', alignItems:'start' }}>
-
-          {/* GRAPH */}
-          <div className="widget" style={{ padding:'18px' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-              <span style={{ fontSize:'11px', fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.1em' }}>
-                Tier-utveckling
-              </span>
-              <div style={{ display:'flex', gap:'4px' }}>
-                {['7d','30d','90d','1år'].map(p=>(
-                  <button key={p} onClick={()=>setGraphPeriod(p)} style={{
-                    padding:'3px 8px', fontSize:'10px', borderRadius:'6px',
-                    background:graphPeriod===p?'var(--accent-soft)':'transparent',
-                    border:'1px solid '+(graphPeriod===p?'var(--accent-border)':'var(--border)'),
-                    color:graphPeriod===p?'var(--accent)':'var(--muted)',
-                    cursor:'pointer', fontWeight:graphPeriod===p?600:400, transition:'all 0.15s',
-                  }}>{p}</button>
-                ))}
-              </div>
+          {/* CATEGORY CARDS */}
+          {loading ? (
+            <div style={{ color:'var(--muted)', fontSize:'14px', padding:'60px 0', textAlign:'center' }}>Laddar...</div>
+          ) : (
+            <div className="grid-4" style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px' }}>
+              {categories.map((cat,i) => (
+                <div key={cat.id} className={'fade-up fade-up-delay-'+Math.min(i+1,7)}>
+                  <CategoryCard category={cat} onClick={setSelectedCategory} />
+                </div>
+              ))}
             </div>
-            <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'12px' }}>
-              {GRAPH_CATS.map(c=>{
-                const active=activeGraphCats.includes(c.id)
-                return (
-                  <button key={c.id} onClick={()=>setActiveGraphCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])} style={{
-                    display:'flex', alignItems:'center', gap:'4px',
-                    padding:'2px 8px', fontSize:'10px', borderRadius:'20px',
-                    background:active?c.color+'15':'transparent',
-                    border:'1px solid '+(active?c.color+'40':'var(--border)'),
-                    color:active?c.color:'var(--muted)',
-                    cursor:'pointer', transition:'all 0.15s', fontWeight:active?600:400,
-                  }}>
-                    <div style={{ width:5,height:5,borderRadius:'50%',background:active?c.color:'var(--border)' }} />
-                    {c.label}
-                  </button>
-                )
-              })}
-            </div>
-            {tierHistory.length > 0 ? (
-              <ResponsiveContainer width="100%" height={160}>
-                <AreaChart data={tierHistory} margin={{top:4,right:4,left:-24,bottom:0}}>
-                  <defs>
-                    {GRAPH_CATS.map(c=>(
-                      <linearGradient key={c.id} id={'grad-'+c.id} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={c.color} stopOpacity={0.15}/>
-                        <stop offset="95%" stopColor={c.color} stopOpacity={0}/>
-                      </linearGradient>
-                    ))}
-                  </defs>
-                  <XAxis dataKey="date" tick={{fontSize:10,fill:'var(--muted)'}} tickLine={false} axisLine={false} />
-                  <YAxis domain={[0,8]} ticks={[1,2,3,4,5,6,7,8]} tick={{fontSize:10,fill:'var(--muted)'}} tickLine={false} axisLine={false} tickFormatter={v=>'T'+v} />
-                  <Tooltip content={<GraphTooltip />} />
-                  {GRAPH_CATS.filter(c=>activeGraphCats.includes(c.id)).map((c,i)=>(
-                    <Area key={c.id} type="monotone" dataKey={c.id} name={c.label}
-                      stroke={c.color} strokeWidth={2} fill={'url(#grad-'+c.id+')'}
-                      dot={false} connectNulls strokeDasharray={i>=3?'4 3':undefined} />
+          )}
+
+          {/* BOTTOM ROW — graph + today side by side */}
+          <div className="dashboard-bottom" style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 230px', gap:'12px', alignItems:'start' }}>
+
+            {/* GRAPH */}
+            <div className="widget" style={{ padding:'18px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
+                <span style={{ fontSize:'11px', fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.1em' }}>
+                  Tier-utveckling
+                </span>
+                <div style={{ display:'flex', gap:'4px' }}>
+                  {['7d','30d','90d','1år'].map(p=>(
+                    <button key={p} onClick={()=>setGraphPeriod(p)} style={{
+                      padding:'3px 8px', fontSize:'10px', borderRadius:'6px',
+                      background:graphPeriod===p?'var(--accent-soft)':'transparent',
+                      border:'1px solid '+(graphPeriod===p?'var(--accent-border)':'var(--border)'),
+                      color:graphPeriod===p?'var(--accent)':'var(--muted)',
+                      cursor:'pointer', fontWeight:graphPeriod===p?600:400, transition:'all 0.15s',
+                    }}>{p}</button>
                   ))}
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div style={{ color:'var(--muted)', fontSize:'12px', textAlign:'center', padding:'30px 0', fontStyle:'italic' }}>
-                Logga data i Hälsa för att se tier-utveckling
+                </div>
               </div>
-            )}
+              <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'12px' }}>
+                {GRAPH_CATS.map(c=>{
+                  const active=activeGraphCats.includes(c.id)
+                  return (
+                    <button key={c.id} onClick={()=>setActiveGraphCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])} style={{
+                      display:'flex', alignItems:'center', gap:'4px',
+                      padding:'2px 8px', fontSize:'10px', borderRadius:'20px',
+                      background:active?c.color+'15':'transparent',
+                      border:'1px solid '+(active?c.color+'40':'var(--border)'),
+                      color:active?c.color:'var(--muted)',
+                      cursor:'pointer', transition:'all 0.15s', fontWeight:active?600:400,
+                    }}>
+                      <div style={{ width:5,height:5,borderRadius:'50%',background:active?c.color:'var(--border)' }} />
+                      {c.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {tierHistory.length > 0 ? (
+                <ResponsiveContainer width="100%" height={160}>
+                  <AreaChart data={tierHistory} margin={{top:4,right:4,left:-24,bottom:0}}>
+                    <defs>
+                      {GRAPH_CATS.map(c=>(
+                        <linearGradient key={c.id} id={'grad-'+c.id} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={c.color} stopOpacity={0.15}/>
+                          <stop offset="95%" stopColor={c.color} stopOpacity={0}/>
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <XAxis dataKey="date" tick={{fontSize:10,fill:'var(--muted)'}} tickLine={false} axisLine={false} />
+                    <YAxis domain={[0,8]} ticks={[1,2,3,4,5,6,7,8]} tick={{fontSize:10,fill:'var(--muted)'}} tickLine={false} axisLine={false} tickFormatter={v=>'T'+v} />
+                    <Tooltip content={<GraphTooltip />} />
+                    {GRAPH_CATS.filter(c=>activeGraphCats.includes(c.id)).map((c,i)=>(
+                      <Area key={c.id} type="monotone" dataKey={c.id} name={c.label}
+                        stroke={c.color} strokeWidth={2} fill={'url(#grad-'+c.id+')'}
+                        dot={false} connectNulls strokeDasharray={i>=3?'4 3':undefined} />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ color:'var(--muted)', fontSize:'12px', textAlign:'center', padding:'30px 0', fontStyle:'italic' }}>
+                  Logga data i Hälsa för att se tier-utveckling
+                </div>
+              )}
+            </div>
+
+            {/* TODAY WIDGET */}
+            <TodayWidget userId={userId} />
           </div>
 
-          {/* TODAY WIDGET */}
-          <TodayWidget userId={userId} />
         </div>
       </div>
 
