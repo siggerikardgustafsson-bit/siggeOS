@@ -92,7 +92,7 @@ export default function Jarvis() {
 
   // ── Context builder ──────────────────────────────────────────────────────
   const refreshContext = useCallback(async () => {
-    if (!user) return
+    if (!user) return ''
     const now = new Date()
     const today = format(now, 'yyyy-MM-dd')
     const since30 = format(subDays(now, 30), 'yyyy-MM-dd')
@@ -104,8 +104,8 @@ export default function Jarvis() {
       settingsRes, trainingRes, expenseRes, incomeRes, examsRes, insightsRes,
     ] = await Promise.all([
       supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).single(),
-      supabase.from('health_logs').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(7),
-      supabase.from('journal_entries').select('*').eq('user_id', user.id).order('date', { ascending: false }).limit(3),
+      supabase.from('health_logs').select('*').eq('user_id', user.id).gte('date', since7).order('date', { ascending: false }).limit(7),
+      supabase.from('journal_entries').select('id,date,content,mood,energy,sleep_hours').eq('user_id', user.id).order('date', { ascending: false }).limit(7),
       supabase.from('erik_tasks').select('*').eq('user_id', user.id).neq('status', 'klart').limit(10),
       supabase.rpc('get_csn_usage', { p_user_id: user.id }),
       supabase.from('user_settings').select('about_me, goals, jarvis_personality, display_name').eq('user_id', user.id).single(),
@@ -120,7 +120,6 @@ export default function Jarvis() {
     const g = s?.goals || {}
     const csnLimit = g.csn_fribelopp || 114500
 
-    // Profile block — from settings only, no hardcoding
     const profileLines = [
       s?.display_name && `Namn: ${s.display_name}`,
       s?.about_me && `Profil: ${s.about_me}`,
@@ -133,24 +132,31 @@ export default function Jarvis() {
       s?.jarvis_personality && `Instruktion: ${s.jarvis_personality}`,
     ].filter(Boolean).join('\n')
 
-    // Training block
     const trainBlock = (trainingRes.data || []).length > 0
       ? (trainingRes.data || []).map(t =>
           `${t.date}: ${t.session_type||'pass'}${t.duration_minutes ? ' '+t.duration_minutes+'min' : ''}${t.distance_km ? ' '+t.distance_km+'km' : ''}${t.feeling ? ' känsla:'+t.feeling+'/10' : ''}${t.notes ? ' – '+t.notes : ''}`
         ).join('\n')
       : 'Inga pass loggade de senaste 30 dagarna.'
 
-    // Economy block
     const totalExp = (expenseRes.data || []).reduce((s, e) => s + (e.amount || 0), 0)
     const totalInc = (incomeRes.data  || []).reduce((s, i) => s + (i.amount || 0), 0)
     const topCats = Object.entries(
       (expenseRes.data || []).reduce((acc, e) => { acc[e.category] = (acc[e.category]||0)+e.amount; return acc }, {})
     ).sort((a,b) => b[1]-a[1]).slice(0,4).map(([c,a]) => `${c}:${Math.round(a)}kr`).join(', ')
 
-    // Insights block
     const insBlock = (insightsRes.data || []).length > 0
       ? (insightsRes.data || []).map(i => `[${i.category}] ${i.insight}`).join('\n')
       : 'Inga insikter ännu.'
+
+    // FIX: use energy_level (correct field name in health_logs)
+    const healthBlock = (healthRes.data || []).map(h =>
+      `${h.date}:${h.weight_kg ? ' vikt '+h.weight_kg+'kg' : ''}${h.sleep_hours ? ' sömn '+h.sleep_hours+'h' : ''}${h.steps ? ' steg '+h.steps : ''}${h.energy_level ? ' energi '+h.energy_level+'/10' : ''}${h.mood ? ' humör '+h.mood+'/10' : ''}`
+    ).join('\n') || 'Ingen hälsodata senaste 7 dagarna'
+
+    // FIX: use content (correct field) and show full journal text, not highlights
+    const journalBlock = (journalRes.data || []).map(j =>
+      `${j.date}: humör ${j.mood||'-'}/10  energi ${j.energy||'-'}/10${j.sleep_hours ? '  sömn '+j.sleep_hours+'h' : ''}${j.content ? '\n  "'+j.content.slice(0, 300)+(j.content.length > 300 ? '…' : '')+'"' : ''}`
+    ).join('\n') || 'Ingen journaldata'
 
     const ctx = `TIDPUNKT: ${datetime}
 
@@ -164,10 +170,10 @@ DAGENS SCORE (${today}):
 ${scoresRes.data ? `Träning:${scoresRes.data.score_training||0} Hälsa:${scoresRes.data.score_health||0} Plugg:${scoresRes.data.score_study||0} Ekonomi:${scoresRes.data.score_economy||0}` : 'Inga scores'}
 
 HÄLSODATA (senaste 7 dagar):
-${(healthRes.data||[]).map(h => `${h.date}: ${h.weight_kg ? 'vikt '+h.weight_kg+'kg' : ''} ${h.sleep_hours ? 'sömn '+h.sleep_hours+'h' : ''} ${h.steps ? 'steg '+h.steps : ''} ${h.energy ? 'energi '+h.energy+'/10' : ''}`).join('\n') || 'Ingen data'}
+${healthBlock}
 
-JOURNAL (senaste 3 dagar):
-${(journalRes.data||[]).map(j => `${j.date}: humör${j.mood||'-'}/10 energi${j.energy||'-'}/10 ${j.highlights||''}`).join('\n') || 'Ingen data'}
+JOURNAL (senaste 7 entries):
+${journalBlock}
 
 TRÄNING (senaste 10 pass):
 ${trainBlock}
@@ -187,8 +193,10 @@ ${(examsRes.data||[]).length > 0 ? (examsRes.data||[]).map(e => {
   return `${e.exam_date} (${daysLeft}d): ${e.name}${e.courses?.name ? ' – '+e.courses.name : ''}`
 }).join('\n') : 'Inga kommande tentor'}`
 
+    // FIX: set both state and ref, AND return value so callers get it immediately
     setContext(ctx)
     contextRef.current = ctx
+    return ctx
   }, [user])
 
   // ── History loader ────────────────────────────────────────────────────────
@@ -316,9 +324,24 @@ ${(examsRes.data||[]).length > 0 ? (examsRes.data||[]).map(e => {
 
   // ── Actions ───────────────────────────────────────────────────────────────
   async function executeActions(content) {
-    const matches = content.match(/\{[^{}]*"action"\s*:\s*"[^"]*"[^{}]*\}/gs) || []
+    // FIX: support nested JSON (e.g. fields:{...}) with a recursive approach
+    const actionMatches = []
+    let depth = 0, start = -1
+    for (let i = 0; i < content.length; i++) {
+      if (content[i] === '{') {
+        if (depth === 0) start = i
+        depth++
+      } else if (content[i] === '}') {
+        depth--
+        if (depth === 0 && start !== -1) {
+          const candidate = content.slice(start, i + 1)
+          if (candidate.includes('"action"')) actionMatches.push(candidate)
+          start = -1
+        }
+      }
+    }
     let didSomething = false
-    for (const raw of matches) {
+    for (const raw of actionMatches) {
       try {
         const d = JSON.parse(raw)
         if (!d.action) continue
@@ -384,8 +407,8 @@ ${(examsRes.data||[]).length > 0 ? (examsRes.data||[]).map(e => {
     if (!input.trim() || loading) return
     const userMsg = { role: 'user', content: input.trim() }
 
-    // Refresh context before every send — Jarvis always has fresh data
-    await refreshContext()
+    // FIX: use returned ctx directly — no race condition with contextRef
+    const freshCtx = await refreshContext()
 
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
@@ -395,12 +418,11 @@ ${(examsRes.data||[]).length > 0 ? (examsRes.data||[]).map(e => {
     await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'user', content: userMsg.content })
 
     try {
-      // Only send actual chat messages to API (no separators/markers)
       const apiMessages = newMessages.filter(m => !m.isSeparator && !m.isHistoryMarker)
-      const systemPrompt = JARVIS_SYSTEM_TEMPLATE.replace('{CONTEXT}', contextRef.current)
+      const systemPrompt = JARVIS_SYSTEM_TEMPLATE.replace('{CONTEXT}', freshCtx || contextRef.current)
 
       const { data, error } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: apiMessages, context: contextRef.current, systemPrompt },
+        body: { messages: apiMessages, context: freshCtx || contextRef.current, systemPrompt },
       })
       if (error) throw error
 
@@ -409,33 +431,44 @@ ${(examsRes.data||[]).length > 0 ? (examsRes.data||[]).map(e => {
       setMessages(prev => [...prev, assistantMsg])
       await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: data.content })
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Något gick fel. Försök igen.' }])
+      console.error('Jarvis error:', err)
+      setMessages(prev => [...prev, { role: 'assistant', content: `Något gick fel: ${err?.message || 'Okänt fel'}. Försök igen.` }])
     }
     setLoading(false)
     inputRef.current?.focus()
   }
 
   async function generateBrief(type) {
-    // Refresh context first
-    await refreshContext()
-    setLoading(true)
+    if (loading) return  // FIX: prevent double-clicks during loading
+    setLoading(true)     // FIX: set loading BEFORE async work, not after
+
+    const freshCtx = await refreshContext()  // FIX: use returned value
     const prompt = type === 'morning'
       ? 'Morning brief: analysera mina senaste data och ge mig de 3 viktigaste sakerna att fokusera på idag. Konkret och direkt.'
       : type === 'weekly'
       ? 'Veckoöversikt: analysera senaste 7 dagarna — träning, hälsa, plugg, ekonomi, välmående. Lyft trender, vad som gick bra, vad som kan förbättras.'
       : 'Kvällssummering: vad hände idag? Lyft något bra och något att ta med till imorgon.'
+
     const fakeMsg = { role: 'user', content: prompt }
+    // FIX: capture current messages snapshot before state updates
+    const currentMessages = messages.filter(m => !m.isSeparator && !m.isHistoryMarker)
     setMessages(prev => [...prev, fakeMsg])
     await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'user', content: prompt })
+
     try {
-      const apiMessages = [...messages, fakeMsg].filter(m => !m.isSeparator && !m.isHistoryMarker)
-      const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: apiMessages, context: contextRef.current, systemPrompt: JARVIS_SYSTEM_TEMPLATE.replace('{CONTEXT}', contextRef.current) },
+      const apiMessages = [...currentMessages, fakeMsg]  // FIX: use snapshot, not stale state
+      const systemPrompt = JARVIS_SYSTEM_TEMPLATE.replace('{CONTEXT}', freshCtx || contextRef.current)
+      const { data, error } = await supabase.functions.invoke('jarvis-chat', {
+        body: { messages: apiMessages, context: freshCtx || contextRef.current, systemPrompt },
       })
+      if (error) throw error
       const assistantMsg = { role: 'assistant', content: data.content }
       setMessages(prev => [...prev, assistantMsg])
       await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: data.content })
-    } catch(e) {}
+    } catch(e) {
+      console.error('Brief error:', e)
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Kunde inte generera brief. Försök igen.' }])
+    }
     setLoading(false)
   }
 
