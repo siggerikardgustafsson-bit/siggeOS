@@ -90,7 +90,9 @@ export default function Dashboard() {
           .select('date,kondition,styrka,plugg,ekonomi,somn,valmående')
           .eq('user_id', userId)
           .gte('date', format(subDays(todayDate, 180), 'yyyy-MM-dd'))
-          .order('date', { ascending: true }),
+          .order('date', { ascending: true })
+          .then(r => r) // soft — table may not exist yet
+          .catch(() => ({ data: [] })),
       ])
 
       const latestW = (healthData||[]).find(h=>h.weight_kg)
@@ -358,7 +360,7 @@ export default function Dashboard() {
         ekonomi:   cats.find(c=>c.id==='ekonomi')?.tier?.tier ?? null,
       }
       supabase.from('tier_snapshots').upsert(todaySnap, { onConflict: 'user_id,date' })
-        .then(() => {}) // fire-and-forget
+        .then(() => {}).catch(() => {}) // fire-and-forget, table may not exist yet
 
       // ── Build graph history ────────────────────────────────────────────
       // For sömn + välmående: compute retroactively from health_logs (accurate)
@@ -413,19 +415,17 @@ export default function Dashboard() {
   return (
     <div style={{ padding:'0 0 80px', maxWidth:'1100px', margin:'0 auto', overflowX:'hidden' }}>
 
-      {/* HEADER — matches other pages */}
-      <div className="page-header">
+      {/* HEADER — simple, no card border */}
+      <div style={{ padding:'10px 14px 8px', display:'flex', alignItems:'center', justifyContent:'space-between', gap:'8px', flexWrap:'wrap' }}>
         <div>
-          <div className="page-header-title">{displayName || 'Dashboard'}</div>
-          <div className="page-header-sub">{todayDisplay}{bodyWeight ? ` · ${bodyWeight} kg` : ''}</div>
+          <div style={{ fontSize:'15px', fontWeight:600, color:'var(--text)', letterSpacing:'-0.01em' }}>{displayName || 'Dashboard'}</div>
+          <div style={{ fontSize:'11px', color:'var(--muted)', marginTop:'2px' }}>{todayDisplay}{bodyWeight ? ` · ${bodyWeight} kg` : ''}</div>
         </div>
         {overallTier && (
-          <div className="page-header-actions">
-            <div style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 12px', borderRadius:'20px', background: oColor + '12', border:'1px solid ' + oColor + '30' }}>
-              <div style={{ width:6, height:6, borderRadius:'50%', background:oColor, boxShadow:'0 0 6px ' + oColor }} />
-              <span style={{ fontSize:'12px', fontWeight:700, color:oColor }}>T{overallTier}/8</span>
-              <span style={{ fontSize:'11px', color: oColor + 'aa' }}>{oLabel}</span>
-            </div>
+          <div style={{ display:'flex', alignItems:'center', gap:'6px', padding:'4px 11px', borderRadius:'20px', background: oColor + '12', border:'1px solid ' + oColor + '30' }}>
+            <div style={{ width:6, height:6, borderRadius:'50%', background:oColor, boxShadow:'0 0 6px ' + oColor }} />
+            <span style={{ fontSize:'12px', fontWeight:700, color:oColor }}>T{overallTier}/8</span>
+            <span style={{ fontSize:'11px', color: oColor + 'aa' }}>{oLabel}</span>
           </div>
         )}
       </div>
