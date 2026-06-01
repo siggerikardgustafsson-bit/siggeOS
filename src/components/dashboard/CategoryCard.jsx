@@ -2,7 +2,7 @@ import React from 'react'
 import { Check } from 'lucide-react'
 
 const TIER_COLORS = {
-  0:'rgba(255,255,255,0.15)',1:'#6b7280',2:'#4f8ef7',3:'#a78bfa',
+  0:'rgba(255,255,255,0.15)',1:'rgba(255,255,255,0.75)',2:'#4f8ef7',3:'#a78bfa',
   4:'#fbbf24',5:'#34d399',6:'#22d3ee',7:'#f472b6',8:'#fbbf24',
 }
 
