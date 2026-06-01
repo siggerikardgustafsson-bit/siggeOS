@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { format, subMonths } from 'date-fns'
+import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Plus, X, Save, Loader, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Map } from 'lucide-react'
 
@@ -77,17 +77,20 @@ export default function EkonomiPage() {
   const [csnLimit, setCsnLimit] = useState(114500)
   const [saving, setSaving] = useState(false)
 
-  // Compute salary period: salaryDay this month → salaryDay-1 next month
-  // If today is before salaryDay, period is salaryDay last month → salaryDay-1 this month
+  // Compute salary period correctly:
+  // The "current" period for a given reference date is:
+  //   start = salaryDay of the PREVIOUS month (if today < salaryDay) OR salaryDay of this month
+  //   end = salaryDay - 1 of the NEXT month after start
   function getSalaryPeriod(referenceDate, day) {
     const ref = new Date(referenceDate)
     const year = ref.getFullYear()
     const month = ref.getMonth() // 0-indexed
+    const dayOfMonth = ref.getDate()
 
-    // Period start: salaryDay of the reference month
-    const periodStart = new Date(year, month, day)
-    // Period end: day-1 of next month
-    const periodEnd = new Date(year, month + 1, day - 1)
+    // If we're before the salary day this month, the current period started last month
+    const startMonth = dayOfMonth < day ? month - 1 : month
+    const periodStart = new Date(year, startMonth, day)
+    const periodEnd = new Date(year, startMonth + 1, day - 1)
 
     return {
       start: format(periodStart, 'yyyy-MM-dd'),
@@ -96,7 +99,24 @@ export default function EkonomiPage() {
     }
   }
 
+  // For navigation: offset in number of salary periods from today
+  // selectedMonth holds a representative date within the target period
   const period = getSalaryPeriod(selectedMonth, salaryDay)
+
+  function goToPrevPeriod() {
+    // Move selectedMonth back by one salary period (30 days is safe)
+    const { start } = getSalaryPeriod(selectedMonth, salaryDay)
+    const prevPeriodDate = new Date(start)
+    prevPeriodDate.setDate(prevPeriodDate.getDate() - 1) // day before start = inside previous period
+    setSelectedMonth(prevPeriodDate)
+  }
+
+  function goToNextPeriod() {
+    const { end } = getSalaryPeriod(selectedMonth, salaryDay)
+    const nextPeriodDate = new Date(end)
+    nextPeriodDate.setDate(nextPeriodDate.getDate() + 1) // day after end = inside next period
+    setSelectedMonth(nextPeriodDate)
+  }
 
   // Forms
   const [expenseForm, setExpenseForm] = useState({ amount: '', category: 'mat', description: '', date: format(new Date(), 'yyyy-MM-dd') })
@@ -213,9 +233,9 @@ export default function EkonomiPage() {
           <div className="page-header-sub">{period.label}</div>
         </div>
         <div className="page-header-actions">
-          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))} className="btn btn-ghost btn-icon">←</button>
+          <button onClick={goToPrevPeriod} className="btn btn-ghost btn-icon">←</button>
           <button onClick={() => setSelectedMonth(new Date())} className="btn btn-ghost">Nu</button>
-          <button onClick={() => setSelectedMonth(subMonths(selectedMonth, -1))} className="btn btn-ghost btn-icon">→</button>
+          <button onClick={goToNextPeriod} className="btn btn-ghost btn-icon">→</button>
         </div>
       </div>
       <div className="page-content-scroll">

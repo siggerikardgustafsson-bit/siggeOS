@@ -1048,11 +1048,15 @@ export default function TraningPage() {
 
               {/* Exercise picker modal */}
               {showExercisePicker !== false && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                  <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '20px', width: '100%', maxWidth: '400px', maxHeight: '70vh', overflowY: 'auto' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                      <div style={{ fontWeight: '600' }}>Välj övning</div>
-                      <button onClick={() => setShowExercisePicker(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={16} /></button>
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                  <div style={{ background: 'var(--surface)', borderRadius: '20px 20px 0 0', padding: '20px', width: '100%', maxWidth: '560px', maxHeight: '75vh', overflowY: 'auto', boxShadow: '0 -8px 40px rgba(0,0,0,0.5)' }}>
+                    {/* Handle */}
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '4px' }}>
+                      <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border2)' }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingTop: '8px' }}>
+                      <div style={{ fontWeight: '600', fontSize: '15px' }}>Välj övning</div>
+                      <button onClick={() => setShowExercisePicker(false)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--muted)' }}><X size={14} /></button>
                     </div>
                     {Object.entries(exerciseLibrary).map(([category, exs]) => (
                       <div key={category} style={{ marginBottom: '14px' }}>
