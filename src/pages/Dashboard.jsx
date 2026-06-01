@@ -72,7 +72,7 @@ export default function Dashboard() {
       const [
         { data: runData }, { data: prData }, { data: healthData },
         { data: studyData }, { data: paData }, { data: skillData }, { data: userSettings },
-        { data: exData },
+        { data: exData }, { data: snapshots },
       ] = await Promise.all([
         supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
         supabase.from('personal_records').select('exercise_name,weight_kg,reps,date,updated_at').eq('user_id',userId).order('weight_kg',{ascending:false}),
@@ -86,6 +86,11 @@ export default function Dashboard() {
           .eq('training_sessions.user_id', userId)
           .gte('training_sessions.date', format(subDays(todayDate, 60), 'yyyy-MM-dd'))
           .not('weight_kg','is',null).not('reps','is',null),
+        supabase.from('tier_snapshots')
+          .select('date,kondition,styrka,plugg,ekonomi,somn,valmående')
+          .eq('user_id', userId)
+          .gte('date', format(subDays(todayDate, 180), 'yyyy-MM-dd'))
+          .order('date', { ascending: true }),
       ])
 
       const latestW = (healthData||[]).find(h=>h.weight_kg)
@@ -324,17 +329,58 @@ export default function Dashboard() {
       ]
       setCategories(cats)
 
-      const days=graphPeriod==='7d'?7:graphPeriod==='30d'?30:graphPeriod==='90d'?90:180
-      const hist=(healthData||[]).slice(0,days).reverse().map(h=>{
-        const pt={date:h.date.slice(5)}
-        if(h.energy_level){const t=getTier(h.energy_level,ENERGY_THRESHOLDS,true);if(t)pt['valmående']=t.tier}
-        if(h.sleep_hours){const t=getTier(h.sleep_hours,SLEEP_DURATION_THRESHOLDS,true);if(t)pt['somn']=t.tier}
-        const pk=cats.find(c=>c.id==='plugg');if(pk?.tier)pt['plugg']=pk.tier.tier
-        const kk=cats.find(c=>c.id==='kondition');if(kk?.tier)pt['kondition']=kk.tier.tier
-        const sk=cats.find(c=>c.id==='styrka');if(sk?.tier)pt['styrka']=sk.tier.tier
-        const ek=cats.find(c=>c.id==='ekonomi');if(ek?.tier)pt['ekonomi']=ek.tier.tier
-        return pt
-      })
+      // ── Save today's tiers as a snapshot ──────────────────────────────
+      const todayStr2 = format(todayDate, 'yyyy-MM-dd')
+      const todaySnap = {
+        user_id: userId,
+        date: todayStr2,
+        kondition: cats.find(c=>c.id==='kondition')?.tier?.tier ?? null,
+        styrka:    cats.find(c=>c.id==='styrka')?.tier?.tier ?? null,
+        plugg:     cats.find(c=>c.id==='plugg')?.tier?.tier ?? null,
+        ekonomi:   cats.find(c=>c.id==='ekonomi')?.tier?.tier ?? null,
+      }
+      supabase.from('tier_snapshots').upsert(todaySnap, { onConflict: 'user_id,date' })
+        .then(() => {}) // fire-and-forget
+
+      // ── Build graph history ────────────────────────────────────────────
+      // For sömn + välmående: compute retroactively from health_logs (accurate)
+      // For kondition/styrka/plugg/ekonomi: use snapshots table
+      const snapshotMap = {}
+      for (const s of (snapshots || [])) {
+        snapshotMap[s.date] = s
+      }
+
+      const days = graphPeriod==='7d'?7:graphPeriod==='30d'?30:graphPeriod==='90d'?90:180
+
+      // Build day-by-day array for the graph period
+      const hist = []
+      for (let i = days - 1; i >= 0; i--) {
+        const d = format(subDays(todayDate, i), 'yyyy-MM-dd')
+        const pt = { date: d.slice(5) } // MM-DD
+
+        // Sömn + välmående from health_logs (retroactive)
+        const hl = (healthData||[]).find(h => h.date === d)
+        if (hl?.sleep_hours) {
+          const t = getTier(hl.sleep_hours, SLEEP_DURATION_THRESHOLDS, true)
+          if (t) pt['somn'] = t.tier
+        }
+        if (hl?.energy_level) {
+          const t = getTier(hl.energy_level, ENERGY_THRESHOLDS, true)
+          if (t) pt['valmående'] = t.tier
+        }
+
+        // kondition/styrka/plugg/ekonomi from snapshots
+        const snap = snapshotMap[d]
+        if (snap) {
+          if (snap.kondition) pt['kondition'] = snap.kondition
+          if (snap.styrka)    pt['styrka']    = snap.styrka
+          if (snap.plugg)     pt['plugg']     = snap.plugg
+          if (snap.ekonomi)   pt['ekonomi']   = snap.ekonomi
+        }
+
+        // Only include days that have at least one value
+        if (Object.keys(pt).length > 1) hist.push(pt)
+      }
       setTierHistory(hist)
       setOverallTier(calcOverallTier(cats.filter(c=>c.tier&&c.hasData).map(c=>({tier:c.tier.tier}))))
     } catch(e){ console.error('Dashboard error:',e) }
