@@ -233,11 +233,29 @@ export default function Dashboard() {
       const puT = puE1RM != null ? getTier(puE1RM, PULLUP_THRESHOLDS, true) : null
       const dipT = dipE1RM != null ? getTier(dipE1RM, PULLUP_THRESHOLDS, true) : null
 
-      // Tier = minimum across all logged exercises — must meet ALL criteria to level up
-      const sTs = [bT, sT, dlT, oT, puT, dipT].filter(Boolean)
-      const stTop = sTs.length
-        ? sTs.reduce((min, t) => t.tier < min.tier ? t : min, sTs[0])
-        : null
+      // Tier = weak link across ALL required exercises
+      // Missing an exercise entirely = T1 (can't be above T1 if core lifts aren't logged)
+      // Required for T2+: Bench + Squat + Deadlift. OHP/Pullup/Dips optional (only lower if logged)
+      const REQUIRED_LIFTS = [bT, sT, dlT] // bench, squat, deadlift — all required
+      const OPTIONAL_LIFTS = [oT, puT, dipT].filter(Boolean) // only count if logged
+
+      const hasRequiredData = bT !== null // at minimum need bench
+      const missingRequired = [bT, sT, dlT].some(t => t === null)
+
+      let stTop
+      if (!hasRequiredData) {
+        stTop = null
+      } else if (missingRequired) {
+        // Has some data but missing squat or deadlift → max T1 (novice)
+        const logged = [bT, sT, dlT, ...OPTIONAL_LIFTS].filter(Boolean)
+        const weakest = logged.reduce((min, t) => t.tier < min.tier ? t : min, logged[0])
+        // Cap at T1 since required lifts are missing
+        stTop = { ...weakest, tier: Math.min(weakest.tier, 1) }
+      } else {
+        // All three required lifts logged — weak link wins, optionals can only lower
+        const allLogged = [...REQUIRED_LIFTS, ...OPTIONAL_LIFTS].filter(Boolean)
+        stTop = allLogged.reduce((min, t) => t.tier < min.tier ? t : min, allLogged[0])
+      }
 
       const wLogs=(healthData||[]).filter(h=>h.weight_kg).slice(0,14)
       const wGoalRaw = userSettings?.goals?.target_weight || userSettings?.goals?.body_weight_goal || 75
@@ -395,15 +413,20 @@ export default function Dashboard() {
   return (
     <div style={{ padding:'0 0 80px', maxWidth:'1100px', margin:'0 auto', overflowX:'hidden' }}>
 
-      {/* HEADER */}
-      <div style={{ padding:'10px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'4px' }} className="dashboard-header-row">
-        <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap' }}>
-          <span style={{ fontSize:'13px', fontWeight:600, color:'var(--text)' }}>{displayName || 'Dashboard'}</span>
-          <span style={{ fontSize:'12px', color:'var(--muted)' }}>{todayDisplay}</span>
-          {bodyWeight && <span style={{ fontSize:'11px', color:'var(--muted)' }}>· {bodyWeight} kg</span>}
+      {/* HEADER — matches other pages */}
+      <div className="page-header">
+        <div>
+          <div className="page-header-title">{displayName || 'Dashboard'}</div>
+          <div className="page-header-sub">{todayDisplay}{bodyWeight ? ` · ${bodyWeight} kg` : ''}</div>
         </div>
         {overallTier && (
-          <span style={{ fontSize:'11px', color:'var(--muted)', flexShrink:0 }}>T{overallTier}/8 · {TIER_NAMES[overallTier]}</span>
+          <div className="page-header-actions">
+            <div style={{ display:'flex', alignItems:'center', gap:'6px', padding:'5px 12px', borderRadius:'20px', background: oColor + '12', border:'1px solid ' + oColor + '30' }}>
+              <div style={{ width:6, height:6, borderRadius:'50%', background:oColor, boxShadow:'0 0 6px ' + oColor }} />
+              <span style={{ fontSize:'12px', fontWeight:700, color:oColor }}>T{overallTier}/8</span>
+              <span style={{ fontSize:'11px', color: oColor + 'aa' }}>{oLabel}</span>
+            </div>
+          </div>
         )}
       </div>
 

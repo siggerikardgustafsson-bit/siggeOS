@@ -7,6 +7,26 @@ const TIER_COLORS = {
   4:'#fbbf24',5:'#34d399',6:'#22d3ee',7:'#f472b6',8:'#fbbf24',
 }
 
+const CAT_PATHS = {
+  kondition:   'M13 10V3L4 14h7v7l9-11h-7z',
+  styrka:      'M6 4v16M18 4v16M3 8h4m10 0h4M3 16h4m10 0h4',
+  kropp:       'M12 3a4 4 0 100 8 4 4 0 000-8zM6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2',
+  somn:        'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z',
+  plugg:       'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  ekonomi:     'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  valmående:   'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+  fardigheter: 'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3',
+}
+
+function CatIcon({ id, color, size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d={CAT_PATHS[id] || CAT_PATHS.kondition} />
+    </svg>
+  )
+}
+
 const TIER_REQUIREMENTS = {
   kondition: [
     { tier:2, label:'Top 50%',  reqs:['5km under 28:00','VO2max ≥ 44 ml/kg/min'] },
@@ -165,9 +185,8 @@ export default function DetailModal({ category, onClose }) {
               background: tierNum > 0 ? tierColor + '18' : 'rgba(255,255,255,0.06)',
               border: '1px solid ' + (tierNum > 0 ? tierColor + '33' : 'rgba(255,255,255,0.08)'),
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '18px',
             }}>
-              {icon}
+              <CatIcon id={id} color={tierNum > 0 ? tierColor : 'rgba(255,255,255,0.3)'} size={20} />
             </div>
             <div>
               <div style={{ fontSize: '17px', fontWeight: 600, color: 'rgba(255,255,255,0.92)', letterSpacing: '-0.02em' }}>
@@ -297,44 +316,77 @@ export default function DetailModal({ category, onClose }) {
                 {requirements.map((t, i) => {
                   const isCurrent = t.tier === tierNum
                   const isPast = t.tier < tierNum
+                  const isNext = t.tier === tierNum + 1
                   const tColor = TIER_COLORS[t.tier] || '#6b7280'
                   return (
                     <div key={i} style={{
                       padding: '11px 14px',
-                      background: isCurrent ? tColor + '12' : 'rgba(255,255,255,0.025)',
-                      border: '1px solid ' + (isCurrent ? tColor + '44' : 'rgba(255,255,255,0.05)'),
+                      background: isCurrent ? tColor + '14' : isPast ? 'rgba(16,185,129,0.05)' : isNext ? tColor + '08' : 'rgba(255,255,255,0.02)',
+                      border: '1px solid ' + (isCurrent ? tColor + '50' : isPast ? 'rgba(16,185,129,0.18)' : isNext ? tColor + '25' : 'rgba(255,255,255,0.04)'),
                       borderRadius: '10px',
-                      opacity: isPast ? 0.45 : 1,
                       position: 'relative', overflow: 'hidden',
                       transition: 'all 0.15s',
                     }}>
                       {isCurrent && (
-                        <div style={{
-                          position: 'absolute', top: 0, left: 0, bottom: 0, width: '2px',
-                          background: tColor, borderRadius: '10px 0 0 10px',
-                        }} />
+                        <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: '3px', background: tColor, borderRadius: '10px 0 0 10px' }} />
                       )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                        {isPast && <span style={{ fontSize: '10px', color: tColor }}>✓</span>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: t.reqs.length ? '7px' : 0 }}>
+                        {/* Status icon */}
                         <div style={{
-                          width: 7, height: 7, borderRadius: '50%',
-                          background: tColor,
-                          boxShadow: isCurrent ? '0 0 8px ' + tColor : 'none',
-                        }} />
-                        <span style={{ fontSize: '12px', fontWeight: 600, color: isCurrent ? tColor : 'rgba(255,255,255,0.4)', letterSpacing: '0.03em' }}>
-                          {t.label}
-                        </span>
-                        {isCurrent && (
-                          <span style={{ fontSize: '10px', color: tColor + 'aa', marginLeft: '2px' }}>← du är här</span>
-                        )}
-                      </div>
-                      <div style={{ paddingLeft: '15px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        {t.reqs.map((r, j) => (
-                          <span key={j} style={{ fontSize: '12px', color: isCurrent ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.25)' }}>
-                            {r}
+                          width: 18, height: 18, borderRadius: '5px', flexShrink: 0,
+                          background: isPast ? 'rgba(16,185,129,0.2)' : isCurrent ? tColor + '22' : 'rgba(255,255,255,0.05)',
+                          border: '1px solid ' + (isPast ? 'rgba(16,185,129,0.4)' : isCurrent ? tColor + '50' : 'rgba(255,255,255,0.08)'),
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {isPast
+                            ? <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            : isCurrent
+                              ? <div style={{ width: 6, height: 6, borderRadius: '50%', background: tColor }} />
+                              : <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
+                          }
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: isPast ? '#10b981' : isCurrent ? tColor : 'rgba(255,255,255,0.3)' }}>
+                            T{t.tier}
                           </span>
-                        ))}
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: isPast ? 'rgba(16,185,129,0.7)' : isCurrent ? tColor : 'rgba(255,255,255,0.25)' }}>
+                            {t.label}
+                          </span>
+                          {isCurrent && (
+                            <span style={{ fontSize: '10px', color: tColor + '99', marginLeft: 'auto', fontStyle: 'italic' }}>← nu</span>
+                          )}
+                          {isPast && (
+                            <span style={{ fontSize: '10px', color: 'rgba(16,185,129,0.5)', marginLeft: 'auto' }}>klar</span>
+                          )}
+                        </div>
                       </div>
+                      {t.reqs.length > 0 && (
+                        <div style={{ paddingLeft: '26px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {t.reqs.map((r, j) => {
+                            // Check if met for styrka
+                            let isMet = isPast
+                            if (!isPast && id === 'styrka' && category.perExercise?.length) {
+                              const reqLower = r.toLowerCase()
+                              const ex = category.perExercise.find(e =>
+                                (reqLower.includes('bänk') && e.label === 'Bänk') ||
+                                (reqLower.includes('knäböj') && e.label === 'Knäböj') ||
+                                (reqLower.includes('mark') && e.label === 'Mark') ||
+                                (reqLower.includes('ohp') || reqLower.includes('militär')) && e.label === 'OHP' ||
+                                (reqLower.includes('pull') && e.label === 'Pull-up')
+                              )
+                              if (ex) isMet = ex.tier.tier >= t.tier
+                            }
+                            return (
+                              <div key={j} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <div style={{ width: 4, height: 4, borderRadius: '50%', flexShrink: 0, background: isMet ? '#10b981' : isPast ? 'rgba(16,185,129,0.4)' : isNext ? tColor + '60' : 'rgba(255,255,255,0.12)' }} />
+                                <span style={{ fontSize: '12px', lineHeight: 1.4, color: isMet ? 'rgba(16,185,129,0.65)' : isPast ? 'rgba(16,185,129,0.5)' : isCurrent || isNext ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.2)', textDecoration: isMet || isPast ? 'line-through' : 'none' }}>
+                                  {r}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
