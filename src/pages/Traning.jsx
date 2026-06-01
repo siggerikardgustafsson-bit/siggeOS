@@ -129,11 +129,26 @@ export default function TraningPage() {
   }, [user])
 
   async function loadCustomExercises() {
-    const { data } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).single()
-    const custom = data?.goals?.custom_exercises || []
-    if (custom.length > 0) {
-      setExerciseLibrary(prev => ({ ...prev, 'Egna': custom }))
-    }
+    const [settingsRes, historyRes] = await Promise.all([
+      supabase.from('user_settings').select('goals').eq('user_id', user.id).single(),
+      supabase.from('training_exercises')
+        .select('exercise_name, training_sessions!inner(user_id)')
+        .eq('training_sessions.user_id', user.id),
+    ])
+
+    const custom = settingsRes.data?.goals?.custom_exercises || []
+
+    // All base exercise names (flat)
+    const baseNames = new Set(Object.values(BASE_EXERCISE_LIBRARY).flat().map(n => n.toLowerCase()))
+
+    // Unique names from history that aren't in the base library
+    const fromHistory = [...new Set((historyRes.data || []).map(r => r.exercise_name).filter(Boolean))]
+      .filter(name => !baseNames.has(name.toLowerCase()))
+
+    // Merge: custom settings + history, deduplicated
+    const allCustom = [...new Set([...custom, ...fromHistory])]
+
+    setExerciseLibrary(prev => ({ ...prev, 'Egna': allCustom }))
   }
 
   async function saveCustomExercise(name) {
