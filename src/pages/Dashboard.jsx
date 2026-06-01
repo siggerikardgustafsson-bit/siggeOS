@@ -306,7 +306,7 @@ export default function Dashboard() {
           details:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',tierInfo:r1T},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',tierInfo:r5T},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',tierInfo:r10T},{label:'Halvmara',value:rHD?formatRunTime(Math.round(rHD.value)):'—',tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT}],
           chartData:(runData||[]).filter(r=>r.distance_km>=4.5&&r.distance_km<=11).slice(0,20).reverse().map(r=>({date:r.date.slice(5),Pace:r.pace_per_km?Math.round(r.pace_per_km/60*10)/10:null})),
           chartLines:[{key:'Pace',label:'Pace (min/km)',color:'#4f8ef7'}],navTarget:'/traning',navLabel:'Träning'},
-        {id:'styrka',name:'Styrka',icon:'styrka',tier:stTop,hasData:sTs.length>0,pct:stTop?Math.round((stTop.tier/8)*100):0,decayWarning:false,trend:'neutral',
+        {id:'styrka',name:'Styrka',icon:'styrka',tier:stTop,hasData:bT !== null,pct:stTop?Math.round((stTop.tier/8)*100):0,decayWarning:false,trend:'neutral',
           perExercise: [
             bT && { label:'Bänk',  tier: bT, value: bE1RM, mult: bE1RM ? Math.round(bE1RM/bw*100)/100 : null },
             sT && { label:'Knäböj', tier: sT, value: sE1RM, mult: sE1RM ? Math.round(sE1RM/bw*100)/100 : null },
