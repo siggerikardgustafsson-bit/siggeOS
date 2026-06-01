@@ -511,24 +511,29 @@ Mål-IDs (kopiera exakt):
             </div>
           </div>
 
-          {/* Compact goal pills — only in chat mode */}
+          {/* Goal pills in chat — single scrollable row */}
           {step === 'chat' && mode === 'normal' && sessionGoals.length > 0 && (
-            <div style={{ display: 'flex', gap: '4px', marginTop: '8px', flexWrap: 'wrap' }}>
+            <div style={{
+              display: 'flex', gap: '5px', marginTop: '8px',
+              overflowX: 'auto', flexWrap: 'nowrap',
+              paddingBottom: '2px',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}>
               {sessionGoals.map(g => {
                 const current = masteryUpdates[g.id] ?? g.effectiveMastery
                 const improved = masteryUpdates[g.id] !== undefined && masteryUpdates[g.id] > g.effectiveMastery
-                // Truncate: first 4 words max
                 const words = g.description.split(' ')
                 const short = words.slice(0, 4).join(' ') + (words.length > 4 ? '…' : '')
                 return (
                   <div key={g.id} title={g.description} style={{
                     display: 'flex', alignItems: 'center', gap: '4px',
-                    padding: '2px 7px', borderRadius: '6px', cursor: 'default',
+                    padding: '3px 8px', borderRadius: '6px', flexShrink: 0,
                     background: improved ? 'rgba(16,185,129,0.1)' : 'var(--modal-surface2)',
                     border: '1px solid ' + (improved ? 'rgba(16,185,129,0.2)' : 'var(--modal-border)'),
                   }}>
-                    <MasteryRing value={current} size={20} />
-                    <span style={{ fontSize: '10px', color: 'var(--muted2)', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{short}</span>
+                    <MasteryRing value={current} size={18} />
+                    <span style={{ fontSize: '10px', color: 'var(--muted2)', whiteSpace: 'nowrap' }}>{short}</span>
                     {improved && <TrendingUp size={8} color="#10b981" />}
                   </div>
                 )
@@ -636,36 +641,36 @@ Mål-IDs (kopiera exakt):
                     <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600' }}>LÄRANDEMÅL ({selectedGoals.length}/{goalsWithDecay.length} valda)</div>
                     <button onClick={() => setSelectedGoals(goalsWithDecay.map(g => g.id))} style={{ fontSize: '12px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>Välj alla</button>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '5px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                     {goalsWithDecay.map(goal => {
                       const selected = selectedGoals.includes(goal.id)
                       const liveMastery = masteryUpdates[goal.id] ?? goal.effectiveMastery
                       const needsReview = goal.last_studied && differenceInDays(new Date(), parseISO(goal.last_studied)) >= 3
                       const wasUpdatedThisSession = masteryUpdates[goal.id] != null
-                      const words = goal.description.split(' ')
-                      const shortLabel = words.slice(0, 5).join(' ') + (words.length > 5 ? '…' : '')
                       return (
-                        <div key={goal.id} title={goal.description} onClick={() => setSelectedGoals(prev => prev.includes(goal.id) ? prev.filter(id => id !== goal.id) : [...prev, goal.id])} style={{
-                          display: 'flex', alignItems: 'center', gap: '7px', padding: '7px 9px',
+                        <div key={goal.id} onClick={() => setSelectedGoals(prev => prev.includes(goal.id) ? prev.filter(id => id !== goal.id) : [...prev, goal.id])} style={{
+                          display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px',
                           borderRadius: '9px', cursor: 'pointer', transition: 'all 0.12s',
                           background: wasUpdatedThisSession ? 'rgba(16,185,129,0.05)' : selected ? 'var(--accent-soft)' : 'var(--modal-surface2)',
                           border: '1px solid ' + (wasUpdatedThisSession ? 'rgba(16,185,129,0.20)' : selected ? 'var(--accent-border)' : 'var(--modal-border)'),
                         }}>
-                          <div style={{ width: '14px', height: '14px', borderRadius: '3px', flexShrink: 0, border: '2px solid ' + (selected ? 'var(--accent)' : 'var(--modal-border)'), background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {selected && <Check size={8} color="white" />}
+                          <div style={{ width: '17px', height: '17px', borderRadius: '4px', flexShrink: 0, border: '2px solid ' + (selected ? 'var(--accent)' : 'var(--modal-border)'), background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {selected && <Check size={10} color="white" />}
                           </div>
-                          <MasteryRing value={liveMastery} size={26} />
+                          <MasteryRing value={liveMastery} size={34} />
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '11px', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{shortLabel}</div>
-                            <div style={{ fontSize: '9px', marginTop: '1px', fontWeight: wasUpdatedThisSession || needsReview ? 600 : 400, color: wasUpdatedThisSession ? '#10b981' : needsReview ? '#f59e0b' : 'var(--muted)' }}>
-                              {wasUpdatedThisSession ? '↑ uppdaterad' : needsReview ? '! Repeteras' : goal.last_studied ? format(parseISO(goal.last_studied), 'd MMM', { locale: sv }) : 'Ej studerad'}
+                            <div style={{ fontSize: '13px', lineHeight: '1.4' }}>{goal.description}</div>
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '2px', fontSize: '10px', color: 'var(--muted)' }}>
+                              {wasUpdatedThisSession && <span style={{ color: '#10b981', fontWeight: 600 }}>↑ uppdaterad</span>}
+                              {!wasUpdatedThisSession && needsReview && <span style={{ color: '#f59e0b' }}>! Repeteras</span>}
+                              {goal.last_studied ? <span>Senast {format(parseISO(goal.last_studied), 'd MMM', { locale: sv })}</span> : <span>Ej studerad</span>}
                             </div>
                           </div>
                         </div>
                       )
                     })}
                     {goalsWithDecay.length === 0 && (
-                      <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '30px', color: 'var(--muted)', fontSize: '13px' }}>Inga lärandemål tillagda</div>
+                      <div style={{ textAlign: 'center', padding: '30px', color: 'var(--muted)', fontSize: '13px' }}>Inga lärandemål tillagda</div>
                     )}
                   </div>
                 </div>
