@@ -3,12 +3,13 @@ import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, BookOpen, Dumbbell, Heart,
   DollarSign, GraduationCap, Briefcase,
-  BarChart2, MessageSquare, LogOut, Compass, Settings, CalendarDays, Download
+  BarChart2, MessageSquare, LogOut, Compass, Settings, CalendarDays, Download, Target
 } from 'lucide-react'
 
 const navItems = [
   { to: '/',            icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/jarvis',      icon: MessageSquare,   label: 'Jarvis' },
+  { to: '/mal',         icon: Target,          label: 'Mål' },
   { to: '/journal',     icon: BookOpen,        label: 'Journal' },
   { to: '/traning',     icon: Dumbbell,        label: 'Träning' },
   { to: '/halsa',       icon: Heart,           label: 'Hälsa' },

@@ -15,6 +15,7 @@ import UpplevelserPage from './pages/Upplevelser'
 import SettingsPage from './pages/Settings'
 import KalenderPage from './pages/Kalender'
 import ExportPage from './pages/Export'
+import GoalsPage from './pages/Goals'
 import AuthCallback from './pages/AuthCallback'
 import StravaCallback from './pages/StravaCallback'
 
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="/insights"      element={<InsightsPage />} />
         <Route path="/kalender"      element={<KalenderPage />} />
         <Route path="/export"        element={<ExportPage />} />
+        <Route path="/mal"           element={<GoalsPage />} />
         <Route path="/installningar" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
