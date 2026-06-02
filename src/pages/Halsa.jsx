@@ -49,6 +49,7 @@ export default function HalsaPage() {
   const { user } = useAuth()
   const fileRef = useRef()
   const [logs, setLogs] = useState([])
+  const [supplementLogs, setSupplementLogs] = useState([])
   const [supplements, setSupplements] = useState(DEFAULT_SUPPLEMENTS)
   const [newSupplement, setNewSupplement] = useState('')
   const [importing, setImporting] = useState(false)
@@ -71,12 +72,40 @@ export default function HalsaPage() {
   const [nutritionForm, setNutritionForm] = useState({ date: today, fasting: false, calories: '', protein_g: '', water_liters: '' })
   const [suppForm, setSuppForm] = useState({ date: today, supplements_taken: [] })
 
-  useEffect(() => { if (user) { fetchLogs(); fetchTodayLog(); fetchUserSettings() } }, [user])
+  useEffect(() => { if (user) { fetchLogs(); fetchSupplementLogs(); fetchTodayLog(); fetchUserSettings() } }, [user])
+
+  useEffect(() => {
+    const namesForDate = supplementLogs
+      .filter(l => l.date === suppForm.date && l.taken)
+      .map(l => l.supplement_name)
+    setSuppForm(f => ({ ...f, supplements_taken: namesForDate }))
+  }, [suppForm.date, supplementLogs])
 
   async function fetchLogs() {
     const since = format(subDays(new Date(), 90), 'yyyy-MM-dd')
     const { data } = await supabase.from('health_logs').select('*').eq('user_id', user.id).gte('date', since).order('date', { ascending: false })
     setLogs(data || [])
+  }
+
+
+  async function fetchSupplementLogs() {
+    const since = format(subDays(new Date(), 90), 'yyyy-MM-dd')
+    const { data, error } = await supabase
+      .from('supplement_logs')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('date', since)
+      .order('date', { ascending: false })
+    if (error) {
+      console.error('Kunde inte hämta supplement_logs', error)
+      setSupplementLogs([])
+      return
+    }
+    setSupplementLogs(data || [])
+    const names = Array.from(new Set((data || []).map(l => l.supplement_name).filter(Boolean)))
+    if (names.length) {
+      setSupplements(prev => Array.from(new Set([...prev, ...names])))
+    }
   }
 
   async function fetchTodayLog() {
@@ -88,6 +117,15 @@ export default function HalsaPage() {
       setSubstanceForm(f => ({ ...f, alcohol_units: data.alcohol_units || '', nicotine: data.nicotine ? ['snus'] : [] }))
       if (data.retatrutide_dose_mg) setRetForm(f => ({ ...f, retatrutide_injected: true, retatrutide_dose_mg: data.retatrutide_dose_mg }))
     }
+
+    const { data: supps } = await supabase
+      .from('supplement_logs')
+      .select('supplement_name,taken')
+      .eq('user_id', user.id)
+      .eq('date', today)
+    if (supps) {
+      setSuppForm(f => ({ ...f, supplements_taken: supps.filter(s => s.taken).map(s => s.supplement_name) }))
+    }
   }
 
   async function fetchUserSettings() {
@@ -97,6 +135,10 @@ export default function HalsaPage() {
       .eq('user_id', user.id)
       .single()
     setUserSettings(data || null)
+    const active = data?.goals?.active_supplements || data?.goals?.supplements
+    if (Array.isArray(active) && active.length) {
+      setSupplements(Array.from(new Set(active.filter(Boolean))))
+    }
   }
 
   async function saveWidget(widget, payload) {
@@ -114,6 +156,47 @@ export default function HalsaPage() {
     setSavingWidget(s => ({ ...s, nutrition: false }))
     setSavedWidget(s => ({ ...s, nutrition: true }))
     setTimeout(() => setSavedWidget(s => ({ ...s, nutrition: false })), 2000)
+  }
+
+
+  async function saveSupplements() {
+    const date = suppForm.date || today
+    setSavingWidget(s => ({ ...s, supps: true }))
+
+    const rows = supplements.map(name => ({
+      user_id: user.id,
+      date,
+      supplement_name: name,
+      taken: suppForm.supplements_taken.includes(name),
+      source: 'manual',
+      updated_at: new Date().toISOString(),
+    }))
+
+    const { error } = await supabase
+      .from('supplement_logs')
+      .upsert(rows, { onConflict: 'user_id,date,supplement_name' })
+
+    if (error) {
+      console.error('Kunde inte spara kosttillskott', error)
+      alert('Kunde inte spara kosttillskott. Har du kört migrationen för supplement_logs?')
+    } else {
+      await fetchSupplementLogs()
+      setSavedWidget(s => ({ ...s, supps: true }))
+      setTimeout(() => setSavedWidget(s => ({ ...s, supps: false })), 2000)
+    }
+
+    setSavingWidget(s => ({ ...s, supps: false }))
+  }
+
+  async function saveSupplementList(nextList) {
+    setSupplements(nextList)
+    const goals = { ...(userSettings?.goals || {}), active_supplements: nextList }
+    const { data, error } = await supabase
+      .from('user_settings')
+      .upsert({ user_id: user.id, goals, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+      .select('goals')
+      .single()
+    if (!error) setUserSettings(data || { goals })
   }
 
   async function openEditLog(log) {
@@ -174,11 +257,17 @@ export default function HalsaPage() {
   }
 
   const latestWeight = logs.find(l => l.weight_kg)?.weight_kg
-  const targetWeightRaw = userSettings?.goals?.target_weight || userSettings?.goals?.body_weight_goal
+  const targetWeightRaw = userSettings?.goals?.body_weight_goal || userSettings?.goals?.target_weight || userSettings?.goals?.weight_goal_kg || userSettings?.goals?.målvikt
   const targetWeight = targetWeightRaw ? parseFloat(targetWeightRaw) : null
   const avgSleep = logs.slice(0,7).filter(l => l.sleep_hours).reduce((s,l,_,a) => s+l.sleep_hours/a.length, 0)
   const avgSteps = logs.slice(0,7).filter(l => l.steps).reduce((s,l,_,a) => s+l.steps/a.length, 0)
   const chartData = logs.slice().reverse().map(l => ({ date: l.date, weight: l.weight_kg||null, sleep: l.sleep_hours||null, steps: l.steps||null, alcohol: l.alcohol_units||null }))
+  const supp7Cutoff = format(subDays(new Date(), 6), 'yyyy-MM-dd')
+  const activeSupplements = supplements.length ? supplements : DEFAULT_SUPPLEMENTS
+  const supp7 = supplementLogs.filter(l => l.date >= supp7Cutoff)
+  const suppTaken7 = supp7.filter(l => l.taken).length
+  const suppExpected7 = activeSupplements.length * 7
+  const supplementCompliance7 = supp7.length && suppExpected7 ? Math.round((suppTaken7 / suppExpected7) * 100) : null
 
   const tabs = [{ id:'log', label:'Logga' }, { id:'grafer', label:'Grafer' }, { id:'historik', label:'Historik' }]
 
@@ -192,6 +281,7 @@ export default function HalsaPage() {
             {targetWeight && <span style={{ color:'#f59e0b' }}>mål {targetWeight} kg</span>}
             {avgSleep > 0 && <span style={{ color:'#06b6d4' }}> {avgSleep.toFixed(1)}h</span>}
             {avgSteps > 0 && <span style={{ color:'#f59e0b' }}>{Math.round(avgSteps).toLocaleString('sv-SE')} steg</span>}
+            {supplementCompliance7 != null && <span style={{ color:'#06b6d4' }}>💊 {supplementCompliance7}%</span>}
           </div>
         </div>
         <div style={{ display:'flex', gap:'7px' }}>
@@ -339,9 +429,13 @@ export default function HalsaPage() {
 
               {/* KOSTTILLSKOTT */}
               <Widget title="Kosttillskott" icon={<Pill size={14} color="#06b6d4" />} color="#06b6d4"
-                action={<SaveBtn onClick={() => saveWidget('supps', { date: suppForm.date, supplements_taken: suppForm.supplements_taken })} saving={savingWidget.supps} saved={savedWidget.supps} />}>
+                action={<SaveBtn onClick={saveSupplements} saving={savingWidget.supps} saved={savedWidget.supps} />}>
                 <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
                   <input type="date" className="input" value={suppForm.date} onChange={e => setSuppForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px', padding:'8px 10px', borderRadius:'10px', background:'var(--surface2)', border:'1px solid var(--border)' }}>
+                  <span style={{ fontSize:'11px', color:'var(--muted)', fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase' }}>7d compliance</span>
+                  <span style={{ fontSize:'13px', color:'#06b6d4', fontWeight:800 }}>{supplementCompliance7 != null ? supplementCompliance7 + '%' : 'Ej loggat'}</span>
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginBottom:'10px' }}>
                   {supplements.map(supp => {
@@ -361,8 +455,8 @@ export default function HalsaPage() {
                   })}
                 </div>
                 <div style={{ display:'flex', gap:'6px', borderTop:'1px solid var(--border)', paddingTop:'10px' }}>
-                  <input className="input" placeholder="Lägg till..." value={newSupplement} onChange={e => setNewSupplement(e.target.value)} onKeyDown={e => { if (e.key==='Enter' && newSupplement.trim()) { setSupplements(p => [...p, newSupplement.trim()]); setNewSupplement('') } }} style={{ fontSize:'12px' }} />
-                  <button onClick={() => { if (newSupplement.trim()) { setSupplements(p => [...p, newSupplement.trim()]); setNewSupplement('') } }} className="btn btn-ghost" style={{ padding:'8px', flexShrink:0 }}><Plus size={13} /></button>
+                  <input className="input" placeholder="Lägg till..." value={newSupplement} onChange={e => setNewSupplement(e.target.value)} onKeyDown={e => { if (e.key==='Enter' && newSupplement.trim()) { saveSupplementList([...supplements, newSupplement.trim()]); setNewSupplement('') } }} style={{ fontSize:'12px' }} />
+                  <button onClick={() => { if (newSupplement.trim()) { saveSupplementList([...supplements, newSupplement.trim()]); setNewSupplement('') } }} className="btn btn-ghost" style={{ padding:'8px', flexShrink:0 }}><Plus size={13} /></button>
                 </div>
               </Widget>
             </div>
@@ -493,6 +587,7 @@ export default function HalsaPage() {
                       {log.sleep_hours && <span style={{ fontSize:'12px', color:'#8b5cf6' }}> {log.sleep_hours}h</span>}
                       {log.steps && <span style={{ fontSize:'12px', color:'#f59e0b' }}> {log.steps.toLocaleString('sv-SE')}</span>}
                       {log.alcohol_units > 0 && <span style={{ fontSize:'12px', color:'#ef4444' }}>{log.alcohol_units} enheter alkohol</span>}
+                      {supplementLogs.some(s => s.date === log.date && s.taken) && <span style={{ fontSize:'12px', color:'#06b6d4' }}>💊 {supplementLogs.filter(s => s.date === log.date && s.taken).length}/{supplements.length}</span>}
                       {log.nicotine && <span style={{ fontSize:'12px', color:'#f59e0b' }}>nikotin</span>}
                       {log.retatrutide_dose_mg && <span style={{ fontSize:'12px', color:'#a78bfa' }}> {log.retatrutide_dose_mg}mg</span>}
                     </div>

@@ -15,6 +15,8 @@ import {
   TIER_COLORS, TIER_NAMES,
 } from '../components/dashboard/tierUtils'
 
+const DEFAULT_SUPPLEMENTS = ['Kreatin', 'D-vitamin', 'Omega-3', 'Multivitamin', 'Magnesium']
+
 const GRAPH_CATS = [
   { id:'somn',      label:'Sömn',      color:'#8b5cf6' },
   { id:'valmående', label:'Hälsa', color:'#f472b6' },
@@ -164,7 +166,7 @@ export default function Dashboard() {
       const [
         { data: runData }, { data: prData }, { data: healthData },
         { data: studyData }, { data: paData }, { data: skillData }, { data: userSettings },
-        { data: exData }, { data: snapshots },
+        { data: exData }, { data: supplementLogs }, { data: snapshots },
       ] = await Promise.all([
         supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
         supabase.from('personal_records').select('exercise_name,weight_kg,reps,date,updated_at').eq('user_id',userId).order('weight_kg',{ascending:false}),
@@ -178,6 +180,12 @@ export default function Dashboard() {
           .eq('training_sessions.user_id', userId)
           .gte('training_sessions.date', format(subDays(todayDate, 60), 'yyyy-MM-dd'))
           .not('weight_kg','is',null).not('reps','is',null),
+        supabase.from('supplement_logs')
+          .select('date,supplement_name,taken')
+          .eq('user_id', userId)
+          .gte('date', since90)
+          .then(r => r)
+          .catch(() => ({ data: [] })),
         supabase.from('tier_snapshots')
           .select('date,kondition,styrka,plugg,ekonomi,somn,valmående')
           .eq('user_id', userId)
@@ -380,8 +388,13 @@ export default function Dashboard() {
       const aE=a7('energy_level','energy'), aMo=a7('mood'), aSteps=a7('steps')
       const alcohol7=(healthData||[]).filter(h=>h.date>=s7&&h.alcohol_units!=null).reduce((sum,h)=>sum+Number(h.alcohol_units||0),0)
       const alcoholLogged=(healthData||[]).some(h=>h.date>=s7&&h.alcohol_units!=null)
-      const supplementRaw = goalValue(userSettings?.goals, ['supplement_compliance','supplement_compliance_7d','supplementCompliance','kosttillskott_compliance'], null)
-      const supplementCompliance = parseNumber(supplementRaw)
+      const activeSupplements = Array.isArray(userSettings?.goals?.active_supplements) && userSettings.goals.active_supplements.length
+        ? userSettings.goals.active_supplements.filter(Boolean)
+        : DEFAULT_SUPPLEMENTS
+      const supp7 = (supplementLogs || []).filter(l => l.date >= s7)
+      const supplementTaken7 = supp7.filter(l => l.taken).length
+      const supplementExpected7 = activeSupplements.length * 7
+      const supplementCompliance = supp7.length && supplementExpected7 ? Math.round((supplementTaken7 / supplementExpected7) * 100) : null
       const eT=aE!=null?getTier(aE,ENERGY_THRESHOLDS,true):null
       const moT=aMo!=null?getTier(aMo,MOOD_THRESHOLDS,true):null
       const alcoholT=alcoholLogged?getTier(alcohol7,[14,10,7,5,3,1,0.1],false):null
@@ -585,8 +598,8 @@ export default function Dashboard() {
             {label:'Kosttillskott',value:supplementCompliance!=null?supplementCompliance+'%':'Ej loggat',tierInfo:supplementT},
             {label:'Alkohol 7d',value:alcoholLogged?Math.round(alcohol7*10)/10+' enheter':'Ej loggat',tierInfo:alcoholT},
           ],
-          chartData:(healthData||[]).filter(h=>(h.energy_level ?? h.energy)||h.mood||h.weight_kg||h.alcohol_units!=null).slice(0,14).reverse().map(h=>({date:h.date.slice(5),Energi:h.energy_level ?? h.energy,Humör:h.mood,Vikt:h.weight_kg,Alkohol:h.alcohol_units})),
-          chartLines:[{key:'Energi',label:'Energi',color:'#fbbf24'},{key:'Humör',label:'Humör',color:'#34d399'},{key:'Vikt',label:'Vikt',color:'#a78bfa'},{key:'Alkohol',label:'Alkohol',color:'#f87171'}],
+          chartData:(healthData||[]).filter(h=>(h.energy_level ?? h.energy)||h.mood||h.alcohol_units!=null).slice(0,14).reverse().map(h=>({date:h.date.slice(5),Energi:h.energy_level ?? h.energy,Humör:h.mood,Alkohol:h.alcohol_units})),
+          chartLines:[{key:'Energi',label:'Energi',color:'#fbbf24'},{key:'Humör',label:'Humör',color:'#34d399'},{key:'Alkohol',label:'Alkohol',color:'#f87171'}],
           levelUp:wellLevelUp,
           navTarget:'/halsa',navLabel:'Hälsa'},
       ]
