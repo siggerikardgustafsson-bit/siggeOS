@@ -71,47 +71,63 @@ const ASSET_TYPES = [
 
 const CRYPTO_IDS = { 'BTC': 'bitcoin', 'ETH': 'ethereum', 'bitcoin': 'bitcoin', 'ethereum': 'ethereum' }
 
-async function fetchLivePrices(assets, usdSek) {
-  const results = {}
-
-  // Group by type
-  const stocks = assets.filter(a => a.type === 'stock' || a.type === 'fund')
-  const cryptos = assets.filter(a => a.type === 'crypto')
-
-  // Fetch stock/fund prices via Yahoo Finance (via allorigins proxy)
-  for (const asset of stocks) {
-    if (!asset.ticker) continue
-    try {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.ticker)}?interval=1d&range=1d`
-      const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
-      const res = await fetch(proxy)
+async function fetchYahooPrice(ticker, timeoutMs = 4000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    // Try direct Yahoo Finance first (works in some browsers/environments)
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`
+    const res = await fetch(url, { signal: controller.signal }).catch(() => null)
+    if (res?.ok) {
       const data = await res.json()
       const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice
       const currency = data?.chart?.result?.[0]?.meta?.currency
-      if (price) {
-        // Convert to SEK if needed
-        const priceSek = currency === 'SEK' ? price : price * (usdSek || 10.5)
-        results[asset.id] = { price: priceSek, currency: 'SEK', source: 'yahoo' }
-      }
-    } catch(e) {
-      console.warn('Yahoo fetch failed for', asset.ticker, e)
+      clearTimeout(timer)
+      return { price, currency }
     }
+    // Fallback: corsproxy.io (faster than allorigins)
+    const proxy = `https://corsproxy.io/?${encodeURIComponent(url)}`
+    const res2 = await fetch(proxy, { signal: controller.signal })
+    const data2 = await res2.json()
+    const price2 = data2?.chart?.result?.[0]?.meta?.regularMarketPrice
+    const currency2 = data2?.chart?.result?.[0]?.meta?.currency
+    clearTimeout(timer)
+    return { price: price2, currency: currency2 }
+  } catch(e) {
+    clearTimeout(timer)
+    return { price: null, currency: null }
   }
+}
 
-  // Fetch crypto prices via CoinGecko (free, no API key)
+async function fetchLivePrices(assets, usdSek) {
+  const results = {}
+  const stocks = assets.filter(a => a.type === 'stock' || a.type === 'fund')
+  const cryptos = assets.filter(a => a.type === 'crypto')
+
+  // Fetch all stock/fund prices in parallel
+  await Promise.all(stocks.map(async (asset) => {
+    if (!asset.ticker) return
+    const { price, currency } = await fetchYahooPrice(asset.ticker)
+    if (price) {
+      const priceSek = currency === 'SEK' ? price : price * (usdSek || 10.5)
+      results[asset.id] = { price: priceSek, currency: 'SEK', source: 'yahoo' }
+    }
+  }))
+
+  // Fetch all crypto prices in one request
   if (cryptos.length > 0) {
     try {
       const ids = cryptos.map(a => CRYPTO_IDS[a.ticker] || a.ticker.toLowerCase()).join(',')
-      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=sek`)
+      const controller = new AbortController()
+      setTimeout(() => controller.abort(), 5000)
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=sek`, { signal: controller.signal })
       const data = await res.json()
       for (const asset of cryptos) {
         const geckoId = CRYPTO_IDS[asset.ticker] || asset.ticker.toLowerCase()
         const priceSek = data?.[geckoId]?.sek
         if (priceSek) results[asset.id] = { price: priceSek, currency: 'SEK', source: 'coingecko' }
       }
-    } catch(e) {
-      console.warn('CoinGecko fetch failed', e)
-    }
+    } catch(e) { console.warn('CoinGecko failed', e) }
   }
 
   return results
@@ -119,11 +135,8 @@ async function fetchLivePrices(assets, usdSek) {
 
 async function fetchUsdSek() {
   try {
-    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/USDSEK=X?interval=1d&range=1d'
-    const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
-    const res = await fetch(proxy)
-    const data = await res.json()
-    return data?.chart?.result?.[0]?.meta?.regularMarketPrice || 10.5
+    const { price } = await fetchYahooPrice('USDSEK=X', 3000)
+    return price || 10.5
   } catch { return 10.5 }
 }
 
