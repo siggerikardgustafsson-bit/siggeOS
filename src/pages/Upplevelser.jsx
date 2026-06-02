@@ -22,7 +22,7 @@ const COUNTRIES = [
   'USA','Kanada','Mexiko','Kuba','Costa Rica','Colombia','Peru','Argentina','Brasilien',
   'Japan','Kina','Sydkorea','Thailand','Vietnam','Indonesien','Indien','Singapore','Malaysia','Filippinerna',
   'Australien','Nya Zeeland',
-  'Sydafrika','Kenya','Etiopien','Tanzania',
+  'Sydafrika','Kenya','Etiopien','Tanzania','Marocko',
 ]
 const FLAGS = {
   'Sverige':'🇸🇪','Norge':'🇳🇴','Danmark':'🇩🇰','Finland':'🇫🇮','Island':'🇮🇸',
@@ -79,7 +79,9 @@ function StarRating({ value, onChange }) {
 function CountryPicker({ selected, onChange }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const triggerRef = React.useRef(null)
   const searchRef = React.useRef(null)
+  const [dropRect, setDropRect] = useState(null)
 
   const toggle = (c) => {
     if (selected.includes(c)) onChange(selected.filter(x => x !== c))
@@ -90,58 +92,94 @@ function CountryPicker({ selected, onChange }) {
     ? COUNTRIES.filter(c => c.toLowerCase().includes(search.toLowerCase()))
     : COUNTRIES
 
-  // Auto-focus search when opened
+  function handleOpen() {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setDropRect(rect)
+    }
+    setOpen(o => !o)
+    setSearch('')
+  }
+
   React.useEffect(() => {
     if (open && searchRef.current) searchRef.current.focus()
   }, [open])
 
+  React.useEffect(() => {
+    if (!open) return
+    const close = (e) => {
+      if (triggerRef.current && !triggerRef.current.closest('[data-country-picker]')?.contains(e.target)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
   return (
-    <div style={{ position: 'relative' }}>
-      <button type="button" onClick={() => { setOpen(!open); setSearch('') }} style={{
+    <div data-country-picker="true" style={{ position: 'relative' }} ref={triggerRef}>
+      <button type="button" onClick={handleOpen} style={{
         width: '100%', padding: '10px 12px', borderRadius: '8px',
-        border: '1px solid var(--border)', background: 'var(--surface)',
-        color: selected.length ? 'var(--text)' : 'var(--muted)',
+        border: '1px solid var(--border)', background: 'rgba(20,24,36,0.95)',
+        color: selected.length ? '#f1f5f9' : 'rgba(148,163,184,0.8)',
         cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif',
-        fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        gap: 8,
       }}>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 8 }}>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selected.length === 0 ? 'Välj länder...' :
            selected.map(c => (FLAGS[c] || '🌍') + ' ' + c).join(', ')}
         </span>
-        {selected.length > 0 && (
-          <span style={{ fontSize: '11px', background: 'var(--accent)', color: 'white', borderRadius: '10px', padding: '1px 7px', marginRight: 6, flexShrink: 0 }}>
-            {selected.length}
-          </span>
-        )}
-        <ChevronDown size={14} color="var(--muted)" style={{ flexShrink: 0 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {selected.length > 0 && (
+            <span style={{
+              fontSize: '11px', background: '#3b82f6', color: 'white',
+              borderRadius: '10px', padding: '1px 7px', fontWeight: 600,
+            }}>{selected.length}</span>
+          )}
+          <ChevronDown size={14} color="rgba(148,163,184,0.8)" />
+        </div>
       </button>
+
       {open && (
         <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
-          background: 'var(--surface2)', border: '1px solid var(--border)',
-          borderRadius: '12px', marginTop: '4px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-          overflow: 'hidden',
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
+          marginTop: 6, borderRadius: 12, overflow: 'hidden',
+          background: '#1a2035',
+          border: '1px solid rgba(255,255,255,0.12)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.8), 0 4px 16px rgba(0,0,0,0.6)',
         }}>
           {/* Search */}
-          <div style={{ padding: '10px 10px 6px' }}>
+          <div style={{ padding: '10px 10px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <input
               ref={searchRef}
-              className="input"
               placeholder="Sök land..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ fontSize: '13px', padding: '7px 10px' }}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '8px 12px', borderRadius: 8,
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: '#f1f5f9', fontSize: '13px',
+                fontFamily: 'Inter, sans-serif', outline: 'none',
+              }}
             />
           </div>
+
           {/* Selected chips */}
           {selected.length > 0 && (
-            <div style={{ padding: '4px 10px 8px', display: 'flex', gap: '5px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+            <div style={{
+              padding: '8px 10px', display: 'flex', gap: 5, flexWrap: 'wrap',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              background: 'rgba(59,130,246,0.06)',
+            }}>
               {selected.map(c => (
                 <button key={c} onClick={() => toggle(c)} style={{
-                  display: 'flex', alignItems: 'center', gap: '4px',
-                  padding: '3px 8px', borderRadius: '20px', border: 'none',
-                  background: 'rgba(59,130,246,0.18)', color: '#60a5fa',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '3px 8px', borderRadius: 20,
+                  border: '1px solid rgba(59,130,246,0.4)',
+                  background: 'rgba(59,130,246,0.15)', color: '#93c5fd',
                   fontSize: '12px', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
                 }}>
                   {FLAGS[c] || '🌍'} {c} <X size={10} />
@@ -149,33 +187,43 @@ function CountryPicker({ selected, onChange }) {
               ))}
             </div>
           )}
-          {/* Country list */}
-          <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-            {filtered.length === 0 ? (
-              <div style={{ padding: '16px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>Inga länder hittades</div>
-            ) : filtered.map(c => (
-              <button key={c} onClick={() => toggle(c)} style={{
-                width: '100%', padding: '9px 14px', border: 'none',
-                cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif',
-                fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px',
-                color: selected.includes(c) ? 'var(--text)' : 'var(--muted)',
-                background: selected.includes(c) ? 'rgba(59,130,246,0.1)' : 'transparent',
-                transition: 'background 0.1s',
-              }}
-              onMouseEnter={e => { if (!selected.includes(c)) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-              onMouseLeave={e => { if (!selected.includes(c)) e.currentTarget.style.background = 'transparent' }}
-              >
-                <span style={{ fontSize: '16px', lineHeight: 1 }}>{FLAGS[c] || '🌍'}</span>
-                <span style={{ flex: 1 }}>{c}</span>
-                {selected.includes(c) && <Check size={13} color="#3b82f6" />}
-              </button>
-            ))}
+
+          {/* List */}
+          <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+            {filtered.length === 0
+              ? <div style={{ padding: 16, textAlign: 'center', color: 'rgba(148,163,184,0.6)', fontSize: '13px' }}>Inga resultat</div>
+              : filtered.map(c => (
+                <button key={c} onClick={() => toggle(c)} style={{
+                  width: '100%', padding: '9px 14px', border: 'none',
+                  cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif',
+                  fontSize: '13px', display: 'flex', alignItems: 'center', gap: 10,
+                  color: selected.includes(c) ? '#f1f5f9' : 'rgba(203,213,225,0.75)',
+                  background: selected.includes(c) ? 'rgba(59,130,246,0.14)' : 'transparent',
+                  transition: 'background 0.08s',
+                }}
+                onMouseEnter={e => { if (!selected.includes(c)) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+                onMouseLeave={e => { if (!selected.includes(c)) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>{FLAGS[c] || '🌍'}</span>
+                  <span style={{ flex: 1 }}>{c}</span>
+                  {selected.includes(c) && <Check size={13} color="#60a5fa" />}
+                </button>
+              ))
+            }
           </div>
+
           {/* Footer */}
-          <div style={{ borderTop: '1px solid var(--border)', padding: '8px 12px', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{
+            borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 12px',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            background: 'rgba(0,0,0,0.2)',
+          }}>
+            <span style={{ fontSize: '12px', color: 'rgba(148,163,184,0.6)' }}>
+              {filtered.length} länder
+            </span>
             <button onClick={() => { setOpen(false); setSearch('') }} style={{
-              background: 'var(--surface3)', border: '1px solid var(--border)',
-              borderRadius: '6px', padding: '5px 14px', color: 'var(--text)',
+              background: 'rgba(59,130,246,0.2)', border: '1px solid rgba(59,130,246,0.35)',
+              borderRadius: 6, padding: '5px 16px', color: '#93c5fd',
               fontSize: '12px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontWeight: 600,
             }}>Klar</button>
           </div>
