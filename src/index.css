@@ -950,3 +950,46 @@ em strong {
     margin-top: 5px !important;
   }
 }
+
+/* ============================================================
+   PLAYFAIR CTA BUTTONS — premium editorial accent
+   ============================================================ */
+
+/* Primary blue buttons like "+ Ny kurs" */
+.btn-primary,
+button.btn-primary,
+a.btn-primary {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  font-size: 19px !important;
+  line-height: 1 !important;
+  letter-spacing: -0.045em !important;
+}
+
+/* Larger primary buttons get more display character */
+.btn-primary.btn-lg,
+button.btn-primary.btn-lg,
+a.btn-primary.btn-lg {
+  font-size: 24px !important;
+  padding-top: 15px !important;
+  padding-bottom: 17px !important;
+}
+
+/* If some pages use raw blue buttons without btn-primary */
+button[style*="linear-gradient"],
+button[style*="#3b82f6"],
+button[style*="rgb(59, 130, 246)"] {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.045em !important;
+}
+
+/* Keep small icon-only buttons normal */
+.btn-icon,
+button.btn-icon,
+button[aria-label] {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  letter-spacing: normal !important;
+}
