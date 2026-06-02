@@ -184,7 +184,7 @@ export default function JournalPage() {
           user_id: user.id, date: dateStr, sleep_hours: form.sleep_hours,
           sleep_quality: form.sleep_type === 'normal' ? 8 : form.sleep_type === 'uppdelad' ? 5 : 6,
           sleep_type: form.sleep_type, sleep_note: form.sleep_note,
-          energy: form.energy, source: 'journal',
+          energy: form.energy, energy_level: form.energy, source: 'journal',
         }, { onConflict: 'user_id,date' })
         if (form.skills?.length) {
           await supabase.from('skill_logs').delete().eq('user_id', user.id).eq('date', dateStr)

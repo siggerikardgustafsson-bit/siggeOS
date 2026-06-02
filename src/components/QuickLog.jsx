@@ -14,7 +14,6 @@ const FEELING_OPTS = [
   { v: 7, label: 'Bra' },
   { v: 9, label: 'Grym' },
 ]
-// Synkad med BASE_EXERCISE_LIBRARY i Traning.jsx — uppdatera båda ställena
 const EXERCISE_LIBRARY = {
   'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Armhävningar'],
   'Rygg': ['Marklyft', 'Latsdrag', 'Rodd', 'Pull-ups', 'Weighted pull-up', 'Hyperextensions'],
@@ -22,18 +21,7 @@ const EXERCISE_LIBRARY = {
   'Axlar': ['Militärpress', 'Sidolyft', 'Framåtlyft', 'Face pulls', 'Shrugs'],
   'Armar': ['Bicepscurl', 'Hammercurl', 'Tryckkpress', 'Skullcrusher', 'Kabeldrag'],
   'Core': ['Plankan', 'Situps', 'Crunches', 'Russian twist', 'Bäckenlyft'],
-  'Egna': [],
 }
-
-// Speglar BW_EXERCISES i Traning.jsx — övningar där weight = added weight ovanpå kroppsvikt
-const BW_EXERCISES = new Set([
-  'pull-ups','pullups','pull up','pull-up','weighted pull-up',
-  'dips','dip',
-  'armhävningar','pushups','push-ups','push ups',
-  'chin-ups','chinups','chins',
-  'muscle up','muscle-up',
-  'ring dips','plankan',
-])
 
 // ── Shared UI helpers ──────────────────────────────────────────────────────
 
@@ -258,7 +246,7 @@ function GymForm({ onSave, saving }) {
                 {/* Header */}
                 <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 28px', gap: '6px', alignItems: 'center' }}>
                   <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 600, textAlign: 'center' }}>#</div>
-                  <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 600, textAlign: 'center' }}>{BW_EXERCISES.has(ex.name.toLowerCase().trim()) ? '+KG' : 'KG'}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 600, textAlign: 'center' }}>KG</div>
                   <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 600, textAlign: 'center' }}>REPS</div>
                   <div />
                 </div>
@@ -267,7 +255,7 @@ function GymForm({ onSave, saving }) {
                     <div style={{ fontSize: '11px', color: 'var(--muted)', textAlign: 'center', fontWeight: 600 }}>{si + 1}</div>
                     <input
                       className="input" type="number" inputMode="decimal" step="0.5"
-                      placeholder={BW_EXERCISES.has(ex.name.toLowerCase().trim()) ? '0=BW' : '—'} value={s.weight}
+                      placeholder="—" value={s.weight}
                       onChange={e => updateSet(i, si, 'weight', e.target.value)}
                       style={{ textAlign: 'center', padding: '7px 6px', fontSize: '13px', fontWeight: 600 }}
                     />
@@ -449,7 +437,7 @@ export default function QuickLog() {
         const payload = { user_id: user.id, date: today }
         if (form.weight_kg) payload.weight_kg = parseFloat(form.weight_kg)
         if (form.sleep_hours) payload.sleep_hours = parseFloat(form.sleep_hours)
-        if (form.energy) payload.energy = form.energy
+        if (form.energy) { payload.energy = form.energy; payload.energy_level = form.energy }
         if (form.steps) payload.steps = parseInt(form.steps)
         await supabase.from('health_logs').upsert(payload, { onConflict: 'user_id,date' })
 
