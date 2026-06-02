@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Plus, X, Save, Loader, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Map } from 'lucide-react'
+import { Plus, X, Save, Loader, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Map, Target, RefreshCw, Edit2, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 
 const EXPENSE_CATEGORIES = [
   { id: 'mat',             label: 'Mat',             color: '#f97316', emoji: '' },
@@ -59,6 +59,399 @@ function DonutChart({ data, size = 140 }) {
       })}
       <circle cx={r} cy={r} r={inner * 0.85} fill="var(--surface)" />
     </svg>
+  )
+}
+
+const ASSET_TYPES = [
+  { id: 'stock',   label: 'Aktie',    color: '#3b82f6' },
+  { id: 'fund',    label: 'Fond',     color: '#8b5cf6' },
+  { id: 'crypto',  label: 'Crypto',   color: '#f59e0b' },
+  { id: 'cash',    label: 'Sparkonto',color: '#10b981' },
+]
+
+const CRYPTO_IDS = { 'BTC': 'bitcoin', 'ETH': 'ethereum', 'bitcoin': 'bitcoin', 'ethereum': 'ethereum' }
+
+async function fetchLivePrices(assets, usdSek) {
+  const results = {}
+
+  // Group by type
+  const stocks = assets.filter(a => a.type === 'stock' || a.type === 'fund')
+  const cryptos = assets.filter(a => a.type === 'crypto')
+
+  // Fetch stock/fund prices via Yahoo Finance (via allorigins proxy)
+  for (const asset of stocks) {
+    if (!asset.ticker) continue
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(asset.ticker)}?interval=1d&range=1d`
+      const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+      const res = await fetch(proxy)
+      const data = await res.json()
+      const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice
+      const currency = data?.chart?.result?.[0]?.meta?.currency
+      if (price) {
+        // Convert to SEK if needed
+        const priceSek = currency === 'SEK' ? price : price * (usdSek || 10.5)
+        results[asset.id] = { price: priceSek, currency: 'SEK', source: 'yahoo' }
+      }
+    } catch(e) {
+      console.warn('Yahoo fetch failed for', asset.ticker, e)
+    }
+  }
+
+  // Fetch crypto prices via CoinGecko (free, no API key)
+  if (cryptos.length > 0) {
+    try {
+      const ids = cryptos.map(a => CRYPTO_IDS[a.ticker] || a.ticker.toLowerCase()).join(',')
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=sek`)
+      const data = await res.json()
+      for (const asset of cryptos) {
+        const geckoId = CRYPTO_IDS[asset.ticker] || asset.ticker.toLowerCase()
+        const priceSek = data?.[geckoId]?.sek
+        if (priceSek) results[asset.id] = { price: priceSek, currency: 'SEK', source: 'coingecko' }
+      }
+    } catch(e) {
+      console.warn('CoinGecko fetch failed', e)
+    }
+  }
+
+  return results
+}
+
+async function fetchUsdSek() {
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/USDSEK=X?interval=1d&range=1d'
+    const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+    const res = await fetch(proxy)
+    const data = await res.json()
+    return data?.chart?.result?.[0]?.meta?.regularMarketPrice || 10.5
+  } catch { return 10.5 }
+}
+
+function NetWorthTab({ user }) {
+  const [assets, setAssets] = useState([])
+  const [prices, setPrices] = useState({})
+  const [usdSek, setUsdSek] = useState(10.5)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [editingAsset, setEditingAsset] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [goal, setGoal] = useState({ target: '', deadline: '' })
+  const [savingGoal, setSavingGoal] = useState(false)
+  const [showGoalForm, setShowGoalForm] = useState(false)
+  const [form, setForm] = useState({ name: '', ticker: '', type: 'stock', quantity: '', manual_price_sek: '' })
+  const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  useEffect(() => { if (user) init() }, [user])
+
+  async function init() {
+    setLoading(true)
+    const [{ data: assetData }, { data: goalData }] = await Promise.all([
+      supabase.from('assets').select('*').eq('user_id', user.id).order('created_at'),
+      supabase.from('user_settings').select('goals').eq('user_id', user.id).single(),
+    ])
+    const loadedAssets = assetData || []
+    setAssets(loadedAssets)
+    const nwGoal = goalData?.goals?.net_worth_goal || {}
+    setGoal({ target: nwGoal.target || '', deadline: nwGoal.deadline || '' })
+
+    const fx = await fetchUsdSek()
+    setUsdSek(fx)
+    if (loadedAssets.length) {
+      const livePrices = await fetchLivePrices(loadedAssets, fx)
+      setPrices(livePrices)
+    }
+    setLoading(false)
+  }
+
+  async function refreshPrices() {
+    setRefreshing(true)
+    const fx = await fetchUsdSek()
+    setUsdSek(fx)
+    const livePrices = await fetchLivePrices(assets, fx)
+    setPrices(livePrices)
+    setRefreshing(false)
+  }
+
+  async function saveAsset() {
+    setSaving(true)
+    const payload = {
+      user_id: user.id,
+      name: form.name,
+      ticker: form.ticker.toUpperCase() || null,
+      type: form.type,
+      quantity: parseFloat(form.quantity) || 0,
+      manual_price_sek: form.type === 'cash' ? parseFloat(form.manual_price_sek) || 0 : null,
+    }
+    if (editingAsset) {
+      await supabase.from('assets').update(payload).eq('id', editingAsset.id)
+    } else {
+      await supabase.from('assets').insert(payload)
+    }
+    await init()
+    setShowForm(false)
+    setEditingAsset(null)
+    setForm({ name: '', ticker: '', type: 'stock', quantity: '', manual_price_sek: '' })
+    setSaving(false)
+  }
+
+  async function deleteAsset(id) {
+    if (!window.confirm('Ta bort denna tillgång?')) return
+    await supabase.from('assets').delete().eq('id', id)
+    setAssets(prev => prev.filter(a => a.id !== id))
+    setPrices(prev => { const n = {...prev}; delete n[id]; return n })
+  }
+
+  async function saveGoal() {
+    setSavingGoal(true)
+    const { data } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).single()
+    await supabase.from('user_settings').upsert({
+      user_id: user.id,
+      goals: { ...(data?.goals || {}), net_worth_goal: { target: parseFloat(goal.target), deadline: goal.deadline } }
+    }, { onConflict: 'user_id' })
+    setShowGoalForm(false)
+    setSavingGoal(false)
+  }
+
+  function getAssetValue(asset) {
+    if (asset.type === 'cash') return asset.manual_price_sek || 0
+    const livePrice = prices[asset.id]?.price
+    if (livePrice) return livePrice * asset.quantity
+    return 0
+  }
+
+  const totalValue = assets.reduce((sum, a) => sum + getAssetValue(a), 0)
+  const goalTarget = parseFloat(goal.target) || 0
+  const goalPct = goalTarget > 0 ? Math.min(100, Math.round((totalValue / goalTarget) * 100)) : 0
+  const goalDaysLeft = goal.deadline ? Math.ceil((new Date(goal.deadline) - new Date()) / 86400000) : null
+
+  const byType = ASSET_TYPES.map(t => ({
+    ...t,
+    value: assets.filter(a => a.type === t.id).reduce((s, a) => s + getAssetValue(a), 0)
+  })).filter(t => t.value > 0)
+
+  const fmt = (n) => Math.round(n).toLocaleString('sv-SE') + ' kr'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Net Worth header card */}
+      <div className="card" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(59,130,246,0.06))', borderColor: 'rgba(16,185,129,0.2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Totalt net worth</div>
+            {loading
+              ? <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--muted)' }}>Laddar...</div>
+              : <div style={{ fontSize: 36, fontWeight: 800, color: '#10b981', letterSpacing: '-1px' }}>{fmt(totalValue)}</div>
+            }
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>USD/SEK: {usdSek.toFixed(2)}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={refreshPrices} disabled={refreshing} className="btn btn-ghost" style={{ fontSize: 12 }}>
+              <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+              {refreshing ? 'Uppdaterar...' : 'Uppdatera priser'}
+            </button>
+            <button onClick={() => setShowGoalForm(v => !v)} className="btn btn-ghost" style={{ fontSize: 12 }}>
+              <Target size={13} /> Sätt mål
+            </button>
+          </div>
+        </div>
+
+        {/* Goal progress */}
+        {goalTarget > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Mål: {fmt(goalTarget)}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>{goalPct}%</span>
+              {goalDaysLeft !== null && (
+                <span style={{ fontSize: 11, color: goalDaysLeft < 0 ? '#ef4444' : 'var(--muted)' }}>
+                  {goalDaysLeft < 0 ? 'Försenad' : `${goalDaysLeft}d kvar`}
+                </span>
+              )}
+            </div>
+            <div style={{ height: 6, borderRadius: 999, background: 'rgba(255,255,255,0.08)' }}>
+              <div style={{ height: '100%', width: goalPct + '%', borderRadius: 999, background: 'linear-gradient(90deg, #10b981, #3b82f6)', transition: 'width 0.6s ease' }} />
+            </div>
+          </div>
+        )}
+
+        {/* Goal form */}
+        {showGoalForm && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>MÅLBELOPP (kr)</label>
+              <input className="input" type="number" placeholder="500 000" value={goal.target} onChange={e => setGoal(g => ({...g, target: e.target.value}))} />
+            </div>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>DEADLINE</label>
+              <input className="input" type="date" value={goal.deadline} onChange={e => setGoal(g => ({...g, deadline: e.target.value}))} />
+            </div>
+            <button onClick={saveGoal} disabled={savingGoal} className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 12 }}>
+              {savingGoal ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={12} />} Spara
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Breakdown by type */}
+      {byType.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          {byType.map(t => (
+            <div key={t.id} className="card" style={{ padding: '12px 14px', borderColor: t.color + '30' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: t.color, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{t.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{fmt(t.value)}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                {totalValue > 0 ? Math.round((t.value / totalValue) * 100) : 0}% av total
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Assets list */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Tillgångar</div>
+          <button onClick={() => { setShowForm(true); setEditingAsset(null); setForm({ name: '', ticker: '', type: 'stock', quantity: '', manual_price_sek: '' }) }}
+            className="btn btn-primary" style={{ fontSize: 12, padding: '6px 12px' }}>
+            <Plus size={12} /> Lägg till
+          </button>
+        </div>
+
+        {/* Add/Edit form */}
+        {showForm && (
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>NAMN</label>
+                <input className="input" placeholder="t.ex. Investor B" value={form.name} onChange={e => f('name', e.target.value)} autoFocus />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>TYP</label>
+                <select className="input" value={form.type} onChange={e => f('type', e.target.value)}>
+                  {ASSET_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </select>
+              </div>
+              {form.type !== 'cash' ? (
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
+                    {form.type === 'crypto' ? 'SYMBOL (BTC/ETH)' : 'TICKER (t.ex. INVE-B.ST)'}
+                  </label>
+                  <input className="input" placeholder={form.type === 'crypto' ? 'BTC' : 'INVE-B.ST'} value={form.ticker} onChange={e => f('ticker', e.target.value)} />
+                </div>
+              ) : (
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>BELOPP (kr)</label>
+                  <input className="input" type="number" placeholder="50 000" value={form.manual_price_sek} onChange={e => f('manual_price_sek', e.target.value)} />
+                </div>
+              )}
+              {form.type !== 'cash' && (
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>ANTAL</label>
+                  <input className="input" type="number" step="0.001" placeholder="10" value={form.quantity} onChange={e => f('quantity', e.target.value)} />
+                </div>
+              )}
+            </div>
+            {form.type === 'stock' && (
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10, padding: '6px 10px', background: 'rgba(59,130,246,0.08)', borderRadius: 6 }}>
+                💡 Svenska aktier: lägg till .ST (t.ex. ERIC-B.ST). Amerikanska: utan suffix (t.ex. AAPL). Fonder: sök tickern på Yahoo Finance.
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowForm(false); setEditingAsset(null) }} className="btn btn-ghost">Avbryt</button>
+              <button onClick={saveAsset} disabled={saving || !form.name} className="btn btn-primary">
+                {saving ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={12} />} Spara
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Asset rows */}
+        {loading ? (
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Laddar tillgångar...</div>
+        ) : assets.length === 0 ? (
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+            Inga tillgångar ännu — lägg till din första ovan
+          </div>
+        ) : (
+          assets.map(asset => {
+            const typeInfo = ASSET_TYPES.find(t => t.id === asset.type)
+            const liveData = prices[asset.id]
+            const value = getAssetValue(asset)
+            const hasLive = !!liveData
+            const isEditing = editingAsset?.id === asset.id
+
+            return (
+              <div key={asset.id}>
+                {isEditing && (
+                  <div style={{ padding: '14px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>NAMN</label>
+                        <input className="input" value={form.name} onChange={e => f('name', e.target.value)} autoFocus />
+                      </div>
+                      {form.type !== 'cash' ? (
+                        <>
+                          <div>
+                            <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>TICKER</label>
+                            <input className="input" value={form.ticker} onChange={e => f('ticker', e.target.value)} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>ANTAL</label>
+                            <input className="input" type="number" step="0.001" value={form.quantity} onChange={e => f('quantity', e.target.value)} />
+                          </div>
+                        </>
+                      ) : (
+                        <div>
+                          <label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>BELOPP (kr)</label>
+                          <input className="input" type="number" value={form.manual_price_sek} onChange={e => f('manual_price_sek', e.target.value)} />
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <button onClick={() => { setEditingAsset(null); setShowForm(false) }} className="btn btn-ghost">Avbryt</button>
+                      <button onClick={saveAsset} disabled={saving} className="btn btn-primary">
+                        {saving ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={12} />} Spara
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: (typeInfo?.color || '#6b7280') + '18', border: '1px solid ' + (typeInfo?.color || '#6b7280') + '30', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: typeInfo?.color }}>{asset.type === 'cash' ? '₩' : asset.ticker?.slice(0,3) || '?'}</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{asset.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                      {asset.type === 'cash'
+                        ? 'Sparkonto'
+                        : `${asset.quantity} ${asset.ticker || ''} · ${hasLive ? Math.round(liveData.price).toLocaleString('sv-SE') + ' kr/st' : 'Hämtar pris...'}`
+                      }
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: value > 0 ? 'var(--text)' : 'var(--muted)' }}>
+                      {value > 0 ? fmt(value) : '—'}
+                    </div>
+                    {hasLive && <div style={{ fontSize: 10, color: '#10b981', marginTop: 1 }}>● Live</div>}
+                    {asset.type === 'cash' && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Manuellt</div>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button onClick={() => { setEditingAsset(asset); setForm({ name: asset.name, ticker: asset.ticker || '', type: asset.type, quantity: String(asset.quantity || ''), manual_price_sek: String(asset.manual_price_sek || '') }); setShowForm(false) }}
+                      style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 4 }}>
+                      <Edit2 size={13} />
+                    </button>
+                    <button onClick={() => deleteAsset(asset.id)}
+                      style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.5)', cursor: 'pointer', padding: 4 }}>
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -222,7 +615,7 @@ export default function EkonomiPage() {
     { id: 'overview', label: 'Översikt' },
     { id: 'log',      label: 'Logga' },
     { id: 'trips',    label: 'Resebudget' },
-    { id: 'savings',  label: 'Sparmål' },
+    { id: 'savings',  label: 'Sparande' },
   ]
 
   return (
@@ -564,14 +957,7 @@ export default function EkonomiPage() {
 
       {/* SAVINGS TAB */}
       {activeTab === 'savings' && (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <div style={{ fontSize: '32px', marginBottom: '12px' }}></div>
-          <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '8px' }}>Sparmål</div>
-          <div style={{ color: 'var(--muted)', fontSize: '13px', lineHeight: '1.6' }}>
-            Du har inga aktiva sparmål just nu.<br />
-            Aktivera när du är redo att börja spara.
-          </div>
-        </div>
+        <NetWorthTab user={user} />
       )}
     </div>
         </div>
