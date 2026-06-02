@@ -75,6 +75,8 @@ export default function Jarvis() {
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const contextRef = useRef('')
+  const contextCacheTimeRef = useRef(0)
+  const CONTEXT_TTL_MS = 5 * 60 * 1000
 
   useEffect(() => { contextRef.current = context }, [context])
 
@@ -96,8 +98,12 @@ export default function Jarvis() {
     if (count > 0 && count % 4 === 0) extractInsights(messages)
   }, [messages])
 
-  const refreshContext = useCallback(async () => {
+  const refreshContext = useCallback(async (force = false) => {
     if (!user) return ''
+    // Return cached context if fresh and not forced
+    if (!force && contextRef.current && (Date.now() - contextCacheTimeRef.current) < CONTEXT_TTL_MS) {
+      return contextRef.current
+    }
     const now = new Date()
     const today = format(now, 'yyyy-MM-dd')
     const since30 = format(subDays(now, 30), 'yyyy-MM-dd')
@@ -189,6 +195,7 @@ ${upcomingExams}`
 
     setContext(ctx)
     contextRef.current = ctx
+    contextCacheTimeRef.current = Date.now()
     return ctx
   }, [user])
 
@@ -260,7 +267,7 @@ ${upcomingExams}`
         }
       }
       await loadInsights()
-      await refreshContext()
+      await refreshContext(true)
     } catch (_) {}
   }
 
@@ -332,7 +339,7 @@ ${upcomingExams}`
       if (res?.error) throw res.error
       setPendingActions(prev => prev.filter(a => a._id !== action._id))
       setMessages(prev => [...prev, { role: 'assistant', content: `Klart — ${ACTION_LABELS[d.action] || d.action} genomförd.` }])
-      await refreshContext()
+      await refreshContext(true)
       if (d.action === 'save_insight') await loadInsights()
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Action misslyckades: ${err?.message || 'okänt fel'}` }])

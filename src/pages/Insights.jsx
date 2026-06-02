@@ -63,6 +63,7 @@ export default function InsightsPage() {
   const [weeklyReport, setWeeklyReport] = useState('')
   const [aiObservations, setAiObservations] = useState([])
   const [loadingObs, setLoadingObs] = useState(false)
+  const [obsLastUpdated, setObsLastUpdated] = useState(null)
   const [data, setData] = useState({
     weightData: [],
     sleepData: [],
@@ -205,7 +206,22 @@ export default function InsightsPage() {
     generateObservations({ weightData, sleepData, studyData, trainingData })
   }
 
-  async function generateObservations(freshData) {
+  async function generateObservations(freshData, force = false) {
+    // Check session cache — skip if under 30 min old and not forced
+    const OBS_TTL = 30 * 60 * 1000
+    const cached = sessionStorage.getItem('insights_obs')
+    const cachedTime = parseInt(sessionStorage.getItem('insights_obs_time') || '0')
+    if (!force && cached && (Date.now() - cachedTime) < OBS_TTL) {
+      try {
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAiObservations(parsed)
+          setObsLastUpdated(new Date(cachedTime))
+          return
+        }
+      } catch (_) {}
+    }
+
     setLoadingObs(true)
     try {
       const lines = []
@@ -223,7 +239,13 @@ export default function InsightsPage() {
       const match = raw.match(/\[[\s\S]*\]/)
       if (!match) throw new Error('Ingen array: ' + raw.slice(0, 80))
       const arr = JSON.parse(match[0])
-      if (Array.isArray(arr) && arr.length > 0) setAiObservations(arr)
+      if (Array.isArray(arr) && arr.length > 0) {
+        setAiObservations(arr)
+        const now = Date.now()
+        sessionStorage.setItem('insights_obs', JSON.stringify(arr))
+        sessionStorage.setItem('insights_obs_time', String(now))
+        setObsLastUpdated(new Date(now))
+      }
     } catch(e) {
       console.error('Obs failed:', e.message)
       setAiObservations([{ icon: '!', category: 'fel', text: 'Kunde inte ladda. Prova "Uppdatera".' }])
@@ -317,8 +339,13 @@ export default function InsightsPage() {
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
               </div>
               <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text)' }}>Jarvis observerar</span>
+              {obsLastUpdated && (
+                <span style={{ fontSize: '10px', color: 'var(--muted)', marginLeft: 4 }}>
+                  · uppdaterad {format(obsLastUpdated, 'HH:mm', { locale: sv })}
+                </span>
+              )}
             </div>
-            <button onClick={() => generateObservations(data)} disabled={loadingObs} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button onClick={() => generateObservations(data, true)} disabled={loadingObs} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
               {loadingObs ? <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={11} />}
               {loadingObs ? 'Analyserar...' : 'Uppdatera'}
             </button>

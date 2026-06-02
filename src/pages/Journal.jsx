@@ -192,7 +192,15 @@ export default function JournalPage() {
           if (rows.length) await supabase.from('skill_logs').insert(rows)
         }
         await updateJournalScore(dateStr, form)
-        runAIAnalysis(data.id, form.content)
+
+        // Only run AI analysis if content is new or significantly changed
+        const existingEntry = selectedEntries.find(e => e.date === dateStr)
+        const existingSummary = existingEntry?.ai_summary
+        const existingContent = existingEntry?.content || ''
+        const contentChangedSignificantly = !existingSummary ||
+          Math.abs(form.content.length - existingContent.length) > 30 ||
+          form.content.slice(0, 80) !== existingContent.slice(0, 80)
+        if (contentChangedSignificantly) runAIAnalysis(data.id, form.content)
         await fetchSelectedEntries()
         await fetchMonthEntries()
         await fetchRecentEntries()
