@@ -19,92 +19,93 @@ const CAT_PATHS = {
 }
 
 function CatIcon({ id, color, size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d={CAT_PATHS[id] || CAT_PATHS.kondition} />
-    </svg>
-  )
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d={CAT_PATHS[id] || CAT_PATHS.kondition} /></svg>
 }
 
 const TIER_REQUIREMENTS = {
   kondition: [
-    { tier:2, label:'Top 50%',  reqs:['5km under 28:00','VO2max ≥ 44 ml/kg/min'] },
-    { tier:3, label:'Top 30%',  reqs:['5km under 24:00','10km under 50:00','VO2max ≥ 49'] },
-    { tier:4, label:'Top 20%',  reqs:['5km under 22:00','10km under 46:00','VO2max ≥ 53'] },
-    { tier:5, label:'Top 10%',  reqs:['5km under 20:00','10km under 42:00','Halvmara under 1:38','VO2max ≥ 57'] },
-    { tier:6, label:'Top 5%',   reqs:['5km under 18:30','10km under 39:00','Halvmara under 1:31','VO2max ≥ 61'] },
-    { tier:7, label:'Top 2.5%', reqs:['5km under 17:00','10km under 36:00','Halvmara under 1:25','VO2max ≥ 65'] },
-    { tier:8, label:'Top 1%',   reqs:['5km under 15:30','10km under 33:00','Halvmara under 1:18','Mara under 2:45','VO2max ≥ 70'] },
+    { tier:2, label:'Top 50%',  reqs:['1km/5km/10km/halvmara behöver vara loggade eller täckta av längre pass','5km under 28:00'] },
+    { tier:3, label:'Top 30%',  reqs:['5km under 24:00','10km under 50:00','Halvmara täckt/loggad'] },
+    { tier:4, label:'Top 20%',  reqs:['5km under 22:00','10km under 46:00','Halvmara under 1:47'] },
+    { tier:5, label:'Top 10%',  reqs:['5km under 20:00','10km under 42:00','Halvmara under 1:38'] },
+    { tier:6, label:'Top 5%',   reqs:['5km under 18:30','10km under 39:00','Halvmara under 1:31'] },
+    { tier:7, label:'Top 2.5%', reqs:['5km under 17:00','10km under 36:00','Halvmara under 1:25'] },
+    { tier:8, label:'Top 1%',   reqs:['5km under 15:30','10km under 33:00','Halvmara under 1:18','Mara under 2:45'] },
   ],
   styrka: [
-    { tier:2, label:'Top 50%',  reqs:['Bänk ≥ 0.75x BW (~58kg)','Knäböj ≥ 1.0x BW (~77kg)','Mark ≥ 1.25x BW (~96kg)'] },
-    { tier:3, label:'Top 30%',  reqs:['Bänk ≥ 1.0x BW (~77kg)','Knäböj ≥ 1.25x BW (~96kg)','Mark ≥ 1.5x BW (~116kg)'] },
-    { tier:4, label:'Top 20%',  reqs:['Bänk ≥ 1.15x BW (~89kg)','Knäböj ≥ 1.4x BW (~108kg)','Mark ≥ 1.7x BW (~131kg)'] },
-    { tier:5, label:'Top 10%',  reqs:['Bänk ≥ 1.3x BW (~100kg)','Knäböj ≥ 1.6x BW (~123kg)','Mark ≥ 1.9x BW (~146kg)'] },
-    { tier:6, label:'Top 5%',   reqs:['Bänk ≥ 1.5x BW (~116kg)','Knäböj ≥ 1.75x BW (~135kg)','Mark ≥ 2.1x BW (~162kg)','OHP ≥ 1.0x BW'] },
-    { tier:7, label:'Top 2.5%', reqs:['Bänk ≥ 1.65x BW (~127kg)','Knäböj ≥ 1.9x BW (~146kg)','Mark ≥ 2.3x BW (~177kg)'] },
-    { tier:8, label:'Top 1%',   reqs:['Bänk ≥ 1.8x BW (~139kg)','Knäböj ≥ 2.1x BW (~162kg)','Mark ≥ 2.5x BW (~193kg)','Pull-ups ≥ 28 reps'] },
+    { tier:2, label:'Top 50%',  reqs:['Bänk ≥ 0.75x BW','Knäböj ≥ 1.0x BW','Marklyft ≥ 1.25x BW'] },
+    { tier:3, label:'Top 30%',  reqs:['Bänk ≥ 1.0x BW','Knäböj ≥ 1.25x BW','Marklyft ≥ 1.5x BW'] },
+    { tier:4, label:'Top 20%',  reqs:['Bänk ≥ 1.15x BW','Knäböj ≥ 1.4x BW','Marklyft ≥ 1.7x BW'] },
+    { tier:5, label:'Top 10%',  reqs:['Bänk ≥ 1.3x BW','Knäböj ≥ 1.6x BW','Marklyft ≥ 1.9x BW'] },
+    { tier:6, label:'Top 5%',   reqs:['Bänk ≥ 1.5x BW','Knäböj ≥ 1.75x BW','Marklyft ≥ 2.1x BW','Militärpress ≥ 1.0x BW'] },
+    { tier:7, label:'Top 2.5%', reqs:['Bänk ≥ 1.65x BW','Knäböj ≥ 1.9x BW','Marklyft ≥ 2.3x BW'] },
+    { tier:8, label:'Top 1%',   reqs:['Bänk ≥ 1.8x BW','Knäböj ≥ 2.1x BW','Marklyft ≥ 2.5x BW'] },
   ],
   somn: [
-    { tier:2, label:'Top 50%',  reqs:['Sov i snitt ≥ 6.5 timmar/natt'] },
-    { tier:3, label:'Top 30%',  reqs:['Sov i snitt ≥ 7.0 timmar/natt','Logga sömn ≥ 5 av 7 dagar'] },
-    { tier:4, label:'Top 20%',  reqs:['Sov i snitt ≥ 7.5 timmar/natt'] },
-    { tier:5, label:'Top 10%',  reqs:['Sov i snitt ≥ 8.0 timmar/natt','Konsekvent läggtid'] },
-    { tier:6, label:'Top 5%',   reqs:['Sov i snitt ≥ 8.5 timmar/natt','Variation i läggtid < 15 min'] },
-    { tier:7, label:'Top 2.5%', reqs:['≥ 8.5h + perfekt sömnregelbundenhet'] },
-    { tier:8, label:'Top 1%',   reqs:['Sov i snitt ≥ 9h/natt','Optimal sömnkonsistens'] },
+    { tier:2, label:'Top 50%',  reqs:['Sömnsnitt ≥ 6.5h'] },
+    { tier:3, label:'Top 30%',  reqs:['Sömnsnitt ≥ 7.0h','Logga sömn ≥ 5 av 7 dagar'] },
+    { tier:4, label:'Top 20%',  reqs:['Sömnsnitt ≥ 7.5h'] },
+    { tier:5, label:'Top 10%',  reqs:['Sömnsnitt ≥ 8.0h','Stabil läggtid'] },
+    { tier:6, label:'Top 5%',   reqs:['Sömnsnitt ≥ 8.5h','Bra regelbundenhet'] },
+    { tier:7, label:'Top 2.5%', reqs:['≥ 8.5h + hög konsekvens'] },
+    { tier:8, label:'Top 1%',   reqs:['Sömnsnitt ≥ 9h','Optimal sömnkonsistens'] },
   ],
   plugg: [
     { tier:1, label:'Nybörjare',     reqs:['Mastery 0–20%'] },
-    { tier:2, label:'Grundläggande', reqs:['Mastery ≥ 20%','Börja repetera aktivt'] },
-    { tier:3, label:'Medel',         reqs:['Mastery ≥ 40%','Aktiv drilling på svaga områden'] },
-    { tier:4, label:'Avancerad',     reqs:['Mastery ≥ 60%','Lösa kliniska fall självständigt'] },
-    { tier:5, label:'Expert',        reqs:['Mastery ≥ 80%','Förklara alla mekanismer utan anteckningar'] },
+    { tier:2, label:'Grundläggande', reqs:['Mastery ≥ 20%'] },
+    { tier:3, label:'Medel',         reqs:['Mastery ≥ 40%'] },
+    { tier:4, label:'Avancerad',     reqs:['Mastery ≥ 60%'] },
+    { tier:5, label:'Expert',        reqs:['Mastery ≥ 80%'] },
   ],
   ekonomi: [
-    { tier:2, label:'Top 50%',  reqs:['Nettoinkomst ≥ 12 000 kr/mån'] },
-    { tier:3, label:'Top 30%',  reqs:['Nettoinkomst ≥ 18 000 kr/mån','Sparat ≥ 20 000 kr'] },
-    { tier:4, label:'Top 20%',  reqs:['Nettoinkomst ≥ 22 000 kr/mån','Sparat ≥ 50 000 kr'] },
-    { tier:5, label:'Top 10%',  reqs:['Nettoinkomst ≥ 28 000 kr/mån','Sparat ≥ 100 000 kr'] },
-    { tier:6, label:'Top 5%',   reqs:['Nettoinkomst ≥ 35 000 kr/mån','Sparat ≥ 200 000 kr'] },
-    { tier:7, label:'Top 2.5%', reqs:['Nettoinkomst ≥ 45 000 kr/mån','Sparat ≥ 350 000 kr'] },
-    { tier:8, label:'Top 1%',   reqs:['Nettoinkomst ≥ 60 000 kr/mån','Sparat ≥ 500 000 kr'] },
+    { tier:2, label:'Top 50%',  reqs:['Nettoinkomst ≥ 12 000 kr/mån','Sparkapital ≥ 5 000 kr'] },
+    { tier:3, label:'Top 30%',  reqs:['Nettoinkomst ≥ 18 000 kr/mån','Sparkapital ≥ 20 000 kr'] },
+    { tier:4, label:'Top 20%',  reqs:['Nettoinkomst ≥ 22 000 kr/mån','Sparkapital ≥ 50 000 kr'] },
+    { tier:5, label:'Top 10%',  reqs:['Nettoinkomst ≥ 28 000 kr/mån','Sparkapital ≥ 100 000 kr'] },
+    { tier:6, label:'Top 5%',   reqs:['Nettoinkomst ≥ 35 000 kr/mån','Sparkapital ≥ 200 000 kr'] },
+    { tier:7, label:'Top 2.5%', reqs:['Nettoinkomst ≥ 45 000 kr/mån','Sparkapital ≥ 350 000 kr'] },
+    { tier:8, label:'Top 1%',   reqs:['Nettoinkomst ≥ 60 000 kr/mån','Sparkapital ≥ 500 000 kr'] },
   ],
   valmående: [
     { tier:2, label:'Top 50%',  reqs:['Energi ≥ 5/10','Humör ≥ 5/10','≥ 5 000 steg/dag'] },
-    { tier:3, label:'Top 30%',  reqs:['Energi ≥ 6/10','Stress ≤ 5/10','≥ 7 500 steg/dag'] },
-    { tier:4, label:'Top 20%',  reqs:['Energi ≥ 7/10','Humör ≥ 7/10','Stress ≤ 4/10','≥ 9 000 steg/dag'] },
-    { tier:5, label:'Top 10%',  reqs:['Energi ≥ 8/10','Stress ≤ 3/10','≥ 11 000 steg/dag'] },
-    { tier:6, label:'Top 5%',   reqs:['Energi ≥ 9/10','Stress ≤ 2/10','≥ 13 000 steg/dag'] },
-    { tier:7, label:'Top 2.5%', reqs:['Alla metrics i toppklass konsekvent'] },
-    { tier:8, label:'Top 1%',   reqs:['Energi/humör ≥ 9.5/10','Stress ≤ 1.5/10','≥ 15 000 steg/dag'] },
+    { tier:3, label:'Top 30%',  reqs:['Energi ≥ 6/10','Humör ≥ 6/10','≥ 7 500 steg/dag'] },
+    { tier:4, label:'Top 20%',  reqs:['Energi ≥ 7/10','Humör ≥ 7/10','≥ 9 000 steg/dag'] },
+    { tier:5, label:'Top 10%',  reqs:['Energi ≥ 8/10','Humör ≥ 8/10','≥ 11 000 steg/dag'] },
+    { tier:6, label:'Top 5%',   reqs:['Energi ≥ 9/10','Humör ≥ 9/10','≥ 13 000 steg/dag'] },
+    { tier:7, label:'Top 2.5%', reqs:['Alla metrics toppklass konsekvent'] },
+    { tier:8, label:'Top 1%',   reqs:['Energi/humör ≥ 9.5/10','≥ 15 000 steg/dag'] },
   ],
   fardigheter: [
-    { tier:2, label:'Nybörjare',   reqs:['1–30 min/vecka i snitt'] },
-    { tier:3, label:'Regelbunden', reqs:['30–60 min/vecka i snitt'] },
-    { tier:4, label:'Dedikerad',   reqs:['60–120 min/vecka i snitt'] },
-    { tier:5, label:'Seriös',      reqs:['120–240 min/vecka i snitt'] },
-    { tier:6, label:'Mästare',     reqs:['240+ min/vecka (4+ timmar)'] },
+    { tier:2, label:'Nybörjare',   reqs:['1–30 min/vecka'] },
+    { tier:3, label:'Regelbunden', reqs:['30–60 min/vecka'] },
+    { tier:4, label:'Dedikerad',   reqs:['60–120 min/vecka'] },
+    { tier:5, label:'Seriös',      reqs:['120–240 min/vecka'] },
+    { tier:6, label:'Mästare',     reqs:['240+ min/vecka'] },
   ],
   kropp: [],
 }
 
-const CustomTooltip = ({ active, payload, label, tierColor }) => {
+const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div style={{
-      background: 'rgba(10,12,20,0.92)',
-      backdropFilter: 'blur(16px)',
-      border: '1px solid rgba(255,255,255,0.1)',
-      borderRadius: '10px',
-      padding: '10px 14px',
-      fontSize: '12px',
-    }}>
-      <div style={{ color: 'rgba(255,255,255,0.4)', marginBottom: '4px' }}>{label}</div>
-      {payload.map((p, i) => (
-        <div key={i} style={{ color: p.stroke, fontWeight: 600 }}>{p.name}: {p.value}</div>
-      ))}
+    <div style={{ background:'rgba(10,12,20,0.92)', backdropFilter:'blur(16px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, padding:'10px 14px', fontSize:12 }}>
+      <div style={{ color:'rgba(255,255,255,0.4)', marginBottom:4 }}>{label}</div>
+      {payload.map((p, i) => <div key={i} style={{ color:p.stroke, fontWeight:700 }}>{p.name}: {p.value}</div>)}
+    </div>
+  )
+}
+
+function RequirementRow({ req, color }) {
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'20px minmax(0,1fr) auto', gap:10, alignItems:'center', padding:'10px 12px', borderRadius:12, background:req.met ? 'rgba(16,185,129,0.07)' : 'rgba(255,255,255,0.035)', border:'1px solid ' + (req.met ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.07)') }}>
+      <div style={{ width:20, height:20, borderRadius:7, display:'flex', alignItems:'center', justifyContent:'center', background:req.met ? 'rgba(16,185,129,0.14)' : color + '15', border:'1px solid ' + (req.met ? 'rgba(16,185,129,0.34)' : color + '35') }}>
+        {req.met ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> : <div style={{ width:6, height:6, borderRadius:2, background:color }} />}
+      </div>
+      <div style={{ minWidth:0 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:req.met ? 'rgba(16,185,129,0.9)' : 'rgba(255,255,255,0.9)' }}>{req.label}</div>
+        <div style={{ fontSize:11, color:'rgba(255,255,255,0.42)', marginTop:2 }}>{req.currentLabel} → {req.targetLabel}</div>
+      </div>
+      <div style={{ fontSize:12, fontWeight:900, color:req.met ? '#10b981' : color, whiteSpace:'nowrap' }}>{req.gapLabel}</div>
     </div>
   )
 }
@@ -112,180 +113,135 @@ const CustomTooltip = ({ active, payload, label, tierColor }) => {
 export default function DetailModal({ category, onClose }) {
   const navigate = useNavigate()
   const [period, setPeriod] = useState('30d')
+  const [showAllTiers, setShowAllTiers] = useState(false)
   if (!category) return null
 
-  const { name, tier, metrics = [], details = [], chartData, chartLines, navTarget, navLabel, id, perExercise } = category
-  const isBody = id === 'kropp'
+  const { name, tier, metrics, details, chartData, chartLines, navTarget, navLabel, id, levelUp } = category
   const tierNum = tier?.tier || 0
-  const tierColor = isBody ? '#34d399' : (TIER_COLORS[tierNum] || '#6b7280')
-  const nextTier = tierNum > 0 && tierNum < 8 ? tierNum + 1 : null
-  const requirements = TIER_REQUIREMENTS[id] || []
-  const nextTierReqs = nextTier ? requirements.find(r => r.tier === nextTier) : null
+  const tierColor = TIER_COLORS[tierNum] || '#6b7280'
+  const nextColor = TIER_COLORS[levelUp?.nextTier || tierNum + 1] || tierColor
+  const requirements = category.tierGuide || TIER_REQUIREMENTS[id] || []
   const periods = ['7d', '30d', '90d', '1år']
 
-  const scoredDetails = details.filter(d => d?.tierInfo?.tier)
-  const bottleneck = id === 'styrka' && perExercise?.length
-    ? perExercise.slice().sort((a,b)=>(a.tier?.tier || 0) - (b.tier?.tier || 0))[0]
-    : scoredDetails.slice().sort((a,b)=>(a.tierInfo?.tier || 0) - (b.tierInfo?.tier || 0))[0]
-
-  const completedCount = nextTier
-    ? scoredDetails.filter(d => (d.tierInfo?.tier || 0) >= nextTier).length
-    : scoredDetails.length
-  const progressDenom = Math.max(scoredDetails.length, nextTierReqs?.reqs?.length || 0, 1)
-  const progressPct = isBody
-    ? Math.max(0, Math.min(100, category.pct || 0))
-    : tierNum > 0
-      ? Math.round(Math.min(100, Math.max(12, ((tierNum - 1) / 7) * 100 + (completedCount / progressDenom) * 12)))
-      : 0
-
-  const primaryMetric = metrics[0]
-  const bottleneckLabel = bottleneck
-    ? bottleneck.label || bottleneck.exercise_name || 'Svagaste krav'
-    : isBody ? 'Målvikt / trend' : 'Logga mer data'
-  const bottleneckValue = bottleneck
-    ? bottleneck.valueText || bottleneck.value || bottleneck.mult || bottleneck.tier?.label || bottleneck.tierInfo?.label || ''
-    : ''
-
-  const objectiveRows = nextTierReqs?.reqs?.length
-    ? nextTierReqs.reqs.map((req, i) => {
-        const source = scoredDetails[i]
-        const done = source?.tierInfo?.tier >= nextTier
-        return { label: req, done, source }
-      })
-    : scoredDetails.map(d => ({ label: d.label + (d.value ? ` · ${d.value}` : ''), done: true, source: d }))
-
   return (
-    <div onClick={onClose} style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
-      background: 'rgba(0,0,0,0.70)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
-    }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        width: '100%', maxWidth: 680, maxHeight: '88vh', overflowY: 'auto', position: 'relative',
-        background: 'linear-gradient(180deg, rgba(18,22,35,0.94), rgba(10,12,20,0.92))',
-        backdropFilter: 'blur(42px)', WebkitBackdropFilter: 'blur(42px)',
-        border: '1px solid rgba(255,255,255,0.11)', borderRadius: 24,
-        boxShadow: '0 34px 90px rgba(0,0,0,0.68), 0 1px 0 rgba(255,255,255,0.08) inset',
-        scrollbarWidth: 'none',
-      }}>
-        <div style={{ position:'absolute', inset:0, pointerEvents:'none', background:`radial-gradient(circle at 82% 4%, ${tierColor}22, transparent 34%), radial-gradient(circle at 8% 18%, rgba(79,142,247,0.10), transparent 30%)` }} />
-        <div style={{ position:'absolute', top:0, left:'18%', right:'18%', height:1, background:'linear-gradient(90deg, transparent, rgba(255,255,255,0.24), transparent)' }} />
+    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'rgba(12,15,26,0.94)', backdropFilter:'blur(42px)', WebkitBackdropFilter:'blur(42px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:22, width:'100%', maxWidth:620, maxHeight:'88vh', overflowY:'auto', boxShadow:'0 32px 80px rgba(0,0,0,0.72), 0 1px 0 rgba(255,255,255,0.08) inset', scrollbarWidth:'none', position:'relative' }}>
+        <div style={{ position:'absolute', top:0, left:'22%', right:'22%', height:1, background:'linear-gradient(90deg, transparent, rgba(255,255,255,0.24), transparent)' }} />
+        <div style={{ position:'absolute', top:-55, right:-45, width:180, height:180, borderRadius:'50%', background:nextColor + '16', filter:'blur(45px)', pointerEvents:'none' }} />
 
-        <div style={{ position:'sticky', top:0, zIndex:5, padding:'18px 22px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, borderBottom:'1px solid rgba(255,255,255,0.075)', borderRadius:'24px 24px 0 0', background:'rgba(12,15,26,0.72)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:13, minWidth:0 }}>
-            <div style={{ width:44, height:44, borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', background:tierColor+'18', border:'1px solid '+tierColor+'36', boxShadow:'0 1px 0 rgba(255,255,255,0.06) inset' }}>
-              <CatIcon id={id} color={tierColor} size={21} />
+        <div style={{ padding:'20px 24px 16px', borderBottom:'1px solid rgba(255,255,255,0.07)', position:'sticky', top:0, zIndex:10, background:'rgba(12,15,26,0.86)', backdropFilter:'blur(22px)', WebkitBackdropFilter:'blur(22px)', display:'flex', justifyContent:'space-between', alignItems:'center', borderRadius:'22px 22px 0 0' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:13 }}>
+            <div style={{ width:42, height:42, borderRadius:14, background:(tierNum ? tierColor : nextColor) + '18', border:'1px solid ' + ((tierNum ? tierColor : nextColor) + '34'), display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <CatIcon id={id} color={tierNum ? tierColor : nextColor} size={20} />
             </div>
-            <div style={{ minWidth:0 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                <div style={{ fontSize:18, fontWeight:720, color:'rgba(255,255,255,0.94)', letterSpacing:'-0.035em' }}>{name}</div>
-                {!isBody && tierNum > 0 && <div style={{ padding:'3px 8px', borderRadius:999, background:tierColor+'16', border:'1px solid '+tierColor+'35', color:tierColor, fontSize:10, fontWeight:850, letterSpacing:'0.06em' }}>T{tierNum}</div>}
+            <div>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ fontSize:18, fontWeight:800, color:'rgba(255,255,255,0.92)', letterSpacing:'-0.02em' }}>{name}</span>
+                {tierNum > 0 && <span style={{ fontSize:11, fontWeight:900, color:tierColor, padding:'2px 7px', borderRadius:20, background:tierColor + '16', border:'1px solid ' + tierColor + '35' }}>T{tierNum}</span>}
               </div>
-              <div style={{ marginTop:3, color:'rgba(255,255,255,0.42)', fontSize:12 }}>{isBody ? 'Kroppslig status och trend' : nextTier ? `Maxx plan mot Tier ${nextTier}` : tierNum >= 8 ? 'Maxad kategori' : 'Börja logga data'}</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.38)', marginTop:3 }}>{levelUp?.title || tier?.label || 'Status och nivåkrav'}</div>
             </div>
           </div>
-          <button onClick={onClose} style={{ width:32, height:32, borderRadius:10, border:'1px solid rgba(255,255,255,0.11)', background:'rgba(255,255,255,0.055)', color:'rgba(255,255,255,0.5)', cursor:'pointer', fontSize:16 }}>×</button>
+          <button onClick={onClose} style={{ width:32, height:32, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, color:'rgba(255,255,255,0.45)', cursor:'pointer', fontSize:16 }}>×</button>
         </div>
 
-        <div style={{ position:'relative', padding:'22px' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1.05fr 0.95fr', gap:12, marginBottom:12 }} className="grid-2">
-            <div style={{ border:'1px solid rgba(255,255,255,0.08)', borderRadius:18, padding:16, background:'rgba(255,255,255,0.045)', overflow:'hidden', position:'relative' }}>
-              <div style={{ position:'absolute', right:-30, top:-30, width:110, height:110, borderRadius:'50%', background:tierColor+'14', filter:'blur(28px)' }} />
-              <div style={{ fontSize:10, color:'rgba(255,255,255,0.36)', textTransform:'uppercase', letterSpacing:'0.12em', fontWeight:750, marginBottom:7 }}>Current level</div>
-              <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
-                <span style={{ fontSize:40, lineHeight:1, fontWeight:850, color:tierColor, letterSpacing:'-0.07em' }}>{isBody ? (primaryMetric?.value || '—') : tierNum ? `T${tierNum}` : '—'}</span>
-                {!isBody && tier?.label && <span style={{ color:'rgba(255,255,255,0.58)', fontSize:14, fontWeight:600 }}>{tier.label}</span>}
+        <div style={{ padding:'22px 26px' }}>
+          {levelUp && (
+            <div style={{ marginBottom:18, background:'linear-gradient(135deg, ' + nextColor + '14, rgba(255,255,255,0.035))', border:'1px solid ' + nextColor + '2c', borderRadius:18, padding:18 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', gap:16, alignItems:'flex-start', marginBottom:14 }}>
+                <div>
+                  <div style={{ fontSize:10, fontWeight:900, letterSpacing:'0.12em', color:'rgba(255,255,255,0.35)', textTransform:'uppercase' }}>Level-up plan</div>
+                  <div style={{ fontSize:22, fontWeight:900, color:'rgba(255,255,255,0.95)', marginTop:5 }}>{levelUp.title}</div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <div style={{ fontSize:22, fontWeight:900, color:nextColor }}>{levelUp.progressPct}%</div>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.38)' }}>till nästa</div>
+                </div>
               </div>
-              <div style={{ marginTop:14, height:7, borderRadius:999, background:'rgba(255,255,255,0.07)', overflow:'hidden' }}>
-                <div style={{ width:`${progressPct}%`, height:'100%', borderRadius:999, background:`linear-gradient(90deg, ${tierColor}, rgba(255,255,255,0.76))`, boxShadow:'0 0 18px '+tierColor+'55' }} />
+              <div style={{ height:8, borderRadius:999, background:'rgba(255,255,255,0.08)', overflow:'hidden', marginBottom:14 }}>
+                <div style={{ width:levelUp.progressPct + '%', height:'100%', borderRadius:999, background:'linear-gradient(90deg, ' + tierColor + ', ' + nextColor + ')', boxShadow:'0 0 16px ' + nextColor + '60' }} />
               </div>
-              <div style={{ display:'flex', justifyContent:'space-between', color:'rgba(255,255,255,0.38)', fontSize:11, marginTop:7 }}>
-                <span>{isBody ? 'Mot mål' : nextTier ? `Progress mot T${nextTier}` : 'Progress'}</span>
-                <span>{progressPct}%</span>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
+                <div style={{ padding:12, borderRadius:14, background:'rgba(0,0,0,0.16)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ fontSize:10, fontWeight:900, color:'rgba(255,255,255,0.34)', letterSpacing:'0.1em', textTransform:'uppercase' }}>Bottleneck</div>
+                  <div style={{ fontSize:15, fontWeight:900, color:nextColor, marginTop:5 }}>{levelUp.primaryBottleneck}</div>
+                </div>
+                <div style={{ padding:12, borderRadius:14, background:'rgba(0,0,0,0.16)', border:'1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ fontSize:10, fontWeight:900, color:'rgba(255,255,255,0.34)', letterSpacing:'0.1em', textTransform:'uppercase' }}>Kvar</div>
+                  <div style={{ fontSize:15, fontWeight:900, color:'rgba(255,255,255,0.88)', marginTop:5 }}>{levelUp.blockers?.length ? `${levelUp.blockers.length} krav` : 'Klar'}</div>
+                </div>
               </div>
-            </div>
-
-            <div style={{ border:'1px solid '+tierColor+'24', borderRadius:18, padding:16, background:tierColor+'0d' }}>
-              <div style={{ fontSize:10, color:tierColor, textTransform:'uppercase', letterSpacing:'0.12em', fontWeight:800, marginBottom:8 }}>Bottleneck</div>
-              <div style={{ fontSize:20, color:'rgba(255,255,255,0.92)', fontWeight:760, letterSpacing:'-0.04em', marginBottom:5 }}>{bottleneckLabel}</div>
-              <div style={{ color:'rgba(255,255,255,0.50)', fontSize:12, lineHeight:1.45 }}>{bottleneckValue ? String(bottleneckValue) : isBody ? 'Håll koll på vikttrend och loggningsfrekvens.' : 'Det här är den svagaste länken för nästa level-up.'}</div>
-            </div>
-          </div>
-
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:8, marginBottom:14 }} className="grid-3">
-            {metrics.slice(0, 6).map((m, i) => (
-              <div key={i} style={{ padding:'11px 12px', borderRadius:14, background:'rgba(255,255,255,0.038)', border:'1px solid rgba(255,255,255,0.07)' }}>
-                <div style={{ fontSize:10, color:'rgba(255,255,255,0.34)', marginBottom:4, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.label}</div>
-                <div style={{ fontSize:14, fontWeight:720, color:m.highlight ? tierColor : 'rgba(255,255,255,0.86)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.value}</div>
-              </div>
-            ))}
-          </div>
-
-          {details.length > 0 && (
-            <div style={{ marginBottom:14, border:'1px solid rgba(255,255,255,0.075)', borderRadius:18, overflow:'hidden', background:'rgba(255,255,255,0.032)' }}>
-              <div style={{ padding:'12px 14px', borderBottom:'1px solid rgba(255,255,255,0.065)', fontSize:10, textTransform:'uppercase', letterSpacing:'0.12em', color:'rgba(255,255,255,0.36)', fontWeight:800 }}>Metrics breakdown</div>
-              <div style={{ padding:10, display:'grid', gap:7 }}>
-                {details.map((d, i) => {
-                  const dColor = d.tierInfo ? (TIER_COLORS[d.tierInfo.tier] || tierColor) : 'rgba(255,255,255,0.38)'
-                  return (
-                    <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'8px 10px', borderRadius:12, background:'rgba(255,255,255,0.032)' }}>
-                      <div style={{ minWidth:0 }}>
-                        <div style={{ color:'rgba(255,255,255,0.82)', fontSize:13, fontWeight:620, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{d.label}</div>
-                        {d.tierInfo?.label && <div style={{ color:dColor, fontSize:10, marginTop:1 }}>{d.tierInfo.label}</div>}
-                      </div>
-                      <div style={{ color:dColor, fontSize:13, fontWeight:760, whiteSpace:'nowrap' }}>{d.value}</div>
-                    </div>
-                  )
-                })}
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {(levelUp.requirements || []).map((req, i) => <RequirementRow key={i} req={req} color={nextColor} />)}
               </div>
             </div>
           )}
 
-          {objectiveRows.length > 0 && !isBody && (
-            <div style={{ marginBottom:14, border:'1px solid '+tierColor+'24', borderRadius:18, background:tierColor+'08', overflow:'hidden' }}>
-              <div style={{ padding:'12px 14px', display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid rgba(255,255,255,0.065)' }}>
-                <div style={{ fontSize:10, textTransform:'uppercase', letterSpacing:'0.12em', color:tierColor, fontWeight:850 }}>Level-up requirements</div>
-                {nextTier && <div style={{ fontSize:10, color:'rgba(255,255,255,0.42)' }}>Target T{nextTier}</div>}
-              </div>
-              <div style={{ padding:10, display:'grid', gap:7 }}>
-                {objectiveRows.map((row, i) => (
-                  <div key={i} style={{ display:'flex', alignItems:'center', gap:9, padding:'8px 10px', borderRadius:12, background:row.done ? 'rgba(52,211,153,0.075)' : 'rgba(255,255,255,0.035)', border:'1px solid '+(row.done ? 'rgba(52,211,153,0.16)' : 'rgba(255,255,255,0.05)') }}>
-                    <div style={{ width:16, height:16, borderRadius:5, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', background:row.done ? 'rgba(52,211,153,0.18)' : 'rgba(255,255,255,0.04)', border:'1px solid '+(row.done ? 'rgba(52,211,153,0.32)' : 'rgba(255,255,255,0.12)'), color:row.done ? '#34d399' : 'rgba(255,255,255,0.28)', fontSize:11, fontWeight:900 }}>{row.done ? '✓' : ''}</div>
-                    <div style={{ color:row.done ? 'rgba(255,255,255,0.74)' : 'rgba(255,255,255,0.88)', fontSize:13, lineHeight:1.35 }}>{row.label}</div>
-                  </div>
-                ))}
-              </div>
+          <div style={{ marginBottom:18 }}>
+            <div style={{ fontSize:10, fontWeight:900, letterSpacing:'0.11em', color:'rgba(255,255,255,0.28)', textTransform:'uppercase', marginBottom:10 }}>Aktuell data</div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:8 }}>
+              {(metrics || details || []).slice(0, 6).map((m, i) => (
+                <div key={i} style={{ padding:12, borderRadius:13, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', minWidth:0 }}>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.38)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.label}</div>
+                  <div style={{ fontSize:15, fontWeight:900, color:m.tierInfo?.color || 'rgba(255,255,255,0.88)', marginTop:5, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.value}</div>
+                  {m.tierInfo && <div style={{ fontSize:10, color:m.tierInfo.color, opacity:.8, marginTop:3 }}>{m.tierInfo.label}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {requirements.length > 0 && (
+            <div style={{ marginBottom:18 }}>
+              <button onClick={() => setShowAllTiers(v => !v)} style={{ width:'100%', display:'flex', justifyContent:'space-between', alignItems:'center', padding:'13px 15px', borderRadius:14, background:'rgba(255,255,255,0.045)', border:'1px solid rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.82)', cursor:'pointer' }}>
+                <span style={{ fontSize:12, fontWeight:900, letterSpacing:'0.11em', textTransform:'uppercase' }}>Alla tiers och krav</span>
+                <span style={{ fontSize:18, color:'rgba(255,255,255,0.45)' }}>{showAllTiers ? '−' : '+'}</span>
+              </button>
+              {showAllTiers && (
+                <div style={{ display:'flex', flexDirection:'column', gap:7, marginTop:10 }}>
+                  {requirements.map((t, i) => {
+                    const isCurrent = t.tier === tierNum
+                    const isPast = t.tier < tierNum
+                    const isNext = t.tier === (levelUp?.nextTier || tierNum + 1)
+                    const c = TIER_COLORS[t.tier] || '#6b7280'
+                    return (
+                      <div key={i} style={{ padding:'12px 14px', borderRadius:13, background:isCurrent ? c + '14' : isNext ? c + '0b' : isPast ? 'rgba(16,185,129,0.045)' : 'rgba(255,255,255,0.025)', border:'1px solid ' + (isCurrent ? c + '50' : isNext ? c + '2e' : isPast ? 'rgba(16,185,129,0.14)' : 'rgba(255,255,255,0.055)') }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:7 }}>
+                          <span style={{ fontSize:13, fontWeight:900, color:isPast ? '#10b981' : c }}>T{t.tier}</span>
+                          <span style={{ fontSize:12, fontWeight:800, color:isPast ? 'rgba(16,185,129,0.75)' : isCurrent || isNext ? 'rgba(255,255,255,0.82)' : 'rgba(255,255,255,0.35)' }}>{t.label}</span>
+                          {isCurrent && <span style={{ marginLeft:'auto', fontSize:10, color:c }}>nu</span>}
+                          {isNext && <span style={{ marginLeft:'auto', fontSize:10, color:c }}>nästa</span>}
+                        </div>
+                        <div style={{ display:'flex', flexDirection:'column', gap:4, paddingLeft:3 }}>
+                          {t.reqs.map((r, j) => <div key={j} style={{ display:'flex', gap:7, alignItems:'flex-start', fontSize:12, color:isPast ? 'rgba(16,185,129,0.56)' : isCurrent || isNext ? 'rgba(255,255,255,0.64)' : 'rgba(255,255,255,0.28)' }}><span style={{ color:isPast ? '#10b981' : c }}>•</span><span>{r}</span></div>)}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
           {chartData && chartData.length > 1 && (
-            <div style={{ marginBottom:14 }}>
+            <div style={{ marginBottom:18 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                <div style={{ fontSize:10, color:'rgba(255,255,255,0.36)', textTransform:'uppercase', letterSpacing:'0.12em', fontWeight:800 }}>History</div>
-                <div style={{ display:'flex', gap:4 }}>
-                  {periods.map(p => (
-                    <button key={p} onClick={() => setPeriod(p)} style={{ padding:'3px 9px', fontSize:10, borderRadius:7, background:period === p ? tierColor+'18' : 'transparent', border:'1px solid '+(period === p ? tierColor+'4a' : 'rgba(255,255,255,0.08)'), color:period === p ? tierColor : 'rgba(255,255,255,0.34)', cursor:'pointer', fontWeight:period === p ? 750 : 500 }}>{p}</button>
-                  ))}
-                </div>
+                <div style={{ fontSize:10, fontWeight:900, letterSpacing:'0.11em', color:'rgba(255,255,255,0.28)', textTransform:'uppercase' }}>Historik</div>
+                <div style={{ display:'flex', gap:4 }}>{periods.map(p => <button key={p} onClick={() => setPeriod(p)} style={{ padding:'3px 9px', fontSize:10, borderRadius:7, background:period === p ? nextColor + '20' : 'transparent', border:'1px solid ' + (period === p ? nextColor + '55' : 'rgba(255,255,255,0.08)'), color:period === p ? nextColor : 'rgba(255,255,255,0.35)', cursor:'pointer', fontWeight:period === p ? 800 : 500 }}>{p}</button>)}</div>
               </div>
-              <div style={{ background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:16, padding:12 }}>
-                <ResponsiveContainer width="100%" height={150}>
+              <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:14, padding:12 }}>
+                <ResponsiveContainer width="100%" height={145}>
                   <LineChart data={chartData}>
                     <XAxis dataKey="date" tick={{ fontSize:9, fill:'rgba(255,255,255,0.25)' }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize:9, fill:'rgba(255,255,255,0.25)' }} tickLine={false} axisLine={false} width={36} />
-                    <Tooltip content={<CustomTooltip tierColor={tierColor} />} />
-                    {(chartLines || []).map((line, i) => <Line key={i} type="monotone" dataKey={line.key} stroke={line.color || tierColor} strokeWidth={2.2} dot={false} name={line.label} />)}
+                    <Tooltip content={<CustomTooltip />} />
+                    {(chartLines || []).map((line, i) => <Line key={i} type="monotone" dataKey={line.key} stroke={line.color || nextColor} strokeWidth={2} dot={false} name={line.label} />)}
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </div>
           )}
 
-          {navTarget && (
-            <button onClick={() => { onClose(); navigate(navTarget) }} style={{ width:'100%', padding:'13px', borderRadius:15, border:'1px solid '+tierColor+'30', background:tierColor+'10', color:tierColor, fontWeight:750, fontSize:13, cursor:'pointer', letterSpacing:'0.01em' }}>
-              Öppna {navLabel} →
-            </button>
-          )}
+          {navTarget && <button onClick={() => { onClose(); navigate(navTarget) }} style={{ width:'100%', padding:13, background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:14, color:'rgba(255,255,255,0.78)', fontWeight:800, fontSize:13, cursor:'pointer', letterSpacing:'0.02em' }}>Gå till {navLabel} →</button>}
         </div>
       </div>
     </div>
