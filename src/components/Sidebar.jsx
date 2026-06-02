@@ -51,18 +51,10 @@ export default function Sidebar() {
         padding: '22px 20px 18px',
         borderBottom: '1px solid var(--border)',
       }}>
-        <div style={{
-          fontSize: '19px',
-          fontWeight: '700',
-          letterSpacing: '-0.5px',
+        <div className="brand-logo" style={{
           color: 'var(--text)',
         }}>
-          Sigge<span style={{
-            background: 'linear-gradient(135deg, var(--accent), var(--accent2, #a78bfa))',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}>OS</span>
+          <span className="brand-logo-main">Sigge</span><span className="brand-logo-os">OS</span>
         </div>
         <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', letterSpacing: '0.02em' }}>
           Personal OS

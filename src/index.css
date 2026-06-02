@@ -993,3 +993,215 @@ button[aria-label] {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
   letter-spacing: normal !important;
 }
+
+/* ============================================================
+   SIGGEOS EDITORIAL THEME — Playfair accent system
+   ============================================================ */
+
+/* 1. Primary CTA buttons: + Ny kurs, Spara, Logga, Skapa etc */
+.btn-primary,
+button.btn-primary,
+a.btn-primary {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  letter-spacing: -0.05em !important;
+}
+
+.btn-primary.btn-sm,
+button.btn-primary.btn-sm,
+a.btn-primary.btn-sm {
+  font-size: 16px !important;
+}
+
+.btn-primary.btn-lg,
+button.btn-primary.btn-lg,
+a.btn-primary.btn-lg {
+  font-size: 25px !important;
+  padding-top: 15px !important;
+  padding-bottom: 17px !important;
+}
+
+/* Raw inline blue buttons that are not using btn-primary */
+button[style*="linear-gradient"],
+button[style*="#3b82f6"],
+button[style*="rgb(59, 130, 246)"],
+button[style*="var(--accent)"] {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.05em !important;
+}
+
+/* Keep pure icon buttons neutral */
+.btn-icon,
+button.btn-icon,
+button[aria-label],
+button:has(svg):not(:has(span)):not(.btn-primary) {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  letter-spacing: normal !important;
+}
+
+/* 2. Important rank / tier / score values */
+.rank-value,
+.tier-value,
+.score-value,
+.maxx-score-value,
+.metric-hero,
+.big-number,
+.stat-hero,
+[data-rank],
+[data-tier] {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.06em !important;
+  line-height: 0.92 !important;
+}
+
+/* Generic tier chips/text like T1, T2, T4 if they are in common card areas */
+.card .mono:first-child,
+.cat-card .mono:first-child,
+.category-card .mono:first-child {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.055em !important;
+}
+
+/* Big T1/T2 badge feel */
+.card [style*="fontSize: '40px'"],
+.card [style*='fontSize: "40px"'],
+.cat-card [style*="fontSize: '40px'"],
+.cat-card [style*='fontSize: "40px"'] {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+}
+
+/* 3. Sidebar brand: Sigge = Playfair, OS = neutral */
+.brand-logo {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 1px !important;
+  white-space: nowrap !important;
+  line-height: 0.9 !important;
+}
+
+.brand-logo-main {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  font-size: 34px !important;
+  letter-spacing: -0.085em !important;
+  color: var(--text) !important;
+}
+
+.brand-logo-os {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-style: normal !important;
+  font-weight: 800 !important;
+  font-size: 18px !important;
+  letter-spacing: -0.04em !important;
+  margin-left: 2px !important;
+  background: linear-gradient(135deg, var(--accent), var(--accent2, #a78bfa)) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+/* Make subtitle under logo breathe with bigger logo */
+.brand-logo + div {
+  margin-top: 7px !important;
+}
+
+/* 4. Empty states */
+.empty-state-title,
+.empty-title,
+.no-data-title,
+.card-empty-title {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  font-size: clamp(28px, 3vw, 44px) !important;
+  line-height: 0.95 !important;
+  letter-spacing: -0.065em !important;
+  color: var(--text) !important;
+}
+
+.empty-state,
+.no-data,
+.card-empty,
+[data-empty="true"] {
+  text-align: center !important;
+}
+
+.empty-state strong,
+.no-data strong,
+.card-empty strong,
+[data-empty="true"] strong {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.05em !important;
+}
+
+/* Fallback: common Swedish empty-state texts */
+div:has(> :only-child):has(*),
+div {
+  --playfair-accent-ready: 1;
+}
+
+/* 5. Jarvis / highlighted words */
+.jarvis-message strong,
+.jarvis-response strong,
+.chat-message strong,
+.ai-message strong,
+.assistant-message strong,
+.markdown strong,
+.prose strong,
+.highlight,
+.ai-highlight,
+.bottleneck-highlight {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.045em !important;
+  color: var(--text) !important;
+}
+
+/* Strong emphasis inside normal text */
+p strong em,
+p em strong,
+li strong em,
+li em strong {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.045em !important;
+}
+
+/* Make section headers more editorial but not too much */
+.section-title,
+.card-title,
+.widget-title {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.055em !important;
+}
+
+/* Keep tiny labels readable */
+.metric-label,
+.page-header-sub,
+.card-subtitle,
+.widget-subtitle,
+small,
+nav a,
+input,
+textarea,
+select {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
