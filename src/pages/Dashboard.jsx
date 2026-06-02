@@ -391,8 +391,10 @@ export default function Dashboard() {
       const INCOME_SOURCES = ['PA-jobb', 'Erik Norling']
       const totIncomeLogged = (incomeData||[])
         .filter(i => INCOME_SOURCES.includes(i.source))
-        .reduce((s,i) => s + (Number(i.amount)||0), 0)
-      // PA estimated_pay is gross — multiply by 0.7 for approximate net
+        .reduce((s,i) => {
+          const amt = Number(i.amount) || 0
+          return s + (i.source === 'PA-jobb' ? amt * 0.7 : amt)
+        }, 0)
       const totPAEst = (paData||[]).reduce((s,sh) => s + (sh.estimated_pay||0), 0) * 0.7
       const totPA = totIncomeLogged > 0 ? totIncomeLogged : totPAEst
       const sav=userSettings?.goals?.savings||null
