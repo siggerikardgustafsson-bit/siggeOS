@@ -199,8 +199,13 @@ export default function HalsaPage() {
   }
 
   async function openEditLog(log) {
+    const takenSupplements = supplementLogs
+      .filter(s => s.date === log.date && s.taken)
+      .map(s => s.supplement_name)
+
     setEditingLog({
       ...log,
+      isSupplementOnly: String(log.id || '').startsWith('supp-'),
       weight_kg: log.weight_kg || '',
       sleep_hours: log.sleep_hours || '',
       sleep_quality: log.sleep_quality || 7,
@@ -208,21 +213,57 @@ export default function HalsaPage() {
       nicotine: log.nicotine ? ['snus'] : [],
       retatrutide_dose_mg: log.retatrutide_dose_mg || '',
       retatrutide_injected: !!log.retatrutide_dose_mg,
+      supplements_taken: takenSupplements,
     })
   }
 
   async function saveEditLog() {
     if (!editingLog) return
-    await supabase.from('health_logs').update({
-      date: editingLog.date,
+
+    const editedDate = editingLog.date || today
+    const healthPayload = {
+      user_id: user.id,
+      date: editedDate,
+      source: 'manual',
       weight_kg: editingLog.weight_kg ? parseFloat(editingLog.weight_kg) : null,
       sleep_hours: editingLog.sleep_hours ? parseFloat(editingLog.sleep_hours) : null,
       sleep_quality: editingLog.sleep_quality,
       alcohol_units: editingLog.alcohol_units ? parseFloat(editingLog.alcohol_units) : null,
       nicotine: editingLog.nicotine?.length > 0,
       retatrutide_dose_mg: editingLog.retatrutide_injected ? parseFloat(editingLog.retatrutide_dose_mg) || 2.5 : null,
-    }).eq('id', editingLog.id)
+    }
+
+    const { error: healthError } = await supabase
+      .from('health_logs')
+      .upsert(healthPayload, { onConflict: 'user_id,date' })
+
+    if (healthError) {
+      console.error('Kunde inte uppdatera health_logs', healthError)
+      alert('Kunde inte spara hälsologgen. Se Console för exakt fel.')
+      return
+    }
+
+    const selectedSupplements = editingLog.supplements_taken || []
+    const supplementRows = supplements.map(name => ({
+      user_id: user.id,
+      date: editedDate,
+      supplement_name: name,
+      taken: selectedSupplements.includes(name),
+      updated_at: new Date().toISOString(),
+    }))
+
+    const { error: suppError } = await supabase
+      .from('supplement_logs')
+      .upsert(supplementRows, { onConflict: 'user_id,date,supplement_name' })
+
+    if (suppError) {
+      console.error('Kunde inte uppdatera supplement_logs', suppError)
+      alert('Kunde inte spara kosttillskott. Se Console för exakt fel.')
+      return
+    }
+
     await fetchLogs()
+    await fetchSupplementLogs()
     setEditingLog(null)
   }
 
@@ -605,13 +646,11 @@ export default function HalsaPage() {
                       {log.nicotine && <span style={{ fontSize:'12px', color:'#f59e0b' }}>nikotin</span>}
                       {log.retatrutide_dose_mg && <span style={{ fontSize:'12px', color:'#a78bfa' }}> {log.retatrutide_dose_mg}mg</span>}
                     </div>
-                    {!String(log.id || '').startsWith('supp-') && (
-                      <button onClick={() => openEditLog(log)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'7px', padding:'4px 8px', cursor:'pointer', color:'var(--muted)', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexShrink:0, transition:'all 0.15s' }}
-                        onMouseEnter={e => { e.currentTarget.style.color='var(--accent)'; e.currentTarget.style.borderColor='var(--accent-border)' }}
-                        onMouseLeave={e => { e.currentTarget.style.color='var(--muted)'; e.currentTarget.style.borderColor='var(--border)' }}>
-                        <Edit2 size={11} /> Redigera
-                      </button>
-                    )}
+                    <button onClick={() => openEditLog(log)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'7px', padding:'4px 8px', cursor:'pointer', color:'var(--muted)', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexShrink:0, transition:'all 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.color='var(--accent)'; e.currentTarget.style.borderColor='var(--accent-border)' }}
+                      onMouseLeave={e => { e.currentTarget.style.color='var(--muted)'; e.currentTarget.style.borderColor='var(--border)' }}>
+                      <Edit2 size={11} /> Redigera
+                    </button>
                   </div>
                 ))}
               </div>
@@ -649,10 +688,41 @@ export default function HalsaPage() {
             </div>
             <div style={{ marginBottom:'16px' }}>
               <label style={{ fontSize:'11px', color:'var(--muted)', display:'block', marginBottom:'6px' }}>Nikotin</label>
-              <div style={{ display:'flex', gap:'6px' }}>
+              <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
                 {NICOTINE_TYPES.map(n => {
                   const active = editingLog.nicotine?.includes(n.id)
                   return <button key={n.id} onClick={() => setEditingLog(l => ({ ...l, nicotine: active ? l.nicotine.filter(x=>x!==n.id) : [...(l.nicotine||[]),n.id] }))} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid '+(active?'#f59e0b':'var(--border)'), background: active?'rgba(245,158,11,0.12)':'var(--surface2)', color: active?'#f59e0b':'var(--muted)', fontSize:'12px', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>{n.label}</button>
+                })}
+              </div>
+            </div>
+            <div style={{ marginBottom:'18px' }}>
+              <label style={{ fontSize:'11px', color:'var(--muted)', display:'block', marginBottom:'6px' }}>Kosttillskott</label>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:'7px' }}>
+                {supplements.map(name => {
+                  const active = editingLog.supplements_taken?.includes(name)
+                  return (
+                    <button key={name} onClick={() => setEditingLog(l => ({
+                      ...l,
+                      supplements_taken: active
+                        ? (l.supplements_taken || []).filter(x => x !== name)
+                        : [...(l.supplements_taken || []), name]
+                    }))} style={{
+                      padding:'8px 10px',
+                      borderRadius:'9px',
+                      border:'1px solid '+(active?'#06b6d4':'var(--border)'),
+                      background: active?'rgba(6,182,212,0.12)':'var(--surface2)',
+                      color: active?'#06b6d4':'var(--muted2)',
+                      fontSize:'12px',
+                      cursor:'pointer',
+                      fontFamily:'DM Sans, sans-serif',
+                      textAlign:'left',
+                      overflow:'hidden',
+                      textOverflow:'ellipsis',
+                      whiteSpace:'nowrap'
+                    }}>
+                      {active ? '✓ ' : ''}{name}
+                    </button>
+                  )
                 })}
               </div>
             </div>
