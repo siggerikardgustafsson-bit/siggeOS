@@ -6,7 +6,7 @@ import { sv } from 'date-fns/locale'
 import {
   Plus, X, Save, Loader, Calendar, Briefcase, ChevronDown,
   ChevronUp, Check, Clock, DollarSign, FileText, MessageSquare,
-  Tag, AlertTriangle, ExternalLink
+  Tag, AlertTriangle, ExternalLink, FolderKanban, Circle, Edit2, Trash2
 } from 'lucide-react'
 
 const ERIK_TAGS = [
@@ -208,6 +208,16 @@ export default function JobbPage() {
   const [notes, setNotes] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
 
+  // Projekt state
+  const [projects, setProjects] = useState([])
+  const [selectedProject, setSelectedProject] = useState(null)
+  const [projectTasks, setProjectTasks] = useState([])
+  const [showNewProject, setShowNewProject] = useState(false)
+  const [editingProjectTask, setEditingProjectTask] = useState(null)
+  const [showNewProjectTask, setShowNewProjectTask] = useState(false)
+  const [projectForm, setProjectForm] = useState({ name: '', type: 'sidoprojekt', client: '', color: '#4f8ef7', description: '' })
+  const [projectTaskForm, setProjectTaskForm] = useState({ title: '', description: '', deadline: '', priority: 'medium', notes: '' })
+
   const [taskForm, setTaskForm] = useState({
     title: '', description: '', deadline: '', tag: 'Övrig verksamhet', priority: 'medium', notes: ''
   })
@@ -219,7 +229,7 @@ export default function JobbPage() {
   })
 
   useEffect(() => {
-    if (user) { fetchAll(); checkCalendarConnection() }
+    if (user) { fetchAll(); checkCalendarConnection(); fetchProjects() }
   }, [user, selectedMonth])
 
   async function fetchAll() {
@@ -399,6 +409,92 @@ export default function JobbPage() {
     setSaving(false)
   }
 
+  async function fetchProjects() {
+    const { data } = await supabase.from('projects').select('*').eq('user_id', user.id).order('created_at')
+    const projectList = data || []
+    // Seed default projects if none exist
+    if (projectList.length === 0) {
+      const seeds = [
+        { user_id: user.id, name: 'Erik Norling', type: 'jobb', client: 'Erik Norling', color: '#f59e0b', description: 'Fastigheter, uppdrag och löpande arbete för Erik.' },
+        { user_id: user.id, name: 'SiggeOS', type: 'sidoprojekt', client: '', color: '#4f8ef7', description: 'Personlig life-management app byggd med React + Supabase.' },
+      ]
+      const { data: seeded } = await supabase.from('projects').insert(seeds).select()
+      setProjects(seeded || [])
+      if (seeded?.length) { setSelectedProject(seeded[0]); fetchProjectTasks(seeded[0].id) }
+      return
+    }
+    setProjects(projectList)
+    if (!selectedProject && projectList.length) {
+      setSelectedProject(projectList[0])
+      fetchProjectTasks(projectList[0].id)
+    }
+  }
+
+  async function fetchProjectTasks(projectId) {
+    const { data } = await supabase.from('project_tasks').select('*')
+      .eq('project_id', projectId).order('status').order('deadline', { nullsFirst: false })
+    setProjectTasks(data || [])
+  }
+
+  async function saveProject() {
+    setSaving(true)
+    const payload = { user_id: user.id, ...projectForm }
+    const { data } = await supabase.from('projects').insert(payload).select().single()
+    if (data) { setProjects(p => [...p, data]); setSelectedProject(data); setProjectTasks([]) }
+    setShowNewProject(false)
+    setProjectForm({ name: '', type: 'sidoprojekt', client: '', color: '#4f8ef7', description: '' })
+    setSaving(false)
+  }
+
+  async function deleteProject(id) {
+    if (!window.confirm('Ta bort projektet och alla dess tasks?')) return
+    await supabase.from('project_tasks').delete().eq('project_id', id)
+    await supabase.from('projects').delete().eq('id', id)
+    const remaining = projects.filter(p => p.id !== id)
+    setProjects(remaining)
+    if (selectedProject?.id === id) {
+      const next = remaining[0] || null
+      setSelectedProject(next)
+      if (next) fetchProjectTasks(next.id)
+      else setProjectTasks([])
+    }
+  }
+
+  async function saveProjectTask() {
+    if (!selectedProject) return
+    setSaving(true)
+    const payload = {
+      project_id: selectedProject.id,
+      user_id: user.id,
+      title: projectTaskForm.title,
+      description: projectTaskForm.description || null,
+      deadline: projectTaskForm.deadline || null,
+      priority: projectTaskForm.priority,
+      notes: projectTaskForm.notes || null,
+      status: 'ej_påbörjat',
+    }
+    if (editingProjectTask) {
+      await supabase.from('project_tasks').update(payload).eq('id', editingProjectTask.id)
+    } else {
+      await supabase.from('project_tasks').insert(payload)
+    }
+    await fetchProjectTasks(selectedProject.id)
+    setShowNewProjectTask(false)
+    setEditingProjectTask(null)
+    setProjectTaskForm({ title: '', description: '', deadline: '', priority: 'medium', notes: '' })
+    setSaving(false)
+  }
+
+  async function moveProjectTask(taskId, newStatus) {
+    await supabase.from('project_tasks').update({ status: newStatus }).eq('id', taskId)
+    setProjectTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
+  }
+
+  async function deleteProjectTask(taskId) {
+    await supabase.from('project_tasks').delete().eq('id', taskId)
+    setProjectTasks(prev => prev.filter(t => t.id !== taskId))
+  }
+
   // Stats
   const totalHours = paShifts.reduce((sum, s) => sum + (s.hours_worked || 0), 0)
   const totalErikThisMonth = erikPayments.reduce((sum, p) => sum + p.amount, 0)
@@ -416,6 +512,7 @@ export default function JobbPage() {
   const tabs = [
     { id: 'pa',         label: 'PA-jobb' },
     { id: 'erik',       label: 'Erik Norling' },
+    { id: 'projekt',    label: 'Projekt' },
     { id: 'tidrapport', label: 'Tidrapport' },
   ]
 
@@ -787,6 +884,244 @@ export default function JobbPage() {
               </div>
             )}
           </div>
+        </>
+      )}
+
+      {/* ===== PROJEKT ===== */}
+      {activeTab === 'projekt' && (
+        <>
+          {/* Project selector + new project */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+              {projects.map(p => (
+                <button key={p.id} onClick={() => { setSelectedProject(p); fetchProjectTasks(p.id); setShowNewProjectTask(false); setEditingProjectTask(null) }} style={{
+                  display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px',
+                  borderRadius: 20, border: '1px solid',
+                  borderColor: selectedProject?.id === p.id ? p.color : 'var(--border)',
+                  background: selectedProject?.id === p.id ? p.color + '18' : 'var(--surface2)',
+                  color: selectedProject?.id === p.id ? p.color : 'var(--muted)',
+                  fontSize: 13, cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                  fontWeight: selectedProject?.id === p.id ? 600 : 400,
+                }}>
+                  <Circle size={8} fill={p.color} color={p.color} />
+                  {p.name}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowNewProject(v => !v)} className="btn btn-ghost" style={{ fontSize: 12 }}>
+              <Plus size={12} /> Nytt projekt
+            </button>
+          </div>
+
+          {/* New project form */}
+          {showNewProject && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ fontWeight: 600 }}>Nytt projekt</div>
+                <button onClick={() => setShowNewProject(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={16} /></button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 5 }}>NAMN</label>
+                  <input className="input" placeholder="t.ex. Min app" value={projectForm.name} onChange={e => setProjectForm(f => ({ ...f, name: e.target.value }))} autoFocus />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 5 }}>TYP</label>
+                  <select className="input" value={projectForm.type} onChange={e => setProjectForm(f => ({ ...f, type: e.target.value }))}>
+                    <option value="jobb">Jobb</option>
+                    <option value="sidoprojekt">Sidoprojekt</option>
+                    <option value="studie">Studie</option>
+                    <option value="övrigt">Övrigt</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 5 }}>FÄRG</label>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {['#4f8ef7','#10b981','#f59e0b','#a78bfa','#f472b6','#06b6d4','#ef4444'].map(c => (
+                      <button key={c} onClick={() => setProjectForm(f => ({ ...f, color: c }))} style={{
+                        width: 24, height: 24, borderRadius: '50%', background: c, border: projectForm.color === c ? '2px solid white' : '2px solid transparent',
+                        cursor: 'pointer', flexShrink: 0,
+                      }} />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 5 }}>KUND / ARBETSGIVARE</label>
+                  <input className="input" placeholder="Valfritt" value={projectForm.client} onChange={e => setProjectForm(f => ({ ...f, client: e.target.value }))} />
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 5 }}>BESKRIVNING</label>
+                  <textarea className="input" rows={2} placeholder="Vad handlar projektet om?" value={projectForm.description} onChange={e => setProjectForm(f => ({ ...f, description: e.target.value }))} style={{ resize: 'none' }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowNewProject(false)} className="btn btn-ghost">Avbryt</button>
+                <button onClick={saveProject} disabled={saving || !projectForm.name} className="btn btn-primary">
+                  {saving ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={13} />} Spara
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Selected project */}
+          {selectedProject && (
+            <>
+              {/* Project header */}
+              <div className="card" style={{ marginBottom: 16, borderColor: selectedProject.color + '30' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: selectedProject.color, flexShrink: 0 }} />
+                      <div style={{ fontSize: 16, fontWeight: 700 }}>{selectedProject.name}</div>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: selectedProject.color + '18', color: selectedProject.color, fontWeight: 600 }}>
+                        {selectedProject.type}
+                      </span>
+                    </div>
+                    {selectedProject.client && <div style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 20, marginBottom: 4 }}>Kund: {selectedProject.client}</div>}
+                    {selectedProject.description && <div style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 20, lineHeight: 1.5 }}>{selectedProject.description}</div>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => { setShowNewProjectTask(true); setEditingProjectTask(null); setProjectTaskForm({ title: '', description: '', deadline: '', priority: 'medium', notes: '' }) }} className="btn btn-primary" style={{ fontSize: 12, padding: '6px 12px' }}>
+                      <Plus size={12} /> Task
+                    </button>
+                    <button onClick={() => deleteProject(selectedProject.id)} style={{
+                      background: 'none', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 7, padding: '6px 10px',
+                      color: 'rgba(248,113,113,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    }}>
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Project stats */}
+                <div style={{ display: 'flex', gap: 16, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                  {[
+                    { label: 'Totalt', value: projectTasks.length, color: 'var(--muted)' },
+                    { label: 'Pågående', value: projectTasks.filter(t => t.status === 'pågående').length, color: '#f59e0b' },
+                    { label: 'Klart', value: projectTasks.filter(t => t.status === 'klart').length, color: '#10b981' },
+                    { label: 'Brådskande', value: projectTasks.filter(t => t.status !== 'klart' && t.deadline && Math.ceil((new Date(t.deadline) - new Date()) / 86400000) <= 2).length, color: '#ef4444' },
+                  ].map(s => (
+                    <div key={s.label}>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.06em' }}>{s.label.toUpperCase()}</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: s.color, lineHeight: 1.2 }}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Task form */}
+              {(showNewProjectTask || editingProjectTask) && (
+                <div className="card" style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ fontWeight: 600 }}>{editingProjectTask ? 'Redigera task' : 'Ny task'}</div>
+                    <button onClick={() => { setShowNewProjectTask(false); setEditingProjectTask(null) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={16} /></button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 5 }}>TITEL</label>
+                      <input className="input" placeholder="Vad ska göras?" autoFocus value={projectTaskForm.title} onChange={e => setProjectTaskForm(f => ({ ...f, title: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 5 }}>DEADLINE</label>
+                      <input className="input" type="date" value={projectTaskForm.deadline} onChange={e => setProjectTaskForm(f => ({ ...f, deadline: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 5 }}>PRIORITET</label>
+                      <select className="input" value={projectTaskForm.priority} onChange={e => setProjectTaskForm(f => ({ ...f, priority: e.target.value }))}>
+                        <option value="low">Låg</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">Hög</option>
+                      </select>
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 5 }}>BESKRIVNING</label>
+                      <textarea className="input" rows={2} placeholder="Detaljer..." value={projectTaskForm.description} onChange={e => setProjectTaskForm(f => ({ ...f, description: e.target.value }))} style={{ resize: 'none' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button onClick={() => { setShowNewProjectTask(false); setEditingProjectTask(null) }} className="btn btn-ghost">Avbryt</button>
+                    <button onClick={saveProjectTask} disabled={saving || !projectTaskForm.title} className="btn btn-primary">
+                      {saving ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={13} />} Spara
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Kanban */}
+              {projectTasks.length === 0 && !showNewProjectTask ? (
+                <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+                  <FolderKanban size={32} style={{ margin: '0 auto 12px', opacity: 0.25, display: 'block' }} />
+                  <div style={{ marginBottom: 12 }}>Inga tasks ännu</div>
+                  <button onClick={() => setShowNewProjectTask(true)} className="btn btn-primary" style={{ margin: '0 auto' }}>
+                    <Plus size={13} /> Lägg till task
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  {TASK_STATUSES.map(col => {
+                    const colTasks = projectTasks.filter(t => t.status === col.id)
+                    return (
+                      <div key={col.id}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
+                          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>{col.label}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>{colTasks.length}</div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 60 }}>
+                          {colTasks.map(task => {
+                            const daysLeft = task.deadline ? Math.ceil((new Date(task.deadline) - new Date()) / 86400000) : null
+                            const urgent = daysLeft !== null && daysLeft <= 2 && task.status !== 'klart'
+                            const prioColor = task.priority === 'high' ? '#ef4444' : task.priority === 'medium' ? '#f59e0b' : '#6b7280'
+                            return (
+                              <div key={task.id} className="card-sm" style={{
+                                cursor: 'pointer',
+                                borderColor: urgent ? 'rgba(239,68,68,0.3)' : 'var(--border)',
+                                background: urgent ? 'rgba(239,68,68,0.04)' : 'var(--surface2)',
+                              }} onClick={() => { setEditingProjectTask(task); setProjectTaskForm({ title: task.title, description: task.description || '', deadline: task.deadline || '', priority: task.priority || 'medium', notes: task.notes || '' }); setShowNewProjectTask(false) }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.4, flex: 1, marginRight: 6 }}>{task.title}</div>
+                                  <button onClick={e => { e.stopPropagation(); deleteProjectTask(task.id) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: 0, flexShrink: 0 }}>
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: prioColor }} />
+                                    {daysLeft !== null && (
+                                      <span style={{ fontSize: 11, color: urgent ? '#ef4444' : daysLeft <= 7 ? '#f59e0b' : 'var(--muted)' }}>
+                                        {daysLeft < 0 ? 'Försenad' : daysLeft === 0 ? 'Idag' : `${daysLeft}d`}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 3 }}>
+                                    {TASK_STATUSES.filter(s => s.id !== task.status).map(s => (
+                                      <button key={s.id} onClick={e => { e.stopPropagation(); moveProjectTask(task.id, s.id) }} style={{
+                                        fontSize: 10, padding: '2px 5px', borderRadius: 4,
+                                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                                        color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                                      }}>→ {s.label}</button>
+                                    ))}
+                                  </div>
+                                </div>
+                                {task.description && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5, lineHeight: 1.4 }}>{task.description.slice(0, 80)}{task.description.length > 80 ? '…' : ''}</div>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {projects.length === 0 && !showNewProject && (
+            <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
+              <FolderKanban size={32} style={{ margin: '0 auto 12px', opacity: 0.25, display: 'block' }} />
+              <div>Inga projekt ännu</div>
+            </div>
+          )}
         </>
       )}
 
