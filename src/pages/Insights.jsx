@@ -224,12 +224,12 @@ export default function InsightsPage() {
     setLoadingObs(true)
     try {
       const lines = []
-      if (freshData.weightData?.length) lines.push('Vikt senaste veckor: ' + freshData.weightData.slice(-6).map(d => d.week + ':' + d.vikt + 'kg').join(', '))
-      if (freshData.sleepData?.length) lines.push('Somn timmar/vecka: ' + freshData.sleepData.slice(-6).map(d => d.week + ':' + d['s\u00f6mn'] + 'h').join(', '))
-      if (freshData.trainingData?.length) lines.push('Traning pass/vecka: ' + freshData.trainingData.slice(-6).map(d => d.week + ':' + d.pass + 'pass').join(', '))
-      if (freshData.studyData?.length) lines.push('Plugg timmar/vecka: ' + freshData.studyData.slice(-6).map(d => d.week + ':' + d.timmar + 'h').join(', '))
+      if (freshData.weightData?.length) lines.push('Vikt senaste veckor: ' + freshData.weightData.slice(-6).map(d => `${d.week}:${d.vikt}kg`).join(', '))
+      if (freshData.sleepData?.length) lines.push('Sömn timmar/vecka: ' + freshData.sleepData.slice(-6).map(d => `${d.week}:${d.sömn}h`).join(', '))
+      if (freshData.trainingData?.length) lines.push('Träning pass/vecka: ' + freshData.trainingData.slice(-6).map(d => `${d.week}:${d.pass}pass`).join(', '))
+      if (freshData.studyData?.length) lines.push('Plugg timmar/vecka: ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
 
-      const prompt = `Analysera denna data och returnera EXAKT en JSON-array, inga backticks, inget annat.\n\nData:\n${lines.join('\n') || 'Ingen data.'}\n\nFormat: [{"icon":"emoji","category":"kategori","text":"Kort observation max 20 ord."}]\nKategorier: halsa, traning, plugg, ekonomi, monster, somn. 4-6 observationer.`
+      const prompt = 'Analysera denna data och returnera EXAKT en JSON-array, inga backticks, inget annat.\n\nData:\n' + (lines.join('\n') || 'Ingen data.') + '\n\nFormat: [{"icon":"emoji","category":"kategori","text":"Kort observation max 20 ord."}]\nKategorier: halsa, traning, plugg, ekonomi, monster, somn. 4-6 observationer.'
 
       const { data: rd, error } = await supabase.functions.invoke('jarvis-chat', {
         body: {
@@ -255,10 +255,8 @@ export default function InsightsPage() {
       }
     } catch(e) {
       console.error('Obs failed:', e.message)
-      setAiObservations([{ icon: '\u26a0\ufe0f', category: 'info', text: 'Tryck "Uppdatera" f\u00f6r att ladda AI-observationer.' }])
+      setAiObservations([{ icon: '⚠️', category: 'info', text: 'Tryck "Uppdatera" för att ladda AI-observationer.' }])
     }
-    setLoadingObs(false)
-  }
     setLoadingObs(false)
   }
 
