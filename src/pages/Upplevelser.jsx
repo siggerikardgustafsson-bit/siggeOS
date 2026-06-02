@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, parseISO, differenceInDays } from 'date-fns'
@@ -22,7 +22,7 @@ const COUNTRIES = [
   'USA','Kanada','Mexiko','Kuba','Costa Rica','Colombia','Peru','Argentina','Brasilien',
   'Japan','Kina','Sydkorea','Thailand','Vietnam','Indonesien','Indien','Singapore','Malaysia','Filippinerna',
   'Australien','Nya Zeeland',
-  'Sydafrika','Kenya','Etiopien','Tanzania','Marocko',
+  'Sydafrika','Kenya','Etiopien','Tanzania',
 ]
 const FLAGS = {
   'Sverige':'🇸🇪','Norge':'🇳🇴','Danmark':'🇩🇰','Finland':'🇫🇮','Island':'🇮🇸',
@@ -78,44 +78,107 @@ function StarRating({ value, onChange }) {
 
 function CountryPicker({ selected, onChange }) {
   const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const searchRef = React.useRef(null)
+
   const toggle = (c) => {
     if (selected.includes(c)) onChange(selected.filter(x => x !== c))
     else onChange([...selected, c])
   }
+
+  const filtered = search.trim()
+    ? COUNTRIES.filter(c => c.toLowerCase().includes(search.toLowerCase()))
+    : COUNTRIES
+
+  // Auto-focus search when opened
+  React.useEffect(() => {
+    if (open && searchRef.current) searchRef.current.focus()
+  }, [open])
+
   return (
     <div style={{ position: 'relative' }}>
-      <button type="button" onClick={() => setOpen(!open)} style={{
+      <button type="button" onClick={() => { setOpen(!open); setSearch('') }} style={{
         width: '100%', padding: '10px 12px', borderRadius: '8px',
         border: '1px solid var(--border)', background: 'var(--surface)',
         color: selected.length ? 'var(--text)' : 'var(--muted)',
         cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif',
         fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, marginRight: 8 }}>
           {selected.length === 0 ? 'Välj länder...' :
            selected.map(c => (FLAGS[c] || '🌍') + ' ' + c).join(', ')}
         </span>
-        <ChevronDown size={14} color="var(--muted)" />
+        {selected.length > 0 && (
+          <span style={{ fontSize: '11px', background: 'var(--accent)', color: 'white', borderRadius: '10px', padding: '1px 7px', marginRight: 6, flexShrink: 0 }}>
+            {selected.length}
+          </span>
+        )}
+        <ChevronDown size={14} color="var(--muted)" style={{ flexShrink: 0 }} />
       </button>
       {open && (
         <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
           background: 'var(--surface2)', border: '1px solid var(--border)',
-          borderRadius: '8px', maxHeight: '220px', overflowY: 'auto', marginTop: '4px',
+          borderRadius: '12px', marginTop: '4px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          overflow: 'hidden',
         }}>
-          {COUNTRIES.map(c => (
-            <button key={c} onClick={() => toggle(c)} style={{
-              width: '100%', padding: '8px 12px', border: 'none',
-              cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif',
-              fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px',
-              color: selected.includes(c) ? 'var(--text)' : 'var(--muted)',
-              background: selected.includes(c) ? 'rgba(59,130,246,0.08)' : 'none',
-            }}>
-              <span>{FLAGS[c] || '🌍'}</span>
-              <span style={{ flex: 1 }}>{c}</span>
-              {selected.includes(c) && <Check size={12} color="#3b82f6" />}
-            </button>
-          ))}
+          {/* Search */}
+          <div style={{ padding: '10px 10px 6px' }}>
+            <input
+              ref={searchRef}
+              className="input"
+              placeholder="Sök land..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ fontSize: '13px', padding: '7px 10px' }}
+            />
+          </div>
+          {/* Selected chips */}
+          {selected.length > 0 && (
+            <div style={{ padding: '4px 10px 8px', display: 'flex', gap: '5px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+              {selected.map(c => (
+                <button key={c} onClick={() => toggle(c)} style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  padding: '3px 8px', borderRadius: '20px', border: 'none',
+                  background: 'rgba(59,130,246,0.18)', color: '#60a5fa',
+                  fontSize: '12px', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                }}>
+                  {FLAGS[c] || '🌍'} {c} <X size={10} />
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Country list */}
+          <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '16px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>Inga länder hittades</div>
+            ) : filtered.map(c => (
+              <button key={c} onClick={() => toggle(c)} style={{
+                width: '100%', padding: '9px 14px', border: 'none',
+                cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif',
+                fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px',
+                color: selected.includes(c) ? 'var(--text)' : 'var(--muted)',
+                background: selected.includes(c) ? 'rgba(59,130,246,0.1)' : 'transparent',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => { if (!selected.includes(c)) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+              onMouseLeave={e => { if (!selected.includes(c)) e.currentTarget.style.background = 'transparent' }}
+              >
+                <span style={{ fontSize: '16px', lineHeight: 1 }}>{FLAGS[c] || '🌍'}</span>
+                <span style={{ flex: 1 }}>{c}</span>
+                {selected.includes(c) && <Check size={13} color="#3b82f6" />}
+              </button>
+            ))}
+          </div>
+          {/* Footer */}
+          <div style={{ borderTop: '1px solid var(--border)', padding: '8px 12px', display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={() => { setOpen(false); setSearch('') }} style={{
+              background: 'var(--surface3)', border: '1px solid var(--border)',
+              borderRadius: '6px', padding: '5px 14px', color: 'var(--text)',
+              fontSize: '12px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontWeight: 600,
+            }}>Klar</button>
+          </div>
         </div>
       )}
     </div>
