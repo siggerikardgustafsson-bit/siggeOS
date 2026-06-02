@@ -388,9 +388,12 @@ export default function Dashboard() {
       const byCourse={}
       aG.forEach(g=>{const cn=g.courses?.name||'Okänd';if(!byCourse[cn])byCourse[cn]=[];byCourse[cn].push(g.mastery||0)})
 
-      const totIncomeLogged = (incomeData||[]).reduce((s,i)=>s+(Number(i.amount)||0),0)
-      const totPAEst = (paData||[]).reduce((s,sh)=>s+(sh.estimated_pay||0),0)
-      // Use income_logs if any exist this period (they're logged net), otherwise fall back to PA estimate
+      const INCOME_SOURCES = ['PA-jobb', 'Erik Norling']
+      const totIncomeLogged = (incomeData||[])
+        .filter(i => INCOME_SOURCES.includes(i.source))
+        .reduce((s,i) => s + (Number(i.amount)||0), 0)
+      const totPAEst = (paData||[]).reduce((s,sh) => s + (sh.estimated_pay||0), 0)
+      // Prefer logged net income (PA + Erik), fall back to PA shift estimates
       const totPA = totIncomeLogged > 0 ? totIncomeLogged : totPAEst
       const sav=userSettings?.goals?.savings||null
       const incT=totPA?getTier(totPA,INCOME_THRESHOLDS,true):null
