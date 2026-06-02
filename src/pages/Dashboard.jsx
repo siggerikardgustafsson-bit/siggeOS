@@ -163,18 +163,26 @@ export default function Dashboard() {
       const since90 = format(subDays(todayDate, 90), 'yyyy-MM-dd')
       const since30 = format(subDays(todayDate, 30), 'yyyy-MM-dd')
 
+      // Fetch salary_day first to build correct period
+      const { data: settingsQuick } = await supabase.from('user_settings').select('goals,display_name').eq('user_id',userId).single()
+      const salaryDay = settingsQuick?.goals?.salary_day || 25
+      const todayNum = todayDate.getDate()
+      const startMonth = todayNum < salaryDay ? todayDate.getMonth() - 1 : todayDate.getMonth()
+      const periodStart = format(new Date(todayDate.getFullYear(), startMonth, salaryDay), 'yyyy-MM-dd')
+      const periodEnd = format(new Date(todayDate.getFullYear(), startMonth + 1, salaryDay - 1), 'yyyy-MM-dd')
+
       const [
         { data: runData }, { data: prData }, { data: healthData },
         { data: studyData }, { data: paData }, { data: skillData }, { data: userSettings },
-        { data: exData }, { data: supplementLogs }, { data: snapshots },
+        { data: exData }, { data: supplementLogs }, { data: snapshots }, { data: incomeData },
       ] = await Promise.all([
         supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
         supabase.from('personal_records').select('exercise_name,weight_kg,reps,date,updated_at').eq('user_id',userId).order('weight_kg',{ascending:false}),
         supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
         supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
-        supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',since30),
+        supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',periodStart).lte('date',periodEnd),
         supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since30),
-        supabase.from('user_settings').select('goals,display_name').eq('user_id',userId).single(),
+        Promise.resolve({ data: settingsQuick }),
         supabase.from('training_exercises')
           .select('exercise_name,reps,weight_kg,training_sessions!inner(date,user_id)')
           .eq('training_sessions.user_id', userId)
@@ -191,7 +199,14 @@ export default function Dashboard() {
           .eq('user_id', userId)
           .gte('date', format(subDays(todayDate, 180), 'yyyy-MM-dd'))
           .order('date', { ascending: true })
-          .then(r => r) // soft — table may not exist yet
+          .then(r => r)
+          .catch(() => ({ data: [] })),
+        supabase.from('income_logs')
+          .select('date,amount,source')
+          .eq('user_id', userId)
+          .gte('date', periodStart)
+          .lte('date', periodEnd)
+          .then(r => r)
           .catch(() => ({ data: [] })),
       ])
 
@@ -373,7 +388,10 @@ export default function Dashboard() {
       const byCourse={}
       aG.forEach(g=>{const cn=g.courses?.name||'Okänd';if(!byCourse[cn])byCourse[cn]=[];byCourse[cn].push(g.mastery||0)})
 
-      const totPA=(paData||[]).reduce((s,sh)=>s+(sh.estimated_pay||0),0)
+      const totIncomeLogged = (incomeData||[]).reduce((s,i)=>s+(Number(i.amount)||0),0)
+      const totPAEst = (paData||[]).reduce((s,sh)=>s+(sh.estimated_pay||0),0)
+      // Use income_logs if any exist this period (they're logged net), otherwise fall back to PA estimate
+      const totPA = totIncomeLogged > 0 ? totIncomeLogged : totPAEst
       const sav=userSettings?.goals?.savings||null
       const incT=totPA?getTier(totPA,INCOME_THRESHOLDS,true):null
       const savT=sav!=null?getTier(sav,SAVINGS_THRESHOLDS,true):null
@@ -577,8 +595,8 @@ export default function Dashboard() {
           details:[{label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',tierInfo:pT},...Object.entries(byCourse).map(([c,v])=>({label:c,value:Math.round(v.reduce((s,x)=>s+x,0)/v.length)+'%'}))],
           chartData:[],chartLines:[],levelUp:studyLevelUp,navTarget:'/plugg',navLabel:'Plugg'},
         {id:'ekonomi',name:'Ekonomi',icon:'ekonomi',tier:eTop,hasData:!!(totPA||sav!=null),pct:eTop?Math.round((eTop.tier/8)*100):0,decayWarning:false,trend:'neutral',
-          metrics:[{label:'Inkomst/månad',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',highlight:true},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—'}],
-          details:[{label:'Månadsnettoink.',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',tierInfo:incT},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—',tierInfo:savT}],
+          metrics:[{label:'Inkomst/period',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',highlight:true},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—'}],
+          details:[{label:'Netto denna period',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',tierInfo:incT},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—',tierInfo:savT}],
           chartData:[],chartLines:[],levelUp:econLevelUp,navTarget:'/ekonomi',navLabel:'Ekonomi'},
         {id:'halsa',name:'Hälsa',icon:'halsa',tier:wTop,hasData:wTs.length>0 || !!latestW?.weight_kg,pct:wTop?Math.round((wTop.tier/8)*100):(latestW?.weight_kg?wP:0),decayWarning:false,trend:aE?(aE>=7?'up':aE<=4?'down':'neutral'):'neutral',
           metrics:[
