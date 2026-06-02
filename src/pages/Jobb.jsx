@@ -217,6 +217,9 @@ export default function JobbPage() {
   const [showNewProjectTask, setShowNewProjectTask] = useState(false)
   const [projectForm, setProjectForm] = useState({ name: '', type: 'sidoprojekt', client: '', color: '#4f8ef7', description: '' })
   const [projectTaskForm, setProjectTaskForm] = useState({ title: '', description: '', deadline: '', priority: 'medium', notes: '' })
+  const [projectNotes, setProjectNotes] = useState('')
+  const [savingProjectNotes, setSavingProjectNotes] = useState(false)
+  const [projectNotesSaved, setProjectNotesSaved] = useState(false)
 
   const [taskForm, setTaskForm] = useState({
     title: '', description: '', deadline: '', tag: 'Övrig verksamhet', priority: 'medium', notes: ''
@@ -434,6 +437,19 @@ export default function JobbPage() {
     const { data } = await supabase.from('project_tasks').select('*')
       .eq('project_id', projectId).order('status').order('deadline', { nullsFirst: false })
     setProjectTasks(data || [])
+    // Load notes for this project
+    const { data: proj } = await supabase.from('projects').select('notes').eq('id', projectId).single()
+    setProjectNotes(proj?.notes || '')
+    setProjectNotesSaved(false)
+  }
+
+  async function saveProjectNotes() {
+    if (!selectedProject) return
+    setSavingProjectNotes(true)
+    await supabase.from('projects').update({ notes: projectNotes }).eq('id', selectedProject.id)
+    setSavingProjectNotes(false)
+    setProjectNotesSaved(true)
+    setTimeout(() => setProjectNotesSaved(false), 2000)
   }
 
   async function saveProject() {
@@ -511,7 +527,6 @@ export default function JobbPage() {
 
   const tabs = [
     { id: 'pa',         label: 'PA-jobb' },
-    { id: 'erik',       label: 'Erik Norling' },
     { id: 'projekt',    label: 'Projekt' },
     { id: 'tidrapport', label: 'Tidrapport' },
   ]
@@ -687,206 +702,6 @@ export default function JobbPage() {
         </>
       )}
 
-      {/* ===== ERIK NORLING ===== */}
-      {activeTab === 'erik' && (
-        <>
-          {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
-            {[
-              { label: 'Aktiva uppdrag', value: activeTasks.length, color: '#f59e0b' },
-              { label: 'Betalningar denna månad', value: `${totalErikThisMonth.toLocaleString('sv-SE')} kr`, color: '#10b981' },
-              { label: 'Brådskande', value: urgentTasks.length, color: urgentTasks.length > 0 ? '#ef4444' : '#6b7280' },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="card">
-                <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
-                <div className="mono" style={{ fontSize: urgentTasks.length > 0 && label === 'Brådskande' ? '22px' : '18px', fontWeight: '600', color }}>{value}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Action buttons */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-            <button onClick={() => { setShowNewTask(true); setEditingTask(null); setTaskForm({ title: '', description: '', deadline: '', tag: 'Övrig verksamhet', priority: 'medium', notes: '' }) }}
-              className="btn btn-primary">
-              <Plus size={14} /> Nytt uppdrag
-            </button>
-            <button onClick={() => setShowNewPayment(true)} className="btn btn-ghost" style={{ fontSize: '13px', color: '#10b981', borderColor: 'rgba(16,185,129,0.3)' }}>
-              <DollarSign size={14} /> Logga betalning
-            </button>
-            <button onClick={() => setShowNewContact(true)} className="btn btn-ghost">
-              <MessageSquare size={14} /> Logga kontakt
-            </button>
-          </div>
-
-          {/* Task form */}
-          {(showNewTask || editingTask) && (
-            <div className="card" style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <div style={{ fontWeight: '600' }}>{editingTask ? 'Redigera uppdrag' : 'Nytt uppdrag'}</div>
-                <button onClick={() => { setShowNewTask(false); setEditingTask(null) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={16} /></button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Titel</label>
-                  <input className="input" placeholder="Vad ska göras?" value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Tagg</label>
-                  <select className="input" value={taskForm.tag} onChange={e => setTaskForm(f => ({ ...f, tag: e.target.value }))}>
-                    {ERIK_TAGS.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Deadline</label>
-                  <input className="input" type="date" value={taskForm.deadline} onChange={e => setTaskForm(f => ({ ...f, deadline: e.target.value }))} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Beskrivning</label>
-                  <textarea className="input" rows={2} placeholder="Detaljer..." value={taskForm.description}
-                    onChange={e => setTaskForm(f => ({ ...f, description: e.target.value }))} style={{ resize: 'vertical' }} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Anteckningar</label>
-                  <textarea className="input" rows={2} placeholder="Egna anteckningar..." value={taskForm.notes}
-                    onChange={e => setTaskForm(f => ({ ...f, notes: e.target.value }))} style={{ resize: 'vertical' }} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button onClick={() => { setShowNewTask(false); setEditingTask(null) }} className="btn btn-ghost">Avbryt</button>
-                <button onClick={saveTask} className="btn btn-primary" disabled={saving || !taskForm.title}>
-                  {saving ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />} Spara
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Payment form */}
-          {showNewPayment && (
-            <div className="card" style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <div style={{ fontWeight: '600' }}>Logga betalning från Erik</div>
-                <button onClick={() => setShowNewPayment(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={16} /></button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Belopp (kr)</label>
-                  <input className="input" type="number" placeholder="0" value={paymentForm.amount} onChange={e => setPaymentForm(f => ({ ...f, amount: e.target.value }))} style={{ fontSize: '20px' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Datum</label>
-                  <input className="input" type="date" value={paymentForm.date} onChange={e => setPaymentForm(f => ({ ...f, date: e.target.value }))} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Beskrivning</label>
-                  <input className="input" placeholder="Vad för?" value={paymentForm.description} onChange={e => setPaymentForm(f => ({ ...f, description: e.target.value }))} />
-                </div>
-              </div>
-              <div style={{ padding: '8px 12px', background: 'rgba(16,185,129,0.08)', borderRadius: '6px', marginBottom: '12px', fontSize: '12px', color: '#10b981' }}>
-                Räknas inte mot CSN-fribeloppet
-              </div>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button onClick={() => setShowNewPayment(false)} className="btn btn-ghost">Avbryt</button>
-                <button onClick={savePayment} className="btn btn-primary" disabled={saving || !paymentForm.amount}>
-                  {saving ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />} Spara
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Contact form */}
-          {showNewContact && (
-            <div className="card" style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px' }}>
-                <div style={{ fontWeight: '600' }}>Logga kontakt med Erik</div>
-                <button onClick={() => setShowNewContact(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={16} /></button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Kanal</label>
-                  <select className="input" value={contactForm.channel} onChange={e => setContactForm(f => ({ ...f, channel: e.target.value }))}>
-                    {['telefon', 'sms', 'möte', 'mail', 'övrigt'].map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Datum</label>
-                  <input className="input" type="date" value={contactForm.date} onChange={e => setContactForm(f => ({ ...f, date: e.target.value }))} />
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Vad diskuterades?</label>
-                  <textarea className="input" rows={3} placeholder="Kort sammanfattning..." value={contactForm.summary}
-                    onChange={e => setContactForm(f => ({ ...f, summary: e.target.value }))} style={{ resize: 'vertical' }} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button onClick={() => setShowNewContact(false)} className="btn btn-ghost">Avbryt</button>
-                <button onClick={saveContact} className="btn btn-primary" disabled={saving || !contactForm.summary}>
-                  {saving ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />} Spara
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Kanban */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
-            {kanbanCols.map(col => (
-              <KanbanColumn key={col.id} title={col.label} color={col.color} tasks={col.tasks}
-                onEdit={task => { setEditingTask(task); setTaskForm({ title: task.title, description: task.description || '', deadline: task.deadline || '', tag: task.tag || 'Övrig verksamhet', priority: task.priority || 'medium', notes: task.notes || '' }) }}
-                onMove={moveTask} onDelete={deleteTask} />
-            ))}
-          </div>
-
-          {/* Payments this month */}
-          {erikPayments.length > 0 && (
-            <div className="card" style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>
-                BETALNINGAR — {format(selectedMonth, 'MMMM', { locale: sv }).toUpperCase()}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {erikPayments.map(p => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <div>
-                      <div>{p.description || 'Betalning'}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{format(parseISO(p.date), 'd MMM', { locale: sv })}</div>
-                    </div>
-                    <div className="mono" style={{ fontSize: '14px', fontWeight: '600', color: '#10b981' }}>
-                      {p.amount.toLocaleString('sv-SE')} kr
-                    </div>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '8px', fontWeight: '600' }}>
-                  <span>Totalt</span>
-                  <span className="mono" style={{ fontSize: '14px', color: '#10b981' }}>{totalErikThisMonth.toLocaleString('sv-SE')} kr</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Contact log */}
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', cursor: 'pointer' }}
-              onClick={() => setExpandedContact(!expandedContact)}>
-              <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600' }}>KONTAKTLOGG</div>
-              {expandedContact ? <ChevronUp size={14} color="var(--muted)" /> : <ChevronDown size={14} color="var(--muted)" />}
-            </div>
-            {expandedContact && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {erikContacts.length === 0 ? (
-                  <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Ingen kontakt loggad ännu</div>
-                ) : erikContacts.map(c => (
-                  <div key={c.id} style={{ padding: '10px', background: 'var(--surface2)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>{c.channel}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{format(parseISO(c.date), 'd MMM yyyy', { locale: sv })}</span>
-                    </div>
-                    <div style={{ fontSize: '13px', lineHeight: '1.5' }}>{c.summary}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
       {/* ===== PROJEKT ===== */}
       {activeTab === 'projekt' && (
         <>
@@ -894,7 +709,7 @@ export default function JobbPage() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
               {projects.map(p => (
-                <button key={p.id} onClick={() => { setSelectedProject(p); fetchProjectTasks(p.id); setShowNewProjectTask(false); setEditingProjectTask(null) }} style={{
+                <button key={p.id} onClick={() => { setSelectedProject(p); fetchProjectTasks(p.id); setShowNewProjectTask(false); setEditingProjectTask(null); setProjectNotes('') }} style={{
                   display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px',
                   borderRadius: 20, border: '1px solid',
                   borderColor: selectedProject?.id === p.id ? p.color : 'var(--border)',
@@ -1006,6 +821,34 @@ export default function JobbPage() {
                       <div style={{ fontSize: 20, fontWeight: 700, color: s.color, lineHeight: 1.2 }}>{s.value}</div>
                     </div>
                   ))}
+                </div>
+
+                {/* Project notes */}
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.06em', marginBottom: 6 }}>ANTECKNINGAR</div>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    placeholder="Löpande anteckningar om projektet — idéer, kontakter, nästa steg..."
+                    value={projectNotes}
+                    onChange={e => { setProjectNotes(e.target.value); setProjectNotesSaved(false) }}
+                    style={{ resize: 'vertical', fontSize: 13, lineHeight: 1.6 }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                    <button onClick={saveProjectNotes} disabled={savingProjectNotes} style={{
+                      display: 'flex', alignItems: 'center', gap: 5, padding: '5px 14px',
+                      borderRadius: 7, border: '1px solid var(--border)', background: projectNotesSaved ? 'rgba(16,185,129,0.1)' : 'var(--surface2)',
+                      color: projectNotesSaved ? '#10b981' : 'var(--muted)',
+                      fontSize: 12, cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontWeight: 500,
+                      transition: 'all 0.2s',
+                    }}>
+                      {savingProjectNotes
+                        ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</>
+                        : projectNotesSaved
+                        ? <><Check size={11} /> Sparat</>
+                        : <><Save size={11} /> Spara</>}
+                    </button>
+                  </div>
                 </div>
               </div>
 
