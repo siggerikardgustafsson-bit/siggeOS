@@ -17,7 +17,7 @@ import {
 
 const GRAPH_CATS = [
   { id:'somn',      label:'Sömn',      color:'#8b5cf6' },
-  { id:'valmående', label:'Välmående', color:'#f472b6' },
+  { id:'valmående', label:'Hälsa', color:'#f472b6' },
   { id:'plugg',     label:'Plugg',     color:'#34d399' },
   { id:'kondition', label:'Kondition', color:'#4f8ef7' },
   { id:'styrka',    label:'Styrka',    color:'#a78bfa' },
@@ -40,12 +40,104 @@ function GraphTooltip({ active, payload, label }) {
   )
 }
 
+
+function goalValue(goals, keys, fallback = null) {
+  for (const key of keys) {
+    const value = goals?.[key]
+    if (value !== undefined && value !== null && value !== '') return value
+  }
+  return fallback
+}
+
+function parseNumber(value) {
+  if (value === undefined || value === null || value === '') return null
+  const parsed = Number(String(value).replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function buildMaxxProfile(cats) {
+  const rankCats = cats.filter(c => c?.tier?.tier && c.hasData && !['kropp','fardigheter'].includes(c.id))
+  if (!rankCats.length) return null
+  const tiers = rankCats.map(c => c.tier.tier)
+  const currentTier = Math.min(...tiers)
+  const nextTier = Math.min(currentTier + 1, 8)
+  const avgTier = tiers.reduce((sum, t) => sum + t, 0) / tiers.length
+  const spread = Math.max(...tiers) - Math.min(...tiers)
+  const bottlenecks = rankCats
+    .filter(c => c.tier.tier < nextTier)
+    .sort((a, b) => {
+      const ap = a.levelUp?.progressPct ?? (a.tier.tier / nextTier) * 100
+      const bp = b.levelUp?.progressPct ?? (b.tier.tier / nextTier) * 100
+      return a.tier.tier - b.tier.tier || ap - bp
+    })
+
+  const requirements = rankCats.map(cat => {
+    const tier = cat.tier.tier
+    const met = tier >= nextTier
+    const progress = met ? 100 : Math.max(0, Math.min(100, cat.levelUp?.progressPct ?? Math.round((tier / nextTier) * 100)))
+    return {
+      label: cat.name,
+      currentLabel: 'T' + tier,
+      targetLabel: 'T' + nextTier,
+      gapLabel: met ? 'Klar' : `T${tier} → T${nextTier}`,
+      met,
+      missing: false,
+      progress,
+    }
+  })
+
+  const progressPct = Math.round(requirements.reduce((sum, r) => sum + r.progress, 0) / requirements.length)
+  const primary = bottlenecks[0]
+  const color = TIER_COLORS[currentTier] || '#6b7280'
+
+  return {
+    id: 'maxx',
+    name: 'Maxx Score',
+    icon: 'maxx',
+    tier: { tier: currentTier, label: TIER_NAMES[currentTier], color },
+    hasData: true,
+    pct: progressPct,
+    trend: 'neutral',
+    decayWarning: false,
+    metrics: [
+      { label: 'Overall rank', value: `T${currentTier}`, highlight: true },
+      { label: 'Till T' + nextTier, value: progressPct + '%' },
+      { label: 'Balansgap', value: spread <= 1 ? 'stabil' : spread + ' tiers' },
+    ],
+    details: [
+      { label: 'Rankande kategorier', value: String(rankCats.length) },
+      { label: 'Snitt-tier', value: avgTier.toFixed(1) },
+      { label: 'Lägsta kategori', value: primary ? `${primary.name} T${primary.tier.tier}` : '—' },
+      { label: 'Balansgap', value: spread <= 1 ? 'stabilt' : spread + ' tiers' },
+    ],
+    levelUp: {
+      currentTier,
+      nextTier,
+      maxTier: 8,
+      title: currentTier >= 8 ? 'Maxxad nivå' : `T${currentTier} → T${nextTier}`,
+      progressPct,
+      primaryBottleneck: primary ? `${primary.name}: ${primary.levelUp?.primaryBottleneck || 'ranka upp till T' + nextTier}` : 'Alla kärnkategorier klara',
+      requirements,
+      blockers: requirements.filter(r => !r.met),
+    },
+    tierGuide: [2,3,4,5,6,7,8].map(t => ({
+      tier: t,
+      label: TIER_NAMES[t],
+      reqs: rankCats.map(c => `${c.name} minst T${t}`),
+    })),
+    chartData: [],
+    chartLines: [],
+    contribution: rankCats.map(c => ({ label: c.name, value: `T${c.tier.tier}`, tierInfo: c.tier })),
+  }
+}
+
 export default function Dashboard() {
 
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [categories, setCategories] = useState([])
   const [overallTier, setOverallTier] = useState(null)
+  const [maxxProfile, setMaxxProfile] = useState(null)
   const [bodyWeight, setBodyWeight] = useState(null)
   const [displayName, setDisplayName] = useState('')
   const [userId, setUserId] = useState(null)
@@ -76,7 +168,7 @@ export default function Dashboard() {
       ] = await Promise.all([
         supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
         supabase.from('personal_records').select('exercise_name,weight_kg,reps,date,updated_at').eq('user_id',userId).order('weight_kg',{ascending:false}),
-        supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy_level,stress_level,mood,steps').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
+        supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
         supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
         supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',since30),
         supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since30),
@@ -96,7 +188,8 @@ export default function Dashboard() {
       ])
 
       const latestW = (healthData||[]).find(h=>h.weight_kg)
-      const goalWeight = userSettings?.goals?.body_weight_goal
+      const goalWeightRaw = goalValue(userSettings?.goals, ['target_weight','body_weight_goal','weight_goal_kg','målvikt'], null)
+      const goalWeight = parseNumber(goalWeightRaw)
       const bw = latestW?.weight_kg || null
       setBodyWeight(bw)
       if (userSettings?.display_name) setDisplayName(userSettings.display_name)
@@ -256,8 +349,7 @@ export default function Dashboard() {
       }
 
       const wLogs=(healthData||[]).filter(h=>h.weight_kg).slice(0,14)
-      const wGoalRaw = userSettings?.goals?.target_weight || userSettings?.goals?.body_weight_goal || 75
-      const wGoal = parseFloat(wGoalRaw) || 75
+      const wGoal = goalWeight || 75
       const wNew=wLogs[0]?.weight_kg||bw,wOld=wLogs[wLogs.length-1]?.weight_kg||bw
       const wD=Math.round((wNew-wOld)*10)/10,wK=Math.max(0,Math.round((bw-wGoal)*10)/10)
       const wP=wK<=0?100:Math.max(0,Math.round((1-wK/Math.max(0.1,bw-wGoal+wK))*100))
@@ -281,13 +373,20 @@ export default function Dashboard() {
       const eTs=[incT,savT].filter(Boolean)
       const eTop=eTs.length?eTs.reduce((min,t)=>t.tier<min.tier?t:min,eTs[0]):null
 
-      function a7(field){const v=(healthData||[]).filter(h=>h.date>=s7&&h[field]!=null).map(h=>h[field]);return v.length?Math.round(v.reduce((s,x)=>s+x,0)/v.length*10)/10:null}
-      const aE=a7('energy_level'),aMo=a7('mood'),aSteps=a7('steps')
-      // stress removed — can't be logged. Välmående = average tier of energy+mood+steps
+      function a7(field, fallbackField){
+        const v=(healthData||[]).filter(h=>h.date>=s7).map(h=>h[field] ?? (fallbackField ? h[fallbackField] : null)).filter(x=>x!=null)
+        return v.length?Math.round(v.reduce((s,x)=>s+Number(x),0)/v.length*10)/10:null
+      }
+      const aE=a7('energy_level','energy'), aMo=a7('mood'), aSteps=a7('steps')
+      const alcohol7=(healthData||[]).filter(h=>h.date>=s7&&h.alcohol_units!=null).reduce((sum,h)=>sum+Number(h.alcohol_units||0),0)
+      const alcoholLogged=(healthData||[]).some(h=>h.date>=s7&&h.alcohol_units!=null)
+      const supplementRaw = goalValue(userSettings?.goals, ['supplement_compliance','supplement_compliance_7d','supplementCompliance','kosttillskott_compliance'], null)
+      const supplementCompliance = parseNumber(supplementRaw)
       const eT=aE!=null?getTier(aE,ENERGY_THRESHOLDS,true):null
       const moT=aMo!=null?getTier(aMo,MOOD_THRESHOLDS,true):null
-      const stpT=aSteps!=null?getTier(aSteps,STEPS_THRESHOLDS,true):null
-      const wTs=[eT,moT,stpT].filter(Boolean)
+      const alcoholT=alcoholLogged?getTier(alcohol7,[14,10,7,5,3,1,0.1],false):null
+      const supplementT=supplementCompliance!=null?getTier(supplementCompliance,[50,60,70,80,90,95,99],true):null
+      const wTs=[eT,moT,alcoholT,supplementT].filter(Boolean)
       const wTop=wTs.length?wTs.reduce((min,t)=>t.tier<min.tier?t:min,wTs[0]):null
 
       function am(sn){const l=(skillData||[]).filter(s=>s.skill===sn);return l.length?Math.round(l.reduce((s,x)=>s+x.minutes,0)/4):0}
@@ -396,11 +495,13 @@ export default function Dashboard() {
       const currentWellTier = wTop?.tier || (wTs.length ? 1 : 0)
       const nextWellTier = Math.min((currentWellTier || 1) + 1, 8)
       const wellIdx = Math.max(0, nextWellTier - 2)
-      const wellLevelUp = wTs.length ? makeLevelUp(currentWellTier, 8, [
+      const healthReqs = [
         makeReq({ label:'Energi', current:aE, target:ENERGY_THRESHOLDS[wellIdx], unit:'/10', currentLabel:aE != null ? `${aE}/10` : '—', targetLabel:`${ENERGY_THRESHOLDS[wellIdx]}/10` }),
         makeReq({ label:'Humör', current:aMo, target:MOOD_THRESHOLDS[wellIdx], unit:'/10', currentLabel:aMo != null ? `${aMo}/10` : '—', targetLabel:`${MOOD_THRESHOLDS[wellIdx]}/10` }),
-        makeReq({ label:'Steg/dag', current:aSteps, target:STEPS_THRESHOLDS[wellIdx], unit:'steg', currentLabel:aSteps != null ? Math.round(aSteps).toLocaleString('sv-SE') : '—', targetLabel:STEPS_THRESHOLDS[wellIdx].toLocaleString('sv-SE') }),
-      ], 'T') : null
+        ...(alcoholLogged ? [makeReq({ label:'Alkohol 7d', current:alcohol7, target:[14,10,7,5,3,1,0.1][wellIdx], higherIsBetter:false, unit:'enheter', currentLabel:`${Math.round(alcohol7*10)/10} enheter`, targetLabel:`≤ ${[14,10,7,5,3,1,0.1][wellIdx]} enheter` })] : []),
+        ...(supplementCompliance != null ? [makeReq({ label:'Kosttillskott', current:supplementCompliance, target:[50,60,70,80,90,95,99][wellIdx], unit:'%', currentLabel:`${supplementCompliance}%`, targetLabel:`${[50,60,70,80,90,95,99][wellIdx]}%` })] : []),
+      ]
+      const wellLevelUp = wTs.length ? makeLevelUp(currentWellTier, 8, healthReqs, 'T') : null
 
       const skillTargets = { 2:30, 3:60, 4:120, 5:240, 6:240 }
       const currentSkillTier = skH ? skTop.tier : 0
@@ -453,11 +554,6 @@ export default function Dashboard() {
           metrics:[{label:'Bänk e1RM',value:bE1RM?Math.round(bE1RM)+' kg':'—',highlight:true},{label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg':'—'},{label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg':'—'}],
           details:[{label:'Bänkpress e1RM',value:bE1RM?Math.round(bE1RM)+' kg ('+Math.round(bE1RM/bw*100)/100+'x BW)':'—',tierInfo:bT},{label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg ('+Math.round(sE1RM/bw*100)/100+'x BW)':'—',tierInfo:sT},{label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg ('+Math.round(dlE1RM/bw*100)/100+'x BW)':'—',tierInfo:dlT},{label:'Militärpress e1RM',value:oE1RM?Math.round(oE1RM)+' kg':'—',tierInfo:oT},{label:'Weighted pull-up e1RM',value:puE1RM?'+'+Math.round(puE1RM)+' kg':'—',tierInfo:puT}],
           chartData:[],chartLines:[],levelUp:strengthLevelUp,tierGuide:strengthTierGuide,navTarget:'/traning',navLabel:'Träning'},
-        {id:'kropp',name:'Kropp',icon:'kropp',tier:null,hasData:!!latestW?.weight_kg,pct:wP,decayWarning:false,trend:wD<0?'up':wD>0?'down':'neutral',
-          metrics:[{label:'Aktuell vikt',value:bw+' kg',highlight:true},{label:'Kvar ('+wGoal+'kg)',value:wK+' kg'},{label:'Trend 14d',value:(wD>0?'+':'')+wD+' kg'}],
-          details:[{label:'Aktuell vikt',value:bw+' kg'},{label:'Målvikt',value:wGoal+' kg'},{label:'Kvar',value:wK+' kg'},{label:'Trend 14d',value:wD<=0?Math.abs(wD)+' kg ned':wD+' kg upp'}],
-          chartData:[...wLogs].reverse().map(h=>({date:h.date.slice(5),Vikt:h.weight_kg})),
-          chartLines:[{key:'Vikt',label:'Vikt (kg)',color:'#fbbf24'}],levelUp:bodyLevelUp,navTarget:'/halsa',navLabel:'Hälsa'},
         {id:'somn',name:'Sömn',icon:'somn',tier:slT,hasData:!!avgSl,pct:slT?Math.round((slT.tier/8)*100):0,decayWarning:false,trend:'neutral',
           metrics:[{label:'Snitt 7 dagar',value:avgSl?avgSl+'h':'—',highlight:true},{label:'Loggar',value:sl7.length+' av 7 dagar'}],
           details:[{label:'Sömnsnitt 7d',value:avgSl?avgSl+' timmar':'—',tierInfo:slT}],
@@ -471,17 +567,28 @@ export default function Dashboard() {
           metrics:[{label:'Inkomst/månad',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',highlight:true},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—'}],
           details:[{label:'Månadsnettoink.',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',tierInfo:incT},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—',tierInfo:savT}],
           chartData:[],chartLines:[],levelUp:econLevelUp,navTarget:'/ekonomi',navLabel:'Ekonomi'},
-        {id:'valmående',name:'Välmående',icon:'valmående',tier:wTop,hasData:wTs.length>0,pct:wTop?Math.round((wTop.tier/8)*100):0,decayWarning:false,trend:aE?(aE>=7?'up':aE<=4?'down':'neutral'):'neutral',
-          metrics:[{label:'Energi snitt',value:aE!=null?aE+'/10':'—',highlight:true},{label:'Humör snitt',value:aMo!=null?aMo+'/10':'—'},{label:'Steg/dag',value:aSteps!=null?Math.round(aSteps).toLocaleString('sv-SE'):'—'}],
-          details:[{label:'Energi (7d)',value:aE!=null?aE+'/10':'—',tierInfo:eT},{label:'Humör (7d)',value:aMo!=null?aMo+'/10':'—',tierInfo:moT},{label:'Steg/dag',value:aSteps!=null?Math.round(aSteps).toLocaleString('sv-SE'):'—',tierInfo:stpT}],
-          chartData:(healthData||[]).filter(h=>h.energy_level||h.mood).slice(0,14).reverse().map(h=>({date:h.date.slice(5),Energi:h.energy_level,Humör:h.mood,Stress:h.stress_level})),
-          chartLines:[{key:'Energi',label:'Energi',color:'#fbbf24'},{key:'Humör',label:'Humör',color:'#34d399'},{key:'Stress',label:'Stress',color:'#f87171'}],
+        {id:'halsa',name:'Hälsa',icon:'halsa',tier:wTop,hasData:wTs.length>0 || !!latestW?.weight_kg,pct:wTop?Math.round((wTop.tier/8)*100):(latestW?.weight_kg?wP:0),decayWarning:false,trend:aE?(aE>=7?'up':aE<=4?'down':'neutral'):'neutral',
+          metrics:[
+            {label:'Energi',value:aE!=null?aE+'/10':'—',highlight:true},
+            {label:'Humör',value:aMo!=null?aMo+'/10':'—'},
+            {label:'Vikttrend',value:wLogs.length?(wD>0?'+':'')+wD+' kg':'—'},
+            {label:'Kosttillskott',value:supplementCompliance!=null?supplementCompliance+'%':'—'},
+            {label:'Alkohol 7d',value:alcoholLogged?Math.round(alcohol7*10)/10+' enh':'—'},
+          ],
+          details:[
+            {label:'Energi (7d)',value:aE!=null?aE+'/10':'—',tierInfo:eT},
+            {label:'Humör (7d)',value:aMo!=null?aMo+'/10':'—',tierInfo:moT},
+            {label:'Vikt',value:bw?bw+' kg':'—'},
+            {label:'Målvikt',value:wGoal? wGoal+' kg':'—'},
+            {label:'Kvar till målvikt',value:bw&&wGoal? wK+' kg':'—'},
+            {label:'Vikttrend 14d',value:wLogs.length?(wD>0?'+':'')+wD+' kg':'—'},
+            {label:'Kosttillskott',value:supplementCompliance!=null?supplementCompliance+'%':'Ej loggat',tierInfo:supplementT},
+            {label:'Alkohol 7d',value:alcoholLogged?Math.round(alcohol7*10)/10+' enheter':'Ej loggat',tierInfo:alcoholT},
+          ],
+          chartData:(healthData||[]).filter(h=>(h.energy_level ?? h.energy)||h.mood||h.weight_kg||h.alcohol_units!=null).slice(0,14).reverse().map(h=>({date:h.date.slice(5),Energi:h.energy_level ?? h.energy,Humör:h.mood,Vikt:h.weight_kg,Alkohol:h.alcohol_units})),
+          chartLines:[{key:'Energi',label:'Energi',color:'#fbbf24'},{key:'Humör',label:'Humör',color:'#34d399'},{key:'Vikt',label:'Vikt',color:'#a78bfa'},{key:'Alkohol',label:'Alkohol',color:'#f87171'}],
           levelUp:wellLevelUp,
           navTarget:'/halsa',navLabel:'Hälsa'},
-        {id:'fardigheter',name:'Färdigheter',icon:'fardigheter',tier:skH?skTop:null,hasData:skH,pct:skH?Math.round((skTop.tier/6)*100):0,decayWarning:false,trend:'neutral',
-          metrics:[{label:'Spanska',value:spM?spM+' min/v':'—',highlight:spT.tier>=4},{label:'Serbiska',value:srM?srM+' min/v':'—'},{label:'Gitarr',value:gtM?gtM+' min/v':'—'}],
-          details:[{label:'Spanska',value:spM+' min/v',tierInfo:spT},{label:'Serbiska',value:srM+' min/v',tierInfo:srT},{label:'Gitarr',value:gtM+' min/v',tierInfo:gtT}],
-          chartData:[],chartLines:[],levelUp:skillLevelUp,navTarget:null,navLabel:null},
       ]
       setCategories(cats)
 
@@ -494,6 +601,7 @@ export default function Dashboard() {
         styrka:    cats.find(c=>c.id==='styrka')?.tier?.tier ?? null,
         plugg:     cats.find(c=>c.id==='plugg')?.tier?.tier ?? null,
         ekonomi:   cats.find(c=>c.id==='ekonomi')?.tier?.tier ?? null,
+        valmående: cats.find(c=>c.id==='halsa')?.tier?.tier ?? null,
       }
       supabase.from('tier_snapshots').upsert(todaySnap, { onConflict: 'user_id,date' })
         .then(() => {}).catch(() => {}) // fire-and-forget, table may not exist yet
@@ -520,8 +628,8 @@ export default function Dashboard() {
           const t = getTier(hl.sleep_hours, SLEEP_DURATION_THRESHOLDS, true)
           if (t) pt['somn'] = t.tier
         }
-        if (hl?.energy_level) {
-          const t = getTier(hl.energy_level, ENERGY_THRESHOLDS, true)
+        if (hl?.energy_level ?? hl?.energy) {
+          const t = getTier(hl.energy_level ?? hl.energy, ENERGY_THRESHOLDS, true)
           if (t) pt['valmående'] = t.tier
         }
 
@@ -538,7 +646,9 @@ export default function Dashboard() {
         if (Object.keys(pt).length > 1) hist.push(pt)
       }
       setTierHistory(hist)
-      setOverallTier(calcOverallTier(cats.filter(c=>c.tier&&c.hasData).map(c=>({tier:c.tier.tier}))))
+      const maxx = buildMaxxProfile(cats)
+      setMaxxProfile(maxx)
+      setOverallTier(maxx?.tier?.tier || calcOverallTier(cats.filter(c=>c.tier&&c.hasData).map(c=>({tier:c.tier.tier}))))
     } catch(e){ console.error('Dashboard error:',e) }
     finally { setLoading(false) }
   }, [userId, refreshKey, graphPeriod])
@@ -570,6 +680,35 @@ export default function Dashboard() {
 
       <div className="page-content-scroll">
         <div style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'12px', maxWidth:'1100px', margin:'0 auto' }}>
+
+          {/* MAXX SCORE */}
+          {!loading && maxxProfile && (
+            <button onClick={() => setSelectedCategory(maxxProfile)} className="widget" style={{ textAlign:'left', cursor:'pointer', padding:'18px', border:'1px solid ' + ((TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + '38'), background:'linear-gradient(135deg, rgba(79,142,247,0.12), rgba(167,139,250,0.07), var(--surface))', display:'grid', gridTemplateColumns:'minmax(0,1.2fr) minmax(220px,.8fr)', gap:'18px', alignItems:'center' }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
+                  <span style={{ fontSize:'10px', fontWeight:900, color:'var(--muted)', letterSpacing:'0.14em', textTransform:'uppercase' }}>Maxx Score</span>
+                  <span style={{ fontSize:'10px', color:'var(--muted)' }}>Overall rank</span>
+                </div>
+                <div style={{ display:'flex', alignItems:'baseline', gap:'10px', marginBottom:'10px' }}>
+                  <span style={{ fontSize:'42px', lineHeight:1, fontWeight:900, color:TIER_COLORS[maxxProfile.tier?.tier] || 'var(--text)', letterSpacing:'-0.06em' }}>T{maxxProfile.tier?.tier}</span>
+                  <span style={{ fontSize:'15px', color:'var(--muted2)', fontWeight:700 }}>{maxxProfile.tier?.label}</span>
+                  <span style={{ marginLeft:'auto', fontSize:'22px', color:'var(--muted)' }}>→</span>
+                </div>
+                <div style={{ height:8, borderRadius:999, background:'rgba(255,255,255,0.08)', overflow:'hidden' }}>
+                  <div style={{ height:'100%', width:maxxProfile.levelUp.progressPct + '%', borderRadius:999, background:'linear-gradient(90deg, ' + (TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + ', ' + (TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#a78bfa') + ')' }} />
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', marginTop:'7px', fontSize:'11px', color:'var(--muted)' }}>
+                  <span>{maxxProfile.levelUp.title}</span>
+                  <span>{maxxProfile.levelUp.progressPct}% till nästa</span>
+                </div>
+              </div>
+              <div style={{ padding:'14px', borderRadius:'16px', background:'rgba(0,0,0,0.16)', border:'1px solid var(--border)' }}>
+                <div style={{ fontSize:'10px', color:'var(--muted)', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:'6px' }}>Nästa bottleneck</div>
+                <div style={{ fontSize:'16px', fontWeight:900, color:TIER_COLORS[maxxProfile.levelUp?.nextTier] || 'var(--accent)', marginBottom:'8px' }}>{maxxProfile.levelUp.primaryBottleneck}</div>
+                <div style={{ fontSize:'12px', color:'var(--muted2)' }}>{maxxProfile.levelUp.blockers?.length || 0} krav kvar för nästa overall-rank.</div>
+              </div>
+            </button>
+          )}
 
           {/* CATEGORY CARDS */}
           {loading ? (

@@ -14,6 +14,8 @@ const CAT_PATHS = {
   somn:        'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z',
   plugg:       'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
   ekonomi:     'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  halsa:       'M4.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+  maxx:        'M13 2L3 14h7l-1 8 12-14h-7l-1-6z',
   valmående:   'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
   fardigheter: 'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3',
 }
@@ -66,15 +68,16 @@ const TIER_REQUIREMENTS = {
     { tier:7, label:'Top 2.5%', reqs:['Nettoinkomst ≥ 45 000 kr/mån','Sparkapital ≥ 350 000 kr'] },
     { tier:8, label:'Top 1%',   reqs:['Nettoinkomst ≥ 60 000 kr/mån','Sparkapital ≥ 500 000 kr'] },
   ],
-  valmående: [
-    { tier:2, label:'Top 50%',  reqs:['Energi ≥ 5/10','Humör ≥ 5/10','≥ 5 000 steg/dag'] },
-    { tier:3, label:'Top 30%',  reqs:['Energi ≥ 6/10','Humör ≥ 6/10','≥ 7 500 steg/dag'] },
-    { tier:4, label:'Top 20%',  reqs:['Energi ≥ 7/10','Humör ≥ 7/10','≥ 9 000 steg/dag'] },
-    { tier:5, label:'Top 10%',  reqs:['Energi ≥ 8/10','Humör ≥ 8/10','≥ 11 000 steg/dag'] },
-    { tier:6, label:'Top 5%',   reqs:['Energi ≥ 9/10','Humör ≥ 9/10','≥ 13 000 steg/dag'] },
-    { tier:7, label:'Top 2.5%', reqs:['Alla metrics toppklass konsekvent'] },
-    { tier:8, label:'Top 1%',   reqs:['Energi/humör ≥ 9.5/10','≥ 15 000 steg/dag'] },
+  halsa: [
+    { tier:2, label:'Top 50%',  reqs:['Energi ≥ 5/10','Humör ≥ 5/10','Alkohol ≤ 14 enheter/vecka'] },
+    { tier:3, label:'Top 30%',  reqs:['Energi ≥ 6/10','Humör ≥ 6/10','Alkohol ≤ 10 enheter/vecka'] },
+    { tier:4, label:'Top 20%',  reqs:['Energi ≥ 7/10','Humör ≥ 7/10','Alkohol ≤ 7 enheter/vecka','Vikttrend åt rätt håll'] },
+    { tier:5, label:'Top 10%',  reqs:['Energi ≥ 8/10','Humör ≥ 8/10','Alkohol ≤ 5 enheter/vecka','Kosttillskott ≥ 80% om loggat'] },
+    { tier:6, label:'Top 5%',   reqs:['Energi ≥ 9/10','Humör ≥ 9/10','Alkohol ≤ 3 enheter/vecka','Kosttillskott ≥ 90% om loggat'] },
+    { tier:7, label:'Top 2.5%', reqs:['Alla hälsometrics toppklass konsekvent'] },
+    { tier:8, label:'Top 1%',   reqs:['Energi/humör ≥ 9.5/10','Alkohol nära noll','Kosttillskott ≥ 99% om loggat'] },
   ],
+  valmående: [],
   fardigheter: [
     { tier:2, label:'Nybörjare',   reqs:['1–30 min/vecka'] },
     { tier:3, label:'Regelbunden', reqs:['30–60 min/vecka'] },
@@ -116,7 +119,7 @@ export default function DetailModal({ category, onClose }) {
   const [showAllTiers, setShowAllTiers] = useState(false)
   if (!category) return null
 
-  const { name, tier, metrics, details, chartData, chartLines, navTarget, navLabel, id, levelUp } = category
+  const { name, tier, metrics, details, chartData, chartLines, navTarget, navLabel, id, levelUp, contribution } = category
   const tierNum = tier?.tier || 0
   const tierColor = TIER_COLORS[tierNum] || '#6b7280'
   const nextColor = TIER_COLORS[levelUp?.nextTier || tierNum + 1] || tierColor
@@ -189,6 +192,21 @@ export default function DetailModal({ category, onClose }) {
               ))}
             </div>
           </div>
+
+
+          {contribution?.length > 0 && (
+            <div style={{ marginBottom:18 }}>
+              <div style={{ fontSize:10, fontWeight:900, letterSpacing:'0.11em', color:'rgba(255,255,255,0.28)', textTransform:'uppercase', marginBottom:10 }}>Kategori-bidrag</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gap:8 }}>
+                {contribution.map((m, i) => (
+                  <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'center', padding:'10px 12px', borderRadius:12, background:'rgba(255,255,255,0.035)', border:'1px solid rgba(255,255,255,0.065)' }}>
+                    <span style={{ fontSize:12, color:'rgba(255,255,255,0.62)', fontWeight:700 }}>{m.label}</span>
+                    <span style={{ fontSize:13, color:m.tierInfo?.color || 'rgba(255,255,255,0.86)', fontWeight:900 }}>{m.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {requirements.length > 0 && (
             <div style={{ marginBottom:18 }}>
