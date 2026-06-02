@@ -1,4 +1,48 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M368 128C330 90 274 75 222 91C157 110 112 170 112 238C112 320 178 386 260 386C314 386 362 358 389 316" stroke="#D9DEE4" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M143 304L218 229L284 291L382 181" stroke="#D9DEE4" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="silver" x1="210" y1="235" x2="800" y2="805" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.28" stop-color="#F5F7FA"/>
+      <stop offset="0.55" stop-color="#C9D1DA"/>
+      <stop offset="0.78" stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#8F9AA5"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="190" y1="250" x2="850" y2="850" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="0.45" stop-color="#AAB4BF" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#5F6B76" stop-opacity="0.55"/>
+    </linearGradient>
+    <filter id="softDepth" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0B1220" flood-opacity="0.24"/>
+      <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#FFFFFF" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#softDepth)">
+    <path
+      d="M215 770V444C215 397 273 375 304 410L505 633C532 663 578 660 602 626L795 360"
+      stroke="url(#silver)"
+      stroke-width="112"
+      stroke-linecap="round"
+      stroke-linejoin="round"/>
+
+    <path
+      d="M785 302C781 286 796 272 811 278L899 311C916 317 922 338 911 352L853 428C843 442 822 439 816 423L785 302Z"
+      fill="url(#silver)"/>
+
+    <path
+      d="M792 312L844 407"
+      stroke="url(#edge)"
+      stroke-width="10"
+      stroke-linecap="round"
+      opacity="0.45"/>
+  </g>
+
+  <path
+    d="M215 770V444C215 397 273 375 304 410L505 633C532 663 578 660 602 626L795 360"
+    stroke="url(#edge)"
+    stroke-width="116"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.22"/>
 </svg>
