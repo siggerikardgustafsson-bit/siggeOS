@@ -207,49 +207,58 @@ export default function InsightsPage() {
   }
 
   async function generateObservations(freshData, force = false) {
-    // Check session cache — skip if under 30 min old and not forced
     const OBS_TTL = 30 * 60 * 1000
-    const cached = sessionStorage.getItem('insights_obs')
-    const cachedTime = parseInt(sessionStorage.getItem('insights_obs_time') || '0')
-    if (!force && cached && (Date.now() - cachedTime) < OBS_TTL) {
-      try {
+    try {
+      const cached = sessionStorage.getItem('insights_obs')
+      const cachedTime = parseInt(sessionStorage.getItem('insights_obs_time') || '0')
+      if (!force && cached && (Date.now() - cachedTime) < OBS_TTL) {
         const parsed = JSON.parse(cached)
         if (Array.isArray(parsed) && parsed.length > 0) {
           setAiObservations(parsed)
           setObsLastUpdated(new Date(cachedTime))
           return
         }
-      } catch (_) {}
-    }
+      }
+    } catch (_) {}
 
     setLoadingObs(true)
     try {
       const lines = []
-      if (freshData.weightData?.length) lines.push('Vikt senaste veckor: ' + freshData.weightData.slice(-6).map(d => `${d.week}:${d.vikt}kg`).join(', '))
-      if (freshData.sleepData?.length) lines.push('Sömn timmar/vecka: ' + freshData.sleepData.slice(-6).map(d => `${d.week}:${d.sömn}h`).join(', '))
-      if (freshData.trainingData?.length) lines.push('Träning pass/vecka: ' + freshData.trainingData.slice(-6).map(d => `${d.week}:${d.pass}pass`).join(', '))
-      if (freshData.studyData?.length) lines.push('Plugg timmar/vecka: ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
+      if (freshData.weightData?.length) lines.push('Vikt senaste veckor: ' + freshData.weightData.slice(-6).map(d => d.week + ':' + d.vikt + 'kg').join(', '))
+      if (freshData.sleepData?.length) lines.push('Somn timmar/vecka: ' + freshData.sleepData.slice(-6).map(d => d.week + ':' + d['s\u00f6mn'] + 'h').join(', '))
+      if (freshData.trainingData?.length) lines.push('Traning pass/vecka: ' + freshData.trainingData.slice(-6).map(d => d.week + ':' + d.pass + 'pass').join(', '))
+      if (freshData.studyData?.length) lines.push('Plugg timmar/vecka: ' + freshData.studyData.slice(-6).map(d => d.week + ':' + d.timmar + 'h').join(', '))
 
-      const { data: rd, error } = await supabase.functions.invoke('insights-ai', {
-        body: { lines: lines.join('\n') },
+      const prompt = `Analysera denna data och returnera EXAKT en JSON-array, inga backticks, inget annat.\n\nData:\n${lines.join('\n') || 'Ingen data.'}\n\nFormat: [{"icon":"emoji","category":"kategori","text":"Kort observation max 20 ord."}]\nKategorier: halsa, traning, plugg, ekonomi, monster, somn. 4-6 observationer.`
+
+      const { data: rd, error } = await supabase.functions.invoke('jarvis-chat', {
+        body: {
+          messages: [{ role: 'user', content: prompt }],
+          context: '',
+          systemPrompt: 'Du returnerar ENBART en giltig JSON-array. Ingen annan text, inga backticks.',
+        },
       })
       if (error) throw new Error(error.message)
       const raw = rd?.content?.trim()
       if (!raw) throw new Error('Tomt svar')
       const match = raw.match(/\[[\s\S]*\]/)
-      if (!match) throw new Error('Ingen array: ' + raw.slice(0, 80))
+      if (!match) throw new Error('Ingen array i svar')
       const arr = JSON.parse(match[0])
       if (Array.isArray(arr) && arr.length > 0) {
         setAiObservations(arr)
         const now = Date.now()
-        sessionStorage.setItem('insights_obs', JSON.stringify(arr))
-        sessionStorage.setItem('insights_obs_time', String(now))
+        try {
+          sessionStorage.setItem('insights_obs', JSON.stringify(arr))
+          sessionStorage.setItem('insights_obs_time', String(now))
+        } catch (_) {}
         setObsLastUpdated(new Date(now))
       }
     } catch(e) {
       console.error('Obs failed:', e.message)
-      setAiObservations([{ icon: '!', category: 'fel', text: 'Kunde inte ladda. Prova "Uppdatera".' }])
+      setAiObservations([{ icon: '\u26a0\ufe0f', category: 'info', text: 'Tryck "Uppdatera" f\u00f6r att ladda AI-observationer.' }])
     }
+    setLoadingObs(false)
+  }
     setLoadingObs(false)
   }
 
