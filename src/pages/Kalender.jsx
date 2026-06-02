@@ -40,6 +40,8 @@ const FLAGS = {
   'Australien':'🇦🇺','Nya Zeeland':'🇳🇿',
   'Sydafrika':'🇿🇦','Kenya':'🇰🇪','Etiopien':'🇪🇹','Tanzania':'🇹🇿',
 }
+
+function EventDot({ type }) {
   const t = EVENT_TYPES[type] || EVENT_TYPES.training
   const IconComp = t.Icon
   return (
@@ -78,7 +80,7 @@ export default function KalenderPage() {
       supabase.from('journal_entries').select('date, mood, energy').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase.from('health_logs').select('date, weight_kg, steps').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase.from('erik_tasks').select('deadline, title, tag').eq('user_id', user.id).not('deadline', 'is', null).gte('deadline', start).lte('deadline', end),
-      supabase.from('trips').select('title, countries, city, start_date, end_date, status, rating, highlights').eq('user_id', user.id).neq('status', 'idé').or(`start_date.lte.${end},end_date.gte.${start}`).not('start_date', 'is', null),
+      supabase.from('trips').select('title, countries, city, start_date, end_date, status, rating, highlights').eq('user_id', user.id).neq('status', 'idé').lte('start_date', end).not('start_date', 'is', null),
     ])
 
     const map = {}
