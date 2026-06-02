@@ -168,7 +168,6 @@ export default function HalsaPage() {
       date,
       supplement_name: name,
       taken: suppForm.supplements_taken.includes(name),
-      source: 'manual',
       updated_at: new Date().toISOString(),
     }))
 
@@ -178,7 +177,7 @@ export default function HalsaPage() {
 
     if (error) {
       console.error('Kunde inte spara kosttillskott', error)
-      alert('Kunde inte spara kosttillskott. Har du kört migrationen för supplement_logs?')
+      alert('Kunde inte spara kosttillskott. Se Console för exakt fel.')
     } else {
       await fetchSupplementLogs()
       setSavedWidget(s => ({ ...s, supps: true }))
