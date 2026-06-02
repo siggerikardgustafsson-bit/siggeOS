@@ -261,6 +261,17 @@ export default function HalsaPage() {
   const avgSleep = logs.slice(0,7).filter(l => l.sleep_hours).reduce((s,l,_,a) => s+l.sleep_hours/a.length, 0)
   const avgSteps = logs.slice(0,7).filter(l => l.steps).reduce((s,l,_,a) => s+l.steps/a.length, 0)
   const chartData = logs.slice().reverse().map(l => ({ date: l.date, weight: l.weight_kg||null, sleep: l.sleep_hours||null, steps: l.steps||null, alcohol: l.alcohol_units||null }))
+
+  // Historik ska visa både health_logs och supplement_logs.
+  // Tidigare byggdes historiken bara från health_logs, så dagar där du endast loggat
+  // kosttillskott syntes inte alls trots att supplement_logs sparades korrekt.
+  const logByDate = new Map(logs.map(l => [l.date, l]))
+  const historyRows = Array.from(new Set([
+    ...logs.map(l => l.date),
+    ...supplementLogs.map(s => s.date),
+  ]))
+    .sort((a, b) => b.localeCompare(a))
+    .map(date => logByDate.get(date) || { id: `supp-${date}`, date })
   const supp7Cutoff = format(subDays(new Date(), 6), 'yyyy-MM-dd')
   const activeSupplements = supplements.length ? supplements : DEFAULT_SUPPLEMENTS
   const supp7 = supplementLogs.filter(l => l.date >= supp7Cutoff)
@@ -574,7 +585,7 @@ export default function HalsaPage() {
                 Senaste 30 dagar
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                {logs.slice(0,30).map(log => (
+                {historyRows.slice(0,30).map(log => (
                   <div key={log.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 12px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'10px', transition:'border-color 0.15s' }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border2)'}
                     onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
@@ -586,15 +597,21 @@ export default function HalsaPage() {
                       {log.sleep_hours && <span style={{ fontSize:'12px', color:'#8b5cf6' }}> {log.sleep_hours}h</span>}
                       {log.steps && <span style={{ fontSize:'12px', color:'#f59e0b' }}> {log.steps.toLocaleString('sv-SE')}</span>}
                       {log.alcohol_units > 0 && <span style={{ fontSize:'12px', color:'#ef4444' }}>{log.alcohol_units} enheter alkohol</span>}
-                      {supplementLogs.some(s => s.date === log.date && s.taken) && <span style={{ fontSize:'12px', color:'#06b6d4' }}>💊 {supplementLogs.filter(s => s.date === log.date && s.taken).length}/{supplements.length}</span>}
+                      {supplementLogs.some(s => s.date === log.date && s.taken) && (
+                        <span style={{ fontSize:'12px', color:'#06b6d4' }} title={supplementLogs.filter(s => s.date === log.date && s.taken).map(s => s.supplement_name).join(', ')}>
+                          💊 {supplementLogs.filter(s => s.date === log.date && s.taken).length}/{supplements.length}
+                        </span>
+                      )}
                       {log.nicotine && <span style={{ fontSize:'12px', color:'#f59e0b' }}>nikotin</span>}
                       {log.retatrutide_dose_mg && <span style={{ fontSize:'12px', color:'#a78bfa' }}> {log.retatrutide_dose_mg}mg</span>}
                     </div>
-                    <button onClick={() => openEditLog(log)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'7px', padding:'4px 8px', cursor:'pointer', color:'var(--muted)', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexShrink:0, transition:'all 0.15s' }}
-                      onMouseEnter={e => { e.currentTarget.style.color='var(--accent)'; e.currentTarget.style.borderColor='var(--accent-border)' }}
-                      onMouseLeave={e => { e.currentTarget.style.color='var(--muted)'; e.currentTarget.style.borderColor='var(--border)' }}>
-                      <Edit2 size={11} /> Redigera
-                    </button>
+                    {!String(log.id || '').startsWith('supp-') && (
+                      <button onClick={() => openEditLog(log)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'7px', padding:'4px 8px', cursor:'pointer', color:'var(--muted)', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexShrink:0, transition:'all 0.15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.color='var(--accent)'; e.currentTarget.style.borderColor='var(--accent-border)' }}
+                        onMouseLeave={e => { e.currentTarget.style.color='var(--muted)'; e.currentTarget.style.borderColor='var(--border)' }}>
+                        <Edit2 size={11} /> Redigera
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
