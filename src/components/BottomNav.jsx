@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, MessageSquare, BookOpen, Dumbbell,
   DollarSign, Heart, GraduationCap, Briefcase, Compass,
-  BarChart2, CalendarDays, Download, Settings, X, Grid, Target
+  BarChart2, CalendarDays, Download, Settings, X, Grid
 } from 'lucide-react'
 
 const primaryNav = [
@@ -14,7 +14,6 @@ const primaryNav = [
 ]
 
 const moreNav = [
-  { to: '/mal',         icon: Target,        label: 'Mål' },
   { to: '/journal',     icon: BookOpen,      label: 'Journal' },
   { to: '/ekonomi',     icon: DollarSign,    label: 'Ekonomi' },
   { to: '/plugg',       icon: GraduationCap, label: 'Plugg' },
