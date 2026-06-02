@@ -1727,3 +1727,164 @@ nav *,
     font-size: 13px !important;
   }
 }
+
+/* ============================================================
+   CLEAN CTA BUTTONS + PLAYFAIR TIER BADGES
+   ============================================================ */
+
+/* Hide icons inside normal primary CTA buttons: plus/check/etc */
+.btn-primary svg,
+button.btn-primary svg,
+a.btn-primary svg,
+.card .btn-primary svg,
+.card button.btn-primary svg,
+button[style*="linear-gradient"] svg,
+button[style*="#3b82f6"] svg,
+button[style*="rgb(59, 130, 246)"] svg,
+button[style*="var(--accent)"] svg {
+  display: none !important;
+}
+
+/* Clean button text: Playfair Bold, not italic, smaller */
+.btn-primary,
+button.btn-primary,
+a.btn-primary,
+.card .btn-primary,
+.card button.btn-primary,
+.card a.btn-primary,
+button[style*="linear-gradient"],
+button[style*="#3b82f6"],
+button[style*="rgb(59, 130, 246)"],
+button[style*="var(--accent)"] {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  line-height: 1.1 !important;
+  letter-spacing: -0.025em !important;
+  gap: 0 !important;
+}
+
+/* Small buttons like "Spara" */
+.btn-primary.btn-sm,
+button.btn-primary.btn-sm,
+a.btn-primary.btn-sm,
+.card .btn-primary.btn-sm,
+.card button.btn-primary.btn-sm {
+  font-size: 13px !important;
+  padding: 7px 14px 8px !important;
+}
+
+/* Larger buttons like "Ny kurs", "Skriv entry" */
+.btn-primary.btn-lg,
+button.btn-primary.btn-lg,
+a.btn-primary.btn-lg {
+  font-size: 16px !important;
+  padding: 11px 22px 12px !important;
+}
+
+/* Floating round plus button should keep its plus icon */
+button[style*="border-radius: 50%"] svg,
+button[style*="borderRadius: '50%'"] svg,
+button[aria-label] svg,
+.btn-icon svg {
+  display: block !important;
+}
+
+/* Tier / rank badges: T1, T2, T3 etc */
+.tier-value,
+.rank-value,
+.score-tier,
+.tier-badge,
+.rank-badge,
+.maxx-tier,
+[data-tier],
+[data-rank] {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.065em !important;
+  line-height: 0.9 !important;
+}
+
+/* Common tier text inside circular badges/cards */
+.card [class*="tier"],
+.card [class*="rank"],
+.cat-card [class*="tier"],
+.cat-card [class*="rank"],
+.category-card [class*="tier"],
+.category-card [class*="rank"] {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.06em !important;
+}
+
+/* Big standalone T-badges */
+.card div,
+.cat-card div,
+.category-card div {
+  --tier-font-ready: 1;
+}
+
+/* Target visible tier badges by common visual contexts */
+.card .mono,
+.cat-card .mono,
+.category-card .mono {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* But if mono is used for rank/tier text, make it Playfair */
+.card .mono:where(:not(.metric-label)),
+.cat-card .mono:where(:not(.metric-label)),
+.category-card .mono:where(:not(.metric-label)) {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.055em !important;
+}
+
+/* Circular tier badges need bigger editorial feel */
+.card [style*="borderRadius: '50%'"],
+.card [style*='borderRadius: "50%"'],
+.cat-card [style*="borderRadius: '50%'"],
+.cat-card [style*='borderRadius: "50%"'],
+.category-card [style*="borderRadius: '50%'"],
+.category-card [style*='borderRadius: "50%"'] {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.06em !important;
+}
+
+/* Keep percentages inside tier circles neutral/smaller if separated */
+.card [style*="borderRadius: '50%'"] span,
+.cat-card [style*="borderRadius: '50%'"] span,
+.category-card [style*="borderRadius: '50%'"] span {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-style: normal !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* But explicit T labels stay Playfair if classed later */
+.t-label,
+.tier-label,
+.rank-label {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.06em !important;
+}
+
+@media (max-width: 768px) {
+  .btn-primary,
+  button.btn-primary,
+  a.btn-primary,
+  button[style*="linear-gradient"],
+  button[style*="#3b82f6"],
+  button[style*="rgb(59, 130, 246)"],
+  button[style*="var(--accent)"] {
+    font-size: 13px !important;
+  }
+}
