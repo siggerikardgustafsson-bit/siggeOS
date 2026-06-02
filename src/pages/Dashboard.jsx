@@ -388,14 +388,9 @@ export default function Dashboard() {
       const byCourse={}
       aG.forEach(g=>{const cn=g.courses?.name||'Okänd';if(!byCourse[cn])byCourse[cn]=[];byCourse[cn].push(g.mastery||0)})
 
-      const INCOME_SOURCES = ['PA-jobb', 'Erik Norling']
-      const totIncomeLogged = (incomeData||[])
-        .filter(i => INCOME_SOURCES.includes(i.source))
-        .reduce((s,i) => {
-          const amt = Number(i.amount) || 0
-          return s + (i.source === 'PA-jobb' ? amt * 0.7 : amt)
-        }, 0)
-      const totPAEst = (paData||[]).reduce((s,sh) => s + (sh.estimated_pay||0), 0) * 0.7
+      const totIncomeLogged = (incomeData||[]).reduce((s,i)=>s+(Number(i.amount)||0),0)
+      const totPAEst = (paData||[]).reduce((s,sh)=>s+(sh.estimated_pay||0),0)
+      // Use income_logs if any exist this period (they're logged net), otherwise fall back to PA estimate
       const totPA = totIncomeLogged > 0 ? totIncomeLogged : totPAEst
       const sav=userSettings?.goals?.savings||null
       const incT=totPA?getTier(totPA,INCOME_THRESHOLDS,true):null
@@ -723,14 +718,14 @@ export default function Dashboard() {
               <button onClick={() => setSelectedCategory(maxxProfile)} className="widget" style={{ textAlign:'left', cursor:'pointer', padding:'18px 20px', border:'1px solid ' + ((TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + '3f'), background:'linear-gradient(135deg, rgba(79,142,247,0.14), rgba(167,139,250,0.08) 45%, var(--surface) 100%)', overflow:'hidden' }}>
                 <div style={{ position:'absolute', inset:'-40% auto auto 62%', width:260, height:260, borderRadius:'999px', background:(TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#a78bfa') + '18', filter:'blur(38px)', pointerEvents:'none' }} />
                 <div style={{ position:'relative', display:'grid', gridTemplateColumns:'auto minmax(0, 1fr)', gap:'18px', alignItems:'center' }}>
-                  <div style={{ width:86, height:86, borderRadius:26, background:'rgba(255,255,255,0.055)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }}>
-                    <span style={{ fontSize:42, lineHeight:1, fontWeight:950, letterSpacing:'-0.08em', color:TIER_COLORS[maxxProfile.tier?.tier] || 'var(--text)' }}>T{maxxProfile.tier?.tier}</span>
+                  <div style={{ width:86, height:86, borderRadius:26, background: (TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + '18', border:'1.5px solid ' + (TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + '60', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 28px ' + (TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + '55, inset 0 1px 0 rgba(255,255,255,0.10)' }}>
+                    <span style={{ fontSize:42, lineHeight:1, fontWeight:950, letterSpacing:'-0.08em', color: TIER_COLORS[maxxProfile.tier?.tier] || 'var(--text)', filter:'drop-shadow(0 0 10px ' + (TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + ')' }}>T{maxxProfile.tier?.tier}</span>
                   </div>
                   <div style={{ minWidth:0 }}>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:8 }}>
                       <div>
-                        <div style={{ fontSize:10, fontWeight:950, color:'var(--muted)', letterSpacing:'0.16em', textTransform:'uppercase' }}>Maxx Score</div>
-                        <div style={{ fontSize:13, color:'var(--muted2)', marginTop:2 }}>Overall rank · {maxxProfile.tier?.label}</div>
+                        <div style={{ fontSize:11, fontWeight:950, color:'#ffffff', letterSpacing:'0.16em', textTransform:'uppercase' }}>Maxx Score</div>
+                        <div style={{ fontSize:13, color:'rgba(255,255,255,0.65)', marginTop:2 }}>Overall rank · {maxxProfile.tier?.label}</div>
                       </div>
                       <div style={{ color:'var(--muted)', fontSize:23, lineHeight:1 }}>→</div>
                     </div>
