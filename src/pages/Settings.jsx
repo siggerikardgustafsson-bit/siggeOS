@@ -594,9 +594,9 @@ export default function SettingsPage() {
             </>
           )}
         </div>
-        </div>{/* settings-layout */}
-        </div>{/* page-content-scroll inner */}
-      </div>{/* page-content-scroll */}
-    </div>{/* page-wrap */}
+        </div>
+        </div>
+      </div>
+    </div>
   )
 }
