@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,6 +8,10 @@
    DESIGN TOKENS — DARK MODE (default)
    ============================================================ */
 :root {
+  /* Type */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
   /* Accent — overrideable */
   --accent:        #4f8ef7;
   --accent-soft:   rgba(79,142,247,0.12);
@@ -99,7 +103,7 @@ html, body, #root { height: 100%; }
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -186,7 +190,21 @@ body {
 /* ============================================================
    TYPOGRAPHY
    ============================================================ */
-.mono { font-family: 'JetBrains Mono', monospace; letter-spacing: -0.02em; }
+.mono { font-family: var(--font-mono); letter-spacing: -0.02em; }
+
+/* App-wide type polish */
+h1, h2, h3, h4, h5, h6, .page-header-title {
+  font-family: var(--font-sans);
+  letter-spacing: -0.035em;
+}
+
+h1 { font-size: clamp(28px, 3vw, 42px); line-height: 1.05; font-weight: 750; }
+h2 { font-size: clamp(22px, 2.2vw, 30px); line-height: 1.12; font-weight: 720; }
+h3 { font-size: 18px; line-height: 1.2; font-weight: 680; }
+
+p { letter-spacing: -0.006em; }
+
+svg { stroke-width: 1.9; }
 
 /* ============================================================
    GLASS CARDS
@@ -232,7 +250,7 @@ body {
   border-radius: var(--r-sm);
   padding: 10px 14px;
   color: var(--text);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   width: 100%;
   outline: none;
@@ -257,7 +275,7 @@ select.input option { background: #1a1a2e; color: #fff; }
   gap: 6px;
   padding: 8px 16px;
   border-radius: 10px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -337,7 +355,7 @@ select.input option { background: #1a1a2e; color: #fff; }
   gap: 6px;
   padding: 7px 14px;
   border-radius: 9px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -743,41 +761,192 @@ html[data-theme="light"] body.has-bg-image .app-sidebar-floating aside {
   border: 1px solid var(--glass-border) !important;
 }
 
+
 /* ============================================================
-   MAXX DASHBOARD — PREMIUM RESPONSIVE LAYOUT
+   SIGGEOS VISUAL POLISH — 2026-06-02
+   Global typography, header sizing and tighter dashboard feel.
    ============================================================ */
-.dashboard-maxx-row {
-  width: 100%;
+body {
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  letter-spacing: -0.012em;
 }
 
-.dashboard-category-grid {
-  align-items: stretch;
+.card,
+.card-sm,
+.widget {
+  border-radius: 20px;
 }
 
-.dashboard-category-grid > * {
-  min-width: 0;
+.card {
+  padding: 20px;
 }
 
-@media (max-width: 1050px) {
-  .dashboard-maxx-row {
-    grid-template-columns: 1fr !important;
+.widget {
+  background: linear-gradient(180deg, var(--surface), var(--surface2));
+}
+
+.widget:hover,
+.card:hover,
+.card-sm:hover {
+  transform: translateY(-1px);
+}
+
+.page-header {
+  min-height: 64px;
+}
+
+.page-header-title {
+  font-size: clamp(18px, 1.7vw, 24px) !important;
+  line-height: 1.05;
+  font-weight: 760 !important;
+  letter-spacing: -0.045em !important;
+}
+
+.page-header-sub {
+  font-size: 12px !important;
+  line-height: 1.25;
+  color: var(--muted2) !important;
+}
+
+.page-header-actions .btn,
+.page-header-actions .tab-btn {
+  font-weight: 650;
+}
+
+.cat-card {
+  border-radius: 22px !important;
+}
+
+.cat-card .metric-value {
+  letter-spacing: -0.04em;
+  font-weight: 760;
+}
+
+.cat-card .metric-label {
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 768px) {
+  body { font-size: 14px; }
+
+  .page-header {
+    min-height: 56px;
+  }
+
+  .page-header-title {
+    font-size: 17px !important;
+  }
+
+  .page-header-sub {
+    font-size: 11px !important;
   }
 }
 
-@media (max-width: 1250px) {
-  .dashboard-category-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
+/* ============================================================
+   FONT OVERRIDE — Inter + Playfair Display Black Italic
+   ============================================================ */
+
+body,
+button,
+input,
+textarea,
+select {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
 }
 
-@media (max-width: 760px) {
-  .dashboard-category-grid {
-    grid-template-columns: 1fr !important;
-  }
+.display-accent,
+.serif-accent,
+.emphasis-accent,
+.accent-word {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.055em !important;
 }
 
-@media (max-width: 560px) {
-  .dashboard-maxx-row [style*="grid-template-columns: repeat(3"] {
-    grid-template-columns: 1fr !important;
+/* Main page headers: Dashboard, Träning, Hälsa etc */
+.page-header-title,
+.page-header h1,
+.page-header h2 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  font-size: clamp(28px, 3vw, 42px) !important;
+  line-height: 0.92 !important;
+  letter-spacing: -0.065em !important;
+  color: var(--text) !important;
+  text-transform: none !important;
+}
+
+/* Header subtitle stays neutral */
+.page-header-sub {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+  margin-top: 8px !important;
+}
+
+/* Make page header taller so the big title has room */
+.page-header {
+  min-height: 76px !important;
+  padding: 14px 20px !important;
+  align-items: center !important;
+}
+
+/* Card/category titles get a smaller Playfair accent */
+.cat-card h2,
+.cat-card h3,
+.category-card h2,
+.category-card h3,
+.card-title,
+.section-title {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  font-size: clamp(21px, 1.8vw, 30px) !important;
+  line-height: 0.95 !important;
+  letter-spacing: -0.055em !important;
+  text-transform: none !important;
+}
+
+/* Keep tiny labels neutral so the UI does not become messy */
+.metric-label,
+.metric-value,
+.page-header-actions,
+.btn,
+.mono {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+
+/* Optional: italic emphasis in normal text */
+h1 em,
+h2 em,
+h3 em,
+strong em,
+em strong {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.055em !important;
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    min-height: 64px !important;
+    padding: 12px 14px !important;
+  }
+
+  .page-header-title,
+  .page-header h1,
+  .page-header h2 {
+    font-size: 28px !important;
+  }
+
+  .page-header-sub {
+    font-size: 11px !important;
+    margin-top: 5px !important;
   }
 }
