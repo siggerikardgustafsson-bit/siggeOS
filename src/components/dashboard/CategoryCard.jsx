@@ -73,7 +73,7 @@ export default function CategoryCard({ category, onClick }) {
 
   return (
     <div onClick={() => onClick(category)} className="widget cat-card fade-up"
-      style={{ padding:14, minHeight:174, display:'flex', flexDirection:'column', overflow:'hidden', cursor:'pointer' }}>
+      style={{ padding:16, minHeight:218, display:'flex', flexDirection:'column', overflow:'hidden', cursor:'pointer' }}>
 
       {hasData && (
         <div style={{ position:'absolute', top:-30, right:-24, width:95, height:95, borderRadius:'50%', background:color + '14', filter:'blur(24px)', pointerEvents:'none' }} />
@@ -81,11 +81,11 @@ export default function CategoryCard({ category, onClick }) {
 
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10, marginBottom:12 }}>
         <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
-          <div style={{ width:30, height:30, borderRadius:10, background:hasData ? color + '18' : 'var(--surface2)', border:'1px solid ' + (hasData ? color + '34' : 'var(--border)'), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          <div style={{ width:34, height:34, borderRadius:12, background:hasData ? color + '18' : 'var(--surface2)', border:'1px solid ' + (hasData ? color + '34' : 'var(--border)'), display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
             <Icon id={id} color={hasData ? color : 'var(--muted)'} />
           </div>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:12, fontWeight:800, color:'var(--text)', letterSpacing:'0.09em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{name}</div>
+            <div style={{ fontSize:13, fontWeight:900, color:'var(--text)', letterSpacing:'0.09em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{name}</div>
             <div style={{ fontSize:10, color:'var(--muted)', marginTop:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{levelUp?.title || (tier ? tier.label : hasData ? 'Status' : 'Ingen data')}</div>
           </div>
         </div>
@@ -93,7 +93,7 @@ export default function CategoryCard({ category, onClick }) {
       </div>
 
       <div style={{ display:'flex', alignItems:'center', gap:13, marginBottom:12 }}>
-        <Ring pct={ringPct} color={hasData ? color : 'rgba(255,255,255,0.12)'} tier={tierNum} label={id === 'kropp' ? '' : undefined} />
+        <Ring pct={ringPct} color={hasData ? color : 'rgba(255,255,255,0.12)'} tier={tierNum} label={id === 'kropp' ? '' : undefined} size={64} />
         <div style={{ flex:1, minWidth:0, display:'flex', flexDirection:'column', gap:6 }}>
           {hasData ? metrics.slice(0, 3).map((m, i) => (
             <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'baseline' }}>
@@ -104,17 +104,17 @@ export default function CategoryCard({ category, onClick }) {
         </div>
       </div>
 
-      <div style={{ marginTop:'auto', paddingTop:10, borderTop:'1px solid var(--border)', display:'flex', flexDirection:'column', gap:8 }}>
+      <div style={{ marginTop:'auto', paddingTop:12, borderTop:'1px solid var(--border)', display:'flex', flexDirection:'column', gap:9 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontSize:9, fontWeight:800, letterSpacing:'0.11em', color:'var(--muted)', textTransform:'uppercase' }}>Bottleneck</div>
+            <div style={{ fontSize:9, fontWeight:900, letterSpacing:'0.13em', color:'var(--muted)', textTransform:'uppercase' }}>Level-up bottleneck</div>
             <div style={{ fontSize:12, fontWeight:800, color:levelUp?.primaryBottleneck ? nextColor : 'var(--muted2)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginTop:2 }}>
               {levelUp?.primaryBottleneck || (hasData ? 'Öppna för detaljer' : 'Ingen data')}
             </div>
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:6, color:'var(--muted)' }}>
             {decayWarning && <span style={{ fontSize:10, color:'var(--amber)' }}>!</span>}
-            <span style={{ fontSize:18, lineHeight:1 }}>→</span>
+            <span style={{ fontSize:20, lineHeight:1 }}>→</span>
           </div>
         </div>
 

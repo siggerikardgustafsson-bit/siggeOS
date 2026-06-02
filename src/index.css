@@ -742,3 +742,40 @@ html[data-theme="light"] body.has-bg-image .app-sidebar-floating aside {
   background: var(--surface) !important;
   border: 1px solid var(--glass-border) !important;
 }
+
+/* ============================================================
+   MAXX DASHBOARD — PREMIUM RESPONSIVE LAYOUT
+   ============================================================ */
+.dashboard-maxx-row {
+  width: 100%;
+}
+
+.dashboard-category-grid {
+  align-items: stretch;
+}
+
+.dashboard-category-grid > * {
+  min-width: 0;
+}
+
+@media (max-width: 1050px) {
+  .dashboard-maxx-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .dashboard-category-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .dashboard-category-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .dashboard-maxx-row [style*="grid-template-columns: repeat(3"] {
+    grid-template-columns: 1fr !important;
+  }
+}

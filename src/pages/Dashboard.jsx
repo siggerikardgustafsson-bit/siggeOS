@@ -679,42 +679,65 @@ export default function Dashboard() {
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'12px', maxWidth:'1100px', margin:'0 auto' }}>
+        <div style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'14px', maxWidth:'1240px', margin:'0 auto', width:'100%' }}>
 
-          {/* MAXX SCORE */}
+          {/* MAXX SCORE + BOTTLENECK — premium split layout */}
           {!loading && maxxProfile && (
-            <button onClick={() => setSelectedCategory(maxxProfile)} className="widget" style={{ textAlign:'left', cursor:'pointer', padding:'18px', border:'1px solid ' + ((TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + '38'), background:'linear-gradient(135deg, rgba(79,142,247,0.12), rgba(167,139,250,0.07), var(--surface))', display:'grid', gridTemplateColumns:'minmax(0,1.2fr) minmax(220px,.8fr)', gap:'18px', alignItems:'center' }}>
-              <div style={{ minWidth:0 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'8px' }}>
-                  <span style={{ fontSize:'10px', fontWeight:900, color:'var(--muted)', letterSpacing:'0.14em', textTransform:'uppercase' }}>Maxx Score</span>
-                  <span style={{ fontSize:'10px', color:'var(--muted)' }}>Overall rank</span>
+            <div style={{ display:'grid', gridTemplateColumns:'minmax(0, 1.7fr) minmax(280px, .85fr)', gap:'12px', alignItems:'stretch' }} className="dashboard-maxx-row">
+              <button onClick={() => setSelectedCategory(maxxProfile)} className="widget" style={{ textAlign:'left', cursor:'pointer', padding:'18px 20px', border:'1px solid ' + ((TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + '3f'), background:'linear-gradient(135deg, rgba(79,142,247,0.14), rgba(167,139,250,0.08) 45%, var(--surface) 100%)', overflow:'hidden' }}>
+                <div style={{ position:'absolute', inset:'-40% auto auto 62%', width:260, height:260, borderRadius:'999px', background:(TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#a78bfa') + '18', filter:'blur(38px)', pointerEvents:'none' }} />
+                <div style={{ position:'relative', display:'grid', gridTemplateColumns:'auto minmax(0, 1fr)', gap:'18px', alignItems:'center' }}>
+                  <div style={{ width:86, height:86, borderRadius:26, background:'rgba(255,255,255,0.055)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'inset 0 1px 0 rgba(255,255,255,0.08)' }}>
+                    <span style={{ fontSize:42, lineHeight:1, fontWeight:950, letterSpacing:'-0.08em', color:TIER_COLORS[maxxProfile.tier?.tier] || 'var(--text)' }}>T{maxxProfile.tier?.tier}</span>
+                  </div>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:8 }}>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:950, color:'var(--muted)', letterSpacing:'0.16em', textTransform:'uppercase' }}>Maxx Score</div>
+                        <div style={{ fontSize:13, color:'var(--muted2)', marginTop:2 }}>Overall rank · {maxxProfile.tier?.label}</div>
+                      </div>
+                      <div style={{ color:'var(--muted)', fontSize:23, lineHeight:1 }}>→</div>
+                    </div>
+                    <div style={{ height:9, borderRadius:999, background:'rgba(255,255,255,0.075)', overflow:'hidden', border:'1px solid rgba(255,255,255,0.045)' }}>
+                      <div style={{ height:'100%', width:maxxProfile.levelUp.progressPct + '%', borderRadius:999, background:'linear-gradient(90deg, ' + (TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + ', ' + (TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#a78bfa') + ')', boxShadow:'0 0 18px ' + ((TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#a78bfa') + '66') }} />
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0,1fr))', gap:8, marginTop:11 }}>
+                      <div style={{ padding:'8px 10px', borderRadius:12, background:'rgba(0,0,0,0.12)', border:'1px solid var(--border)' }}>
+                        <div style={{ fontSize:9, color:'var(--muted)', fontWeight:850, letterSpacing:'0.10em', textTransform:'uppercase' }}>Rank up</div>
+                        <div style={{ fontSize:12, color:'var(--text)', fontWeight:800 }}>{maxxProfile.levelUp.title}</div>
+                      </div>
+                      <div style={{ padding:'8px 10px', borderRadius:12, background:'rgba(0,0,0,0.12)', border:'1px solid var(--border)' }}>
+                        <div style={{ fontSize:9, color:'var(--muted)', fontWeight:850, letterSpacing:'0.10em', textTransform:'uppercase' }}>Progress</div>
+                        <div style={{ fontSize:12, color:'var(--text)', fontWeight:800 }}>{maxxProfile.levelUp.progressPct}% till nästa</div>
+                      </div>
+                      <div style={{ padding:'8px 10px', borderRadius:12, background:'rgba(0,0,0,0.12)', border:'1px solid var(--border)' }}>
+                        <div style={{ fontSize:9, color:'var(--muted)', fontWeight:850, letterSpacing:'0.10em', textTransform:'uppercase' }}>Krav kvar</div>
+                        <div style={{ fontSize:12, color:'var(--text)', fontWeight:800 }}>{maxxProfile.levelUp.blockers?.length || 0}</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ display:'flex', alignItems:'baseline', gap:'10px', marginBottom:'10px' }}>
-                  <span style={{ fontSize:'42px', lineHeight:1, fontWeight:900, color:TIER_COLORS[maxxProfile.tier?.tier] || 'var(--text)', letterSpacing:'-0.06em' }}>T{maxxProfile.tier?.tier}</span>
-                  <span style={{ fontSize:'15px', color:'var(--muted2)', fontWeight:700 }}>{maxxProfile.tier?.label}</span>
-                  <span style={{ marginLeft:'auto', fontSize:'22px', color:'var(--muted)' }}>→</span>
+              </button>
+
+              <button onClick={() => setSelectedCategory(maxxProfile)} className="widget" style={{ textAlign:'left', cursor:'pointer', padding:'18px', border:'1px solid ' + ((TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#4f8ef7') + '34'), background:'linear-gradient(135deg, rgba(0,0,0,0.16), var(--surface))', display:'flex', flexDirection:'column', justifyContent:'space-between', minHeight:134 }}>
+                <div>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:10 }}>
+                    <div style={{ fontSize:10, color:'var(--muted)', fontWeight:950, letterSpacing:'0.14em', textTransform:'uppercase' }}>Nästa bottleneck</div>
+                    <div style={{ width:26, height:26, borderRadius:9, display:'flex', alignItems:'center', justifyContent:'center', background:(TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#4f8ef7') + '16', color:TIER_COLORS[maxxProfile.levelUp?.nextTier] || 'var(--accent)', border:'1px solid ' + ((TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#4f8ef7') + '32') }}>↗</div>
+                  </div>
+                  <div style={{ fontSize:17, lineHeight:1.22, fontWeight:950, color:TIER_COLORS[maxxProfile.levelUp?.nextTier] || 'var(--accent)', marginBottom:8 }}>{maxxProfile.levelUp.primaryBottleneck}</div>
+                  <div style={{ fontSize:12, color:'var(--muted2)', lineHeight:1.45 }}>{maxxProfile.levelUp.blockers?.length || 0} krav kvar för nästa overall-rank.</div>
                 </div>
-                <div style={{ height:8, borderRadius:999, background:'rgba(255,255,255,0.08)', overflow:'hidden' }}>
-                  <div style={{ height:'100%', width:maxxProfile.levelUp.progressPct + '%', borderRadius:999, background:'linear-gradient(90deg, ' + (TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + ', ' + (TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#a78bfa') + ')' }} />
-                </div>
-                <div style={{ display:'flex', justifyContent:'space-between', marginTop:'7px', fontSize:'11px', color:'var(--muted)' }}>
-                  <span>{maxxProfile.levelUp.title}</span>
-                  <span>{maxxProfile.levelUp.progressPct}% till nästa</span>
-                </div>
-              </div>
-              <div style={{ padding:'14px', borderRadius:'16px', background:'rgba(0,0,0,0.16)', border:'1px solid var(--border)' }}>
-                <div style={{ fontSize:'10px', color:'var(--muted)', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase', marginBottom:'6px' }}>Nästa bottleneck</div>
-                <div style={{ fontSize:'16px', fontWeight:900, color:TIER_COLORS[maxxProfile.levelUp?.nextTier] || 'var(--accent)', marginBottom:'8px' }}>{maxxProfile.levelUp.primaryBottleneck}</div>
-                <div style={{ fontSize:'12px', color:'var(--muted2)' }}>{maxxProfile.levelUp.blockers?.length || 0} krav kvar för nästa overall-rank.</div>
-              </div>
-            </button>
+                <div style={{ marginTop:16, fontSize:11, color:'var(--muted)', fontWeight:700 }}>Visa rank-up plan →</div>
+              </button>
+            </div>
           )}
 
           {/* CATEGORY CARDS */}
           {loading ? (
             <div style={{ color:'var(--muted)', fontSize:'14px', padding:'60px 0', textAlign:'center' }}>Laddar...</div>
           ) : (
-            <div className="grid-4" style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'10px' }}>
+            <div className="grid-4 dashboard-category-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(340px, 1fr))', gap:'12px' }}>
               {categories.map((cat,i) => (
                 <div key={cat.id} className={'fade-up fade-up-delay-'+Math.min(i+1,7)}>
                   <CategoryCard category={cat} onClick={setSelectedCategory} />
@@ -724,7 +747,7 @@ export default function Dashboard() {
           )}
 
           {/* BOTTOM ROW — graph + today side by side */}
-          <div className="dashboard-bottom" style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 230px', gap:'12px', alignItems:'start' }}>
+          <div className="dashboard-bottom" style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 270px', gap:'12px', alignItems:'start' }}>
 
             {/* GRAPH */}
             <div className="widget" style={{ padding:'18px' }}>
