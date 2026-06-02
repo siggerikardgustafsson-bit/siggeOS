@@ -5,7 +5,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['DM Sans', 'sans-serif'],
+        sans: ['Inter', 'sans-serif'],
+        display: ['Playfair Display', 'serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       colors: {
