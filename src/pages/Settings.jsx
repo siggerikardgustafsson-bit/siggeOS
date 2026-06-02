@@ -275,7 +275,7 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="page-wrap">
+    <div className="page-wrap" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="page-header">
         <div>
           <div className="page-header-title">Inställningar</div>
@@ -283,12 +283,11 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="page-content-scroll">
-        <div style={{ padding: '16px 16px 0', maxWidth: '820px', margin: '0 auto' }}>
-          <div className="settings-layout" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '216px 1fr', gap: '16px', flex: 1, minHeight: 0, padding: '0 0 24px 0', overflow: 'hidden' }}>
 
-        {/* Sidebar nav */}
-        <div className="card settings-nav" style={{ padding: '8px', position: 'sticky', top: '16px' }}>
+        {/* Sidebar nav — sticky in its own column */}
+        <div style={{ position: 'sticky', top: 0, alignSelf: 'start', padding: '0 0 0 0' }}>
+          <div className="card settings-nav" style={{ padding: '8px' }}>
           {sections.map(s => (
             <button key={s.id} onClick={() => setActiveSection(s.id)} className="settings-nav-btn" style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: '9px',
@@ -304,9 +303,11 @@ export default function SettingsPage() {
             </button>
           ))}
         </div>
+        </div>{/* sidebar sticky wrapper */}
 
-        {/* Content */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* Content — scrollable right column */}
+        <div style={{ overflowY: 'auto', paddingRight: '4px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '24px' }}>
 
           {/* ===== UTSEENDE ===== */}
           {activeSection === 'utseende' && (
@@ -593,10 +594,9 @@ export default function SettingsPage() {
               </div>
             </>
           )}
-        </div>
-        </div>
-        </div>
-      </div>
-    </div>
+        </div>{/* content inner */}
+        </div>{/* content scroll column */}
+      </div>{/* grid */}
+    </div>{/* page-wrap */}
   )
 }
