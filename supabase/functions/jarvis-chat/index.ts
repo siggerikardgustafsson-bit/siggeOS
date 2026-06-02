@@ -163,25 +163,73 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         .select('id,date,session_type,duration_minutes,feeling,notes,distance_km,time_seconds,pace_per_km,source,strava_id,created_at')
         .eq('user_id', userId)
         .order('date', { ascending: false })
-        .limit(asLimit(input.limit, 50, 200))
+        .limit(asLimit(input.limit, 20, 80))
+
       if (input.type && input.type !== 'all') q = q.eq('session_type', input.type)
       if (input.date_from) q = q.gte('date', input.date_from)
       if (input.date_to) q = q.lte('date', input.date_to)
-      const { data, error } = await q
+
+      const { data: sessions, error } = await q
       if (error) throw error
-      if (!data?.length) return 'Inga träningspass hittades.'
-      const rows = data.map((s: any) => {
-        const parts = [s.date, s.session_type || 'pass']
-        if (s.distance_km) parts.push(`${s.distance_km} km`)
-        if (s.duration_minutes) parts.push(`${s.duration_minutes} min`)
-        if (s.time_seconds) parts.push(`tid ${Math.floor(s.time_seconds / 60)}:${String(s.time_seconds % 60).padStart(2, '0')}`)
-        if (s.pace_per_km) parts.push(`pace ${Math.floor(s.pace_per_km / 60)}:${String(s.pace_per_km % 60).padStart(2, '0')}/km`)
-        if (s.feeling) parts.push(`känsla ${s.feeling}/10`)
-        if (s.notes) parts.push(`notering: ${s.notes.slice(0, 160)}`)
-        parts.push(`[id:${s.id}]`)
-        return parts.join(' | ')
-      }).join('\n')
-      return `Träning (${data.length} pass):\n${rows}`
+      if (!sessions?.length) return 'Inga träningspass hittades.'
+
+      const sessionIds = sessions.map((s: any) => s.id)
+
+      const { data: exercises, error: exError } = await supabase
+        .from('training_exercises')
+        .select('id,session_id,exercise_name,set_number,reps,weight_kg,is_dropset,created_at')
+        .in('session_id', sessionIds)
+        .order('exercise_name', { ascending: true })
+        .order('set_number', { ascending: true })
+
+      if (exError) throw exError
+
+      const exercisesBySession: Record<string, any[]> = {}
+      for (const ex of exercises || []) {
+        if (!exercisesBySession[ex.session_id]) exercisesBySession[ex.session_id] = []
+        exercisesBySession[ex.session_id].push(ex)
+      }
+
+      const rows = sessions.map((sess: any) => {
+        const parts = [sess.date, sess.session_type || 'pass']
+
+        if (sess.distance_km) parts.push(`${sess.distance_km} km`)
+        if (sess.duration_minutes) parts.push(`${sess.duration_minutes} min`)
+        if (sess.time_seconds) parts.push(`tid ${Math.floor(sess.time_seconds / 60)}:${String(sess.time_seconds % 60).padStart(2, '0')}`)
+        if (sess.pace_per_km) parts.push(`pace ${Math.floor(sess.pace_per_km / 60)}:${String(sess.pace_per_km % 60).padStart(2, '0')}/km`)
+        if (sess.feeling) parts.push(`känsla ${sess.feeling}/10`)
+        if (sess.notes) parts.push(`notering: ${sess.notes.slice(0, 100)}`)
+        parts.push(`[session_id:${sess.id}]`)
+
+        const exs = exercisesBySession[sess.id] || []
+
+        if (!exs.length) {
+          return parts.join(' | ') + '\n  Övningar: inga övningar hittades för detta session_id.'
+        }
+
+        const grouped: Record<string, any[]> = {}
+        for (const ex of exs) {
+          const name = ex.exercise_name || 'Okänd övning'
+          if (!grouped[name]) grouped[name] = []
+          grouped[name].push(ex)
+        }
+
+        const exerciseText = Object.entries(grouped).map(([name, sets]) => {
+          const setText = sets.map((ex: any) => {
+            const bits = []
+            if (ex.set_number) bits.push(`set ${ex.set_number}`)
+            if (ex.reps != null) bits.push(`${ex.reps} reps`)
+            if (ex.weight_kg != null) bits.push(`${ex.weight_kg} kg`)
+            if (ex.is_dropset) bits.push('dropset')
+            return bits.join(', ')
+          }).join(' | ')
+          return `  - ${name}: ${setText}`
+        }).join('\n')
+
+        return parts.join(' | ') + '\n' + exerciseText
+      }).join('\n\n')
+
+      return `Träning (${sessions.length} pass). OBS: övningar/reps/vikt från training_exercises inkluderas nedan:\n\n${rows}`
     }
 
     if (toolName === 'fetch_health') {
