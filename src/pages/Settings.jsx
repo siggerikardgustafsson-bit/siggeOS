@@ -278,8 +278,8 @@ export default function SettingsPage() {
     <div className="settings-page" style={{ padding: '28px', maxWidth: '820px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
-        <div style={{ fontSize: '22px', fontWeight: '700', letterSpacing: '-0.3px' }}>Inställningar</div>
-        <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '3px' }}>Anpassa Sigge OS efter dina preferenser</div>
+        <div style={{ fontSize: '38px', fontWeight: '700', fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic', letterSpacing: '-0.5px', lineHeight: 1.1 }}>Inställningar</div>
+        <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '6px' }}>Anpassa Sigge OS efter dina preferenser</div>
       </div>
 
       <div className="settings-layout" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', alignItems: 'start' }}>
