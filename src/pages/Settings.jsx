@@ -303,7 +303,7 @@ export default function SettingsPage() {
             </button>
           ))}
         </div>
-        </div>{/* sidebar sticky wrapper */}
+        </div>
 
         {/* Content — scrollable right column */}
         <div style={{ overflowY: 'auto', paddingRight: '4px' }}>
@@ -594,9 +594,9 @@ export default function SettingsPage() {
               </div>
             </>
           )}
-        </div>{/* content inner */}
-        </div>{/* content scroll column */}
-      </div>{/* grid */}
-    </div>{/* page-wrap */}
+        </div>
+        </div>
+      </div>
+    </div>
   )
 }
