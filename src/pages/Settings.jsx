@@ -275,14 +275,17 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="settings-page" style={{ padding: '28px', maxWidth: '820px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '28px' }}>
-        <div style={{ fontSize: '38px', fontWeight: '700', fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic', letterSpacing: '-0.5px', lineHeight: 1.1 }}>Inställningar</div>
-        <div style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '6px' }}>Anpassa Sigge OS efter dina preferenser</div>
+    <div className="page-wrap">
+      <div className="page-header">
+        <div>
+          <div className="page-header-title">Inställningar</div>
+          <div className="page-header-sub">Anpassa Sigge OS efter dina preferenser</div>
+        </div>
       </div>
 
-      <div className="settings-layout" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', alignItems: 'start' }}>
+      <div className="page-content-scroll">
+        <div style={{ padding: '16px 16px 0', maxWidth: '820px', margin: '0 auto' }}>
+          <div className="settings-layout" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', alignItems: 'start' }}>
 
         {/* Sidebar nav */}
         <div className="card settings-nav" style={{ padding: '8px', position: 'sticky', top: '24px' }}>
@@ -591,7 +594,9 @@ export default function SettingsPage() {
             </>
           )}
         </div>
-      </div>
-    </div>
+        </div>{/* settings-layout */}
+        </div>{/* page-content-scroll inner */}
+      </div>{/* page-content-scroll */}
+    </div>{/* page-wrap */}
   )
 }
