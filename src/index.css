@@ -1495,3 +1495,235 @@ h3 em {
     font-size: 14px !important;
   }
 }
+
+/* ============================================================
+   PLAYFAIR FINAL BALANCE — Italic only for headers
+   ============================================================ */
+
+/* Headers: keep Black Italic, big editorial */
+.page-header-title,
+.page-header h1,
+.page-header h2 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  font-size: clamp(34px, 3.4vw, 52px) !important;
+  line-height: 0.9 !important;
+  letter-spacing: -0.06em !important;
+}
+
+/* Sidebar logo: cleaner, less warped */
+.brand-logo {
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 3px !important;
+  white-space: nowrap !important;
+  line-height: 1 !important;
+}
+
+.brand-logo-main {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  font-size: 28px !important;
+  line-height: 1 !important;
+  letter-spacing: -0.075em !important;
+  color: var(--text) !important;
+}
+
+.brand-logo-os {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  font-size: 27px !important;
+  line-height: 1 !important;
+  letter-spacing: -0.055em !important;
+  margin-left: 2px !important;
+  background: linear-gradient(135deg, var(--accent), var(--accent2, #a78bfa)) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+/* Primary buttons: Playfair Bold, not italic */
+.btn-primary,
+button.btn-primary,
+a.btn-primary,
+button[style*="linear-gradient"],
+button[style*="#3b82f6"],
+button[style*="rgb(59, 130, 246)"],
+button[style*="var(--accent)"] {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  line-height: 1.1 !important;
+  letter-spacing: -0.025em !important;
+}
+
+/* Larger CTA buttons */
+.btn-primary.btn-lg,
+button.btn-primary.btn-lg,
+a.btn-primary.btn-lg {
+  font-size: 16px !important;
+  padding-top: 11px !important;
+  padding-bottom: 12px !important;
+}
+
+/* Smaller CTA buttons, like Spara */
+.btn-primary.btn-sm,
+button.btn-primary.btn-sm,
+a.btn-primary.btn-sm {
+  font-size: 13px !important;
+  padding-top: 7px !important;
+  padding-bottom: 8px !important;
+}
+
+/* Keep icon-only / floating plus buttons neutral */
+.btn-icon,
+button.btn-icon,
+button[aria-label],
+button[style*="border-radius: 50%"],
+button[style*="borderRadius: '50%'"] {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-style: normal !important;
+  font-weight: 600 !important;
+  letter-spacing: normal !important;
+}
+
+/* Non-header Playfair accent = Bold, not italic */
+.display-accent:not(.page-header-title),
+.serif-accent:not(.page-header-title),
+.emphasis-accent:not(.page-header-title),
+.accent-word,
+.highlight,
+.ai-highlight,
+.bottleneck-highlight,
+.jarvis-accent,
+.empty-state-title,
+.empty-title,
+.no-data-title,
+.card-empty-title {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.035em !important;
+}
+
+/* Empty states: still expressive but calmer */
+.empty-state-title,
+.empty-title,
+.no-data-title,
+.card-empty-title {
+  font-size: clamp(24px, 2.5vw, 36px) !important;
+  line-height: 1 !important;
+}
+
+/* Force dense UI/data text back to Inter */
+.card p,
+.card span,
+.card div,
+.card strong,
+.card em,
+.card button:not(.btn-primary),
+.card label,
+.card input,
+.card select,
+.card textarea,
+.card li,
+.card td,
+.card th,
+.metric-label,
+.metric-value,
+.page-header-sub,
+.card-subtitle,
+.widget-subtitle,
+nav,
+nav *,
+.transaction-row,
+.transaction-row *,
+.expense-row,
+.expense-row *,
+.income-row,
+.income-row *,
+.course-card *,
+.journal-entry *,
+.jarvis-message,
+.jarvis-message *,
+.jarvis-response,
+.jarvis-response *,
+.chat-message,
+.chat-message *,
+.ai-message,
+.ai-message * {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-style: normal !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* But allow primary buttons inside cards to keep Playfair Bold */
+.card .btn-primary,
+.card button.btn-primary,
+.card a.btn-primary,
+.card button[style*="linear-gradient"],
+.card button[style*="#3b82f6"],
+.card button[style*="rgb(59, 130, 246)"],
+.card button[style*="var(--accent)"] {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  letter-spacing: -0.025em !important;
+}
+
+/* Card/category titles stay neutral and structured */
+.cat-card h2,
+.cat-card h3,
+.category-card h2,
+.category-card h3,
+.card-title,
+.section-title,
+.widget-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  font-style: normal !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+}
+
+/* Explicit accent titles can use Playfair Bold */
+.card-title.display-accent,
+.section-title.display-accent,
+.widget-title.display-accent {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.035em !important;
+  text-transform: none !important;
+}
+
+@media (max-width: 768px) {
+  .brand-logo-main {
+    font-size: 27px !important;
+  }
+
+  .brand-logo-os {
+    font-size: 26px !important;
+  }
+
+  .page-header-title,
+  .page-header h1,
+  .page-header h2 {
+    font-size: 34px !important;
+  }
+
+  .btn-primary,
+  button.btn-primary,
+  a.btn-primary,
+  button[style*="linear-gradient"],
+  button[style*="#3b82f6"],
+  button[style*="rgb(59, 130, 246)"],
+  button[style*="var(--accent)"] {
+    font-size: 13px !important;
+  }
+}
