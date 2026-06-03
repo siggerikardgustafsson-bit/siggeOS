@@ -40,7 +40,7 @@ export default function PluggPage() {
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(null)
   const [editingCourse, setEditingCourse] = useState(null)
-  const [editingMandTitle, setEditingMandTitle] = useState(null) // session.id -> draft title
+  const [editingMandTitle, setEditingMandTitle] = useState(null)
   const [mandTitleDraft, setMandTitleDraft] = useState('')
   const [editForm, setEditForm] = useState({})
   const [uploadingGoalsPdf, setUploadingGoalsPdf] = useState(null)
@@ -111,6 +111,7 @@ export default function PluggPage() {
     setSyncingMandatory(false)
   }
 
+
   async function saveMandTitle(sessionId) {
     if (!mandTitleDraft.trim()) return
     await supabase.from('mandatory_sessions').update({ custom_title: mandTitleDraft.trim() }).eq('id', sessionId)
@@ -124,11 +125,6 @@ export default function PluggPage() {
     setEditingMandTitle(null)
   }
 
-  async function toggleMandatoryAttended(id, current) {
-    await supabase.from('mandatory_sessions').update({ attended: !current }).eq('id', id)
-    await fetchMandatory()
-  }
-
   async function deleteMandatorySession(id) {
     await supabase.from('mandatory_sessions').delete().eq('id', id)
     setMandatorySessions(prev => {
@@ -139,6 +135,11 @@ export default function PluggPage() {
       return next
     })
     setMandatoryUnmatched(prev => prev.filter(s => s.id !== id))
+  }
+
+  async function toggleMandatoryAttended(id, current) {
+    await supabase.from('mandatory_sessions').update({ attended: !current }).eq('id', id)
+    await fetchMandatory()
   }
 
   async function fetchCourses() {
@@ -611,92 +612,57 @@ export default function PluggPage() {
                     {isExpanded && (
                       <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'start' }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", alignItems: "start" }}>
                           <div>
                         {/* Obligatoriska */}
                         {mandatoryForCourse.length > 0 && (
-                          <div style={{ marginBottom: '20px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                              <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
-                              <span style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.12em', whiteSpace: 'nowrap' }}>OBLIGATORISKA MOMENT ({mandatoryForCourse.length})</span>
-                              <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ marginBottom: '16px' }}>
+                            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>OBLIGATORISKA MOMENT ({mandatoryForCourse.length})</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                               {mandatoryForCourse.sort((a, b) => b.date.localeCompare(a.date)).map(session => {
                                 const timeStr = session.start_time ? format(parseISO(session.start_time), 'HH:mm') + (session.end_time ? '–' + format(parseISO(session.end_time), 'HH:mm') : '') : null
                                 const displayTitle = session.custom_title || session.title
-                                // Extract type hint from title (e.g. "Föreläsning", "Grupparbete", etc.)
                                 const typeKeywords = ['Föreläsning','Grupparbete','Redovisning','Projektarbete','Bastest','Seminarium','Workshop','Laboration','Handledd']
                                 const detectedType = typeKeywords.find(k => session.title?.includes(k))
                                 const isEditingThis = editingMandTitle === session.id
-
                                 return (
-                                  <div key={session.id} style={{
-                                    borderRadius: 10,
-                                    background: session.attended ? 'rgba(16,185,129,0.06)' : 'rgba(255,255,255,0.025)',
-                                    border: `1px solid ${session.attended ? 'rgba(16,185,129,0.22)' : 'var(--border)'}`,
-                                    overflow: 'hidden',
-                                    transition: 'border-color 0.15s',
-                                  }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
-                                      {/* Attended dot */}
+                                  <div key={session.id} style={{ borderRadius: '8px', background: session.attended ? 'rgba(16,185,129,0.06)' : 'var(--surface2)', border: `1px solid ${session.attended ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`, overflow: 'hidden' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px' }}>
                                       <button onClick={() => toggleMandatoryAttended(session.id, session.attended)} style={{
-                                        width: 22, height: 22, borderRadius: '50%', flexShrink: 0, cursor: 'pointer',
-                                        border: `2px solid ${session.attended ? '#10b981' : 'rgba(255,255,255,0.15)'}`,
+                                        width: 20, height: 20, borderRadius: '50%', flexShrink: 0, cursor: 'pointer',
+                                        border: `2px solid ${session.attended ? '#10b981' : 'rgba(255,255,255,0.2)'}`,
                                         background: session.attended ? '#10b981' : 'transparent',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                       }}>
-                                        {session.attended && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                                        {session.attended && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
                                       </button>
-
-                                      {/* Title + type */}
                                       <div style={{ flex: 1, minWidth: 0 }}>
                                         {isEditingThis ? (
-                                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                            <input
-                                              autoFocus
-                                              className="input"
-                                              value={mandTitleDraft}
+                                          <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                                            <input autoFocus className="input" value={mandTitleDraft}
                                               onChange={e => setMandTitleDraft(e.target.value)}
                                               onKeyDown={e => { if (e.key === 'Enter') saveMandTitle(session.id); if (e.key === 'Escape') setEditingMandTitle(null) }}
-                                              style={{ fontSize: 12, padding: '4px 8px', flex: 1 }}
-                                            />
-                                            <button onClick={() => saveMandTitle(session.id)} className="btn btn-primary" style={{ padding: '4px 10px', fontSize: 11 }}>
-                                              <Check size={11} />
-                                            </button>
-                                            <button onClick={() => setEditingMandTitle(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 2 }}>
-                                              <X size={13} />
-                                            </button>
+                                              style={{ fontSize: 12, padding: '4px 8px', flex: 1 }} />
+                                            <button onClick={() => saveMandTitle(session.id)} className="btn btn-primary" style={{ padding: '4px 8px', fontSize: 11 }}><Check size={11} /></button>
+                                            <button onClick={() => setEditingMandTitle(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 2 }}><X size={12} /></button>
                                           </div>
                                         ) : (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                            <span style={{
-                                              fontSize: 13, fontWeight: 500,
-                                              color: session.attended ? 'var(--muted)' : 'var(--text)',
-                                              textDecoration: session.attended ? 'line-through' : 'none',
-                                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                            }}>{displayTitle}</span>
-                                            {session.custom_title && (
-                                              <span style={{ fontSize: 9, color: '#8b5cf6', fontWeight: 700, letterSpacing: '0.08em', flexShrink: 0 }}>REDIGERAD</span>
-                                            )}
-                                            <button onClick={() => { setEditingMandTitle(session.id); setMandTitleDraft(displayTitle) }} style={{
-                                              background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer',
-                                              padding: 2, opacity: 0.4, flexShrink: 0,
-                                            }}>
-                                              <Edit2 size={11} />
-                                            </button>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                            <span style={{ fontSize: 13, fontWeight: 500, color: session.attended ? 'var(--muted)' : 'var(--text)', textDecoration: session.attended ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{displayTitle}</span>
+                                            <button onClick={() => { setEditingMandTitle(session.id); setMandTitleDraft(displayTitle) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 2, opacity: 0.4, flexShrink: 0 }}><Edit2 size={11} /></button>
                                           </div>
                                         )}
-                                        <div style={{ display: 'flex', gap: 8, marginTop: 2, alignItems: 'center' }}>
-                                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{format(parseISO(session.date), 'd MMM yyyy', { locale: sv })}</span>
+                                        <div style={{ display: 'flex', gap: 6, marginTop: 2, alignItems: 'center' }}>
+                                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{format(parseISO(session.date), 'd MMM', { locale: sv })}</span>
                                           {timeStr && <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600 }}>{timeStr}</span>}
-                                          {detectedType && (
-                                            <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(139,92,246,0.1)', color: '#a78bfa', fontWeight: 600 }}>
-                                              {detectedType}
-                                            </span>
-                                          )}
+                                          {detectedType && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: 'rgba(139,92,246,0.1)', color: '#a78bfa', fontWeight: 600 }}>{detectedType}</span>}
                                         </div>
                                       </div>
+                                      <button onClick={() => deleteMandatorySession(session.id)} style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.35)', cursor: 'pointer', padding: 3, flexShrink: 0 }}
+                                        onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                                        onMouseLeave={e => e.currentTarget.style.color = 'rgba(248,113,113,0.35)'}>
+                                        <Trash2 size={12} />
+                                      </button>
                                     </div>
                                   </div>
                                 )
@@ -707,13 +673,11 @@ export default function PluggPage() {
 
                         {/* Uppgifter */}
                         <div style={{ marginBottom: '16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                            <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
-                            <span style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.12em', whiteSpace: 'nowrap' }}>UPPGIFTER</span>
-                            <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600' }}>UPPGIFTER</div>
                             {showNewTaskFor !== course.id && (
-                              <button onClick={() => { setShowNewTaskFor(course.id); resetTaskForm() }} className="btn btn-ghost" style={{ fontSize: '11px', padding: '4px 10px', flexShrink: 0 }}>
-                                + Ny uppgift
+                              <button onClick={() => { setShowNewTaskFor(course.id); resetTaskForm() }} className="btn btn-ghost" style={{ fontSize: '12px', padding: '5px 10px' }}>
+                                Ny uppgift
                               </button>
                             )}
                           </div>
@@ -820,11 +784,7 @@ export default function PluggPage() {
                           <div>
                         {/* Examinationer */}
                         <div style={{ marginBottom: '16px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                            <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
-                            <span style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.12em', whiteSpace: 'nowrap' }}>EXAMINATIONER</span>
-                            <div style={{ height: 1, flex: 1, background: 'var(--border)' }} />
-                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>EXAMINATIONER</div>
                           {courseExams.map(exam => {
                             const isExamExpanded = expandedExam === exam.id
                             const examGoalList = goals[exam.id] || []
@@ -832,10 +792,11 @@ export default function PluggPage() {
                             const examMaterials = courseMaterials[exam.id] || []
                             const totalFiles = examFilesForExam.length + examMaterials.length + (examGoalList.some(g => g.source_file && g.source_file !== 'manual') ? 1 : 0)
                             const showFiles = showFilesFor === exam.id
-                            const gradeColor = exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : '#8b5cf6'
                             return (
-                              <div key={exam.id} style={{ marginBottom: '10px', border: `1px solid ${exam.grade ? gradeColor + '40' : 'var(--border)'}`, borderRadius: '12px', overflow: 'hidden', background: exam.grade === 'G' ? 'rgba(16,185,129,0.06)' : exam.grade === 'IG' ? 'rgba(239,68,68,0.06)' : 'var(--surface2)', borderLeft: `4px solid ${gradeColor}` }}>
-                                <div style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'transparent' }}
+                              <div key={exam.id} style={{ marginBottom: '8px', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
+                                <div style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                  background: exam.grade === 'G' ? 'rgba(16,185,129,0.06)' : exam.grade === 'IG' ? 'rgba(239,68,68,0.06)' : 'var(--surface2)',
+                                  borderLeft: `3px solid ${exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : 'var(--border)'}` }}
                                   onClick={() => setExpandedExam(isExamExpanded ? null : exam.id)}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exam.name}</div>
@@ -1066,22 +1027,20 @@ export default function PluggPage() {
 
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '16px', borderTop: '1px solid var(--border)', marginTop: '8px' }}>
-                            <button onClick={() => copyGoals(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
-                              {copied === course.id ? <><Check size={12} /> Kopierat!</> : <><Copy size={12} /> Kopiera mål</>}
-                            </button>
-                            <button onClick={() => estimateTime(course.id)} disabled={estimatingTime === course.id} className="btn btn-ghost" style={{ fontSize: '12px' }}>
-                              {estimatingTime === course.id ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Estimerar...</> : <><Zap size={12} /> Estimera tid</>}
-                            </button>
-                            <div style={{ flex: 1 }} />
-                            <button onClick={() => archiveCourse(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
-                              <Archive size={12} /> Arkivera
-                            </button>
-                            <button onClick={() => deleteCourse(course.id)} className="btn btn-danger" style={{ fontSize: '12px' }}>
-                              <Trash2 size={12} /> Ta bort
-                            </button>
-                          </div>
+                        <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                          <button onClick={() => copyGoals(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+                            {copied === course.id ? <><Check size={12} /> Kopierat!</> : <><Copy size={12} /> Kopiera mål</>}
+                          </button>
+                          <button onClick={() => estimateTime(course.id)} disabled={estimatingTime === course.id} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+                            {estimatingTime === course.id ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Estimerar...</> : <><Zap size={12} /> Estimera tid</>}
+                          </button>
+                          <div style={{ flex: 1 }} />
+                          <button onClick={() => archiveCourse(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+                            <Archive size={12} /> Arkivera
+                          </button>
+                          <button onClick={() => deleteCourse(course.id)} className="btn btn-danger" style={{ fontSize: '12px' }}>
+                            <Trash2 size={12} /> Ta bort
+                          </button>
                         </div>
                       </div>
                     )}
