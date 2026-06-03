@@ -172,12 +172,13 @@ export default function Dashboard() {
       const periodEnd = format(new Date(todayDate.getFullYear(), startMonth + 1, salaryDay - 1), 'yyyy-MM-dd')
 
       const [
-        { data: runData }, { data: prData }, { data: healthData },
+        { data: runData }, { data: prData }, { data: runPrData }, { data: healthData },
         { data: studyData }, { data: paData }, { data: skillData }, { data: userSettings },
         { data: exData }, { data: supplementLogs }, { data: snapshots }, { data: incomeData },
       ] = await Promise.all([
         supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
-        supabase.from('personal_records').select('exercise_name,weight_kg,reps,date,updated_at').eq('user_id',userId).order('weight_kg',{ascending:false}),
+        supabase.from('personal_records').select('exercise_name,weight_kg,reps,date,updated_at').eq('user_id',userId).not('weight_kg','is',null).order('weight_kg',{ascending:false}),
+        supabase.from('run_personal_records').select('distance_key,label,distance_km,time_seconds,pace_per_km,date,updated_at').eq('user_id',userId).order('time_seconds',{ascending:true}).then(r => r).catch(() => ({ data: [] })),
         supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
         supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
         supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',periodStart).lte('date',periodEnd),
@@ -217,35 +218,42 @@ export default function Dashboard() {
       setBodyWeight(bw)
       if (userSettings?.display_name) setDisplayName(userSettings.display_name)
 
-      // Best actual pace-based time for a target distance
-      // A longer run gives your actual pace at that distance — not an estimate
-      function bestActual(targetKm) {
-        // Direct runs within ±10%
-        const tol = Math.max(0.5, targetKm * 0.1)
-        const direct = (runData||[]).filter(r =>
+      // Best real run time for a target distance.
+      // Priority: Strava best_efforts saved in run_personal_records.
+      // Fallback: whole activities close to the actual distance.
+      // Important: never estimate 1k/5k/10k from average pace of a longer run.
+      function bestActual(targetKm, distanceKey) {
+        const prMatches = (runPrData || []).filter(p =>
+          p.time_seconds &&
+          (p.distance_key === distanceKey || Math.abs(Number(p.distance_km) - targetKm) <= Math.max(0.03, targetKm * 0.01))
+        )
+        if (prMatches.length) {
+          const best = prMatches.reduce((b, p) => Number(p.time_seconds) < Number(b.time_seconds) ? p : b, prMatches[0])
+          return {
+            date: best.date || best.updated_at?.slice(0, 10),
+            distance_km: Number(best.distance_km) || targetKm,
+            pace_per_km: Number(best.pace_per_km) || Math.round(Number(best.time_seconds) / targetKm),
+            time_seconds: Number(best.time_seconds),
+            _t: Number(best.time_seconds),
+            source: 'strava_best_effort',
+          }
+        }
+
+        const tol = Math.max(0.15, targetKm * 0.05)
+        const direct = (runData || []).filter(r =>
           r.distance_km >= targetKm - tol &&
           r.distance_km <= targetKm + tol &&
           (r.time_seconds || r.pace_per_km)
         )
-        // Longer runs — if you ran 21km you actually ran 1km, 5km, 10km en route
-        const longer = (runData||[]).filter(r =>
-          r.distance_km > targetKm + tol &&
-          (r.time_seconds || r.pace_per_km)
-        )
-        const all = [...direct, ...longer]
-        if (!all.length) return null
+        if (!direct.length) return null
 
-        return all.reduce((b, r) => {
-          // Use actual pace × targetKm — this IS your actual performance at that distance
+        return direct.reduce((best, r) => {
           const pace = r.pace_per_km || (r.time_seconds / r.distance_km)
-          const t = Math.round(pace * targetKm)
-          const bt = b._t
-          return t < bt ? { ...r, _t: t } : b
-        }, { ...all[0], _t: (() => {
-          const r = all[0]
-          const pace = r.pace_per_km || (r.time_seconds / r.distance_km)
-          return Math.round(pace * targetKm)
-        })() })
+          const t = r.time_seconds && Math.abs(r.distance_km - targetKm) <= tol
+            ? Math.round(r.time_seconds * (targetKm / r.distance_km))
+            : Math.round(pace * targetKm)
+          return !best || t < best._t ? { ...r, _t: t } : best
+        }, null)
       }
 
       function toDecayed(run, targetKm) {
@@ -255,11 +263,11 @@ export default function Dashboard() {
         return getDecayedValue(t, run.date, 90)
       }
 
-      const r1D  = toDecayed(bestActual(1), 1)
-      const r5D  = toDecayed(bestActual(5), 5)
-      const r10D = toDecayed(bestActual(10), 10)
-      const rHD  = toDecayed(bestActual(21.1), 21.1)
-      const rMD  = toDecayed(bestActual(42.2), 42.2)
+      const r1D  = toDecayed(bestActual(1, '1k'), 1)
+      const r5D  = toDecayed(bestActual(5, '5k'), 5)
+      const r10D = toDecayed(bestActual(10, '10k'), 10)
+      const rHD  = toDecayed(bestActual(21.097, 'half_marathon'), 21.097)
+      const rMD  = toDecayed(bestActual(42.2, 'marathon'), 42.2)
 
       const r1T  = r1D  ? getTier(r1D.value,  RUN_5K_THRESHOLDS.map(t=>t*0.195), false) : null
       const r5T  = r5D  ? getTier(r5D.value,  RUN_5K_THRESHOLDS, false) : null
@@ -267,7 +275,7 @@ export default function Dashboard() {
       const rHT  = rHD  ? getTier(rHD.value,  RUN_HALF_THRESHOLDS, false) : null
       const rMT  = rMD  ? getTier(rMD.value,  RUN_MARA_THRESHOLDS, false) : null
 
-      const hasRunData = !!(runData?.length)
+      const hasRunData = !!(runData?.length || runPrData?.length)
 
       // Coverage check: a run of distance D covers all shorter required distances
       // (e.g. a halvmara proves you can run 1km, 5km, 10km)
