@@ -57,78 +57,6 @@ function parseNumber(value) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-
-function EvidenceModal({ item, onClose }) {
-  if (!item) return null
-  return (
-    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:220, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-      <div onClick={e => e.stopPropagation()} className="widget" style={{ width:'min(560px, 100%)', maxHeight:'86vh', overflowY:'auto', padding:22, borderRadius:24 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:18 }}>
-          <div>
-            <div style={{ fontSize:10, fontWeight:900, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--muted)', marginBottom:6 }}>Datakälla</div>
-            <div style={{ fontSize:24, fontWeight:900, color:'var(--text)', letterSpacing:'-0.04em', lineHeight:1.05 }}>{item.title}</div>
-            <div style={{ fontSize:13, color:'var(--muted2)', marginTop:6 }}>{item.subtitle}</div>
-          </div>
-          <button onClick={onClose} className="btn btn-ghost btn-icon" style={{ flexShrink:0 }}>×</button>
-        </div>
-
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
-          <div style={{ padding:14, borderRadius:16, background:'rgba(255,255,255,0.045)', border:'1px solid var(--border)' }}>
-            <div style={{ fontSize:10, color:'var(--muted)', fontWeight:800, letterSpacing:'0.10em', textTransform:'uppercase' }}>Värde</div>
-            <div style={{ fontSize:28, color:item.color || 'var(--accent)', fontWeight:900, marginTop:4 }}>{item.value}</div>
-          </div>
-          <div style={{ padding:14, borderRadius:16, background:'rgba(255,255,255,0.045)', border:'1px solid var(--border)' }}>
-            <div style={{ fontSize:10, color:'var(--muted)', fontWeight:800, letterSpacing:'0.10em', textTransform:'uppercase' }}>Kategori</div>
-            <div style={{ fontSize:18, color:'var(--text)', fontWeight:800, marginTop:7 }}>{item.category}</div>
-          </div>
-        </div>
-
-        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {(item.rows || []).map((row, i) => (
-            <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'10px 12px', borderRadius:12, background:'rgba(0,0,0,0.10)', border:'1px solid var(--border)' }}>
-              <span style={{ fontSize:12, color:'var(--muted)' }}>{row.label}</span>
-              <span style={{ fontSize:12, color:'var(--text)', fontWeight:700, textAlign:'right' }}>{row.value || '—'}</span>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ marginTop:18, padding:14, borderRadius:16, background:'var(--accent-soft)', border:'1px solid var(--accent-border)', color:'var(--muted2)', fontSize:12, lineHeight:1.45 }}>
-          Detta är första versionen av evidence chain: dashboardvärde → källdata. Nästa steg blir att länka detta direkt till öppnat pass på träningssidan.
-        </div>
-
-        <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:18 }}>
-          {item.href && <button className="btn btn-primary" onClick={() => { window.location.href = item.href }}>Gå till källa</button>}
-          <button className="btn btn-ghost" onClick={onClose}>Stäng</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function EvidencePanel({ items, onOpen }) {
-  if (!items?.length) return null
-  return (
-    <div className="widget" style={{ padding:18 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12 }}>
-        <div>
-          <div style={{ fontSize:11, color:'var(--muted)', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase' }}>Datapunkter & källor</div>
-          <div style={{ fontSize:12, color:'var(--muted2)', marginTop:3 }}>Klicka för att se exakt vilken rad/pass som avgör tiern.</div>
-        </div>
-      </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(5, minmax(0, 1fr))', gap:10 }} className="dashboard-evidence-grid">
-        {items.slice(0, 10).map(item => (
-          <button key={item.id} onClick={() => onOpen(item)} style={{ textAlign:'left', cursor:'pointer', padding:12, borderRadius:16, background:'rgba(255,255,255,0.045)', border:'1px solid var(--border)', color:'var(--text)', minWidth:0 }}>
-            <div style={{ fontSize:10, color:'var(--muted)', fontWeight:850, letterSpacing:'0.08em', textTransform:'uppercase', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.category}</div>
-            <div style={{ marginTop:6, fontSize:12, color:'var(--muted2)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</div>
-            <div style={{ marginTop:4, fontSize:18, fontWeight:900, color:item.color || 'var(--accent)', lineHeight:1 }}>{item.value}</div>
-            <div style={{ marginTop:6, fontSize:10, color:'var(--muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.sourceLabel}</div>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function buildMaxxProfile(cats) {
   const rankCats = cats.filter(c => c?.tier?.tier && c.hasData && !['kropp','fardigheter'].includes(c.id))
   if (!rankCats.length) return null
@@ -205,10 +133,59 @@ function buildMaxxProfile(cats) {
   }
 }
 
+
+function EvidenceModal({ evidence, onClose }) {
+  if (!evidence) return null
+  const rows = evidence.rows || []
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:120, background:'rgba(0,0,0,0.58)', backdropFilter:'blur(10px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div onClick={e=>e.stopPropagation()} className="widget" style={{ width:'min(560px, 100%)', maxHeight:'82vh', overflowY:'auto', padding:0, borderRadius:22 }}>
+        <div style={{ padding:'18px 20px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start' }}>
+          <div>
+            <div style={{ fontSize:11, color:'var(--muted)', fontWeight:900, letterSpacing:'0.13em', textTransform:'uppercase' }}>Datakälla</div>
+            <div style={{ fontSize:22, fontWeight:900, color:'var(--text)', marginTop:4 }}>{evidence.title || evidence.metricLabel}</div>
+            <div style={{ fontSize:13, color:'var(--muted2)', marginTop:3 }}>{evidence.subtitle || evidence.categoryName}</div>
+          </div>
+          <button onClick={onClose} className="btn btn-ghost btn-icon" style={{ flexShrink:0 }}>×</button>
+        </div>
+
+        <div style={{ padding:20, display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0,1fr))', gap:10 }}>
+            <div className="card-sm" style={{ padding:12 }}>
+              <div style={{ fontSize:10, color:'var(--muted)', fontWeight:850, letterSpacing:'0.08em', textTransform:'uppercase' }}>Värde</div>
+              <div style={{ fontSize:20, color:'var(--accent)', fontWeight:900, marginTop:4 }}>{evidence.metricValue || evidence.value || '—'}</div>
+            </div>
+            <div className="card-sm" style={{ padding:12 }}>
+              <div style={{ fontSize:10, color:'var(--muted)', fontWeight:850, letterSpacing:'0.08em', textTransform:'uppercase' }}>Datum</div>
+              <div style={{ fontSize:15, color:'var(--text)', fontWeight:800, marginTop:7 }}>{evidence.date || '—'}</div>
+            </div>
+          </div>
+
+          <div className="card-sm" style={{ padding:14 }}>
+            {rows.map((r,i)=>(
+              <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:14, padding:i===0?'0 0 8px 0':'8px 0', borderTop:i===0?'none':'1px solid var(--border)' }}>
+                <span style={{ color:'var(--muted2)', fontSize:12 }}>{r.label}</span>
+                <span style={{ color:'var(--text)', fontSize:12, fontWeight:700, textAlign:'right', overflowWrap:'anywhere' }}>{r.value || '—'}</span>
+              </div>
+            ))}
+          </div>
+
+          {evidence.navTarget && (
+            <button onClick={() => { window.location.href = evidence.navTarget }} className="btn btn-primary" style={{ width:'100%' }}>
+              Öppna i {evidence.navLabel || 'källa'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
 
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
+  const [selectedEvidence, setSelectedEvidence] = useState(null)
   const [categories, setCategories] = useState([])
   const [overallTier, setOverallTier] = useState(null)
   const [maxxProfile, setMaxxProfile] = useState(null)
@@ -219,8 +196,6 @@ export default function Dashboard() {
   const [activeGraphCats, setActiveGraphCats] = useState(['somn','valmående','plugg'])
   const [tierHistory, setTierHistory] = useState([])
   const [refreshKey, setRefreshKey] = useState(0)
-  const [evidenceItems, setEvidenceItems] = useState([])
-  const [selectedEvidence, setSelectedEvidence] = useState(null)
 
   const todayDate = new Date()
   const todayStr = format(todayDate, 'EEEE d MMMM yyyy')
@@ -250,7 +225,7 @@ export default function Dashboard() {
         { data: studyData }, { data: paData }, { data: skillData }, { data: userSettings },
         { data: exData }, { data: supplementLogs }, { data: snapshots }, { data: incomeData },
       ] = await Promise.all([
-        supabase.from('training_sessions').select('id,date,session_type,distance_km,time_seconds,pace_per_km,source,strava_id,notes').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
+        supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
         supabase.from('run_personal_records').select('id,distance_key,label,distance_km,time_seconds,pace_per_km,date,strava_activity_id,strava_effort_name,source').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}).then(r => r).catch(() => ({ data: [] })),
         supabase.from('personal_records').select('id,exercise_name,weight_kg,reps,date,exercise_id').eq('user_id',userId).order('weight_kg',{ascending:false}),
         supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
@@ -259,7 +234,7 @@ export default function Dashboard() {
         supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since30),
         Promise.resolve({ data: settingsQuick }),
         supabase.from('training_exercises')
-          .select('id,session_id,exercise_name,set_number,reps,weight_kg,exercise_id,training_sessions!inner(id,date,user_id,session_type)')
+          .select('id,session_id,set_number,exercise_name,reps,weight_kg,training_sessions!inner(id,date,user_id)')
           .eq('training_sessions.user_id', userId)
           .gte('training_sessions.date', format(subDays(todayDate, 60), 'yyyy-MM-dd'))
           .not('weight_kg','is',null).not('reps','is',null),
@@ -316,15 +291,37 @@ export default function Dashboard() {
         return getDecayedValue(Number(run.time_seconds), run.date, 90)
       }
 
-      const best1  = bestActual('1k')
-      const best5  = bestActual('5k')
-      const best10 = bestActual('10k')
-      const bestH  = bestActual('half_marathon')
+      const r1Actual = bestActual('1k')
+      const r5Actual = bestActual('5k')
+      const r10Actual = bestActual('10k')
+      const rHActual = bestActual('half_marathon')
 
-      const r1D  = toDecayed(best1)
-      const r5D  = toDecayed(best5)
-      const r10D = toDecayed(best10)
-      const rHD  = toDecayed(bestH)
+      function runEvidence(row, label) {
+        if (!row) return null
+        return {
+          type: 'run_best_effort',
+          title: label,
+          subtitle: 'Strava best effort från enskilt löppass',
+          value: formatRunTime(Number(row.time_seconds)),
+          date: row.date,
+          navTarget: '/traning',
+          navLabel: 'Träning',
+          rows: [
+            { label: 'Källa', value: 'run_personal_records' },
+            { label: 'Best effort', value: row.strava_effort_name || row.label || label },
+            { label: 'Tid', value: formatRunTime(Number(row.time_seconds)) },
+            { label: 'Pace', value: row.pace_per_km ? formatRunTime(Number(row.pace_per_km)) + '/km' : '—' },
+            { label: 'Distans', value: row.distance_km ? Number(row.distance_km).toFixed(row.distance_km >= 10 ? 1 : 2).replace('.00','') + ' km' : '—' },
+            { label: 'Strava activity', value: row.strava_activity_id || '—' },
+            { label: 'Rad-ID', value: row.id || '—' },
+          ],
+        }
+      }
+
+      const r1D  = toDecayed(r1Actual)
+      const r5D  = toDecayed(r5Actual)
+      const r10D = toDecayed(r10Actual)
+      const rHD  = toDecayed(rHActual)
       const rMD  = null
 
       const r1T  = r1D  ? getTier(r1D.value,  RUN_5K_THRESHOLDS.map(t=>t*0.195), false) : null
@@ -367,89 +364,105 @@ export default function Dashboard() {
         return e1RM_total != null ? e1RM_total - bodyweight : null // return added kg equivalent
       }
 
-      function buildStrengthSourceFromSet(setRow, e1rmValue, isBW = false) {
-        return {
-          type: 'strength_set',
-          session_id: setRow.session_id || setRow.training_sessions?.id,
-          exercise_name: setRow.exercise_name,
-          date: setRow.training_sessions?.date,
-          set_number: setRow.set_number,
-          weight_kg: setRow.weight_kg,
-          reps: setRow.reps,
-          e1rm: e1rmValue,
-          isBW,
-        }
-      }
-
-      function buildStrengthSourceFromPR(prRow, e1rmValue, isBW = false) {
-        return {
-          type: 'personal_record',
-          id: prRow.id,
-          exercise_name: prRow.exercise_name,
-          date: prRow.date,
-          weight_kg: prRow.weight_kg,
-          reps: prRow.reps,
-          e1rm: e1rmValue,
-          isBW,
-        }
-      }
-
-      function getE1RMSource(keywords, isBW = false) {
+      function getE1RM(keywords, isBW = false) {
         const since60 = format(subDays(todayDate, 60), 'yyyy-MM-dd')
-        let best = null
-
-        const maybeUpdate = (value, source) => {
-          if (value == null || !Number.isFinite(Number(value))) return
-          if (!best || value > best.value) best = { value, source }
-        }
+        let best = 0
 
         // From personal_records
-        ;(prData || [])
-          .filter(p => keywords.some(k => p.exercise_name?.toLowerCase().includes(k)))
-          .forEach(pr => {
-            const d = pr.date || format(subDays(todayDate, 1), 'yyyy-MM-dd')
-            const decayed = getDecayedValue(pr.weight_kg, d, 60)
-            if (decayed) {
-              const value = isBW
-                ? epleyBW(decayed.value, pr.reps || 1, bw)
-                : epley(decayed.value, pr.reps || 1)
-              maybeUpdate(value, buildStrengthSourceFromPR(pr, value, isBW))
-            }
-          })
+        const pr = (prData || []).find(p => keywords.some(k => p.exercise_name?.toLowerCase().includes(k)))
+        if (pr) {
+          const d = pr.updated_at?.slice(0, 10) || pr.date || format(subDays(todayDate, 1), 'yyyy-MM-dd')
+          const decayed = getDecayedValue(pr.weight_kg, d, 60)
+          if (decayed) {
+            const e = isBW
+              ? epleyBW(decayed.value, pr.reps || 1, bw)
+              : epley(decayed.value, pr.reps || 1)
+            if (e != null && e > best) best = e
+          }
+        }
 
         // From recent training_exercises (last 60 days)
-        ;(exData || [])
-          .filter(e =>
-            keywords.some(k => e.exercise_name?.toLowerCase().includes(k)) &&
-            e.training_sessions?.date >= since60
-          )
-          .forEach(s => {
-            const value = isBW
-              ? epleyBW(s.weight_kg || 0, s.reps, bw)
-              : epley(s.weight_kg, s.reps)
-            maybeUpdate(value, buildStrengthSourceFromSet(s, value, isBW))
+        const sets = (exData || []).filter(e =>
+          keywords.some(k => e.exercise_name?.toLowerCase().includes(k)) &&
+          e.training_sessions?.date >= since60
+        )
+        for (const s of sets) {
+          const e = isBW
+            ? epleyBW(s.weight_kg || 0, s.reps, bw)  // weight_kg=0 means unweighted
+            : epley(s.weight_kg, s.reps)
+          if (e != null && e > best) best = e
+        }
+
+        return best > 0 ? best : null
+      }
+
+      function strengthEvidence(label, keywords, isBW = false) {
+        let best = null
+        const consider = (candidate) => {
+          if (!candidate || candidate.e1rm == null) return
+          if (!best || candidate.e1rm > best.e1rm) best = candidate
+        }
+
+        for (const p of (prData || [])) {
+          if (!keywords.some(k => p.exercise_name?.toLowerCase().includes(k))) continue
+          const e = isBW ? epleyBW(p.weight_kg || 0, p.reps || 1, bw) : epley(p.weight_kg, p.reps || 1)
+          consider({
+            e1rm: e,
+            date: p.date,
+            source: 'personal_records',
+            rows: [
+              { label: 'Källa', value: 'personal_records' },
+              { label: 'Övning', value: p.exercise_name },
+              { label: 'Set/PR', value: `${p.weight_kg ?? '—'} kg × ${p.reps || 1}` },
+              { label: 'Formel', value: (p.reps || 1) <= 10 ? 'Brzycki' : 'Epley' },
+              { label: 'Rad-ID', value: p.id || '—' },
+            ],
           })
+        }
 
-        return best
+        for (const s of (exData || [])) {
+          if (!keywords.some(k => s.exercise_name?.toLowerCase().includes(k))) continue
+          const e = isBW ? epleyBW(s.weight_kg || 0, s.reps, bw) : epley(s.weight_kg, s.reps)
+          consider({
+            e1rm: e,
+            date: s.training_sessions?.date,
+            source: 'training_exercises',
+            sessionId: s.session_id || s.training_sessions?.id,
+            rows: [
+              { label: 'Källa', value: 'training_exercises' },
+              { label: 'Passdatum', value: s.training_sessions?.date || '—' },
+              { label: 'Övning', value: s.exercise_name },
+              { label: 'Set', value: `${s.weight_kg ?? '—'} kg × ${s.reps ?? '—'}` },
+              { label: 'Setnummer', value: s.set_number != null ? String(s.set_number) : '—' },
+              { label: 'Formel', value: Number(s.reps || 0) <= 10 ? 'Brzycki' : 'Epley' },
+              { label: 'Pass-ID', value: s.session_id || s.training_sessions?.id || '—' },
+              { label: 'Set-ID', value: s.id || '—' },
+            ],
+          })
+        }
+
+        if (!best) return null
+        return {
+          type: 'strength_e1rm',
+          title: label,
+          subtitle: 'Bästa e1RM-källa senaste 60 dagar eller PR-rad',
+          value: Math.round(best.e1rm) + ' kg',
+          date: best.date,
+          navTarget: '/traning',
+          navLabel: 'Träning',
+          rows: [
+            { label: 'e1RM', value: Math.round(best.e1rm) + ' kg' },
+            ...best.rows,
+          ],
+        }
       }
 
-      function getE1RM(keywords, isBW = false) {
-        return getE1RMSource(keywords, isBW)?.value || null
-      }
-
-      const bSource = getE1RMSource(['bänkpress','bench'])
-      const sSource = getE1RMSource(['knäböj','squat'])
-      const dlSource = getE1RMSource(['marklyft','deadlift'])
-      const oSource = getE1RMSource(['militärpress','ohp','overhead'])
-      const puSource = getE1RMSource(['pull-up','pullup','chins','weighted pull'], true)
-      const dipSource = getE1RMSource(['dips','dip'], true)
-
-      const bE1RM = bSource?.value || null
-      const sE1RM = sSource?.value || null
-      const dlE1RM = dlSource?.value || null
-      const oE1RM = oSource?.value || null
-      const puE1RM = puSource?.value || null
-      const dipE1RM = dipSource?.value || null
+      const bE1RM = getE1RM(['bänkpress','bench'])
+      const sE1RM = getE1RM(['knäböj','squat'])
+      const dlE1RM = getE1RM(['marklyft','deadlift'])
+      const oE1RM = getE1RM(['militärpress','ohp','overhead'])
+      const puE1RM = getE1RM(['pull-up','pullup','chins','weighted pull'], true)
+      const dipE1RM = getE1RM(['dips','dip'], true)
 
       const bT = bE1RM != null ? getTier(bE1RM/bw, BENCH_THRESHOLDS, true) : null
       const sT = sE1RM != null ? getTier(sE1RM/bw, SQUAT_THRESHOLDS, true) : null
@@ -686,7 +699,11 @@ export default function Dashboard() {
 
       const cats = [
         {id:'kondition',name:'Kondition',icon:'kondition',tier:kTop,hasData:hasRunData,pct:kTop?Math.round((kTop.tier/8)*100):0,decayWarning:[r5D,r10D,rHD,rMD].some(d=>d?.stale),trend:r5D?.daysSince<14?'up':'neutral',
-          metrics:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',highlight:true},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—'},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—'}],
+          metrics:[
+            {label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',highlight:true,evidence:runEvidence(r1Actual,'1 km PR')},
+            {label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',evidence:runEvidence(r5Actual,'5 km PR')},
+            {label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',evidence:runEvidence(r10Actual,'10 km PR')}
+          ],
           details:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',tierInfo:r1T},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',tierInfo:r5T},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',tierInfo:r10T},{label:'Halvmara',value:rHD?formatRunTime(Math.round(rHD.value)):'—',tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT}],
           chartData:(runData||[]).filter(r=>r.distance_km>=4.5&&r.distance_km<=11).slice(0,20).reverse().map(r=>({date:r.date.slice(5),Pace:r.pace_per_km?Math.round(r.pace_per_km/60*10)/10:null})),
           chartLines:[{key:'Pace',label:'Pace (min/km)',color:'#4f8ef7'}],levelUp:kondLevelUp,navTarget:'/traning',navLabel:'Träning'},
@@ -699,7 +716,11 @@ export default function Dashboard() {
             puT && { label:'Pull-up', tier: puT, value: puE1RM, isBW: true },
             dipT && { label:'Dips', tier: dipT, value: dipE1RM, isBW: true },
           ].filter(Boolean),
-          metrics:[{label:'Bänk e1RM',value:bE1RM?Math.round(bE1RM)+' kg':'—',highlight:true},{label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg':'—'},{label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg':'—'}],
+          metrics:[
+            {label:'Bänk e1RM',value:bE1RM?Math.round(bE1RM)+' kg':'—',highlight:true,evidence:strengthEvidence('Bänk e1RM',['bänkpress','bench'])},
+            {label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg':'—',evidence:strengthEvidence('Marklyft e1RM',['marklyft','deadlift'])},
+            {label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg':'—',evidence:strengthEvidence('Knäböj e1RM',['knäböj','squat'])}
+          ],
           details:[{label:'Bänkpress e1RM',value:bE1RM?Math.round(bE1RM)+' kg ('+Math.round(bE1RM/bw*100)/100+'x BW)':'—',tierInfo:bT},{label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg ('+Math.round(sE1RM/bw*100)/100+'x BW)':'—',tierInfo:sT},{label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg ('+Math.round(dlE1RM/bw*100)/100+'x BW)':'—',tierInfo:dlT},{label:'Militärpress e1RM',value:oE1RM?Math.round(oE1RM)+' kg':'—',tierInfo:oT},{label:'Weighted pull-up e1RM',value:puE1RM?'+'+Math.round(puE1RM)+' kg':'—',tierInfo:puT}],
           chartData:[],chartLines:[],levelUp:strengthLevelUp,tierGuide:strengthTierGuide,navTarget:'/traning',navLabel:'Träning'},
         {id:'somn',name:'Sömn',icon:'somn',tier:slT,hasData:!!avgSl,pct:slT?Math.round((slT.tier/8)*100):0,decayWarning:false,trend:'neutral',
@@ -738,67 +759,6 @@ export default function Dashboard() {
           levelUp:wellLevelUp,
           navTarget:'/halsa',navLabel:'Hälsa'},
       ]
-      function makeRunEvidenceItem(id, title, effort, tierInfo) {
-        if (!effort) return null
-        const seconds = Number(effort.time_seconds)
-        const session = (runData || []).find(r => String(r.strava_id) === String(effort.strava_activity_id))
-        return {
-          id,
-          category: 'Kondition',
-          title,
-          value: formatRunTime(seconds),
-          subtitle: `${title} från Strava best effort`,
-          color: tierInfo?.color || '#4f8ef7',
-          href: '/traning',
-          sourceLabel: `${effort.date} · ${effort.strava_effort_name || effort.label || 'Best effort'}`,
-          rows: [
-            { label:'Tabell', value:'run_personal_records' },
-            { label:'Datum', value:effort.date },
-            { label:'Strava activity', value:effort.strava_activity_id },
-            { label:'Effort', value:effort.strava_effort_name || effort.label },
-            { label:'Tid', value:formatRunTime(seconds) },
-            { label:'Pace', value:effort.pace_per_km ? `${formatRunTime(Number(effort.pace_per_km))}/km` : '—' },
-            { label:'Training session', value:session?.id || 'Matchas via strava_id' },
-          ],
-        }
-      }
-
-      function makeStrengthEvidenceItem(id, title, sourceObj, tierInfo) {
-        if (!sourceObj?.source) return null
-        const src = sourceObj.source
-        const value = sourceObj.value
-        const setText = src.weight_kg != null && src.reps != null ? `${src.weight_kg} kg × ${src.reps}` : '—'
-        return {
-          id,
-          category: 'Styrka',
-          title,
-          value: src.isBW ? `+${Math.round(value)} kg` : `${Math.round(value)} kg`,
-          subtitle: `${title} beräknat från bästa set/PR senaste 60 dagar`,
-          color: tierInfo?.color || '#a78bfa',
-          href: '/traning',
-          sourceLabel: `${src.date || 'okänt datum'} · ${src.exercise_name}`,
-          rows: [
-            { label:'Källa', value:src.type === 'strength_set' ? 'training_exercises' : 'personal_records' },
-            { label:'Datum', value:src.date },
-            { label:'Pass-ID', value:src.session_id || '—' },
-            { label:'Övning', value:src.exercise_name },
-            { label:'Set', value:src.set_number ? `Set ${src.set_number}` : '—' },
-            { label:'Vikt × reps', value:setText },
-            { label:'Beräkning', value:'e1RM' },
-          ],
-        }
-      }
-
-      setEvidenceItems([
-        makeRunEvidenceItem('ev-run-1k', '1 km PR', best1, r1T),
-        makeRunEvidenceItem('ev-run-5k', '5 km PR', best5, r5T),
-        makeRunEvidenceItem('ev-run-10k', '10 km PR', best10, r10T),
-        makeRunEvidenceItem('ev-run-half', 'Halvmara', bestH, rHT),
-        makeStrengthEvidenceItem('ev-strength-bench', 'Bänk e1RM', bSource, bT),
-        makeStrengthEvidenceItem('ev-strength-squat', 'Knäböj e1RM', sSource, sT),
-        makeStrengthEvidenceItem('ev-strength-deadlift', 'Marklyft e1RM', dlSource, dlT),
-      ].filter(Boolean))
-
       setCategories(cats)
 
       // ── Save today's tiers as a snapshot ──────────────────────────────
@@ -949,13 +909,11 @@ export default function Dashboard() {
             <div className="grid-4 dashboard-category-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:'12px' }}>
               {categories.map((cat,i) => (
                 <div key={cat.id} className={'fade-up fade-up-delay-'+Math.min(i+1,7)}>
-                  <CategoryCard category={cat} onClick={setSelectedCategory} />
+                  <CategoryCard category={cat} onClick={setSelectedCategory} onMetricClick={setSelectedEvidence} />
                 </div>
               ))}
             </div>
           )}
-
-          <EvidencePanel items={evidenceItems} onOpen={setSelectedEvidence} />
 
           {/* BOTTOM ROW — graph + today side by side */}
           <div className="dashboard-bottom" style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 270px', gap:'12px', alignItems:'start' }}>
@@ -1032,7 +990,7 @@ export default function Dashboard() {
       </div>
 
       {selectedCategory && <DetailModal category={selectedCategory} onClose={()=>setSelectedCategory(null)} />}
-      {selectedEvidence && <EvidenceModal item={selectedEvidence} onClose={() => setSelectedEvidence(null)} />}
+      {selectedEvidence && <EvidenceModal evidence={selectedEvidence} onClose={()=>setSelectedEvidence(null)} />}
     </div>
   )
 }
