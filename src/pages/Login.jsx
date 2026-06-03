@@ -18,43 +18,29 @@ export default function Login() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '24px',
-    }}>
-      <div style={{ width: '100%', maxWidth: '380px' }}>
-
-        {/* Logo */}
-        <div style={{ marginBottom: '48px', textAlign: 'center' }}>
-          <div className="brand-kicker" style={{ justifyContent: 'center', marginBottom: '10px' }}>MAXXIT</div>
-          <div style={{ fontSize: '36px', fontWeight: '800', letterSpacing: '-1.4px', marginBottom: '8px' }}>
-            Sigge
-            <span style={{
-              background: 'linear-gradient(135deg, #4f8ef7, #a78bfa)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}>OS</span>
+    <div className="maxxit-login">
+      <div className="maxxit-login-shell">
+        <div className="maxxit-login-hero">
+          <div className="maxxit-logo maxxit-logo-hero">
+            <span>Maxx</span><strong>It</strong>
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '13px', letterSpacing: '0.02em' }}>
-            MaxxIt · personlig prestation, data och riktning
+          <div className="maxxit-login-tagline">
+            Din personliga instrumentpanel för prestation, riktning och livsdata.
+          </div>
+          <div className="maxxit-command-row">
+            <span>Logga</span>
+            <span>Synka</span>
+            <span>Analysera</span>
+            <span>Rank up</span>
           </div>
         </div>
 
-        {/* Glass card */}
-        <div style={{
-          background: 'rgba(255,255,255,0.05)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          border: '1px solid rgba(255,255,255,0.10)',
-          borderRadius: '20px',
-          padding: '28px',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.07) inset',
-        }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="maxxit-login-card">
+          <div className="maxxit-card-kicker">PERSONAL OS</div>
+          <h1>Logga in</h1>
+          <p>Fortsätt där du slutade.</p>
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '18px' }}>
             <input
               className="input"
               type="email"
@@ -74,31 +60,12 @@ export default function Login() {
               autoComplete="current-password"
             />
 
-            {error && (
-              <div style={{
-                color: '#f87171', fontSize: '13px',
-                padding: '9px 12px',
-                background: 'rgba(248,113,113,0.08)',
-                border: '1px solid rgba(248,113,113,0.15)',
-                borderRadius: '8px',
-              }}>
-                {error}
-              </div>
-            )}
+            {error && <div className="maxxit-error">{error}</div>}
 
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-              style={{ width: '100%', justifyContent: 'center', marginTop: '4px', padding: '11px', fontSize: '14px' }}
-            >
-              {loading ? 'Startar systemet…' : 'Logga in'}
+            <button type="submit" className="btn btn-primary maxxit-primary" disabled={loading}>
+              {loading ? 'Loggar in…' : 'Öppna MaxxIt'}
             </button>
           </form>
-        </div>
-
-        <div style={{ marginTop: '28px', color: 'rgba(255,255,255,0.2)', fontSize: '11px', textAlign: 'center', letterSpacing: '0.04em' }}>
-          MAXXIT · SIGGEOS · PRIVAT INSTRUMENTPANEL
         </div>
       </div>
     </div>

@@ -952,3 +952,230 @@ html[data-theme="light"] body.has-bg-image .app-sidebar-floating aside {
 .btn[data-command] {
   letter-spacing: -0.01em;
 }
+
+
+/* ============================================================
+   MAXXIT BRAND V2 — cohesive product identity
+   ============================================================ */
+:root {
+  --maxxit-ink: rgba(255,255,255,0.96);
+  --maxxit-line: rgba(255,255,255,0.14);
+  --maxxit-glow: rgba(79,142,247,0.34);
+}
+
+/* Make the old Settings brand-v1 panel disappear if it still exists anywhere. */
+.maxxit-brand-panel,
+.brand-v1-panel { display: none !important; }
+
+.maxxit-logo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  white-space: nowrap;
+  line-height: 0.92;
+  letter-spacing: -0.075em;
+  color: var(--maxxit-ink);
+}
+.maxxit-logo span {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+  font-weight: 900;
+}
+.maxxit-logo strong {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.maxxit-logo-large { font-size: 44px; }
+.maxxit-logo-hero { font-size: clamp(56px, 8vw, 94px); }
+
+/* If Sidebar.jsx uses the old brand-logo classes, convert it to MaxxIt visually. */
+.brand-logo-main::after {
+  content: 'Maxx';
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.075em !important;
+}
+.brand-logo-main { font-size: 0 !important; }
+.brand-logo-os::after {
+  content: 'It';
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.brand-logo-os { font-size: 0 !important; }
+.brand-logo-main::after,
+.brand-logo-os::after { font-size: 28px !important; }
+
+/* Login */
+.maxxit-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background:
+    radial-gradient(ellipse 65% 50% at 20% 10%, rgba(79,142,247,0.18), transparent 62%),
+    radial-gradient(ellipse 55% 50% at 80% 90%, rgba(167,139,250,0.16), transparent 60%),
+    var(--bg);
+}
+.maxxit-login-shell {
+  width: min(940px, 100%);
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 22px;
+  align-items: stretch;
+}
+.maxxit-login-hero,
+.maxxit-login-card {
+  background: linear-gradient(180deg, var(--surface), var(--surface2));
+  border: 1px solid var(--glass-border);
+  border-radius: 28px;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+}
+.maxxit-login-hero {
+  min-height: 420px;
+  padding: 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  position: relative;
+  overflow: hidden;
+}
+.maxxit-login-hero::before {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  background:
+    radial-gradient(circle at 24% 30%, rgba(79,142,247,0.24), transparent 26%),
+    radial-gradient(circle at 82% 72%, rgba(167,139,250,0.20), transparent 30%);
+  pointer-events: none;
+}
+.maxxit-login-hero > * { position: relative; }
+.maxxit-login-tagline {
+  max-width: 480px;
+  margin-top: 16px;
+  color: var(--muted2);
+  font-size: 16px;
+  line-height: 1.55;
+}
+.maxxit-command-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+.maxxit-command-row span,
+.maxxit-command-chip {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.05);
+  color: var(--muted2);
+  font-size: 12px;
+  font-weight: 650;
+}
+.maxxit-login-card {
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.maxxit-card-kicker,
+.brand-kicker {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.maxxit-login-card h1 {
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  margin-bottom: 6px;
+}
+.maxxit-login-card p { color: var(--muted2); }
+.maxxit-error {
+  color: var(--red);
+  font-size: 13px;
+  padding: 10px 12px;
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.16);
+  border-radius: 10px;
+}
+.maxxit-primary { width: 100%; justify-content: center; margin-top: 4px; padding: 11px 14px; }
+
+/* Loading */
+.maxxit-loading-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: var(--bg);
+}
+.maxxit-loading-card {
+  padding: 28px 34px;
+  border-radius: 24px;
+  border: 1px solid var(--glass-border);
+  background: var(--surface);
+  box-shadow: var(--glass-shadow);
+  text-align: center;
+}
+.maxxit-loading-text {
+  margin-top: 12px;
+  color: var(--muted2);
+  font-size: 13px;
+}
+
+/* General polish: more consistent instrument-panel feel without changing layout. */
+.page-header {
+  background: linear-gradient(135deg, rgba(255,255,255,0.075), rgba(255,255,255,0.035)) !important;
+  border-color: rgba(255,255,255,0.12) !important;
+}
+.card, .widget, .card-sm {
+  background: linear-gradient(180deg, var(--surface), var(--surface2)) !important;
+}
+.btn, .tab-btn, .settings-nav-btn {
+  font-weight: 650 !important;
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 72%, #111827) 100%) !important;
+}
+.input {
+  min-height: 42px;
+}
+
+/* Small premium badges for future achievements. */
+.achievement-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(251,191,36,0.28);
+  background: rgba(251,191,36,0.10);
+  color: #fbbf24;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+@media (max-width: 768px) {
+  .maxxit-login-shell { grid-template-columns: 1fr; }
+  .maxxit-login-hero { min-height: 260px; padding: 30px; }
+  .maxxit-login-card { padding: 24px; }
+  .maxxit-logo-hero { font-size: 58px; }
+}
