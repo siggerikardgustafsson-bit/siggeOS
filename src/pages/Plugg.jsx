@@ -123,6 +123,8 @@ export default function PluggPage() {
     })
     setEditingMandTitle(null)
   }
+
+  async function toggleMandatoryAttended(id, current) {
     await supabase.from('mandatory_sessions').update({ attended: !current }).eq('id', id)
     await fetchMandatory()
   }
