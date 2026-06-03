@@ -53,7 +53,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, athlete: data.athlete }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
-  // ===== FETCH PRs FOR EXISTING STRAVA RUNS =====
+  // ===== FETCH BEST EFFORTS FOR EXISTING STRAVA RUNS =====
   if (action === 'fetch_prs') {
     const { data: tokenRow } = await supabase.from('strava_tokens').select('*').eq('user_id', user.id).single()
     if (!tokenRow) return new Response(JSON.stringify({ error: 'Not connected' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
@@ -79,6 +79,8 @@ serve(async (req) => {
       }).eq('user_id', user.id)
     }
 
+    // Only the distances we actually use for current running level.
+    // Important: these are best efforts PER ACTIVITY, not all-time PRs.
     const bestEffortMap: Record<string, { key: string; km: number; label: string }> = {
       '1k':           { key: '1k',            km: 1.0,    label: '1 km PR' },
       '5k':           { key: '5k',            km: 5.0,    label: '5 km PR' },
@@ -86,11 +88,6 @@ serve(async (req) => {
       '1/2 marathon': { key: 'half_marathon', km: 21.097, label: 'Halvmara PR' },
     }
 
-    function normalizeEffortName(name: string | null | undefined) {
-      return String(name || '').trim().toLowerCase()
-    }
-
-    // Get all synced Strava runs with their Strava activity id.
     const { data: sessions } = await supabase
       .from('training_sessions')
       .select('strava_id, date')
@@ -105,17 +102,7 @@ serve(async (req) => {
       })
     }
 
-    // Track best time per wanted distance across all activities.
-    const bestTimes: Record<string, {
-      key: string
-      label: string
-      time: number
-      pace: number
-      date: string
-      km: number
-      stravaActivityId: string
-      effortName: string
-    }> = {}
+    let effortsSaved = 0
 
     for (const session of sessions) {
       if (!session.strava_id) continue
@@ -127,58 +114,38 @@ serve(async (req) => {
         if (!Array.isArray(detail.best_efforts)) continue
 
         for (const effort of detail.best_efforts) {
-          const mapping = bestEffortMap[normalizeEffortName(effort.name)]
+          const mapping = bestEffortMap[effort.name]
           if (!mapping || !effort.elapsed_time) continue
 
-          const existing = bestTimes[mapping.key]
-          if (!existing || effort.elapsed_time < existing.time) {
-            bestTimes[mapping.key] = {
-              key: mapping.key,
-              label: mapping.label,
-              time: effort.elapsed_time,
-              pace: Math.round(effort.elapsed_time / mapping.km),
-              date: effort.start_date_local?.slice(0, 10) || session.date,
-              km: mapping.km,
-              stravaActivityId: String(session.strava_id),
-              effortName: effort.name,
-            }
-          }
+          const activityId = String(session.strava_id)
+          const effortDate = effort.start_date_local?.slice(0, 10) || detail.start_date_local?.slice(0, 10) || session.date
+          const effortPace = Math.round(effort.elapsed_time / mapping.km)
+
+          // One row per activity + distance. This lets Dashboard choose best effort within the last 90 days.
+          const { error } = await supabase.from('run_personal_records').upsert({
+            user_id: user.id,
+            distance_key: mapping.key,
+            label: mapping.label,
+            distance_km: mapping.km,
+            time_seconds: effort.elapsed_time,
+            pace_per_km: effortPace,
+            date: effortDate,
+            strava_activity_id: activityId,
+            strava_effort_name: effort.name,
+            source: 'strava',
+          }, { onConflict: 'user_id,distance_key,strava_activity_id' })
+
+          if (error) console.warn('run_personal_records upsert failed:', error)
+          else effortsSaved++
         }
 
-        // Small delay to reduce risk of rate limiting.
         await new Promise(r => setTimeout(r, 100))
       } catch (e) {
-        console.warn(`PR fetch failed for ${session.strava_id}:`, e)
+        console.warn(`Best-efforts fetch failed for ${session.strava_id}:`, e)
       }
     }
 
-    // Upsert only run PRs into the dedicated run table. Never into personal_records.
-    let prsUpdated = 0
-    for (const best of Object.values(bestTimes)) {
-      const { error } = await supabase.from('run_personal_records').upsert({
-        user_id: user.id,
-        distance_key: best.key,
-        label: best.label,
-        distance_km: best.km,
-        time_seconds: best.time,
-        pace_per_km: best.pace,
-        date: best.date,
-        strava_activity_id: best.stravaActivityId,
-        strava_effort_name: best.effortName,
-        source: 'strava',
-      }, { onConflict: 'user_id,distance_key' })
-
-      if (error) {
-        return new Response(JSON.stringify({
-          error: 'Could not save run PRs. Have you run the run_personal_records SQL migration?',
-          details: error.message,
-        }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-      }
-
-      prsUpdated++
-    }
-
-    return new Response(JSON.stringify({ ok: true, prsUpdated, processed: sessions.length }), {
+    return new Response(JSON.stringify({ ok: true, prsUpdated: effortsSaved, processed: sessions.length }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
@@ -230,17 +197,13 @@ serve(async (req) => {
       WeightTraining: 'gym', Workout: 'gym', CrossFit: 'gym',
     }
 
-    // Best effort distance name → km mapping.
-    // Only these run PRs belong in SiggeOS conditioning. They must not be saved as strength PBs.
+    // Best effort distance name → km mapping. Only keep dashboard distances.
+    // These rows are saved per activity, not as all-time records.
     const bestEffortMap: Record<string, { key: string; km: number; label: string }> = {
-      '1k':           { key: '1k',            km: 1.0,    label: '1 km PR' },
-      '5k':           { key: '5k',            km: 5.0,    label: '5 km PR' },
-      '10k':          { key: '10k',           km: 10.0,   label: '10 km PR' },
-      '1/2 marathon': { key: 'half_marathon', km: 21.097, label: 'Halvmara PR' },
-    }
-
-    function normalizeEffortName(name: string | null | undefined) {
-      return String(name || '').trim().toLowerCase()
+      '1k':            { key: '1k',            km: 1.0,    label: '1 km PR' },
+      '5k':            { key: '5k',            km: 5.0,    label: '5 km PR' },
+      '10k':           { key: '10k',           km: 10.0,   label: '10 km PR' },
+      '1/2 marathon':  { key: 'half_marathon', km: 21.097, label: 'Halvmara PR' },
     }
 
     let synced = 0
@@ -293,39 +256,29 @@ serve(async (req) => {
 
           if (Array.isArray(detail.best_efforts)) {
             for (const effort of detail.best_efforts) {
-              const mapping = bestEffortMap[normalizeEffortName(effort.name)]
+              const mapping = bestEffortMap[effort.name]
               if (!mapping || !effort.elapsed_time) continue
 
               const effortPace = Math.round(effort.elapsed_time / mapping.km)
               const effortDate = effort.start_date_local?.slice(0, 10) || date
 
-              // Only update PR if this is faster than existing. Save in dedicated run table.
-              const { data: existingPR } = await supabase
-                .from('run_personal_records')
-                .select('time_seconds')
-                .eq('user_id', user.id)
-                .eq('distance_key', mapping.key)
-                .single()
+              // Save one best-effort row per activity + distance.
+              // Do not write these to personal_records, because that table is for strength PRs.
+              const { error } = await supabase.from('run_personal_records').upsert({
+                user_id: user.id,
+                distance_key: mapping.key,
+                label: mapping.label,
+                distance_km: mapping.km,
+                time_seconds: effort.elapsed_time,
+                pace_per_km: effortPace,
+                date: effortDate,
+                strava_activity_id: String(act.id),
+                strava_effort_name: effort.name,
+                source: 'strava',
+              }, { onConflict: 'user_id,distance_key,strava_activity_id' })
 
-              const existingTime = existingPR?.time_seconds
-              const isFaster = !existingTime || effort.elapsed_time < existingTime
-
-              if (isFaster) {
-                const { error } = await supabase.from('run_personal_records').upsert({
-                  user_id: user.id,
-                  distance_key: mapping.key,
-                  label: mapping.label,
-                  distance_km: mapping.km,
-                  time_seconds: effort.elapsed_time,
-                  pace_per_km: effortPace,
-                  date: effortDate,
-                  strava_activity_id: String(act.id),
-                  strava_effort_name: effort.name,
-                  source: 'strava',
-                }, { onConflict: 'user_id,distance_key' })
-
-                if (!error) prsUpdated++
-              }
+              if (error) console.warn('run_personal_records upsert failed:', error)
+              else prsUpdated++
             }
           }
         } catch (e) {

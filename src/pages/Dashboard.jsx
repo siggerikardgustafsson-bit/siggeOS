@@ -235,7 +235,7 @@ export default function Dashboard() {
         }
         const key = keyByDistance[targetKm]
         const directPr = key ? (runPrData || [])
-          .filter(r => r.distance_key === key && r.time_seconds)
+          .filter(r => r.distance_key === key && r.time_seconds && r.date && r.date >= since90)
           .sort((a, b) => Number(a.time_seconds) - Number(b.time_seconds))[0] : null
 
         if (directPr) {
