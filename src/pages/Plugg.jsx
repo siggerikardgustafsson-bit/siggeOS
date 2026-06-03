@@ -129,6 +129,18 @@ export default function PluggPage() {
     await fetchMandatory()
   }
 
+  async function deleteMandatorySession(id) {
+    await supabase.from('mandatory_sessions').delete().eq('id', id)
+    setMandatorySessions(prev => {
+      const next = { ...prev }
+      for (const key of Object.keys(next)) {
+        next[key] = next[key].filter(s => s.id !== id)
+      }
+      return next
+    })
+    setMandatoryUnmatched(prev => prev.filter(s => s.id !== id))
+  }
+
   async function fetchCourses() {
     const { data: activeCourses } = await supabase.from('courses').select('*').eq('user_id', user.id).eq('active', true).order('created_at')
     const { data: archived } = await supabase.from('courses').select('*').eq('user_id', user.id).eq('active', false).order('created_at', { ascending: false })
@@ -599,6 +611,8 @@ export default function PluggPage() {
                     {isExpanded && (
                       <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
 
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'start' }}>
+                          <div>
                         {/* Obligatoriska */}
                         {mandatoryForCourse.length > 0 && (
                           <div style={{ marginBottom: '20px' }}>
@@ -802,6 +816,8 @@ export default function PluggPage() {
                           )}
                         </div>
 
+                          </div>
+                          <div>
                         {/* Examinationer */}
                         <div style={{ marginBottom: '16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -816,11 +832,10 @@ export default function PluggPage() {
                             const examMaterials = courseMaterials[exam.id] || []
                             const totalFiles = examFilesForExam.length + examMaterials.length + (examGoalList.some(g => g.source_file && g.source_file !== 'manual') ? 1 : 0)
                             const showFiles = showFilesFor === exam.id
+                            const gradeColor = exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : '#8b5cf6'
                             return (
-                              <div key={exam.id} style={{ marginBottom: '8px', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-                                <div style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                  background: exam.grade === 'G' ? 'rgba(16,185,129,0.06)' : exam.grade === 'IG' ? 'rgba(239,68,68,0.06)' : 'var(--surface2)',
-                                  borderLeft: `3px solid ${exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : 'var(--border)'}` }}
+                              <div key={exam.id} style={{ marginBottom: '10px', border: `1px solid ${exam.grade ? gradeColor + '40' : 'var(--border)'}`, borderRadius: '12px', overflow: 'hidden', background: exam.grade === 'G' ? 'rgba(16,185,129,0.06)' : exam.grade === 'IG' ? 'rgba(239,68,68,0.06)' : 'var(--surface2)', borderLeft: `4px solid ${gradeColor}` }}>
+                                <div style={{ padding: '12px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'transparent' }}
                                   onClick={() => setExpandedExam(isExamExpanded ? null : exam.id)}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exam.name}</div>
@@ -1049,6 +1064,8 @@ export default function PluggPage() {
                           </button>
                         )}
 
+                          </div>
+                        </div>
                         <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '16px', borderTop: '1px solid var(--border)', marginTop: '8px' }}>
                             <button onClick={() => copyGoals(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
