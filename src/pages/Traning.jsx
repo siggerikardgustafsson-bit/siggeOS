@@ -136,6 +136,7 @@ export default function TraningPage() {
   const [calendarMonth, setCalendarMonth] = useState(new Date())
   const [selectedExercise, setSelectedExercise] = useState(null)
   const [showRunModal, setShowRunModal] = useState(false)
+  const [showAllPrModal, setShowAllPrModal] = useState(false)
   const [runEfforts, setRunEfforts] = useState([])
   const [selectedSessionDetail, setSelectedSessionDetail] = useState(null)
 
@@ -881,6 +882,125 @@ export default function TraningPage() {
     })
   }
 
+
+  function estimateOneRm(weight, reps) {
+    const w = Number(weight)
+    const r = Number(reps)
+    if (!w || !r || w <= 0 || r <= 0) return null
+    // Epley with a cap: high-rep sets should not fake huge strength jumps.
+    // 1-12 reps are useful for strength trend; >12 still counts as 12.
+    const cappedReps = Math.min(r, 12)
+    return w * (1 + cappedReps / 30)
+  }
+
+  function getProgressiveOverloadData() {
+    const today = new Date()
+    const recentStart = format(subDays(today, 30), 'yyyy-MM-dd')
+    const previousStart = format(subDays(today, 60), 'yyyy-MM-dd')
+    const byExerciseId = new Map(libraryExercises.map(e => [e.id, e]))
+    const byName = new Map(libraryExercises.map(e => [String(e.name || '').toLowerCase(), e]))
+
+    const emptyPeriod = () => ({ bestE1rm: null, volume: 0, sets: 0, reps: 0, sessions: new Set(), date: null })
+    const exerciseMap = new Map()
+    const muscleMap = new Map()
+
+    const getExerciseEntry = (key, name) => {
+      if (!exerciseMap.has(key)) exerciseMap.set(key, { key, name, recent: emptyPeriod(), previous: emptyPeriod() })
+      return exerciseMap.get(key)
+    }
+
+    const addToPeriod = (period, session, set) => {
+      const e1rm = estimateOneRm(set.weight_kg, set.reps)
+      const volume = (Number(set.weight_kg) || 0) * (Number(set.reps) || 0)
+      period.volume += volume
+      period.reps += Number(set.reps) || 0
+      period.sets += set.reps ? 1 : 0
+      period.sessions.add(session.id)
+      if (e1rm && (!period.bestE1rm || e1rm > period.bestE1rm)) {
+        period.bestE1rm = e1rm
+        period.date = session.date
+      }
+    }
+
+    sessions
+      .filter(s => s.session_type === 'gym' && s.date >= previousStart)
+      .forEach(session => {
+        const periodKey = session.date >= recentStart ? 'recent' : 'previous'
+        ;(session.training_exercises || []).forEach(set => {
+          const lib = (set.exercise_id && byExerciseId.get(set.exercise_id)) || byName.get(String(set.exercise_name || '').toLowerCase())
+          const key = set.exercise_id || String(set.exercise_name || '').toLowerCase()
+          if (!key) return
+          const entry = getExerciseEntry(key, lib?.name || set.exercise_name || 'Okänd övning')
+          addToPeriod(entry[periodKey], session, set)
+
+          const volume = (Number(set.weight_kg) || 0) * (Number(set.reps) || 0)
+          ;(lib?.muscles || []).forEach(m => {
+            const muscleKey = m.muscle_slug || m.muscle_name
+            if (!muscleKey) return
+            const prev = muscleMap.get(muscleKey) || { name: m.muscle_name, volume: 0, sets: 0, primarySets: 0 }
+            const factor = Number(m.load_factor) || (m.role === 'primary' ? 1 : 0.5)
+            prev.volume += volume * factor
+            prev.sets += set.reps ? 1 : 0
+            if (m.role === 'primary') prev.primarySets += set.reps ? 1 : 0
+            muscleMap.set(muscleKey, prev)
+          })
+        })
+      })
+
+    const exerciseTrends = Array.from(exerciseMap.values())
+      .map(entry => {
+        const recentBest = entry.recent.bestE1rm
+        const previousBest = entry.previous.bestE1rm
+        const pct = recentBest && previousBest ? ((recentBest - previousBest) / previousBest) * 100 : null
+        const recentVolume = entry.recent.volume
+        const previousVolume = entry.previous.volume
+        const volumePct = previousVolume > 0 ? ((recentVolume - previousVolume) / previousVolume) * 100 : null
+        return { ...entry, recentBest, previousBest, pct, recentVolume, previousVolume, volumePct }
+      })
+      .filter(e => e.recent.sets > 0 || e.previous.sets > 0)
+
+    const improving = exerciseTrends
+      .filter(e => e.pct !== null)
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 4)
+    const newOrRecent = exerciseTrends
+      .filter(e => e.pct === null && e.recentBest)
+      .sort((a, b) => (b.recentBest || 0) - (a.recentBest || 0))
+      .slice(0, Math.max(0, 4 - improving.length))
+    const displayExercises = [...improving, ...newOrRecent]
+
+    const recentTotalVolume = exerciseTrends.reduce((sum, e) => sum + e.recentVolume, 0)
+    const previousTotalVolume = exerciseTrends.reduce((sum, e) => sum + e.previousVolume, 0)
+    const totalVolumePct = previousTotalVolume > 0 ? ((recentTotalVolume - previousTotalVolume) / previousTotalVolume) * 100 : null
+    const avgStrengthPct = exerciseTrends.filter(e => e.pct !== null).length
+      ? exerciseTrends.filter(e => e.pct !== null).reduce((sum, e) => sum + e.pct, 0) / exerciseTrends.filter(e => e.pct !== null).length
+      : null
+
+    return {
+      displayExercises,
+      muscleVolume: Array.from(muscleMap.values()).sort((a, b) => b.volume - a.volume).slice(0, 6),
+      recentTotalVolume,
+      previousTotalVolume,
+      totalVolumePct,
+      avgStrengthPct,
+      recentStart,
+      previousStart,
+    }
+  }
+
+  function trendColor(value) {
+    if (value == null) return 'var(--muted)'
+    if (value > 2) return '#10b981'
+    if (value < -2) return '#ef4444'
+    return '#f59e0b'
+  }
+
+  function formatTrendPct(value) {
+    if (value == null) return 'ny data'
+    const sign = value > 0 ? '+' : ''
+    return `${sign}${value.toFixed(1)}%`
+  }
+
   function openSessionDetail(session) {
     setExpandedSession(null)
     setSelectedSessionDetail(session)
@@ -891,6 +1011,7 @@ export default function TraningPage() {
     const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
     return s.date >= weekStart
   })
+  const progressive = getProgressiveOverloadData()
 
   return (
     <div className="page-wrap">
@@ -974,6 +1095,77 @@ export default function TraningPage() {
             </div>
           </div>
 
+          {/* Progressive overload */}
+          <div className="card" style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <TrendingUp size={13} color="var(--accent)" /> PROGRESSIVE OVERLOAD · 60 DAGAR
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--muted2)', marginTop: '4px' }}>
+                  Styrketrend = bästa e1RM senaste 30d jämfört med 30d före. Reps över 12 cap:as så högre reps inte överskattar styrka.
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <div className="glass-pill" style={{ color: trendColor(progressive.avgStrengthPct), borderColor: progressive.avgStrengthPct && progressive.avgStrengthPct > 2 ? 'rgba(16,185,129,0.25)' : 'var(--border)' }}>
+                  e1RM {formatTrendPct(progressive.avgStrengthPct)}
+                </div>
+                <div className="glass-pill" style={{ color: trendColor(progressive.totalVolumePct), borderColor: progressive.totalVolumePct && progressive.totalVolumePct > 2 ? 'rgba(16,185,129,0.25)' : 'var(--border)' }}>
+                  Volym {formatTrendPct(progressive.totalVolumePct)}
+                </div>
+              </div>
+            </div>
+
+            {progressive.displayExercises.length ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {progressive.displayExercises.map(ex => (
+                    <button key={ex.key} onClick={() => setSelectedExercise(ex.name)} className="card-sm" style={{ textAlign: 'left', cursor: 'pointer', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr auto', gap: '10px', alignItems: 'center' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 750, color: 'var(--text)' }}>{ex.name}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
+                          {ex.previousBest ? `${Math.round(ex.previousBest)} → ${Math.round(ex.recentBest)} kg e1RM` : `Ny/återupptagen · ${Math.round(ex.recentBest || 0)} kg e1RM`}
+                        </div>
+                      </div>
+                      <div className="mono" style={{ color: trendColor(ex.pct), fontSize: '14px', fontWeight: 800 }}>
+                        {formatTrendPct(ex.pct)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="card-sm" style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>MUSKELVOLYM 60D</div>
+                  {progressive.muscleVolume.length ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {progressive.muscleVolume.map(m => {
+                        const maxVolume = Math.max(...progressive.muscleVolume.map(x => x.volume), 1)
+                        const width = Math.max(6, Math.round((m.volume / maxVolume) * 100))
+                        return (
+                          <div key={m.name}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '11px', marginBottom: '4px' }}>
+                              <span style={{ color: 'var(--muted2)' }}>{m.name}</span>
+                              <span className="mono" style={{ color: 'var(--text)', fontWeight: 700 }}>{Math.round(m.volume)} kg</span>
+                            </div>
+                            <div style={{ height: '6px', borderRadius: '999px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${width}%`, borderRadius: '999px', background: 'linear-gradient(90deg, var(--accent), #10b981)' }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Logga fler styrkeset för muskelvolym.</div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="card-sm" style={{ color: 'var(--muted)', fontSize: '13px' }}>
+                Behöver minst ett styrkepass senaste 60 dagarna för att visa overload.
+              </div>
+            )}
+          </div>
+
           {/* Strength PRs */}
           {prs.length > 0 && (
             <div className="card" style={{ marginBottom: '16px' }}>
@@ -999,7 +1191,7 @@ export default function TraningPage() {
               </div>
               {prs.length > 5 && (
                 <button
-                  onClick={() => setSelectedExercise(prs[0]?.exercise_name || null)}
+                  onClick={() => setShowAllPrModal(true)}
                   className="btn btn-ghost"
                   style={{ marginTop: '10px', width: '100%', justifyContent: 'center' }}
                 >
@@ -1748,6 +1940,61 @@ export default function TraningPage() {
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
+
+      {showAllPrModal && (
+        <div onClick={() => setShowAllPrModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(10px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div onClick={e => e.stopPropagation()} className="card" style={{ width: 'min(920px, 100%)', maxHeight: '86vh', overflowY: 'auto', padding: 0 }}>
+            <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+              <div>
+                <div style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.04em' }}>Alla personliga rekord</div>
+                <div style={{ fontSize: '13px', color: 'var(--muted2)', marginTop: '3px' }}>Styrke-PR och Strava best efforts. Klicka en övning för historik.</div>
+              </div>
+              <button onClick={() => setShowAllPrModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={20} /></button>
+            </div>
+
+            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <section>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>STYRKA</div>
+                {prs.length ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px' }}>
+                    {prs.map(pr => (
+                      <button key={pr.id} onClick={() => { setSelectedExercise(pr.exercise_name); setShowAllPrModal(false) }} className="card-sm" style={{ cursor: 'pointer', textAlign: 'left' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{pr.exercise_name}</div>
+                        <div className="mono" style={{ fontSize: '18px', fontWeight: 800, color: '#f59e0b' }}>{pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span></div>
+                        {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="card-sm" style={{ color: 'var(--muted)' }}>Inga styrke-PR ännu.</div>
+                )}
+              </section>
+
+              <section>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>LÖPNING · BÄSTA PER DISTANS</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px' }}>
+                  {RUN_PR_DISTANCES.map(({ label }) => {
+                    const pr = runPRs.find(r => r.label === label)
+                    return (
+                      <button key={label} onClick={() => { setShowRunModal(true); setShowAllPrModal(false) }} className="card-sm" style={{ cursor: 'pointer', textAlign: 'left' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
+                        {pr?.time ? (
+                          <>
+                            <div className="mono" style={{ fontSize: '18px', fontWeight: 800, color: '#10b981' }}>{formatDuration(pr.time)}</div>
+                            <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>
+                          </>
+                        ) : (
+                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ej loggat</div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedSessionDetail && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(10px)', zIndex: 650, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={e => e.target === e.currentTarget && setSelectedSessionDetail(null)}>
