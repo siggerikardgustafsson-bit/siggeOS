@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight, RefreshCw, Link, Upload } from 'lucide-react'
+import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight, RefreshCw, Link, Upload, Search, Edit3, Library, Check } from 'lucide-react'
 import ExerciseModal from '../components/ExerciseModal'
 import RunModal from '../components/RunModal'
 
@@ -100,6 +100,15 @@ export default function TraningPage() {
   const [customExercise, setCustomExercise] = useState('')
   const [exerciseLibrary, setExerciseLibrary] = useState(BASE_EXERCISE_LIBRARY)
 
+  // Exercise library 2.0
+  const [libraryExercises, setLibraryExercises] = useState([])
+  const [muscleGroups, setMuscleGroups] = useState([])
+  const [exerciseAliases, setExerciseAliases] = useState({})
+  const [librarySearch, setLibrarySearch] = useState('')
+  const [libraryLoading, setLibraryLoading] = useState(false)
+  const [editingLibraryExercise, setEditingLibraryExercise] = useState(null)
+  const [savingLibraryExercise, setSavingLibraryExercise] = useState(false)
+
   // Strava
   const [stravaConnected, setStravaConnected] = useState(false)
   const [stravaSyncing, setStravaSyncing] = useState(false)
@@ -127,7 +136,7 @@ export default function TraningPage() {
   const [showRunModal, setShowRunModal] = useState(false)
 
   useEffect(() => {
-    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); loadCustomExercises() }
+    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); loadCustomExercises(); fetchExerciseLibrary() }
   }, [user])
 
   async function loadCustomExercises() {
@@ -151,6 +160,184 @@ export default function TraningPage() {
     const allCustom = [...new Set([...custom, ...fromHistory])]
 
     setExerciseLibrary(prev => ({ ...prev, 'Egna': allCustom }))
+  }
+
+  function normalizeSlug(value) {
+    return String(value || '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/å/g, 'a').replace(/ä/g, 'a').replace(/ö/g, 'o')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+  }
+
+  function uniqueBySlugPreferOwn(rows) {
+    const sorted = [...(rows || [])].sort((a, b) => {
+      if (a.user_id && !b.user_id) return -1
+      if (!a.user_id && b.user_id) return 1
+      return String(a.name || '').localeCompare(String(b.name || ''))
+    })
+    const seen = new Set()
+    return sorted.filter(row => {
+      const key = row.slug || normalizeSlug(row.name)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
+  async function fetchExerciseLibrary() {
+    if (!user) return
+    setLibraryLoading(true)
+    const [exerciseRes, muscleRes, aliasRes] = await Promise.all([
+      supabase.from('exercise_library_with_muscles').select('*').order('category').order('name'),
+      supabase.from('muscle_groups').select('*').eq('is_active', true).order('sort_order'),
+      supabase.from('exercise_aliases').select('id, exercise_id, alias, slug').order('alias'),
+    ])
+
+    const visibleExercises = uniqueBySlugPreferOwn(exerciseRes.data || [])
+    const aliasMap = {}
+    for (const alias of aliasRes.data || []) {
+      if (!aliasMap[alias.exercise_id]) aliasMap[alias.exercise_id] = []
+      aliasMap[alias.exercise_id].push(alias)
+    }
+
+    setLibraryExercises(visibleExercises)
+    setMuscleGroups(muscleRes.data || [])
+    setExerciseAliases(aliasMap)
+    setLibraryLoading(false)
+  }
+
+  function openLibraryExercise(exercise) {
+    const aliases = exerciseAliases[exercise.id] || []
+    setEditingLibraryExercise({
+      ...exercise,
+      original_id: exercise.id,
+      original_user_id: exercise.user_id,
+      name: exercise.name || '',
+      slug: exercise.slug || normalizeSlug(exercise.name),
+      category: exercise.category || '',
+      equipment: exercise.equipment || '',
+      measurement_type: exercise.measurement_type || 'weight_reps',
+      is_bodyweight: !!exercise.is_bodyweight,
+      is_active: exercise.is_active !== false,
+      notes: exercise.notes || '',
+      primaryMuscleIds: (exercise.muscles || []).filter(m => m.role === 'primary').map(m => m.muscle_id),
+      secondaryMuscleIds: (exercise.muscles || []).filter(m => m.role === 'secondary').map(m => m.muscle_id),
+      aliasText: aliases.map(a => a.alias).join(', '),
+    })
+  }
+
+  function updateEditingLibraryExercise(field, value) {
+    setEditingLibraryExercise(prev => {
+      if (!prev) return prev
+      const next = { ...prev, [field]: value }
+      if (field === 'name') next.slug = normalizeSlug(value)
+      return next
+    })
+  }
+
+  function toggleMuscleInEditor(role, muscleId) {
+    setEditingLibraryExercise(prev => {
+      if (!prev) return prev
+      const primary = new Set(prev.primaryMuscleIds || [])
+      const secondary = new Set(prev.secondaryMuscleIds || [])
+      if (role === 'primary') {
+        primary.has(muscleId) ? primary.delete(muscleId) : primary.add(muscleId)
+        secondary.delete(muscleId)
+      } else {
+        secondary.has(muscleId) ? secondary.delete(muscleId) : secondary.add(muscleId)
+        primary.delete(muscleId)
+      }
+      return { ...prev, primaryMuscleIds: [...primary], secondaryMuscleIds: [...secondary] }
+    })
+  }
+
+  async function ensureOwnExerciseFromEditor(editor) {
+    if (editor.original_user_id) return editor.original_id
+
+    // Global/default exercises are read-only. Create a user-owned override and migrate this user's old sets/PRs to it.
+    const payload = {
+      user_id: user.id,
+      name: editor.name,
+      slug: editor.slug || normalizeSlug(editor.name),
+      category: editor.category || null,
+      equipment: editor.equipment || null,
+      measurement_type: editor.measurement_type || 'weight_reps',
+      is_bodyweight: !!editor.is_bodyweight,
+      is_active: editor.is_active !== false,
+      notes: editor.notes || null,
+    }
+
+    const { data: own, error } = await supabase
+      .from('exercise_library')
+      .upsert(payload, { onConflict: 'user_id,slug' })
+      .select()
+      .single()
+
+    if (error) throw error
+
+    await supabase
+      .from('training_exercises')
+      .update({ exercise_id: own.id, exercise_name: own.name })
+      .eq('exercise_id', editor.original_id)
+
+    await supabase
+      .from('personal_records')
+      .update({ exercise_id: own.id, exercise_name: own.name })
+      .eq('user_id', user.id)
+      .eq('exercise_id', editor.original_id)
+
+    return own.id
+  }
+
+  async function saveLibraryExercise() {
+    if (!editingLibraryExercise || !editingLibraryExercise.name.trim()) return
+    setSavingLibraryExercise(true)
+    try {
+      const editor = {
+        ...editingLibraryExercise,
+        slug: editingLibraryExercise.slug || normalizeSlug(editingLibraryExercise.name),
+      }
+      const exerciseId = await ensureOwnExerciseFromEditor(editor)
+
+      if (editor.original_user_id) {
+        await supabase.from('exercise_library').update({
+          name: editor.name,
+          slug: editor.slug,
+          category: editor.category || null,
+          equipment: editor.equipment || null,
+          measurement_type: editor.measurement_type || 'weight_reps',
+          is_bodyweight: !!editor.is_bodyweight,
+          is_active: editor.is_active !== false,
+          notes: editor.notes || null,
+        }).eq('id', exerciseId)
+
+        await supabase.from('training_exercises').update({ exercise_name: editor.name }).eq('exercise_id', exerciseId)
+        await supabase.from('personal_records').update({ exercise_name: editor.name }).eq('user_id', user.id).eq('exercise_id', exerciseId)
+      }
+
+      await supabase.from('exercise_muscles').delete().eq('exercise_id', exerciseId)
+      const muscleRows = [
+        ...(editor.primaryMuscleIds || []).map(id => ({ exercise_id: exerciseId, muscle_group_id: id, role: 'primary', load_factor: 1.0 })),
+        ...(editor.secondaryMuscleIds || []).map(id => ({ exercise_id: exerciseId, muscle_group_id: id, role: 'secondary', load_factor: 0.5 })),
+      ]
+      if (muscleRows.length) await supabase.from('exercise_muscles').insert(muscleRows)
+
+      await supabase.from('exercise_aliases').delete().eq('exercise_id', exerciseId)
+      const aliasRows = [...new Set(String(editor.aliasText || '').split(',').map(a => a.trim()).filter(Boolean))]
+        .filter(alias => alias.toLowerCase() !== editor.name.toLowerCase())
+        .map(alias => ({ exercise_id: exerciseId, alias, slug: normalizeSlug(alias) }))
+      if (aliasRows.length) await supabase.from('exercise_aliases').insert(aliasRows)
+
+      setEditingLibraryExercise(null)
+      await Promise.all([fetchExerciseLibrary(), fetchSessions(), fetchPRs()])
+    } catch (error) {
+      console.error(error)
+      alert('Kunde inte spara övningen. Kontrollera att SQL-migrationen är körd och att inga dubletter finns.')
+    }
+    setSavingLibraryExercise(false)
   }
 
   async function saveCustomExercise(name) {
@@ -341,12 +528,17 @@ export default function TraningPage() {
     setEditingSession({ id: session.id, date: session.date, sessionType: session.session_type, feeling: session.feeling || '', notes: session.notes || '', exercises: exList.length ? exList : [{ name: '', sets: [{ reps: '', weight: '', is_dropset: false }] }] })
   }
 
+  function findLibraryExerciseByName(name) {
+    const normalized = normalizeSlug(name)
+    return libraryExercises.find(e => e.slug === normalized || normalizeSlug(e.name) === normalized)
+  }
+
   async function saveEditSession() {
     if (!editingSession) return
     const { id, date, sessionType, feeling, notes, exercises } = editingSession
     await supabase.from('training_sessions').update({ date, session_type: sessionType, feeling: feeling ? parseInt(feeling) : null, notes: notes || null }).eq('id', id)
     await supabase.from('training_exercises').delete().eq('session_id', id)
-    const rows = exercises.flatMap((ex, _) => ex.sets.map((s, si) => ({ session_id: id, exercise_name: ex.name, set_number: si + 1, reps: s.reps ? parseInt(s.reps) : null, weight_kg: s.weight !== '' ? parseFloat(s.weight) : null, is_dropset: s.is_dropset || false }))).filter(r => r.exercise_name)
+    const rows = exercises.flatMap((ex, _) => ex.sets.map((s, si) => ({ session_id: id, exercise_id: findLibraryExerciseByName(ex.name)?.id || null, exercise_name: ex.name, set_number: si + 1, reps: s.reps ? parseInt(s.reps) : null, weight_kg: s.weight !== '' ? parseFloat(s.weight) : null, is_dropset: s.is_dropset || false }))).filter(r => r.exercise_name)
     if (rows.length) await supabase.from('training_exercises').insert(rows)
     setEditingSession(null)
     fetchSessions()
@@ -493,6 +685,7 @@ export default function TraningPage() {
       const exerciseRows = exercises.flatMap(ex =>
         ex.sets.map((s, setIdx) => ({
           session_id: session.id,
+          exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
           exercise_name: ex.name,
           set_number: setIdx + 1,
           reps: s.reps ? parseInt(s.reps) : null,
@@ -513,6 +706,7 @@ export default function TraningPage() {
           if (!existingPR || maxWeight > existingPR.weight_kg) {
             await supabase.from('personal_records').upsert({
               user_id: user.id,
+              exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
               exercise_name: ex.name,
               weight_kg: maxWeight,
               date: sessionDate,
@@ -634,6 +828,9 @@ export default function TraningPage() {
           )}
           <button onClick={() => csvRef.current?.click()} disabled={csvImporting} className="btn btn-ghost">
             {csvImporting ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : <><Upload size={13} /> CSV</>}
+          </button>
+          <button onClick={() => setView(view === 'library' ? 'overview' : 'library')} className="btn btn-ghost">
+            <Library size={14} /> {view === 'library' ? 'Översikt' : 'Övningar'}
           </button>
           <button onClick={() => setView(view === 'calendar' ? 'overview' : 'calendar')} className="btn btn-ghost">
             <Calendar size={14} /> {view === 'calendar' ? 'Översikt' : 'Kalender'}
@@ -850,6 +1047,76 @@ export default function TraningPage() {
             )}
           </div>
         </>
+      )}
+
+      {view === 'library' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.06em' }}>ÖVNINGSBIBLIOTEK</div>
+                <div style={{ fontSize: '13px', color: 'var(--muted2)', marginTop: '4px' }}>
+                  Redigera övningar, muskler och alias. Globala övningar sparas som din egen version när du ändrar dem.
+                </div>
+              </div>
+              <button onClick={fetchExerciseLibrary} className="btn btn-ghost btn-sm" disabled={libraryLoading}>
+                {libraryLoading ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />} Uppdatera
+              </button>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+              <input className="input" placeholder="Sök övning, kategori eller muskel..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} style={{ paddingLeft: '34px' }} />
+            </div>
+          </div>
+
+          {libraryLoading ? (
+            <div className="card" style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>Laddar övningsbibliotek...</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
+              {libraryExercises
+                .filter(ex => {
+                  const q = librarySearch.trim().toLowerCase()
+                  if (!q) return true
+                  const muscleText = (ex.muscles || []).map(m => `${m.muscle_name} ${m.role}`).join(' ').toLowerCase()
+                  return `${ex.name} ${ex.category || ''} ${ex.equipment || ''} ${muscleText}`.toLowerCase().includes(q)
+                })
+                .map(ex => {
+                  const primary = (ex.muscles || []).filter(m => m.role === 'primary').map(m => m.muscle_name)
+                  const secondary = (ex.muscles || []).filter(m => m.role === 'secondary').map(m => m.muscle_name)
+                  return (
+                    <div key={ex.id} className="card-sm" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text)' }}>{ex.name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
+                            {ex.category || 'Okategori'}{ex.equipment ? ` · ${ex.equipment}` : ''}{ex.user_id ? ' · egen' : ' · standard'}
+                          </div>
+                        </div>
+                        <button onClick={() => openLibraryExercise(ex)} className="btn btn-ghost btn-icon" title="Redigera övning">
+                          <Edit3 size={13} />
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div>
+                          <div style={{ fontSize: '10px', color: 'var(--muted)', letterSpacing: '0.06em', fontWeight: '700', marginBottom: '4px' }}>PRIMÄR</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                            {primary.length ? primary.map(m => <span key={m} className="glass-pill" style={{ fontSize: '11px', padding: '2px 8px', color: '#10b981', borderColor: 'rgba(16,185,129,0.25)' }}>{m}</span>) : <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Saknas</span>}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '10px', color: 'var(--muted)', letterSpacing: '0.06em', fontWeight: '700', marginBottom: '4px' }}>SEKUNDÄR</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                            {secondary.length ? secondary.map(m => <span key={m} className="glass-pill" style={{ fontSize: '11px', padding: '2px 8px' }}>{m}</span>) : <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Saknas</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          )}
+        </div>
       )}
 
       {view === 'calendar' && (
@@ -1229,6 +1496,100 @@ export default function TraningPage() {
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {editingLibraryExercise && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={e => e.target === e.currentTarget && setEditingLibraryExercise(null)}>
+          <div style={{ background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '20px', width: '100%', maxWidth: '760px', maxHeight: '88vh', overflowY: 'auto', padding: '22px', boxShadow: 'var(--glass-shadow)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '18px' }}>
+              <div>
+                <div style={{ fontSize: '20px', fontWeight: '800', letterSpacing: '-0.04em' }}>Redigera övning</div>
+                <div style={{ fontSize: '12px', color: 'var(--muted2)', marginTop: '4px' }}>
+                  {editingLibraryExercise.original_user_id ? 'Egen övning' : 'Standardövning — sparas som egen version vid ändring'}
+                </div>
+              </div>
+              <button onClick={() => setEditingLibraryExercise(null)} className="btn btn-ghost btn-icon"><X size={16} /></button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px', marginBottom: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Namn</label>
+                <input className="input" value={editingLibraryExercise.name} onChange={e => updateEditingLibraryExercise('name', e.target.value)} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Kategori</label>
+                <input className="input" value={editingLibraryExercise.category} onChange={e => updateEditingLibraryExercise('category', e.target.value)} placeholder="Bröst, Rygg, Ben..." />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Utrustning</label>
+                <input className="input" value={editingLibraryExercise.equipment} onChange={e => updateEditingLibraryExercise('equipment', e.target.value)} placeholder="Skivstång, hantlar, maskin..." />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Mätning</label>
+                <select className="input" value={editingLibraryExercise.measurement_type} onChange={e => updateEditingLibraryExercise('measurement_type', e.target.value)}>
+                  <option value="weight_reps">Vikt + reps</option>
+                  <option value="bodyweight_reps">Kroppsvikt + reps</option>
+                  <option value="time">Tid</option>
+                  <option value="distance_time">Distans + tid</option>
+                  <option value="reps_only">Endast reps</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <label className="card-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={editingLibraryExercise.is_bodyweight} onChange={e => updateEditingLibraryExercise('is_bodyweight', e.target.checked)} />
+                <span style={{ fontSize: '13px' }}>Kroppsviktsövning</span>
+              </label>
+              <label className="card-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={editingLibraryExercise.is_active} onChange={e => updateEditingLibraryExercise('is_active', e.target.checked)} />
+                <span style={{ fontSize: '13px' }}>Aktiv i biblioteket</span>
+              </label>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Alias, separerade med kommatecken</label>
+              <input className="input" value={editingLibraryExercise.aliasText} onChange={e => updateEditingLibraryExercise('aliasText', e.target.value)} placeholder="bench press, bänk, barbell bench" />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+              {[
+                { role: 'primary', title: 'Primära muskler', ids: editingLibraryExercise.primaryMuscleIds || [], color: '#10b981' },
+                { role: 'secondary', title: 'Sekundära muskler', ids: editingLibraryExercise.secondaryMuscleIds || [], color: 'var(--accent)' },
+              ].map(section => (
+                <div key={section.role} className="card-sm">
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '700', letterSpacing: '0.06em', marginBottom: '10px' }}>{section.title}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {muscleGroups.map(muscle => {
+                      const active = section.ids.includes(muscle.id)
+                      return (
+                        <button key={muscle.id} onClick={() => toggleMuscleInEditor(section.role, muscle.id)} style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '4px', border: active ? `1px solid ${section.color}` : '1px solid var(--border)',
+                          background: active ? 'var(--accent-soft)' : 'var(--surface2)', color: active ? section.color : 'var(--muted2)',
+                          borderRadius: '999px', padding: '5px 9px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Inter, sans-serif'
+                        }}>
+                          {active && <Check size={11} />} {muscle.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Anteckningar</label>
+              <textarea className="input" rows={3} value={editingLibraryExercise.notes} onChange={e => updateEditingLibraryExercise('notes', e.target.value)} placeholder="Teknik, varianter, egna regler..." />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button onClick={() => setEditingLibraryExercise(null)} className="btn btn-ghost">Avbryt</button>
+              <button onClick={saveLibraryExercise} disabled={savingLibraryExercise} className="btn btn-primary">
+                {savingLibraryExercise ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={14} /> Spara övning</>}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
