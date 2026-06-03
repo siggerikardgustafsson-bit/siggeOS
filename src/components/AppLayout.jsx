@@ -20,13 +20,10 @@ export default function AppLayout() {
       })
   }, [user])
 
-  const routeClass = `route-${(location.pathname === '/' ? 'dashboard' : location.pathname.replace(/^\//, '').replace(/\//g, '-') || 'dashboard')}`
-
   return (
-    <div className={`sigge-app-shell ${routeClass}`} style={{
+    <div style={{
       display: 'flex',
-      height: '100svh',
-      minHeight: '100svh',
+      height: '100vh',
       overflow: 'hidden',
       padding: '0',
       gap: '0',
@@ -38,7 +35,7 @@ export default function AppLayout() {
         flexShrink: 0,
         padding: '10px 0 10px 10px',
         boxSizing: 'border-box',
-        height: '100svh',
+        height: '100vh',
       }}>
         <div style={{
           height: '100%',
@@ -51,13 +48,13 @@ export default function AppLayout() {
       </div>
 
       {/* Main content */}
-      <main className="sigge-main-scroll" style={{
+      <main style={{
         flex: 1,
         overflowY: 'auto',
         overflowX: 'hidden',
         background: 'transparent',
         minHeight: 0,
-        maxHeight: '100svh',
+        maxHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
         padding: '10px',
@@ -92,50 +89,71 @@ export default function AppLayout() {
           position: sticky;
           top: 0;
           z-index: 30;
-          margin: 0 0 12px 0;
+          margin: 0 0 18px 0;
           flex-shrink: 0;
-          padding: 10px 16px;
+          padding: 22px 28px;
           display: flex;
           justify-content: space-between;
           align-items: center;
-          gap: 8px;
-          background: var(--surface);
-          backdrop-filter: blur(32px);
-          -webkit-backdrop-filter: blur(32px);
+          gap: 14px;
+          background: linear-gradient(135deg, rgba(255,255,255,0.075), rgba(255,255,255,0.035));
+          backdrop-filter: blur(34px);
+          -webkit-backdrop-filter: blur(34px);
           border: 1px solid var(--glass-border);
-          border-radius: 16px;
+          border-radius: 22px;
           box-shadow: var(--glass-shadow);
           overflow: hidden;
-          min-height: 0;
+          min-height: 110px;
         }
 
         .page-header::before {
           content: '';
           position: absolute;
-          top: 0; left: 12%; right: 12%; height: 1px;
-          background: linear-gradient(90deg, transparent, var(--border2), transparent);
+          top: 0; left: 10%; right: 10%; height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.34), transparent);
+          pointer-events: none;
+        }
+
+        .page-header::after {
+          content: '';
+          position: absolute;
+          inset: -80% -20% auto auto;
+          width: 360px;
+          height: 220px;
+          border-radius: 999px;
+          background: radial-gradient(circle, var(--accent-soft), transparent 68%);
           pointer-events: none;
         }
 
         .page-header-title {
-          font-size: 15px;
-          font-weight: 500;
+          position: relative;
+          z-index: 1;
+          font-family: Georgia, 'Times New Roman', serif;
+          font-size: clamp(34px, 4vw, 54px);
+          line-height: 0.92;
+          font-weight: 900;
+          font-style: italic;
           color: var(--text);
-          letter-spacing: -0.01em;
+          letter-spacing: -0.075em;
           white-space: nowrap;
+          text-shadow: 0 1px 18px rgba(255,255,255,0.10);
         }
 
         .page-header-sub {
-          font-size: 11px;
-          color: var(--muted);
-          margin-top: 3px;
+          position: relative;
+          z-index: 1;
+          font-size: 14px;
+          color: var(--muted2);
+          margin-top: 7px;
           white-space: nowrap;
         }
 
         .page-header-actions {
+          position: relative;
+          z-index: 1;
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 8px;
           flex-wrap: nowrap;
           flex-shrink: 0;
         }
@@ -156,15 +174,16 @@ export default function AppLayout() {
 
           .page-header {
             top: 0;
-            margin: 0 0 10px 0;
-            padding: 8px 12px;
-            border-radius: 14px;
+            margin: 0 0 12px 0;
+            padding: 14px 16px;
+            border-radius: 18px;
+            min-height: 82px;
             flex-wrap: wrap;
-            gap: 6px;
+            gap: 8px;
           }
 
-          .page-header-title { font-size: 14px; }
-          .page-header-sub   { font-size: 10px; margin-top: 1px; }
+          .page-header-title { font-size: 32px; letter-spacing: -0.07em; }
+          .page-header-sub   { font-size: 11px; margin-top: 4px; }
 
           .page-header-actions {
             gap: 5px;
@@ -268,7 +287,7 @@ export default function AppLayout() {
 
         @media (max-width: 400px) {
           main { padding: 6px 6px 0 6px !important; }
-          .page-header { padding: 7px 10px; }
+          .page-header { padding: 12px 14px; min-height: 78px; }
         }
       `}</style>
     </div>

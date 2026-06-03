@@ -28,9 +28,10 @@ const BW_EXERCISES = new Set([
 ])
 
 const RUN_PR_DISTANCES = [
-  { label: '5 km',       meters: 5000 },
-  { label: '10 km',      meters: 10000 },
-  { label: 'Halvmaraton', meters: 21097 },
+  { key: '1k', label: '1 km', distanceKm: 1 },
+  { key: '5k', label: '5 km', distanceKm: 5 },
+  { key: '10k', label: '10 km', distanceKm: 10 },
+  { key: 'half_marathon', label: 'Halvmaraton', distanceKm: 21.097 },
 ]
 
 const SESSION_TYPES = [
@@ -218,6 +219,8 @@ export default function TraningPage() {
       })
       const json = await res.json()
       setStravaResult({ ...json, synced: 0, skipped: 0, total: json.processed, prsUpdated: json.prsUpdated })
+      await fetchRunPRs()
+      await fetchPRs()
     } catch (e) { console.error(e) }
     setFetchingPrs(false)
   }
@@ -380,49 +383,34 @@ export default function TraningPage() {
       .from('personal_records')
       .select('*')
       .eq('user_id', user.id)
+      .is('time_seconds', null)
+      .is('distance_km', null)
+      .is('pace_per_km', null)
+      .not('weight_kg', 'is', null)
       .order('exercise_name')
     setPrs(data || [])
   }
 
   async function fetchRunPRs() {
-    const { data } = await supabase
-      .from('training_sessions')
-      .select('distance_km, duration_minutes, pace_per_km, time_seconds, date')
+    const { data, error } = await supabase
+      .from('run_personal_records')
+      .select('distance_key, label, distance_km, time_seconds, pace_per_km, date')
       .eq('user_id', user.id)
-      .eq('session_type', 'run')
-      .not('distance_km', 'is', null)
-      .order('date')
 
-    if (!data) return
+    if (error) {
+      console.error('Kunde inte hämta run_personal_records', error)
+      setRunPRs(RUN_PR_DISTANCES.map(d => ({ label: d.label, time: null, date: null })))
+      return
+    }
 
-    const bests = RUN_PR_DISTANCES.map(({ label, meters }) => {
-      const kmTarget = meters / 1000
-
-      // Accept runs that are at least 95% of the target distance
-      const eligible = data.filter(r => r.distance_km >= kmTarget * 0.95)
-      if (eligible.length === 0) return { label, time: null, date: null }
-
-      // Calculate estimated time for target distance using pace_per_km
-      const withTime = eligible.map(r => {
-        let seconds = null
-        if (r.time_seconds && Math.abs(r.distance_km - kmTarget) / kmTarget < 0.05) {
-          // Exact distance match — use real time
-          seconds = r.time_seconds
-        } else if (r.pace_per_km) {
-          // Estimate time from pace × target distance
-          seconds = Math.round(r.pace_per_km * kmTarget)
-        } else if (r.duration_minutes && r.distance_km) {
-          // Derive pace from duration and use it
-          const pacePerKm = (r.duration_minutes * 60) / r.distance_km
-          seconds = Math.round(pacePerKm * kmTarget)
-        }
-        return { ...r, estSeconds: seconds }
-      }).filter(r => r.estSeconds)
-
-      if (!withTime.length) return { label, time: null, date: null }
-
-      const best = withTime.reduce((a, b) => a.estSeconds < b.estSeconds ? a : b)
-      return { label, time: best.estSeconds, date: best.date }
+    const bests = RUN_PR_DISTANCES.map(({ key, label }) => {
+      const pr = (data || []).find(r => r.distance_key === key)
+      return {
+        label,
+        time: pr?.time_seconds || null,
+        date: pr?.date || null,
+        pace: pr?.pace_per_km || null,
+      }
     })
 
     setRunPRs(bests)
