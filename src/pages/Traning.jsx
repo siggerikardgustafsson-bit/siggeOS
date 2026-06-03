@@ -35,6 +35,14 @@ const RUN_PR_DISTANCES = [
   { label: 'Halvmaraton', meters: 21097 },
 ]
 
+
+const FEATURED_STRENGTH_PBS = [
+  { label: 'Bänkpress', aliases: ['bänkpress', 'bankpress', 'bench press', 'bänk'] },
+  { label: 'Marklyft', aliases: ['marklyft', 'deadlift'] },
+  { label: 'Knäböj', aliases: ['knäböj', 'knaboj', 'squat', 'böj'] },
+  { label: 'Pull-ups', aliases: ['pull-ups', 'pullups', 'pull up', 'pull-up', 'weighted pull-up', 'chins'] },
+]
+
 const SESSION_TYPES = [
   { id: 'gym', label: 'Gym', icon: Dumbbell, color: '#3b82f6' },
   { id: 'run', label: 'Löpning', icon: Timer, color: '#10b981' },
@@ -137,6 +145,8 @@ export default function TraningPage() {
   const [selectedExercise, setSelectedExercise] = useState(null)
   const [showRunModal, setShowRunModal] = useState(false)
   const [showAllPrModal, setShowAllPrModal] = useState(false)
+  const [showStrengthPrModal, setShowStrengthPrModal] = useState(false)
+  const [showRunPrModal, setShowRunPrModal] = useState(false)
   const [allPrFilter, setAllPrFilter] = useState('all') // all | strength | run
   const [allPrSearch, setAllPrSearch] = useState('')
   const [allPrSort, setAllPrSort] = useState('date') // date | name | value
@@ -1021,11 +1031,13 @@ export default function TraningPage() {
 
     if (match) {
       setShowAllPrModal(false)
+      setShowRunPrModal(false)
       openSessionDetail(match)
       return
     }
 
     setShowAllPrModal(false)
+    setShowRunPrModal(false)
     setShowRunModal(true)
   }
 
@@ -1051,6 +1063,14 @@ export default function TraningPage() {
     '10k': '10 km',
     'half_marathon': 'Halvmaraton',
   }
+
+  const featuredStrengthPrs = FEATURED_STRENGTH_PBS.map(feature => ({
+    ...feature,
+    pr: prs.find(pr => {
+      const name = String(pr.exercise_name || '').trim().toLowerCase()
+      return feature.aliases.some(alias => name === alias || name.includes(alias))
+    }) || null,
+  }))
 
   const filteredRunEfforts = [...runEfforts]
     .filter(effort => {
@@ -1225,54 +1245,57 @@ export default function TraningPage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
               {/* Strength PRs */}
-              {prs.length > 0 && (
-                <div className="card">
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Trophy size={12} color="#f59e0b" /> STYRKA — PERSONLIGA REKORD
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))', gap: '8px' }}>
-                    {prs.slice(0, 5).map(pr => (
-                      <div key={pr.id} className="card-sm" onClick={() => setSelectedExercise(pr.exercise_name)}
-                        style={{ cursor: 'pointer' }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{pr.exercise_name}</div>
-                        <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
-                          {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
-                        </div>
-                        {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
-                        <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <TrendingUp size={10} /> Se historik
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {prs.length > 5 && (
-                    <button
-                      onClick={() => setShowAllPrModal(true)}
-                      className="btn btn-ghost"
-                      style={{ marginTop: '10px', width: '100%', justifyContent: 'center' }}
-                    >
-                      Se alla PBn →
-                    </button>
-                  )}
+              <div className="card">
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Trophy size={12} color="#f59e0b" /> STYRKA — PERSONLIGA REKORD
                 </div>
-              )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                  {featuredStrengthPrs.map(({ label, pr }) => (
+                    <div key={label} className="card-sm" onClick={() => pr && setSelectedExercise(pr.exercise_name)}
+                      style={{ cursor: pr ? 'pointer' : 'default', opacity: pr ? 1 : 0.62 }}
+                      onMouseEnter={e => { if (pr) e.currentTarget.style.borderColor = 'var(--accent-border)' }}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
+                      {pr ? (
+                        <>
+                          <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
+                            {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
+                          </div>
+                          {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
+                          <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <TrendingUp size={10} /> Se historik
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Saknas</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setShowStrengthPrModal(true)}
+                  className="btn btn-ghost"
+                  style={{ marginTop: '10px', width: '100%', justifyContent: 'center' }}
+                >
+                  Se alla styrke-PBn →
+                </button>
+              </div>
 
               {/* Run PRs */}
               <div className="card">
                 <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Trophy size={12} color="#10b981" /> LÖPNING — PERSONLIGA REKORD</span>
-                  <button onClick={() => setShowRunModal(true)} style={{ fontSize: '11px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                    Se all löphistorik →
+                  <button onClick={() => setShowRunPrModal(true)} style={{ fontSize: '11px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                    Se alla löp-PBn →
                   </button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
                   {RUN_PR_DISTANCES.map(({ label }) => {
                     const pr = runPRs.find(r => r.label === label)
                     const hasTime = pr?.time
+                    const sourceEffort = pr?.activityId ? runEfforts.find(e => String(e.strava_activity_id) === String(pr.activityId) && e.time_seconds === pr.time) : null
                     return (
-                      <div key={label} className="card-sm" onClick={() => setShowRunModal(true)}
+                      <div key={label} className="card-sm" onClick={() => sourceEffort ? openRunEffortSource(sourceEffort) : setShowRunPrModal(true)}
                         style={{ cursor: 'pointer' }}
                         onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
                         onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
@@ -2001,35 +2024,24 @@ export default function TraningPage() {
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
 
-      {showAllPrModal && (
-        <div onClick={() => setShowAllPrModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(10px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      {(showAllPrModal || showStrengthPrModal || showRunPrModal) && (
+        <div onClick={() => { setShowAllPrModal(false); setShowStrengthPrModal(false); setShowRunPrModal(false) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(10px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div onClick={e => e.stopPropagation()} className="card" style={{ width: 'min(1040px, 100%)', maxHeight: '86vh', overflowY: 'auto', padding: 0 }}>
             <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
               <div>
-                <div style={{ fontSize: '24px', fontWeight: 850, letterSpacing: '-0.045em' }}>Alla PBn</div>
+                <div style={{ fontSize: '24px', fontWeight: 850, letterSpacing: '-0.045em' }}>{showRunPrModal ? 'Alla löp-PBn' : showStrengthPrModal ? 'Alla styrke-PBn' : 'Alla PBn'}</div>
                 <div style={{ fontSize: '13px', color: 'var(--muted2)', marginTop: '3px' }}>
-                  Styrke-PB, löpbestar och alla importerade Strava best efforts. Klicka för historik eller källpass.
+                  {showRunPrModal ? 'Bästa per distans och alla importerade Strava best efforts. Klicka för källpass.' : showStrengthPrModal ? 'Alla styrkerekord. Klicka en övning för historik.' : 'Styrke-PB, löpbestar och alla importerade Strava best efforts. Klicka för historik eller källpass.'}
                 </div>
               </div>
-              <button onClick={() => setShowAllPrModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={20} /></button>
+              <button onClick={() => { setShowAllPrModal(false); setShowStrengthPrModal(false); setShowRunPrModal(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={20} /></button>
             </div>
 
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {[
-                  ['all', 'Alla'],
-                  ['strength', 'Styrka'],
-                  ['run', 'Löpning'],
-                ].map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setAllPrFilter(id)}
-                    className={`btn ${allPrFilter === id ? 'btn-primary' : 'btn-ghost'}`}
-                    style={{ padding: '7px 13px' }}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div className="glass-pill" style={{ color: 'var(--muted2)' }}>
+                  {showRunPrModal ? 'Löpning' : showStrengthPrModal ? 'Styrka' : 'Alla'}
+                </div>
               </div>
 
               <div style={{ position: 'relative', minWidth: '220px' }}>
@@ -2051,7 +2063,7 @@ export default function TraningPage() {
             </div>
 
             <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {(allPrFilter === 'all' || allPrFilter === 'strength') && (
+              {(showStrengthPrModal || (!showRunPrModal && (allPrFilter === 'all' || allPrFilter === 'strength'))) && (
                 <section>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px', marginBottom: '10px' }}>
                     <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '0.08em' }}>STYRKA — PERSONLIGA REKORD</div>
@@ -2062,7 +2074,7 @@ export default function TraningPage() {
                       {filteredStrengthPrs.map(pr => (
                         <button
                           key={pr.id}
-                          onClick={() => { setSelectedExercise(pr.exercise_name); setShowAllPrModal(false) }}
+                          onClick={() => { setSelectedExercise(pr.exercise_name); setShowAllPrModal(false); setShowStrengthPrModal(false) }}
                           className="card-sm"
                           style={{ cursor: 'pointer', textAlign: 'left', minHeight: '92px' }}
                           onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
@@ -2083,11 +2095,11 @@ export default function TraningPage() {
                 </section>
               )}
 
-              {(allPrFilter === 'all' || allPrFilter === 'run') && (
+              {(showRunPrModal || (!showStrengthPrModal && (allPrFilter === 'all' || allPrFilter === 'run'))) && (
                 <section>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px', marginBottom: '10px' }}>
                     <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '0.08em' }}>LÖPNING — BÄSTA PER DISTANS</div>
-                    <button onClick={() => { setShowRunModal(true); setShowAllPrModal(false) }} className="btn btn-ghost" style={{ padding: '5px 10px', fontSize: '11px' }}>All löphistorik →</button>
+                    <button onClick={() => { setShowRunModal(true); setShowAllPrModal(false); setShowRunPrModal(false) }} className="btn btn-ghost" style={{ padding: '5px 10px', fontSize: '11px' }}>All löphistorik →</button>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '9px', marginBottom: '14px' }}>
                     {RUN_PR_DISTANCES.map(({ label }) => {
