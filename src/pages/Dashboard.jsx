@@ -57,6 +57,78 @@ function parseNumber(value) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+
+function EvidenceModal({ item, onClose }) {
+  if (!item) return null
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:220, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div onClick={e => e.stopPropagation()} className="widget" style={{ width:'min(560px, 100%)', maxHeight:'86vh', overflowY:'auto', padding:22, borderRadius:24 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, marginBottom:18 }}>
+          <div>
+            <div style={{ fontSize:10, fontWeight:900, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--muted)', marginBottom:6 }}>Datakälla</div>
+            <div style={{ fontSize:24, fontWeight:900, color:'var(--text)', letterSpacing:'-0.04em', lineHeight:1.05 }}>{item.title}</div>
+            <div style={{ fontSize:13, color:'var(--muted2)', marginTop:6 }}>{item.subtitle}</div>
+          </div>
+          <button onClick={onClose} className="btn btn-ghost btn-icon" style={{ flexShrink:0 }}>×</button>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
+          <div style={{ padding:14, borderRadius:16, background:'rgba(255,255,255,0.045)', border:'1px solid var(--border)' }}>
+            <div style={{ fontSize:10, color:'var(--muted)', fontWeight:800, letterSpacing:'0.10em', textTransform:'uppercase' }}>Värde</div>
+            <div style={{ fontSize:28, color:item.color || 'var(--accent)', fontWeight:900, marginTop:4 }}>{item.value}</div>
+          </div>
+          <div style={{ padding:14, borderRadius:16, background:'rgba(255,255,255,0.045)', border:'1px solid var(--border)' }}>
+            <div style={{ fontSize:10, color:'var(--muted)', fontWeight:800, letterSpacing:'0.10em', textTransform:'uppercase' }}>Kategori</div>
+            <div style={{ fontSize:18, color:'var(--text)', fontWeight:800, marginTop:7 }}>{item.category}</div>
+          </div>
+        </div>
+
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {(item.rows || []).map((row, i) => (
+            <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:12, padding:'10px 12px', borderRadius:12, background:'rgba(0,0,0,0.10)', border:'1px solid var(--border)' }}>
+              <span style={{ fontSize:12, color:'var(--muted)' }}>{row.label}</span>
+              <span style={{ fontSize:12, color:'var(--text)', fontWeight:700, textAlign:'right' }}>{row.value || '—'}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginTop:18, padding:14, borderRadius:16, background:'var(--accent-soft)', border:'1px solid var(--accent-border)', color:'var(--muted2)', fontSize:12, lineHeight:1.45 }}>
+          Detta är första versionen av evidence chain: dashboardvärde → källdata. Nästa steg blir att länka detta direkt till öppnat pass på träningssidan.
+        </div>
+
+        <div style={{ display:'flex', justifyContent:'flex-end', gap:8, marginTop:18 }}>
+          {item.href && <button className="btn btn-primary" onClick={() => { window.location.href = item.href }}>Gå till källa</button>}
+          <button className="btn btn-ghost" onClick={onClose}>Stäng</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EvidencePanel({ items, onOpen }) {
+  if (!items?.length) return null
+  return (
+    <div className="widget" style={{ padding:18 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginBottom:12 }}>
+        <div>
+          <div style={{ fontSize:11, color:'var(--muted)', fontWeight:900, letterSpacing:'0.12em', textTransform:'uppercase' }}>Datapunkter & källor</div>
+          <div style={{ fontSize:12, color:'var(--muted2)', marginTop:3 }}>Klicka för att se exakt vilken rad/pass som avgör tiern.</div>
+        </div>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(5, minmax(0, 1fr))', gap:10 }} className="dashboard-evidence-grid">
+        {items.slice(0, 10).map(item => (
+          <button key={item.id} onClick={() => onOpen(item)} style={{ textAlign:'left', cursor:'pointer', padding:12, borderRadius:16, background:'rgba(255,255,255,0.045)', border:'1px solid var(--border)', color:'var(--text)', minWidth:0 }}>
+            <div style={{ fontSize:10, color:'var(--muted)', fontWeight:850, letterSpacing:'0.08em', textTransform:'uppercase', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.category}</div>
+            <div style={{ marginTop:6, fontSize:12, color:'var(--muted2)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.title}</div>
+            <div style={{ marginTop:4, fontSize:18, fontWeight:900, color:item.color || 'var(--accent)', lineHeight:1 }}>{item.value}</div>
+            <div style={{ marginTop:6, fontSize:10, color:'var(--muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.sourceLabel}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function buildMaxxProfile(cats) {
   const rankCats = cats.filter(c => c?.tier?.tier && c.hasData && !['kropp','fardigheter'].includes(c.id))
   if (!rankCats.length) return null
@@ -147,6 +219,8 @@ export default function Dashboard() {
   const [activeGraphCats, setActiveGraphCats] = useState(['somn','valmående','plugg'])
   const [tierHistory, setTierHistory] = useState([])
   const [refreshKey, setRefreshKey] = useState(0)
+  const [evidenceItems, setEvidenceItems] = useState([])
+  const [selectedEvidence, setSelectedEvidence] = useState(null)
 
   const todayDate = new Date()
   const todayStr = format(todayDate, 'EEEE d MMMM yyyy')
@@ -176,16 +250,16 @@ export default function Dashboard() {
         { data: studyData }, { data: paData }, { data: skillData }, { data: userSettings },
         { data: exData }, { data: supplementLogs }, { data: snapshots }, { data: incomeData },
       ] = await Promise.all([
-        supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
-        supabase.from('run_personal_records').select('distance_key,label,distance_km,time_seconds,pace_per_km,date,strava_activity_id,strava_effort_name,source').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}).then(r => r).catch(() => ({ data: [] })),
-        supabase.from('personal_records').select('exercise_name,weight_kg,reps,date').eq('user_id',userId).order('weight_kg',{ascending:false}),
+        supabase.from('training_sessions').select('id,date,session_type,distance_km,time_seconds,pace_per_km,source,strava_id,notes').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
+        supabase.from('run_personal_records').select('id,distance_key,label,distance_km,time_seconds,pace_per_km,date,strava_activity_id,strava_effort_name,source').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}).then(r => r).catch(() => ({ data: [] })),
+        supabase.from('personal_records').select('id,exercise_name,weight_kg,reps,date,exercise_id').eq('user_id',userId).order('weight_kg',{ascending:false}),
         supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
         supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
         supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',periodStart).lte('date',periodEnd),
         supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since30),
         Promise.resolve({ data: settingsQuick }),
         supabase.from('training_exercises')
-          .select('exercise_name,reps,weight_kg,training_sessions!inner(date,user_id)')
+          .select('id,session_id,exercise_name,set_number,reps,weight_kg,exercise_id,training_sessions!inner(id,date,user_id,session_type)')
           .eq('training_sessions.user_id', userId)
           .gte('training_sessions.date', format(subDays(todayDate, 60), 'yyyy-MM-dd'))
           .not('weight_kg','is',null).not('reps','is',null),
@@ -242,10 +316,15 @@ export default function Dashboard() {
         return getDecayedValue(Number(run.time_seconds), run.date, 90)
       }
 
-      const r1D  = toDecayed(bestActual('1k'))
-      const r5D  = toDecayed(bestActual('5k'))
-      const r10D = toDecayed(bestActual('10k'))
-      const rHD  = toDecayed(bestActual('half_marathon'))
+      const best1  = bestActual('1k')
+      const best5  = bestActual('5k')
+      const best10 = bestActual('10k')
+      const bestH  = bestActual('half_marathon')
+
+      const r1D  = toDecayed(best1)
+      const r5D  = toDecayed(best5)
+      const r10D = toDecayed(best10)
+      const rHD  = toDecayed(bestH)
       const rMD  = null
 
       const r1T  = r1D  ? getTier(r1D.value,  RUN_5K_THRESHOLDS.map(t=>t*0.195), false) : null
@@ -288,44 +367,89 @@ export default function Dashboard() {
         return e1RM_total != null ? e1RM_total - bodyweight : null // return added kg equivalent
       }
 
-      function getE1RM(keywords, isBW = false) {
-        const since60 = format(subDays(todayDate, 60), 'yyyy-MM-dd')
-        let best = 0
-
-        // From personal_records
-        const pr = (prData || []).find(p => keywords.some(k => p.exercise_name?.toLowerCase().includes(k)))
-        if (pr) {
-          const d = pr.updated_at?.slice(0, 10) || pr.date || format(subDays(todayDate, 1), 'yyyy-MM-dd')
-          const decayed = getDecayedValue(pr.weight_kg, d, 60)
-          if (decayed) {
-            const e = isBW
-              ? epleyBW(decayed.value, pr.reps || 1, bw)
-              : epley(decayed.value, pr.reps || 1)
-            if (e != null && e > best) best = e
-          }
+      function buildStrengthSourceFromSet(setRow, e1rmValue, isBW = false) {
+        return {
+          type: 'strength_set',
+          session_id: setRow.session_id || setRow.training_sessions?.id,
+          exercise_name: setRow.exercise_name,
+          date: setRow.training_sessions?.date,
+          set_number: setRow.set_number,
+          weight_kg: setRow.weight_kg,
+          reps: setRow.reps,
+          e1rm: e1rmValue,
+          isBW,
         }
-
-        // From recent training_exercises (last 60 days)
-        const sets = (exData || []).filter(e =>
-          keywords.some(k => e.exercise_name?.toLowerCase().includes(k)) &&
-          e.training_sessions?.date >= since60
-        )
-        for (const s of sets) {
-          const e = isBW
-            ? epleyBW(s.weight_kg || 0, s.reps, bw)  // weight_kg=0 means unweighted
-            : epley(s.weight_kg, s.reps)
-          if (e != null && e > best) best = e
-        }
-
-        return best > 0 ? best : null
       }
 
-      const bE1RM = getE1RM(['bänkpress','bench'])
-      const sE1RM = getE1RM(['knäböj','squat'])
-      const dlE1RM = getE1RM(['marklyft','deadlift'])
-      const oE1RM = getE1RM(['militärpress','ohp','overhead'])
-      const puE1RM = getE1RM(['pull-up','pullup','chins','weighted pull'], true)
-      const dipE1RM = getE1RM(['dips','dip'], true)
+      function buildStrengthSourceFromPR(prRow, e1rmValue, isBW = false) {
+        return {
+          type: 'personal_record',
+          id: prRow.id,
+          exercise_name: prRow.exercise_name,
+          date: prRow.date,
+          weight_kg: prRow.weight_kg,
+          reps: prRow.reps,
+          e1rm: e1rmValue,
+          isBW,
+        }
+      }
+
+      function getE1RMSource(keywords, isBW = false) {
+        const since60 = format(subDays(todayDate, 60), 'yyyy-MM-dd')
+        let best = null
+
+        const maybeUpdate = (value, source) => {
+          if (value == null || !Number.isFinite(Number(value))) return
+          if (!best || value > best.value) best = { value, source }
+        }
+
+        // From personal_records
+        ;(prData || [])
+          .filter(p => keywords.some(k => p.exercise_name?.toLowerCase().includes(k)))
+          .forEach(pr => {
+            const d = pr.date || format(subDays(todayDate, 1), 'yyyy-MM-dd')
+            const decayed = getDecayedValue(pr.weight_kg, d, 60)
+            if (decayed) {
+              const value = isBW
+                ? epleyBW(decayed.value, pr.reps || 1, bw)
+                : epley(decayed.value, pr.reps || 1)
+              maybeUpdate(value, buildStrengthSourceFromPR(pr, value, isBW))
+            }
+          })
+
+        // From recent training_exercises (last 60 days)
+        ;(exData || [])
+          .filter(e =>
+            keywords.some(k => e.exercise_name?.toLowerCase().includes(k)) &&
+            e.training_sessions?.date >= since60
+          )
+          .forEach(s => {
+            const value = isBW
+              ? epleyBW(s.weight_kg || 0, s.reps, bw)
+              : epley(s.weight_kg, s.reps)
+            maybeUpdate(value, buildStrengthSourceFromSet(s, value, isBW))
+          })
+
+        return best
+      }
+
+      function getE1RM(keywords, isBW = false) {
+        return getE1RMSource(keywords, isBW)?.value || null
+      }
+
+      const bSource = getE1RMSource(['bänkpress','bench'])
+      const sSource = getE1RMSource(['knäböj','squat'])
+      const dlSource = getE1RMSource(['marklyft','deadlift'])
+      const oSource = getE1RMSource(['militärpress','ohp','overhead'])
+      const puSource = getE1RMSource(['pull-up','pullup','chins','weighted pull'], true)
+      const dipSource = getE1RMSource(['dips','dip'], true)
+
+      const bE1RM = bSource?.value || null
+      const sE1RM = sSource?.value || null
+      const dlE1RM = dlSource?.value || null
+      const oE1RM = oSource?.value || null
+      const puE1RM = puSource?.value || null
+      const dipE1RM = dipSource?.value || null
 
       const bT = bE1RM != null ? getTier(bE1RM/bw, BENCH_THRESHOLDS, true) : null
       const sT = sE1RM != null ? getTier(sE1RM/bw, SQUAT_THRESHOLDS, true) : null
@@ -614,6 +738,67 @@ export default function Dashboard() {
           levelUp:wellLevelUp,
           navTarget:'/halsa',navLabel:'Hälsa'},
       ]
+      function makeRunEvidenceItem(id, title, effort, tierInfo) {
+        if (!effort) return null
+        const seconds = Number(effort.time_seconds)
+        const session = (runData || []).find(r => String(r.strava_id) === String(effort.strava_activity_id))
+        return {
+          id,
+          category: 'Kondition',
+          title,
+          value: formatRunTime(seconds),
+          subtitle: `${title} från Strava best effort`,
+          color: tierInfo?.color || '#4f8ef7',
+          href: '/traning',
+          sourceLabel: `${effort.date} · ${effort.strava_effort_name || effort.label || 'Best effort'}`,
+          rows: [
+            { label:'Tabell', value:'run_personal_records' },
+            { label:'Datum', value:effort.date },
+            { label:'Strava activity', value:effort.strava_activity_id },
+            { label:'Effort', value:effort.strava_effort_name || effort.label },
+            { label:'Tid', value:formatRunTime(seconds) },
+            { label:'Pace', value:effort.pace_per_km ? `${formatRunTime(Number(effort.pace_per_km))}/km` : '—' },
+            { label:'Training session', value:session?.id || 'Matchas via strava_id' },
+          ],
+        }
+      }
+
+      function makeStrengthEvidenceItem(id, title, sourceObj, tierInfo) {
+        if (!sourceObj?.source) return null
+        const src = sourceObj.source
+        const value = sourceObj.value
+        const setText = src.weight_kg != null && src.reps != null ? `${src.weight_kg} kg × ${src.reps}` : '—'
+        return {
+          id,
+          category: 'Styrka',
+          title,
+          value: src.isBW ? `+${Math.round(value)} kg` : `${Math.round(value)} kg`,
+          subtitle: `${title} beräknat från bästa set/PR senaste 60 dagar`,
+          color: tierInfo?.color || '#a78bfa',
+          href: '/traning',
+          sourceLabel: `${src.date || 'okänt datum'} · ${src.exercise_name}`,
+          rows: [
+            { label:'Källa', value:src.type === 'strength_set' ? 'training_exercises' : 'personal_records' },
+            { label:'Datum', value:src.date },
+            { label:'Pass-ID', value:src.session_id || '—' },
+            { label:'Övning', value:src.exercise_name },
+            { label:'Set', value:src.set_number ? `Set ${src.set_number}` : '—' },
+            { label:'Vikt × reps', value:setText },
+            { label:'Beräkning', value:'e1RM' },
+          ],
+        }
+      }
+
+      setEvidenceItems([
+        makeRunEvidenceItem('ev-run-1k', '1 km PR', best1, r1T),
+        makeRunEvidenceItem('ev-run-5k', '5 km PR', best5, r5T),
+        makeRunEvidenceItem('ev-run-10k', '10 km PR', best10, r10T),
+        makeRunEvidenceItem('ev-run-half', 'Halvmara', bestH, rHT),
+        makeStrengthEvidenceItem('ev-strength-bench', 'Bänk e1RM', bSource, bT),
+        makeStrengthEvidenceItem('ev-strength-squat', 'Knäböj e1RM', sSource, sT),
+        makeStrengthEvidenceItem('ev-strength-deadlift', 'Marklyft e1RM', dlSource, dlT),
+      ].filter(Boolean))
+
       setCategories(cats)
 
       // ── Save today's tiers as a snapshot ──────────────────────────────
@@ -770,6 +955,8 @@ export default function Dashboard() {
             </div>
           )}
 
+          <EvidencePanel items={evidenceItems} onOpen={setSelectedEvidence} />
+
           {/* BOTTOM ROW — graph + today side by side */}
           <div className="dashboard-bottom" style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 270px', gap:'12px', alignItems:'start' }}>
 
@@ -845,6 +1032,7 @@ export default function Dashboard() {
       </div>
 
       {selectedCategory && <DetailModal category={selectedCategory} onClose={()=>setSelectedCategory(null)} />}
+      {selectedEvidence && <EvidenceModal item={selectedEvidence} onClose={() => setSelectedEvidence(null)} />}
     </div>
   )
 }
