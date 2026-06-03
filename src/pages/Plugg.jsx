@@ -605,7 +605,7 @@ export default function PluggPage() {
                       </div>
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                         <button onClick={e => { e.stopPropagation(); setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, exam_date: course.exam_date || '' }) }}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', opacity: 0.6 }}>️</button>
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', opacity: 0.6 }}><Edit2 size={14} /></button>
                         {isExpanded ? <ChevronUp size={16} color="var(--muted)" /> : <ChevronDown size={16} color="var(--muted)" />}
                       </div>
                     </div>
