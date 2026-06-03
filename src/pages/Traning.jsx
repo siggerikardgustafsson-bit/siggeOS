@@ -622,7 +622,7 @@ export default function TraningPage() {
       {stravaResult && (
         <div style={{ padding: '12px 16px', background: 'rgba(252,76,2,0.08)', border: '1px solid rgba(252,76,2,0.2)', borderRadius: '10px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '13px', color: '#fc4c02' }}>
-            ✓ Importerade {stravaResult.synced} pass ({stravaResult.skipped} redan synkade av {stravaResult.total} totalt)
+            ✓ Importerade {stravaResult.synced} pass ({stravaResult.skipped} redan synkade av {stravaResult.total} totalt){stravaResult.prsUpdated > 0 ? ` · ${stravaResult.prsUpdated} PRs uppdaterade` : ''}
           </span>
           <button onClick={() => setStravaResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={14} /></button>
         </div>

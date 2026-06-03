@@ -100,8 +100,22 @@ serve(async (req) => {
       WeightTraining: 'gym', Workout: 'gym', CrossFit: 'gym',
     }
 
+    // Best effort distance name → km mapping
+    const bestEffortMap: Record<string, { km: number; label: string }> = {
+      '400m':          { km: 0.4,    label: '400m PR' },
+      '1/2 mile':      { km: 0.805,  label: '800m PR' },
+      '1k':            { km: 1.0,    label: '1km PR' },
+      '1 mile':        { km: 1.609,  label: '1 mile PR' },
+      '2 mile':        { km: 3.219,  label: '2 mile PR' },
+      '5k':            { km: 5.0,    label: '5km PR' },
+      '10k':           { km: 10.0,   label: '10km PR' },
+      '1/2 marathon':  { km: 21.097, label: 'Halvmara PR' },
+      'marathon':      { km: 42.195, label: 'Mara PR' },
+    }
+
     let synced = 0
     let skipped = 0
+    let prsUpdated = 0
 
     for (const act of allActivities) {
       const sessionType = typeMap[act.type] || 'other'
@@ -138,9 +152,55 @@ serve(async (req) => {
         feeling: null,
       })
       synced++
+
+      // For run activities, fetch detailed activity to get best_efforts
+      if (act.type === 'Run' || act.type === 'TrailRun') {
+        try {
+          const detailRes = await fetch(`https://www.strava.com/api/v3/activities/${act.id}`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          })
+          const detail = await detailRes.json()
+
+          if (Array.isArray(detail.best_efforts)) {
+            for (const effort of detail.best_efforts) {
+              const mapping = bestEffortMap[effort.name]
+              if (!mapping || !effort.elapsed_time) continue
+
+              const effortPace = Math.round(effort.elapsed_time / mapping.km)
+              const effortDate = effort.start_date_local?.slice(0, 10) || date
+
+              // Only update PR if this is faster than existing
+              const { data: existingPR } = await supabase
+                .from('personal_records')
+                .select('time_seconds, pace_per_km')
+                .eq('user_id', user.id)
+                .eq('exercise_name', mapping.label)
+                .single()
+
+              const existingTime = existingPR?.time_seconds
+              const isFaster = !existingTime || effort.elapsed_time < existingTime
+
+              if (isFaster) {
+                await supabase.from('personal_records').upsert({
+                  user_id: user.id,
+                  exercise_name: mapping.label,
+                  time_seconds: effort.elapsed_time,
+                  distance_km: mapping.km,
+                  pace_per_km: effortPace,
+                  date: effortDate,
+                }, { onConflict: 'user_id,exercise_name' })
+                prsUpdated++
+              }
+            }
+          }
+        } catch (e) {
+          // Best efforts fetch failed for this activity — continue
+          console.warn(`best_efforts fetch failed for activity ${act.id}:`, e)
+        }
+      }
     }
 
-    return new Response(JSON.stringify({ ok: true, synced, skipped, total: allActivities.length }), {
+    return new Response(JSON.stringify({ ok: true, synced, skipped, total: allActivities.length, prsUpdated }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   }
