@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, subMonths, addMonths, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Plus, Save, Loader, BookOpen, X, Edit2, Calendar, Music, Languages, ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Save, Loader, BookOpen, X, Edit2, Calendar, Music, Languages, ChevronDown, ChevronUp, Search } from 'lucide-react'
 
 const JARVIS_JOURNAL_SYSTEM = `Du är Jarvis, Sigges personliga AI. Analysera denna journal-entry djupgående och returnera ENBART ett JSON-objekt utan markdown eller backticks.
 
@@ -85,6 +85,9 @@ export default function JournalPage() {
   const [analyzing, setAnalyzing] = useState(false)
   const [viewEntry, setViewEntry] = useState(null)
   const [recentEntries, setRecentEntries] = useState([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching] = useState(false)
   const [editingEntry, setEditingEntry] = useState(null) // entry being edited
   const [form, setForm] = useState(EMPTY_FORM)
   const [editDate, setEditDate] = useState('') // for date change on existing entry
@@ -97,6 +100,28 @@ export default function JournalPage() {
     const { data } = await supabase.from('journal_entries').select('id,date,content,mood,energy,sleep_hours')
       .eq('user_id', user.id).order('date', { ascending: false }).limit(5)
     setRecentEntries(data || [])
+  }
+
+  async function runSearch(q) {
+    if (!q.trim()) { setSearchResults([]); return }
+    setSearching(true)
+    const { data } = await supabase.from('journal_entries')
+      .select('id,date,content,mood,energy,ai_summary,ai_extracted_keywords,ai_extracted_people')
+      .eq('user_id', user.id)
+      .or(`content.ilike.%${q}%,ai_summary.ilike.%${q}%`)
+      .order('date', { ascending: false })
+      .limit(20)
+    // Also filter by keywords/people client-side
+    const qLow = q.toLowerCase()
+    const filtered = (data || []).filter(e => {
+      if (e.content?.toLowerCase().includes(qLow)) return true
+      if (e.ai_summary?.toLowerCase().includes(qLow)) return true
+      if (e.ai_extracted_keywords?.some(k => k.toLowerCase().includes(qLow))) return true
+      if (e.ai_extracted_people?.some(p => p.toLowerCase().includes(qLow))) return true
+      return false
+    })
+    setSearchResults(filtered)
+    setSearching(false)
   }
 
   async function fetchMonthEntries() {
@@ -335,6 +360,26 @@ export default function JournalPage() {
                   <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#10b981' }} />
                   Entry loggad
                 </div>
+
+                {/* Search */}
+                <div style={{ marginTop: '12px', position: 'relative' }}>
+                  <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }} />
+                  <input
+                    className="input"
+                    placeholder="Sök i journal..."
+                    value={searchQuery}
+                    onChange={e => { setSearchQuery(e.target.value); runSearch(e.target.value) }}
+                    style={{ paddingLeft: 30, fontSize: '12px' }}
+                  />
+                  {searchQuery && (
+                    <button onClick={() => { setSearchQuery(''); setSearchResults([]) }} style={{
+                      position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 2,
+                    }}>
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Stats + recent entries */}
@@ -372,6 +417,73 @@ export default function JournalPage() {
               display: 'flex', flexDirection: 'column', gap: '12px',
             }}>
 
+              {/* Search results view */}
+              {searchQuery ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Search size={14} color="var(--muted)" />
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>
+                      {searching ? 'Söker...' : `${searchResults.length} träffar för "${searchQuery}"`}
+                    </span>
+                  </div>
+                  {searching ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '20px 0', color: 'var(--muted)' }}>
+                      <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Söker...
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '20px 0' }}>Inga entries matchar sökningen.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {searchResults.map(entry => {
+                        const qLow = searchQuery.toLowerCase()
+                        const snippet = entry.content
+                          ? (() => {
+                              const idx = entry.content.toLowerCase().indexOf(qLow)
+                              if (idx === -1) return entry.content.slice(0, 140) + '…'
+                              const start = Math.max(0, idx - 60)
+                              const end = Math.min(entry.content.length, idx + 120)
+                              return (start > 0 ? '…' : '') + entry.content.slice(start, end) + (end < entry.content.length ? '…' : '')
+                            })()
+                          : entry.ai_summary?.slice(0, 140) + '…'
+                        return (
+                          <div key={entry.id}
+                            onClick={() => { setSelectedDate(parseISO(entry.date)); setSearchQuery(''); setSearchResults([]) }}
+                            style={{
+                              padding: '10px 12px', borderRadius: 10,
+                              background: 'var(--surface2)', border: '1px solid var(--border)',
+                              cursor: 'pointer', transition: 'border-color 0.15s',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+                            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent)', textTransform: 'capitalize' }}>
+                                {format(parseISO(entry.date), 'EEEE d MMMM yyyy', { locale: sv })}
+                              </span>
+                              <div style={{ display: 'flex', gap: 8, fontSize: '11px', color: 'var(--muted)' }}>
+                                {entry.mood && <span>😊 {entry.mood}/10</span>}
+                                {entry.energy && <span>⚡ {entry.energy}/10</span>}
+                              </div>
+                            </div>
+                            <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.5 }}>{snippet}</div>
+                            {entry.ai_extracted_keywords?.length > 0 && (
+                              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                                {entry.ai_extracted_keywords.slice(0, 5).map(k => (
+                                  <span key={k} style={{
+                                    fontSize: '10px', padding: '2px 7px', borderRadius: 20,
+                                    background: 'var(--accent-soft)', color: 'var(--accent)', fontWeight: 500,
+                                  }}>{k}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : (
+              <>
               {/* Date header inside the panel */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text)', textTransform: 'capitalize' }}>
@@ -625,6 +737,7 @@ export default function JournalPage() {
                   )}
                 </div>
               ))}
+              </>)}
             </div>
           </div>
         </div>
