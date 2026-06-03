@@ -1505,3 +1505,174 @@ body {
     box-shadow: 0 -10px 32px rgba(0,0,0,0.30), 0 1px 0 rgba(255,255,255,0.08) inset !important;
   }
 }
+
+/* ============================================================
+   MOBILE HARDENING V4 — true PWA background + route rescue
+   ============================================================ */
+@media (max-width: 768px) {
+  /* iOS standalone status area does not reliably show fixed child layers.
+     Give html/body the same background as the app so the top safe/status area
+     is never flat black. */
+  html {
+    background-color: #07090f !important;
+    background-image:
+      radial-gradient(ellipse 120% 78% at 16% -18%, rgba(79,142,247,0.38) 0%, rgba(79,142,247,0.18) 34%, transparent 68%),
+      radial-gradient(ellipse 78% 64% at 92% 102%, rgba(139,92,246,0.18) 0%, transparent 64%),
+      linear-gradient(180deg, #101a2e 0%, #07101d 42%, #05070d 100%) !important;
+    background-size: cover !important;
+    background-attachment: fixed !important;
+  }
+
+  body {
+    background-color: transparent !important;
+    background-image:
+      radial-gradient(ellipse 120% 78% at 16% -18%, rgba(79,142,247,0.38) 0%, rgba(79,142,247,0.18) 34%, transparent 68%),
+      radial-gradient(ellipse 78% 64% at 92% 102%, rgba(139,92,246,0.18) 0%, transparent 64%),
+      linear-gradient(180deg, #101a2e 0%, #07101d 42%, #05070d 100%) !important;
+    background-size: cover !important;
+    background-attachment: fixed !important;
+  }
+
+  #root {
+    background: transparent !important;
+  }
+
+  /* Extend the visual background layers upward as far as WebKit allows. */
+  #bg-gradient,
+  #bg-image,
+  .orb {
+    top: calc(-1 * env(safe-area-inset-top)) !important;
+    height: calc(100dvh + env(safe-area-inset-top) + env(safe-area-inset-bottom)) !important;
+  }
+
+  #bg-gradient {
+    background-image:
+      radial-gradient(ellipse 120% 78% at 16% -18%, rgba(79,142,247,0.38) 0%, rgba(79,142,247,0.18) 34%, transparent 68%),
+      radial-gradient(ellipse 78% 64% at 92% 102%, rgba(139,92,246,0.18) 0%, transparent 64%),
+      linear-gradient(180deg, #101a2e 0%, #07101d 42%, #05070d 100%) !important;
+  }
+
+  /* Keep the glass look, but enough opacity for readability. */
+  .page-header,
+  .card,
+  .card-sm,
+  .widget,
+  .cat-card,
+  .category-card,
+  .course-card,
+  [class*="card"] {
+    background: linear-gradient(180deg, rgba(29, 39, 64, 0.70), rgba(11, 17, 30, 0.54)) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(1.16) !important;
+    backdrop-filter: blur(28px) saturate(1.16) !important;
+    border-color: rgba(255,255,255,0.18) !important;
+  }
+
+  body.has-bg-image .page-header,
+  body.has-bg-image .card,
+  body.has-bg-image .card-sm,
+  body.has-bg-image .widget,
+  body.has-bg-image .cat-card,
+  body.has-bg-image .category-card,
+  body.has-bg-image .course-card,
+  body.has-bg-image [class*="card"] {
+    background: linear-gradient(180deg, rgba(24, 34, 56, 0.66), rgba(8, 14, 25, 0.50)) !important;
+    -webkit-backdrop-filter: blur(30px) saturate(1.18) !important;
+    backdrop-filter: blur(30px) saturate(1.18) !important;
+  }
+
+  /* Emergency rule: inline desktop grids are the cause of the chaos on pages
+     like Plugg/Jobb. On mobile, content-first wins: one column unless a page
+     deliberately uses a named mobile-safe grid. */
+  .sigge-app-shell:not(.route-dashboard) .page-content-scroll [style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .sigge-app-shell:not(.route-dashboard) .page-content-scroll [style*="display: grid"],
+  .sigge-app-shell:not(.route-dashboard) .page-content-scroll [style*="display:grid"] {
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Plugg is especially dense: force its columns/cards to become a readable feed. */
+  .route-plugg .page-content-scroll,
+  .route-plugg .page-content-scroll > div,
+  .route-plugg .page-content-scroll section,
+  .route-plugg .page-content-scroll article {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .route-plugg .page-content-scroll > div {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  .route-plugg .page-content-scroll [style*="grid-template-columns"],
+  .route-plugg .page-content-scroll [style*="display: grid"],
+  .route-plugg .page-content-scroll [style*="display:grid"] {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  .route-plugg .page-content-scroll [style*="display: flex"],
+  .route-plugg .page-content-scroll [style*="display:flex"] {
+    flex-wrap: wrap !important;
+    min-width: 0 !important;
+  }
+
+  .route-plugg .page-content-scroll [style*="justify-content: space-between"],
+  .route-plugg .page-content-scroll [style*="justifyContent: 'space-between'"] {
+    gap: 10px !important;
+    align-items: flex-start !important;
+  }
+
+  .route-plugg .page-content-scroll .card,
+  .route-plugg .page-content-scroll .card-sm,
+  .route-plugg .page-content-scroll [class*="card"] {
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .route-plugg .page-content-scroll p,
+  .route-plugg .page-content-scroll span,
+  .route-plugg .page-content-scroll div,
+  .route-plugg .page-content-scroll button {
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .route-plugg .page-content-scroll button,
+  .route-plugg .page-content-scroll .btn {
+    min-height: 40px !important;
+  }
+
+  /* Purple/orange status pills in cramped study cards should not cover text. */
+  .route-plugg .page-content-scroll span[style*="background"],
+  .route-plugg .page-content-scroll div[style*="background"] span {
+    max-width: 100% !important;
+  }
+
+  /* Preserve Dashboard readability without returning to unreadable tiny cards. */
+  .route-dashboard .bento-grid,
+  .route-dashboard .grid-4,
+  .route-dashboard [style*="grid-template-columns: repeat(2"],
+  .route-dashboard [style*="grid-template-columns:repeat(2"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Slightly reduce vertical waste after making pages one-column. */
+  .sigge-main-scroll {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  @supports (padding: max(0px)) {
+    .sigge-main-scroll {
+      padding-left: max(14px, env(safe-area-inset-left)) !important;
+      padding-right: max(14px, env(safe-area-inset-right)) !important;
+    }
+  }
+}
