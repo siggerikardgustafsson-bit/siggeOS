@@ -126,8 +126,47 @@ export default function DetailModal({ category, onClose }) {
   const requirements = category.tierGuide || TIER_REQUIREMENTS[id] || []
   const periods = ['7d', '30d', '90d', '1år']
 
+  const openMetricSource = (event, metric) => {
+    event.stopPropagation()
+    const target = metric?.evidence?.navTarget
+    if (!target || metric?.value === '—') return
+    onClose?.()
+    navigate(target)
+  }
+
   return (
     <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <style>{`
+        .detail-metric-source-card {
+          position: relative;
+          transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+        }
+        .detail-metric-source-card.is-clickable { cursor: pointer; }
+        .detail-metric-source-card.is-clickable:hover {
+          transform: translateY(-1px);
+          background: rgba(79,142,247,0.095) !important;
+          border-color: rgba(79,142,247,0.38) !important;
+          box-shadow: 0 0 0 1px rgba(79,142,247,0.12), 0 10px 26px rgba(79,142,247,0.10);
+        }
+        .detail-metric-source-hint {
+          position: absolute;
+          right: 9px;
+          top: 8px;
+          opacity: 0;
+          transform: translateY(2px);
+          transition: opacity .16s ease, transform .16s ease;
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: .06em;
+          color: #4f8ef7;
+          text-transform: uppercase;
+          pointer-events: none;
+        }
+        .detail-metric-source-card.is-clickable:hover .detail-metric-source-hint {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      `}</style>
       <div onClick={e => e.stopPropagation()} style={{ background:'rgba(12,15,26,0.94)', backdropFilter:'blur(42px)', WebkitBackdropFilter:'blur(42px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:22, width:'100%', maxWidth:620, maxHeight:'88vh', overflowY:'auto', boxShadow:'0 32px 80px rgba(0,0,0,0.72), 0 1px 0 rgba(255,255,255,0.08) inset', scrollbarWidth:'none', position:'relative' }}>
         <div style={{ position:'absolute', top:0, left:'22%', right:'22%', height:1, background:'linear-gradient(90deg, transparent, rgba(255,255,255,0.24), transparent)' }} />
         <div style={{ position:'absolute', top:-55, right:-45, width:180, height:180, borderRadius:'50%', background:nextColor + '16', filter:'blur(45px)', pointerEvents:'none' }} />
@@ -183,13 +222,26 @@ export default function DetailModal({ category, onClose }) {
           <div style={{ marginBottom:18 }}>
             <div style={{ fontSize:10, fontWeight:900, letterSpacing:'0.11em', color:'rgba(255,255,255,0.28)', textTransform:'uppercase', marginBottom:10 }}>Aktuell data</div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:8 }}>
-              {(metrics || details || []).slice(0, 6).map((m, i) => (
-                <div key={i} style={{ padding:12, borderRadius:13, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', minWidth:0 }}>
-                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.38)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.label}</div>
-                  <div style={{ fontSize:15, fontWeight:900, color:m.tierInfo?.color || 'rgba(255,255,255,0.88)', marginTop:5, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.value}</div>
-                  {m.tierInfo && <div style={{ fontSize:10, color:m.tierInfo.color, opacity:.8, marginTop:3 }}>{m.tierInfo.label}</div>}
-                </div>
-              ))}
+              {(metrics || details || []).slice(0, 6).map((m, i) => {
+                const clickable = !!m.evidence?.navTarget && m.value !== '—'
+                return (
+                  <div
+                    key={i}
+                    role={clickable ? 'button' : undefined}
+                    tabIndex={clickable ? 0 : undefined}
+                    className={`detail-metric-source-card${clickable ? ' is-clickable' : ''}`}
+                    title={clickable ? 'Öppna källpass' : undefined}
+                    onClick={clickable ? (event) => openMetricSource(event, m) : undefined}
+                    onKeyDown={clickable ? (event) => { if (event.key === 'Enter' || event.key === ' ') openMetricSource(event, m) } : undefined}
+                    style={{ padding:12, borderRadius:13, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', minWidth:0, outline:'none' }}
+                  >
+                    {clickable && <div className="detail-metric-source-hint">Öppna källa ↗</div>}
+                    <div style={{ fontSize:11, color:'rgba(255,255,255,0.38)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', paddingRight: clickable ? 76 : 0 }}>{m.label}</div>
+                    <div style={{ fontSize:15, fontWeight:900, color:m.tierInfo?.color || 'rgba(255,255,255,0.88)', marginTop:5, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{m.value}</div>
+                    {m.tierInfo && <div style={{ fontSize:10, color:m.tierInfo.color, opacity:.8, marginTop:3 }}>{m.tierInfo.label}</div>}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
