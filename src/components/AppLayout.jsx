@@ -21,9 +21,10 @@ export default function AppLayout() {
   }, [user])
 
   return (
-    <div style={{
+    <div className="sigge-app-shell" style={{
       display: 'flex',
-      height: '100vh',
+      height: '100dvh',
+      minHeight: '100vh',
       overflow: 'hidden',
       padding: '0',
       gap: '0',
@@ -35,7 +36,7 @@ export default function AppLayout() {
         flexShrink: 0,
         padding: '10px 0 10px 10px',
         boxSizing: 'border-box',
-        height: '100vh',
+        height: '100dvh',
       }}>
         <div style={{
           height: '100%',
@@ -48,13 +49,13 @@ export default function AppLayout() {
       </div>
 
       {/* Main content */}
-      <main style={{
+      <main className="sigge-main-scroll" style={{
         flex: 1,
         overflowY: 'auto',
         overflowX: 'hidden',
         background: 'transparent',
         minHeight: 0,
-        maxHeight: '100%',
+        maxHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
         padding: '10px',

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,10 +8,6 @@
    DESIGN TOKENS — DARK MODE (default)
    ============================================================ */
 :root {
-  /* Type */
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-
   /* Accent — overrideable */
   --accent:        #4f8ef7;
   --accent-soft:   rgba(79,142,247,0.12);
@@ -103,7 +99,7 @@ html, body, #root { height: 100%; }
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -190,21 +186,7 @@ body {
 /* ============================================================
    TYPOGRAPHY
    ============================================================ */
-.mono { font-family: var(--font-mono); letter-spacing: -0.02em; }
-
-/* App-wide type polish */
-h1, h2, h3, h4, h5, h6, .page-header-title {
-  font-family: var(--font-sans);
-  letter-spacing: -0.035em;
-}
-
-h1 { font-size: clamp(28px, 3vw, 42px); line-height: 1.05; font-weight: 750; }
-h2 { font-size: clamp(22px, 2.2vw, 30px); line-height: 1.12; font-weight: 720; }
-h3 { font-size: 18px; line-height: 1.2; font-weight: 680; }
-
-p { letter-spacing: -0.006em; }
-
-svg { stroke-width: 1.9; }
+.mono { font-family: 'JetBrains Mono', monospace; letter-spacing: -0.02em; }
 
 /* ============================================================
    GLASS CARDS
@@ -250,7 +232,7 @@ svg { stroke-width: 1.9; }
   border-radius: var(--r-sm);
   padding: 10px 14px;
   color: var(--text);
-  font-family: var(--font-sans);
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
   width: 100%;
   outline: none;
@@ -275,7 +257,7 @@ select.input option { background: #1a1a2e; color: #fff; }
   gap: 6px;
   padding: 8px 16px;
   border-radius: 10px;
-  font-family: var(--font-sans);
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -355,7 +337,7 @@ select.input option { background: #1a1a2e; color: #fff; }
   gap: 6px;
   padding: 7px 14px;
   border-radius: 9px;
-  font-family: var(--font-sans);
+  font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -761,1130 +743,286 @@ html[data-theme="light"] body.has-bg-image .app-sidebar-floating aside {
   border: 1px solid var(--glass-border) !important;
 }
 
-
 /* ============================================================
-   SIGGEOS VISUAL POLISH — 2026-06-02
-   Global typography, header sizing and tighter dashboard feel.
+   MOBILE PWA HARDENING — iPhone home-screen layout/readability
    ============================================================ */
+@supports (height: 100dvh) {
+  html, body, #root { min-height: 100dvh; }
+}
+
+html {
+  background: var(--bg);
+  overflow-x: hidden;
+}
+
 body {
-  font-family: var(--font-sans);
-  font-size: 14.5px;
-  letter-spacing: -0.012em;
+  min-height: 100%;
+  overflow-x: hidden;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
-.card,
-.card-sm,
-.widget {
-  border-radius: 20px;
-}
-
-.card {
-  padding: 20px;
-}
-
-.widget {
-  background: linear-gradient(180deg, var(--surface), var(--surface2));
-}
-
-.widget:hover,
-.card:hover,
-.card-sm:hover {
-  transform: translateY(-1px);
-}
-
-.page-header {
-  min-height: 64px;
-}
-
-.page-header-title {
-  font-size: clamp(18px, 1.7vw, 24px) !important;
-  line-height: 1.05;
-  font-weight: 760 !important;
-  letter-spacing: -0.045em !important;
-}
-
-.page-header-sub {
-  font-size: 12px !important;
-  line-height: 1.25;
-  color: var(--muted2) !important;
-}
-
-.page-header-actions .btn,
-.page-header-actions .tab-btn {
-  font-weight: 650;
-}
-
-.cat-card {
-  border-radius: 22px !important;
-}
-
-.cat-card .metric-value {
-  letter-spacing: -0.04em;
-  font-weight: 760;
-}
-
-.cat-card .metric-label {
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+/* Prevent hidden inline-grid overflow from pushing pages sideways */
+.page-wrap,
+.dashboard-wrap,
+.page-content-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 768px) {
-  body { font-size: 14px; }
+  :root {
+    --muted: rgba(255,255,255,0.58);
+    --muted2: rgba(255,255,255,0.74);
+    --surface: rgba(20,26,42,0.66);
+    --surface2: rgba(255,255,255,0.065);
+    --surface3: rgba(255,255,255,0.10);
+    --glass-border: rgba(255,255,255,0.15);
+  }
 
+  html[data-theme="light"] {
+    --muted: rgba(0,0,0,0.58);
+    --muted2: rgba(0,0,0,0.72);
+  }
+
+  body {
+    background: var(--bg);
+    overscroll-behavior-y: none;
+  }
+
+  /* Mobile app shell: avoid iOS 100vh bugs and leave room for nav */
+  .sigge-app-shell {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .sigge-main-scroll {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    padding: 8px 8px calc(96px + env(safe-area-inset-bottom)) 8px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding-top: 92px;
+    scroll-padding-bottom: calc(112px + env(safe-area-inset-bottom));
+  }
+
+  .page-content-scroll {
+    padding-bottom: calc(108px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Header: keep the editorial look but stop it from eating the screen */
   .page-header {
-    min-height: 56px;
-  }
-
-  .page-header-title {
-    font-size: 17px !important;
-  }
-
-  .page-header-sub {
-    font-size: 11px !important;
-  }
-}
-
-/* ============================================================
-   FONT OVERRIDE — Inter + Playfair Display Black Italic
-   ============================================================ */
-
-body,
-button,
-input,
-textarea,
-select {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-}
-
-.display-accent,
-.serif-accent,
-.emphasis-accent,
-.accent-word {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.055em !important;
-}
-
-/* Main page headers: Dashboard, Träning, Hälsa etc */
-.page-header-title,
-.page-header h1,
-.page-header h2 {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: clamp(28px, 3vw, 42px) !important;
-  line-height: 0.92 !important;
-  letter-spacing: -0.065em !important;
-  color: var(--text) !important;
-  text-transform: none !important;
-}
-
-/* Header subtitle stays neutral */
-.page-header-sub {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  letter-spacing: -0.01em !important;
-  margin-top: 8px !important;
-}
-
-/* Make page header taller so the big title has room */
-.page-header {
-  min-height: 76px !important;
-  padding: 14px 20px !important;
-  align-items: center !important;
-}
-
-/* Card/category titles get a smaller Playfair accent */
-.cat-card h2,
-.cat-card h3,
-.category-card h2,
-.category-card h3,
-.card-title,
-.section-title {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: clamp(21px, 1.8vw, 30px) !important;
-  line-height: 0.95 !important;
-  letter-spacing: -0.055em !important;
-  text-transform: none !important;
-}
-
-/* Keep tiny labels neutral so the UI does not become messy */
-.metric-label,
-.metric-value,
-.page-header-actions,
-.btn,
-.mono {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-}
-
-/* Optional: italic emphasis in normal text */
-h1 em,
-h2 em,
-h3 em,
-strong em,
-em strong {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.055em !important;
-}
-
-@media (max-width: 768px) {
-  .page-header {
-    min-height: 64px !important;
+    top: 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 0 14px 0 !important;
     padding: 12px 14px !important;
+    border-radius: 18px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+    background: rgba(30,39,61,0.76) !important;
+    backdrop-filter: blur(28px) saturate(1.15) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(1.15) !important;
+  }
+
+  .page-header > * {
+    min-width: 0 !important;
+  }
+
+  .page-header > :first-child {
+    flex: 1 1 220px !important;
+    min-width: 0 !important;
   }
 
   .page-header-title,
   .page-header h1,
   .page-header h2 {
-    font-size: 28px !important;
+    font-size: clamp(30px, 10vw, 40px) !important;
+    line-height: 0.92 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
   }
 
   .page-header-sub {
-    font-size: 11px !important;
-    margin-top: 5px !important;
+    font-size: 13px !important;
+    line-height: 1.15 !important;
+    color: var(--muted2) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .page-header-actions {
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .page-header-actions::-webkit-scrollbar { display: none !important; }
+
+  .page-header-actions .btn,
+  .page-header-actions .tab-btn,
+  .page-header-actions button,
+  .page-header-actions a {
+    flex: 0 0 auto !important;
+    min-width: fit-content !important;
+  }
+
+  /* On very action-heavy headers, put actions on their own row */
+  .page-header:has(.page-header-actions > :nth-child(4)) .page-header-actions {
+    flex-basis: 100% !important;
+    width: 100% !important;
+  }
+
+  /* The previous global Playfair rules made small UI text unreadable on mobile. */
+  .card,
+  .card *,
+  .card-sm,
+  .card-sm *,
+  .widget,
+  .widget *,
+  .cat-card,
+  .cat-card *,
+  .category-card,
+  .category-card *,
+  .course-card,
+  .course-card *,
+  nav,
+  nav *,
+  .bottom-nav,
+  .bottom-nav * {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    font-style: normal !important;
+    letter-spacing: -0.015em !important;
+  }
+
+  /* Keep only the big page title and explicit tier/rank marks editorial. */
+  .page-header-title,
+  .page-header h1,
+  .page-header h2,
+  .tier-value,
+  .rank-value,
+  .tier-badge,
+  .rank-badge,
+  .t-label,
+  .tier-label,
+  .rank-label,
+  [data-tier],
+  [data-rank] {
+    font-family: 'Playfair Display', Georgia, serif !important;
+    font-style: italic !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.06em !important;
+  }
+
+  /* Dashboard/category cards need more readable density on iPhone */
+  .cat-card,
+  .category-card,
+  .card,
+  .widget {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .cat-card h2,
+  .cat-card h3,
+  .category-card h2,
+  .category-card h3,
+  .card-title,
+  .section-title,
+  .widget-title {
+    font-size: 15px !important;
+    line-height: 1.12 !important;
+    letter-spacing: 0.03em !important;
+  }
+
+  .metric-label,
+  .metric-value,
+  .card-subtitle,
+  .widget-subtitle {
+    color: var(--muted2) !important;
+  }
+
+  /* Generic mobile grid safety. Specific pages can override with stronger classes later. */
+  .grid-4,
+  .grid-3,
+  .grid-2,
+  .grid-auto,
+  .dashboard-bottom,
+  .settings-layout,
+  .journal-layout,
+  .insights-chart-grid,
+  .insights-obs-grid,
+  .widget-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  .insights-stat-grid,
+  .bento-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .bento-grid > *,
+  .grid-4 > *,
+  .grid-3 > *,
+  .grid-2 > *,
+  .grid-auto > * {
+    min-width: 0 !important;
+  }
+
+  /* Course cards: stack columns instead of squeezing two dashboards side-by-side. */
+  .course-card [style*="grid-template-columns"],
+  .course-card [style*="gridTemplateColumns"],
+  [class*="course"] [style*="grid-template-columns"],
+  [class*="plugg"] [style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .course-card,
+  .course-card * {
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Horizontal stat strips should scroll instead of clipping text off-screen. */
+  .stats-row,
+  .summary-row,
+  .dashboard-header-row,
+  .page-header-actions {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Bottom nav + FAB: respect iPhone safe area and stop covering final content. */
+  .quicklog-fab {
+    width: 54px !important;
+    height: 54px !important;
+    right: 18px !important;
+    bottom: calc(82px + env(safe-area-inset-bottom)) !important;
   }
 }
 
-/* ============================================================
-   PLAYFAIR CTA BUTTONS — premium editorial accent
-   ============================================================ */
-
-/* Primary blue buttons like "+ Ny kurs" */
-.btn-primary,
-button.btn-primary,
-a.btn-primary {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: 19px !important;
-  line-height: 1 !important;
-  letter-spacing: -0.045em !important;
-}
-
-/* Larger primary buttons get more display character */
-.btn-primary.btn-lg,
-button.btn-primary.btn-lg,
-a.btn-primary.btn-lg {
-  font-size: 24px !important;
-  padding-top: 15px !important;
-  padding-bottom: 17px !important;
-}
-
-/* If some pages use raw blue buttons without btn-primary */
-button[style*="linear-gradient"],
-button[style*="#3b82f6"],
-button[style*="rgb(59, 130, 246)"] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.045em !important;
-}
-
-/* Keep small icon-only buttons normal */
-.btn-icon,
-button.btn-icon,
-button[aria-label] {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  letter-spacing: normal !important;
-}
-
-/* ============================================================
-   SIGGEOS EDITORIAL THEME — Playfair accent system
-   ============================================================ */
-
-/* 1. Primary CTA buttons: + Ny kurs, Spara, Logga, Skapa etc */
-.btn-primary,
-button.btn-primary,
-a.btn-primary {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: 20px !important;
-  line-height: 1 !important;
-  letter-spacing: -0.05em !important;
-}
-
-.btn-primary.btn-sm,
-button.btn-primary.btn-sm,
-a.btn-primary.btn-sm {
-  font-size: 16px !important;
-}
-
-.btn-primary.btn-lg,
-button.btn-primary.btn-lg,
-a.btn-primary.btn-lg {
-  font-size: 25px !important;
-  padding-top: 15px !important;
-  padding-bottom: 17px !important;
-}
-
-/* Raw inline blue buttons that are not using btn-primary */
-button[style*="linear-gradient"],
-button[style*="#3b82f6"],
-button[style*="rgb(59, 130, 246)"],
-button[style*="var(--accent)"] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.05em !important;
-}
-
-/* Keep pure icon buttons neutral */
-.btn-icon,
-button.btn-icon,
-button[aria-label],
-button:has(svg):not(:has(span)):not(.btn-primary) {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  letter-spacing: normal !important;
-}
-
-/* 2. Important rank / tier / score values */
-.rank-value,
-.tier-value,
-.score-value,
-.maxx-score-value,
-.metric-hero,
-.big-number,
-.stat-hero,
-[data-rank],
-[data-tier] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.06em !important;
-  line-height: 0.92 !important;
-}
-
-/* Generic tier chips/text like T1, T2, T4 if they are in common card areas */
-.card .mono:first-child,
-.cat-card .mono:first-child,
-.category-card .mono:first-child {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.055em !important;
-}
-
-/* Big T1/T2 badge feel */
-.card [style*="fontSize: '40px'"],
-.card [style*='fontSize: "40px"'],
-.cat-card [style*="fontSize: '40px'"],
-.cat-card [style*='fontSize: "40px"'] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-}
-
-/* 3. Sidebar brand: Sigge = Playfair, OS = neutral */
-.brand-logo {
-  display: flex !important;
-  align-items: baseline !important;
-  gap: 1px !important;
-  white-space: nowrap !important;
-  line-height: 0.9 !important;
-}
-
-.brand-logo-main {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: 34px !important;
-  letter-spacing: -0.085em !important;
-  color: var(--text) !important;
-}
-
-.brand-logo-os {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  font-weight: 800 !important;
-  font-size: 18px !important;
-  letter-spacing: -0.04em !important;
-  margin-left: 2px !important;
-  background: linear-gradient(135deg, var(--accent), var(--accent2, #a78bfa)) !important;
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  background-clip: text !important;
-}
-
-/* Make subtitle under logo breathe with bigger logo */
-.brand-logo + div {
-  margin-top: 7px !important;
-}
-
-/* 4. Empty states */
-.empty-state-title,
-.empty-title,
-.no-data-title,
-.card-empty-title {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: clamp(28px, 3vw, 44px) !important;
-  line-height: 0.95 !important;
-  letter-spacing: -0.065em !important;
-  color: var(--text) !important;
-}
-
-.empty-state,
-.no-data,
-.card-empty,
-[data-empty="true"] {
-  text-align: center !important;
-}
-
-.empty-state strong,
-.no-data strong,
-.card-empty strong,
-[data-empty="true"] strong {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.05em !important;
-}
-
-/* Fallback: common Swedish empty-state texts */
-div:has(> :only-child):has(*),
-div {
-  --playfair-accent-ready: 1;
-}
-
-/* 5. Jarvis / highlighted words */
-.jarvis-message strong,
-.jarvis-response strong,
-.chat-message strong,
-.ai-message strong,
-.assistant-message strong,
-.markdown strong,
-.prose strong,
-.highlight,
-.ai-highlight,
-.bottleneck-highlight {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.045em !important;
-  color: var(--text) !important;
-}
-
-/* Strong emphasis inside normal text */
-p strong em,
-p em strong,
-li strong em,
-li em strong {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.045em !important;
-}
-
-/* Make section headers more editorial but not too much */
-.section-title,
-.card-title,
-.widget-title {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.055em !important;
-}
-
-/* Keep tiny labels readable */
-.metric-label,
-.page-header-sub,
-.card-subtitle,
-.widget-subtitle,
-small,
-nav a,
-input,
-textarea,
-select {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-}
-
-/* ============================================================
-   PLAYFAIR REBALANCE — less noisy, more intentional
-   ============================================================ */
-
-/* Brand: Sigge smaller Playfair, OS larger neutral */
-.brand-logo {
-  display: flex !important;
-  align-items: baseline !important;
-  gap: 2px !important;
-  white-space: nowrap !important;
-  line-height: 0.9 !important;
-}
-
-.brand-logo-main {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: 30px !important;
-  letter-spacing: -0.085em !important;
-  color: var(--text) !important;
-}
-
-.brand-logo-os {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  font-weight: 900 !important;
-  font-size: 24px !important;
-  letter-spacing: -0.055em !important;
-  margin-left: 3px !important;
-  background: linear-gradient(135deg, var(--accent), var(--accent2, #a78bfa)) !important;
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  background-clip: text !important;
-}
-
-/* Buttons: Playfair, but smaller and less cartoonish */
-.btn-primary,
-button.btn-primary,
-a.btn-primary {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: 15px !important;
-  line-height: 1.05 !important;
-  letter-spacing: -0.035em !important;
-}
-
-.btn-primary.btn-sm,
-button.btn-primary.btn-sm,
-a.btn-primary.btn-sm {
-  font-size: 13px !important;
-}
-
-.btn-primary.btn-lg,
-button.btn-primary.btn-lg,
-a.btn-primary.btn-lg {
-  font-size: 18px !important;
-  padding-top: 11px !important;
-  padding-bottom: 12px !important;
-}
-
-/* Raw blue CTA buttons: smaller too */
-button[style*="linear-gradient"],
-button[style*="#3b82f6"],
-button[style*="rgb(59, 130, 246)"],
-button[style*="var(--accent)"] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: 15px !important;
-  line-height: 1.05 !important;
-  letter-spacing: -0.035em !important;
-}
-
-/* Floating plus button should stay neutral/icon-only */
-button[style*="border-radius: 50%"],
-button[style*="borderRadius: '50%'"],
-button[aria-label],
-.btn-icon {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  font-weight: 600 !important;
-  letter-spacing: normal !important;
-}
-
-/* Remove Playfair from normal text / brödtext / data rows */
-p,
-li,
-span,
-div,
-td,
-th,
-label,
-small,
-strong,
-em,
-.card p,
-.card span,
-.card div,
-.card strong,
-.card em,
-.card-sm p,
-.card-sm span,
-.card-sm div,
-.metric-label,
-.metric-value,
-.page-header-sub,
-.card-subtitle,
-.widget-subtitle,
-.transaction-row,
-.transaction-row *,
-.expense-row,
-.expense-row *,
-.income-row,
-.income-row *,
-.course-card *,
-.journal-entry *,
-.chat-message,
-.chat-message *,
-.jarvis-message,
-.jarvis-message *,
-.jarvis-response,
-.jarvis-response *,
-.ai-message,
-.ai-message *,
-.assistant-message,
-.assistant-message *,
-.markdown,
-.markdown *,
-.prose,
-.prose * {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  letter-spacing: -0.01em !important;
-}
-
-/* Keep Playfair only on deliberate accent elements */
-.page-header-title,
-.page-header h1,
-.page-header h2,
-.display-accent,
-.serif-accent,
-.emphasis-accent,
-.accent-word,
-.empty-state-title,
-.empty-title,
-.no-data-title,
-.card-empty-title,
-.section-title.display-accent,
-.card-title.display-accent,
-.widget-title.display-accent,
-h1 em,
-h2 em,
-h3 em {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.06em !important;
-}
-
-/* Main page headers stay big and editorial */
-.page-header-title,
-.page-header h1,
-.page-header h2 {
-  font-size: clamp(34px, 3.4vw, 52px) !important;
-  line-height: 0.9 !important;
-}
-
-/* Card/category titles should stay neutral unless explicitly accented */
-.cat-card h2,
-.cat-card h3,
-.category-card h2,
-.category-card h3,
-.card-title,
-.section-title,
-.widget-title {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase !important;
-}
-
-/* But explicit accent titles still get Playfair */
-.card-title.display-accent,
-.section-title.display-accent,
-.widget-title.display-accent {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.055em !important;
-  text-transform: none !important;
-}
-
-/* Rank/tier hero: only big standalone tier badges, not every tiny T1 text */
-.rank-value,
-.tier-value,
-.score-value,
-.maxx-score-value,
-.metric-hero,
-.big-number,
-.stat-hero {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.055em !important;
-  line-height: 0.92 !important;
-}
-
-/* Undo earlier broad mono override */
-.card .mono,
-.cat-card .mono,
-.category-card .mono,
-.mono {
-  font-family: 'JetBrains Mono', monospace !important;
-  font-style: normal !important;
-  letter-spacing: -0.02em !important;
-}
-
-/* Empty states: only title Playfair, body neutral */
-.empty-state-title,
-.empty-title,
-.no-data-title,
-.card-empty-title {
-  font-size: clamp(28px, 3vw, 44px) !important;
-}
-
-.empty-state p,
-.no-data p,
-.card-empty p,
-[data-empty="true"] p,
-.empty-state span,
-.no-data span,
-.card-empty span,
-[data-empty="true"] span {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  letter-spacing: -0.01em !important;
-}
-
-/* Jarvis: only explicit highlights, not all strong text */
-.jarvis-message strong,
-.jarvis-response strong,
-.chat-message strong,
-.ai-message strong,
-.assistant-message strong,
-.markdown strong,
-.prose strong {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.01em !important;
-}
-
-.highlight,
-.ai-highlight,
-.bottleneck-highlight,
-.jarvis-accent {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.045em !important;
-}
-
-@media (max-width: 768px) {
-  .brand-logo-main {
-    font-size: 28px !important;
-  }
-
-  .brand-logo-os {
-    font-size: 22px !important;
+@media (max-width: 390px) {
+  .sigge-main-scroll {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
   }
 
   .page-header-title,
   .page-header h1,
   .page-header h2 {
-    font-size: 34px !important;
-  }
-
-  .btn-primary,
-  button.btn-primary,
-  a.btn-primary,
-  button[style*="linear-gradient"],
-  button[style*="#3b82f6"],
-  button[style*="rgb(59, 130, 246)"],
-  button[style*="var(--accent)"] {
-    font-size: 14px !important;
-  }
-}
-
-/* ============================================================
-   PLAYFAIR FINAL BALANCE — Italic only for headers
-   ============================================================ */
-
-/* Headers: keep Black Italic, big editorial */
-.page-header-title,
-.page-header h1,
-.page-header h2 {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: clamp(34px, 3.4vw, 52px) !important;
-  line-height: 0.9 !important;
-  letter-spacing: -0.06em !important;
-}
-
-/* Sidebar logo: cleaner, less warped */
-.brand-logo {
-  display: flex !important;
-  align-items: baseline !important;
-  gap: 3px !important;
-  white-space: nowrap !important;
-  line-height: 1 !important;
-}
-
-.brand-logo-main {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  font-size: 28px !important;
-  line-height: 1 !important;
-  letter-spacing: -0.075em !important;
-  color: var(--text) !important;
-}
-
-.brand-logo-os {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: normal !important;
-  font-weight: 700 !important;
-  font-size: 27px !important;
-  line-height: 1 !important;
-  letter-spacing: -0.055em !important;
-  margin-left: 2px !important;
-  background: linear-gradient(135deg, var(--accent), var(--accent2, #a78bfa)) !important;
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  background-clip: text !important;
-}
-
-/* Primary buttons: Playfair Bold, not italic */
-.btn-primary,
-button.btn-primary,
-a.btn-primary,
-button[style*="linear-gradient"],
-button[style*="#3b82f6"],
-button[style*="rgb(59, 130, 246)"],
-button[style*="var(--accent)"] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: normal !important;
-  font-weight: 700 !important;
-  font-size: 14px !important;
-  line-height: 1.1 !important;
-  letter-spacing: -0.025em !important;
-}
-
-/* Larger CTA buttons */
-.btn-primary.btn-lg,
-button.btn-primary.btn-lg,
-a.btn-primary.btn-lg {
-  font-size: 16px !important;
-  padding-top: 11px !important;
-  padding-bottom: 12px !important;
-}
-
-/* Smaller CTA buttons, like Spara */
-.btn-primary.btn-sm,
-button.btn-primary.btn-sm,
-a.btn-primary.btn-sm {
-  font-size: 13px !important;
-  padding-top: 7px !important;
-  padding-bottom: 8px !important;
-}
-
-/* Keep icon-only / floating plus buttons neutral */
-.btn-icon,
-button.btn-icon,
-button[aria-label],
-button[style*="border-radius: 50%"],
-button[style*="borderRadius: '50%'"] {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  font-weight: 600 !important;
-  letter-spacing: normal !important;
-}
-
-/* Non-header Playfair accent = Bold, not italic */
-.display-accent:not(.page-header-title),
-.serif-accent:not(.page-header-title),
-.emphasis-accent:not(.page-header-title),
-.accent-word,
-.highlight,
-.ai-highlight,
-.bottleneck-highlight,
-.jarvis-accent,
-.empty-state-title,
-.empty-title,
-.no-data-title,
-.card-empty-title {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: normal !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.035em !important;
-}
-
-/* Empty states: still expressive but calmer */
-.empty-state-title,
-.empty-title,
-.no-data-title,
-.card-empty-title {
-  font-size: clamp(24px, 2.5vw, 36px) !important;
-  line-height: 1 !important;
-}
-
-/* Force dense UI/data text back to Inter */
-.card p,
-.card span,
-.card div,
-.card strong,
-.card em,
-.card button:not(.btn-primary),
-.card label,
-.card input,
-.card select,
-.card textarea,
-.card li,
-.card td,
-.card th,
-.metric-label,
-.metric-value,
-.page-header-sub,
-.card-subtitle,
-.widget-subtitle,
-nav,
-nav *,
-.transaction-row,
-.transaction-row *,
-.expense-row,
-.expense-row *,
-.income-row,
-.income-row *,
-.course-card *,
-.journal-entry *,
-.jarvis-message,
-.jarvis-message *,
-.jarvis-response,
-.jarvis-response *,
-.chat-message,
-.chat-message *,
-.ai-message,
-.ai-message * {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  letter-spacing: -0.01em !important;
-}
-
-/* But allow primary buttons inside cards to keep Playfair Bold */
-.card .btn-primary,
-.card button.btn-primary,
-.card a.btn-primary,
-.card button[style*="linear-gradient"],
-.card button[style*="#3b82f6"],
-.card button[style*="rgb(59, 130, 246)"],
-.card button[style*="var(--accent)"] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: normal !important;
-  font-weight: 700 !important;
-  font-size: 14px !important;
-  letter-spacing: -0.025em !important;
-}
-
-/* Card/category titles stay neutral and structured */
-.cat-card h2,
-.cat-card h3,
-.category-card h2,
-.category-card h3,
-.card-title,
-.section-title,
-.widget-title {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase !important;
-}
-
-/* Explicit accent titles can use Playfair Bold */
-.card-title.display-accent,
-.section-title.display-accent,
-.widget-title.display-accent {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: normal !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.035em !important;
-  text-transform: none !important;
-}
-
-@media (max-width: 768px) {
-  .brand-logo-main {
-    font-size: 27px !important;
-  }
-
-  .brand-logo-os {
-    font-size: 26px !important;
-  }
-
-  .page-header-title,
-  .page-header h1,
-  .page-header h2 {
-    font-size: 34px !important;
-  }
-
-  .btn-primary,
-  button.btn-primary,
-  a.btn-primary,
-  button[style*="linear-gradient"],
-  button[style*="#3b82f6"],
-  button[style*="rgb(59, 130, 246)"],
-  button[style*="var(--accent)"] {
-    font-size: 13px !important;
-  }
-}
-
-/* ============================================================
-   CLEAN CTA BUTTONS + PLAYFAIR TIER BADGES
-   ============================================================ */
-
-/* Hide icons inside normal primary CTA buttons: plus/check/etc */
-.btn-primary svg,
-button.btn-primary svg,
-a.btn-primary svg,
-.card .btn-primary svg,
-.card button.btn-primary svg,
-button[style*="linear-gradient"] svg,
-button[style*="#3b82f6"] svg,
-button[style*="rgb(59, 130, 246)"] svg,
-button[style*="var(--accent)"] svg {
-  display: none !important;
-}
-
-/* Clean button text: Playfair Bold, not italic, smaller */
-.btn-primary,
-button.btn-primary,
-a.btn-primary,
-.card .btn-primary,
-.card button.btn-primary,
-.card a.btn-primary,
-button[style*="linear-gradient"],
-button[style*="#3b82f6"],
-button[style*="rgb(59, 130, 246)"],
-button[style*="var(--accent)"] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: normal !important;
-  font-weight: 700 !important;
-  font-size: 14px !important;
-  line-height: 1.1 !important;
-  letter-spacing: -0.025em !important;
-  gap: 0 !important;
-}
-
-/* Small buttons like "Spara" */
-.btn-primary.btn-sm,
-button.btn-primary.btn-sm,
-a.btn-primary.btn-sm,
-.card .btn-primary.btn-sm,
-.card button.btn-primary.btn-sm {
-  font-size: 13px !important;
-  padding: 7px 14px 8px !important;
-}
-
-/* Larger buttons like "Ny kurs", "Skriv entry" */
-.btn-primary.btn-lg,
-button.btn-primary.btn-lg,
-a.btn-primary.btn-lg {
-  font-size: 16px !important;
-  padding: 11px 22px 12px !important;
-}
-
-/* Floating round plus button should keep its plus icon */
-button[style*="border-radius: 50%"] svg,
-button[style*="borderRadius: '50%'"] svg,
-button[aria-label] svg,
-.btn-icon svg {
-  display: block !important;
-}
-
-/* Tier / rank badges: T1, T2, T3 etc */
-.tier-value,
-.rank-value,
-.score-tier,
-.tier-badge,
-.rank-badge,
-.maxx-tier,
-[data-tier],
-[data-rank] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.065em !important;
-  line-height: 0.9 !important;
-}
-
-/* Common tier text inside circular badges/cards */
-.card [class*="tier"],
-.card [class*="rank"],
-.cat-card [class*="tier"],
-.cat-card [class*="rank"],
-.category-card [class*="tier"],
-.category-card [class*="rank"] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.06em !important;
-}
-
-/* Big standalone T-badges */
-.card div,
-.cat-card div,
-.category-card div {
-  --tier-font-ready: 1;
-}
-
-/* Target visible tier badges by common visual contexts */
-.card .mono,
-.cat-card .mono,
-.category-card .mono {
-  font-family: 'JetBrains Mono', monospace !important;
-}
-
-/* But if mono is used for rank/tier text, make it Playfair */
-.card .mono:where(:not(.metric-label)),
-.cat-card .mono:where(:not(.metric-label)),
-.category-card .mono:where(:not(.metric-label)) {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.055em !important;
-}
-
-/* Circular tier badges need bigger editorial feel */
-.card [style*="borderRadius: '50%'"],
-.card [style*='borderRadius: "50%"'],
-.cat-card [style*="borderRadius: '50%'"],
-.cat-card [style*='borderRadius: "50%"'],
-.category-card [style*="borderRadius: '50%'"],
-.category-card [style*='borderRadius: "50%"'] {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.06em !important;
-}
-
-/* Keep percentages inside tier circles neutral/smaller if separated */
-.card [style*="borderRadius: '50%'"] span,
-.cat-card [style*="borderRadius: '50%'"] span,
-.category-card [style*="borderRadius: '50%'"] span {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  font-style: normal !important;
-  font-weight: 500 !important;
-  letter-spacing: -0.01em !important;
-}
-
-/* But explicit T labels stay Playfair if classed later */
-.t-label,
-.tier-label,
-.rank-label {
-  font-family: 'Playfair Display', Georgia, serif !important;
-  font-style: italic !important;
-  font-weight: 900 !important;
-  letter-spacing: -0.06em !important;
-}
-
-@media (max-width: 768px) {
-  .btn-primary,
-  button.btn-primary,
-  a.btn-primary,
-  button[style*="linear-gradient"],
-  button[style*="#3b82f6"],
-  button[style*="rgb(59, 130, 246)"],
-  button[style*="var(--accent)"] {
-    font-size: 13px !important;
+    font-size: 30px !important;
   }
 }
