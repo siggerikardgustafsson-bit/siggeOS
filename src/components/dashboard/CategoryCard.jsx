@@ -98,45 +98,48 @@ export default function CategoryCard({ category, onClick, onMetricClick }) {
           appearance: none;
           width: 100%;
           border: 1px solid transparent;
-          background: rgba(255,255,255,0.025);
+          background: transparent;
           border-radius: 9px;
           padding: 4px 5px;
           cursor: pointer;
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto auto;
+          grid-template-columns: minmax(0, 1fr) auto;
           gap: 6px;
           align-items: center;
           text-align: left;
+          position: relative;
           transition: transform .14s ease, background .14s ease, border-color .14s ease, box-shadow .14s ease;
         }
         .metric-source-row:hover {
           transform: translateY(-1px);
-          background: var(--accent-soft);
-          border-color: var(--accent-border);
-          box-shadow: 0 0 0 3px var(--accent-soft), 0 6px 18px rgba(0,0,0,.18);
+          background: rgba(79,142,247,.08);
+          border-color: rgba(79,142,247,.22);
+          box-shadow: 0 0 0 3px rgba(79,142,247,.08), 0 6px 18px rgba(0,0,0,.14);
         }
         .metric-source-row:active { transform: translateY(0) scale(.99); }
-        .metric-source-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 2px 6px;
+        .metric-source-row::after {
+          content: 'Öppna källa ↗';
+          position: absolute;
+          right: 6px;
+          top: -24px;
+          opacity: 0;
+          pointer-events: none;
+          padding: 3px 7px;
           border-radius: 999px;
-          background: rgba(79,142,247,.14);
-          border: 1px solid rgba(79,142,247,.26);
+          background: rgba(10,14,26,.92);
+          border: 1px solid var(--accent-border);
           color: var(--accent);
-          font-size: 8px;
+          font-size: 9px;
           font-weight: 850;
-          letter-spacing: .06em;
-          text-transform: uppercase;
-          opacity: .72;
-          transition: opacity .14s ease, transform .14s ease, background .14s ease;
+          letter-spacing: .04em;
           white-space: nowrap;
+          transform: translateY(3px) scale(.98);
+          transition: opacity .14s ease, transform .14s ease;
+          box-shadow: 0 8px 22px rgba(0,0,0,.28);
         }
-        .metric-source-row:hover .metric-source-pill {
+        .metric-source-row:hover::after {
           opacity: 1;
-          transform: scale(1.04);
-          background: rgba(79,142,247,.22);
+          transform: translateY(0) scale(1);
         }
         .metric-source-value {
           display: inline-flex;
@@ -185,7 +188,6 @@ export default function CategoryCard({ category, onClick, onMetricClick }) {
                     <span className={clickable ? 'metric-source-value' : undefined} style={{ fontSize: i === 0 ? '12px' : '11px', fontWeight: i === 0 ? 800 : 650, color: m.highlight ? color : 'var(--text)' }}>
                       {m.value}
                     </span>
-                    {clickable && <span className="metric-source-pill">Källa ↗</span>}
                   </RowTag>
                 )
               })}

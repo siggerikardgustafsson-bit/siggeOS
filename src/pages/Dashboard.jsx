@@ -457,6 +457,54 @@ export default function Dashboard() {
         }
       }
 
+      function sourceValue(value, evidence) {
+        if (!evidence?.navTarget || !value || value === '—') return value
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              window.location.href = evidence.navTarget
+            }}
+            title="Öppna källpass"
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '6px 8px',
+              margin: '-6px -8px',
+              borderRadius: 9,
+              border: '1px solid transparent',
+              background: 'transparent',
+              color: 'var(--text)',
+              cursor: 'pointer',
+              font: 'inherit',
+              fontWeight: 850,
+              textAlign: 'left',
+              transition: 'background .14s ease, border-color .14s ease, transform .14s ease, box-shadow .14s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(79,142,247,.08)'
+              e.currentTarget.style.borderColor = 'rgba(79,142,247,.24)'
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(79,142,247,.06)'
+              e.currentTarget.style.transform = 'translateY(-1px)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.borderColor = 'transparent'
+              e.currentTarget.style.boxShadow = 'none'
+              e.currentTarget.style.transform = 'none'
+            }}
+          >
+            <span>{value}</span>
+            <span style={{ fontSize: 11, color: 'var(--accent)', opacity: .9 }}>↗</span>
+          </button>
+        )
+      }
+
       const bE1RM = getE1RM(['bänkpress','bench'])
       const sE1RM = getE1RM(['knäböj','squat'])
       const dlE1RM = getE1RM(['marklyft','deadlift'])
@@ -697,14 +745,22 @@ export default function Dashboard() {
         ] }
       }) : null
 
+      const r1Evidence = runEvidence(r1Actual, '1 km PR')
+      const r5Evidence = runEvidence(r5Actual, '5 km PR')
+      const r10Evidence = runEvidence(r10Actual, '10 km PR')
+      const rHEvidence = runEvidence(rHActual, 'Halvmara')
+      const bEvidence = strengthEvidence('Bänk e1RM', ['bänkpress','bench'])
+      const sEvidence = strengthEvidence('Knäböj e1RM', ['knäböj','squat'])
+      const dlEvidence = strengthEvidence('Marklyft e1RM', ['marklyft','deadlift'])
+
       const cats = [
         {id:'kondition',name:'Kondition',icon:'kondition',tier:kTop,hasData:hasRunData,pct:kTop?Math.round((kTop.tier/8)*100):0,decayWarning:[r5D,r10D,rHD,rMD].some(d=>d?.stale),trend:r5D?.daysSince<14?'up':'neutral',
           metrics:[
-            {label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',highlight:true,evidence:runEvidence(r1Actual,'1 km PR')},
-            {label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',evidence:runEvidence(r5Actual,'5 km PR')},
-            {label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',evidence:runEvidence(r10Actual,'10 km PR')}
+            {label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',highlight:true,evidence:r1Evidence},
+            {label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',evidence:r5Evidence},
+            {label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',evidence:r10Evidence}
           ],
-          details:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',tierInfo:r1T},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',tierInfo:r5T},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',tierInfo:r10T},{label:'Halvmara',value:rHD?formatRunTime(Math.round(rHD.value)):'—',tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT}],
+          details:[{label:'1km PR',value:sourceValue(r1D?formatRunTime(Math.round(r1D.value)):'—', r1Evidence),tierInfo:r1T},{label:'5km PR',value:sourceValue(r5D?formatRunTime(Math.round(r5D.value)):'—', r5Evidence),tierInfo:r5T},{label:'10km PR',value:sourceValue(r10D?formatRunTime(Math.round(r10D.value)):'—', r10Evidence),tierInfo:r10T},{label:'Halvmara',value:sourceValue(rHD?formatRunTime(Math.round(rHD.value)):'—', rHEvidence),tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT}],
           chartData:(runData||[]).filter(r=>r.distance_km>=4.5&&r.distance_km<=11).slice(0,20).reverse().map(r=>({date:r.date.slice(5),Pace:r.pace_per_km?Math.round(r.pace_per_km/60*10)/10:null})),
           chartLines:[{key:'Pace',label:'Pace (min/km)',color:'#4f8ef7'}],levelUp:kondLevelUp,navTarget:'/traning',navLabel:'Träning'},
         {id:'styrka',name:'Styrka',icon:'styrka',tier:stTop,hasData:hasStrengthData,pct:strengthLevelUp?.progressPct ?? (stTop?Math.round((stTop.tier/8)*100):0),decayWarning:false,trend:'neutral',
@@ -717,11 +773,11 @@ export default function Dashboard() {
             dipT && { label:'Dips', tier: dipT, value: dipE1RM, isBW: true },
           ].filter(Boolean),
           metrics:[
-            {label:'Bänk e1RM',value:bE1RM?Math.round(bE1RM)+' kg':'—',highlight:true,evidence:strengthEvidence('Bänk e1RM',['bänkpress','bench'])},
-            {label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg':'—',evidence:strengthEvidence('Marklyft e1RM',['marklyft','deadlift'])},
-            {label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg':'—',evidence:strengthEvidence('Knäböj e1RM',['knäböj','squat'])}
+            {label:'Bänk e1RM',value:bE1RM?Math.round(bE1RM)+' kg':'—',highlight:true,evidence:bEvidence},
+            {label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg':'—',evidence:dlEvidence},
+            {label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg':'—',evidence:sEvidence}
           ],
-          details:[{label:'Bänkpress e1RM',value:bE1RM?Math.round(bE1RM)+' kg ('+Math.round(bE1RM/bw*100)/100+'x BW)':'—',tierInfo:bT},{label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg ('+Math.round(sE1RM/bw*100)/100+'x BW)':'—',tierInfo:sT},{label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg ('+Math.round(dlE1RM/bw*100)/100+'x BW)':'—',tierInfo:dlT},{label:'Militärpress e1RM',value:oE1RM?Math.round(oE1RM)+' kg':'—',tierInfo:oT},{label:'Weighted pull-up e1RM',value:puE1RM?'+'+Math.round(puE1RM)+' kg':'—',tierInfo:puT}],
+          details:[{label:'Bänkpress e1RM',value:sourceValue(bE1RM?Math.round(bE1RM)+' kg ('+Math.round(bE1RM/bw*100)/100+'x BW)':'—', bEvidence),tierInfo:bT},{label:'Knäböj e1RM',value:sourceValue(sE1RM?Math.round(sE1RM)+' kg ('+Math.round(sE1RM/bw*100)/100+'x BW)':'—', sEvidence),tierInfo:sT},{label:'Marklyft e1RM',value:sourceValue(dlE1RM?Math.round(dlE1RM)+' kg ('+Math.round(dlE1RM/bw*100)/100+'x BW)':'—', dlEvidence),tierInfo:dlT},{label:'Militärpress e1RM',value:oE1RM?Math.round(oE1RM)+' kg':'—',tierInfo:oT},{label:'Weighted pull-up e1RM',value:puE1RM?'+'+Math.round(puE1RM)+' kg':'—',tierInfo:puT}],
           chartData:[],chartLines:[],levelUp:strengthLevelUp,tierGuide:strengthTierGuide,navTarget:'/traning',navLabel:'Träning'},
         {id:'somn',name:'Sömn',icon:'somn',tier:slT,hasData:!!avgSl,pct:slT?Math.round((slT.tier/8)*100):0,decayWarning:false,trend:'neutral',
           metrics:[{label:'Snitt 7 dagar',value:avgSl?avgSl+'h':'—',highlight:true},{label:'Loggar',value:sl7.length+' av 7 dagar'}],
