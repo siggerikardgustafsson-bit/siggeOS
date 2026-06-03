@@ -1284,32 +1284,84 @@ export default function TraningPage() {
                         </div>
                         <button onClick={() => setExpandedSession(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={14} /></button>
                       </div>
-                      {gymSess && gymSess.training_exercises?.length > 0 && (
-                        <>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>ÖVNINGAR — klicka för historik</div>
-                          {Object.entries(gymSess.training_exercises.reduce((acc, ex) => {
-                            if (!acc[ex.exercise_name]) acc[ex.exercise_name] = []
-                            acc[ex.exercise_name].push(ex)
-                            return acc
-                          }, {})).map(([name, sets]) => (
-                            <div key={name} style={{ marginBottom: '10px' }}>
-                              <div onClick={() => setSelectedExercise(name)} style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent)', cursor: 'pointer', marginBottom: '5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                {name} <TrendingUp size={11} />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {daySess.map(session => {
+                          const TypeIcon = session.session_type === 'gym' ? Dumbbell : session.session_type === 'run' ? Timer : Flame
+                          const typeColor = session.session_type === 'gym' ? '#3b82f6' : session.session_type === 'run' ? '#10b981' : '#f472b6'
+                          const title = getSessionTitle(session)
+                          const exerciseCount = session.training_exercises?.length || 0
+                          const runEfforts = getSessionRunEfforts(session)
+
+                          return (
+                            <div key={session.id} style={{
+                              padding: '12px',
+                              borderRadius: '12px',
+                              background: 'var(--surface2)',
+                              border: '1px solid var(--border)',
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: session.session_type === 'gym' && exerciseCount ? '10px' : '0' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                                  <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: `${typeColor}18`, border: `1px solid ${typeColor}35`, color: typeColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    <TypeIcon size={16} />
+                                  </div>
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+                                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
+                                      {session.session_type === 'gym' ? `${exerciseCount} set` : session.session_type === 'run' ? `${session.distance_km || '—'} km · ${formatDuration(session.time_seconds)}` : `${session.duration_minutes || 0} min`}
+                                    </div>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => openSessionDetail(session)}
+                                  className="btn btn-primary btn-sm"
+                                  style={{ flexShrink: 0 }}
+                                >
+                                  Öppna pass
+                                </button>
                               </div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                                {sets.sort((a,b) => a.set_number - b.set_number).map((s, i) => (
-                                  <span key={i} className="mono" style={{ fontSize: '12px', padding: '3px 8px', background: 'var(--accent-soft)', borderRadius: '5px', color: 'var(--accent)' }}>
-                                    {s.reps}×{s.weight_kg}kg
-                                  </span>
-                                ))}
-                              </div>
+
+                              {session.session_type === 'gym' && exerciseCount > 0 && (
+                                <>
+                                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>ÖVNINGAR — klicka för historik</div>
+                                  {Object.entries(session.training_exercises.reduce((acc, ex) => {
+                                    if (!acc[ex.exercise_name]) acc[ex.exercise_name] = []
+                                    acc[ex.exercise_name].push(ex)
+                                    return acc
+                                  }, {})).slice(0, 4).map(([name, sets]) => (
+                                    <div key={name} style={{ marginBottom: '8px' }}>
+                                      <div onClick={() => setSelectedExercise(name)} style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent)', cursor: 'pointer', marginBottom: '5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        {name} <TrendingUp size={11} />
+                                      </div>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                                        {sets.sort((a,b) => a.set_number - b.set_number).map((s, i) => (
+                                          <span key={i} className="mono" style={{ fontSize: '12px', padding: '3px 8px', background: 'var(--accent-soft)', borderRadius: '5px', color: 'var(--accent)' }}>
+                                            {s.reps}×{s.weight_kg}kg
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {Object.keys(session.training_exercises.reduce((acc, ex) => ({ ...acc, [ex.exercise_name]: true }), {})).length > 4 && (
+                                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                                      Fler övningar finns i passdetaljen.
+                                    </div>
+                                  )}
+                                </>
+                              )}
+
+                              {session.session_type === 'run' && runEfforts.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                                  {runEfforts.map(effort => (
+                                    <span key={effort.id} className="glass-pill" style={{ fontSize: '11px', padding: '3px 8px', color: '#34d399', borderColor: 'rgba(52,211,153,0.25)' }}>
+                                      {effort.label}: {formatDuration(effort.time_seconds)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          ))}
-                        </>
-                      )}
-                      {daySess.filter(s => s.session_type === 'run').map(s => (
-                        <div key={s.id} style={{ fontSize: '13px', color: '#34d399' }}>{s.distance_km}km {s.duration_minutes && `· ${s.duration_minutes}min`}</div>
-                      ))}
+                          )
+                        })}
+                      </div>
                     </div>
                   )
                 })()}
