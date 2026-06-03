@@ -137,6 +137,9 @@ export default function TraningPage() {
   const [selectedExercise, setSelectedExercise] = useState(null)
   const [showRunModal, setShowRunModal] = useState(false)
   const [showAllPrModal, setShowAllPrModal] = useState(false)
+  const [allPrFilter, setAllPrFilter] = useState('all') // all | strength | run
+  const [allPrSearch, setAllPrSearch] = useState('')
+  const [allPrSort, setAllPrSort] = useState('date') // date | name | value
   const [runEfforts, setRunEfforts] = useState([])
   const [selectedSessionDetail, setSelectedSessionDetail] = useState(null)
 
@@ -937,11 +940,13 @@ export default function TraningPage() {
           ;(lib?.muscles || []).forEach(m => {
             const muscleKey = m.muscle_slug || m.muscle_name
             if (!muscleKey) return
-            const prev = muscleMap.get(muscleKey) || { name: m.muscle_name, volume: 0, sets: 0, primarySets: 0 }
+            const prev = muscleMap.get(muscleKey) || { name: m.muscle_name, effectiveSets: 0, directSets: 0, primarySets: 0 }
             const factor = Number(m.load_factor) || (m.role === 'primary' ? 1 : 0.5)
-            prev.volume += volume * factor
-            prev.sets += set.reps ? 1 : 0
-            if (m.role === 'primary') prev.primarySets += set.reps ? 1 : 0
+            if (set.reps) {
+              prev.effectiveSets += factor
+              prev.directSets += 1
+              if (m.role === 'primary') prev.primarySets += 1
+            }
             muscleMap.set(muscleKey, prev)
           })
         })
@@ -978,7 +983,7 @@ export default function TraningPage() {
 
     return {
       displayExercises,
-      muscleVolume: Array.from(muscleMap.values()).sort((a, b) => b.volume - a.volume).slice(0, 6),
+      muscleVolume: Array.from(muscleMap.values()).sort((a, b) => b.effectiveSets - a.effectiveSets).slice(0, 6),
       recentTotalVolume,
       previousTotalVolume,
       totalVolumePct,
@@ -1006,12 +1011,57 @@ export default function TraningPage() {
     setSelectedSessionDetail(session)
   }
 
+  function openRunEffortSource(effort) {
+    const match = sessions.find(session =>
+      session.session_type === 'run' && (
+        (effort.strava_activity_id && String(session.strava_id || '') === String(effort.strava_activity_id)) ||
+        (!effort.strava_activity_id && session.date === effort.date)
+      )
+    )
+
+    if (match) {
+      setShowAllPrModal(false)
+      openSessionDetail(match)
+      return
+    }
+
+    setShowAllPrModal(false)
+    setShowRunModal(true)
+  }
+
   const recentSessions = sessions.slice(0, 10)
   const thisWeekSessions = sessions.filter(s => {
     const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
     return s.date >= weekStart
   })
   const progressive = getProgressiveOverloadData()
+
+  const prSearch = allPrSearch.trim().toLowerCase()
+  const filteredStrengthPrs = [...prs]
+    .filter(pr => !prSearch || String(pr.exercise_name || '').toLowerCase().includes(prSearch))
+    .sort((a, b) => {
+      if (allPrSort === 'name') return String(a.exercise_name || '').localeCompare(String(b.exercise_name || ''))
+      if (allPrSort === 'value') return Number(b.weight_kg || 0) - Number(a.weight_kg || 0)
+      return String(b.date || '').localeCompare(String(a.date || ''))
+    })
+
+  const runKeyLabels = {
+    '1k': '1 km',
+    '5k': '5 km',
+    '10k': '10 km',
+    'half_marathon': 'Halvmaraton',
+  }
+
+  const filteredRunEfforts = [...runEfforts]
+    .filter(effort => {
+      const label = runKeyLabels[effort.distance_key] || effort.label || effort.distance_key
+      return !prSearch || String(label || '').toLowerCase().includes(prSearch) || String(effort.date || '').includes(prSearch)
+    })
+    .sort((a, b) => {
+      if (allPrSort === 'name') return String(runKeyLabels[a.distance_key] || a.label || '').localeCompare(String(runKeyLabels[b.distance_key] || b.label || ''))
+      if (allPrSort === 'value') return Number(a.time_seconds || 999999999) - Number(b.time_seconds || 999999999)
+      return String(b.date || '').localeCompare(String(a.date || ''))
+    })
 
   return (
     <div className="page-wrap">
@@ -1055,7 +1105,7 @@ export default function TraningPage() {
 
       {/* Scrollable content */}
       <div className="page-content-scroll">
-      <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
+      <div style={{ padding: '16px 16px 0', maxWidth: '1120px', margin: '0 auto' }}>
 
       {/* Strava result */}
       {stravaResult && (
@@ -1095,148 +1145,158 @@ export default function TraningPage() {
             </div>
           </div>
 
-          {/* Progressive overload */}
-          <div className="card" style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <TrendingUp size={13} color="var(--accent)" /> PROGRESSIVE OVERLOAD · 60 DAGAR
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--muted2)', marginTop: '4px' }}>
-                  Styrketrend = bästa e1RM senaste 30d jämfört med 30d före. Reps över 12 cap:as så högre reps inte överskattar styrka.
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <div className="glass-pill" style={{ color: trendColor(progressive.avgStrengthPct), borderColor: progressive.avgStrengthPct && progressive.avgStrengthPct > 2 ? 'rgba(16,185,129,0.25)' : 'var(--border)' }}>
-                  e1RM {formatTrendPct(progressive.avgStrengthPct)}
-                </div>
-                <div className="glass-pill" style={{ color: trendColor(progressive.totalVolumePct), borderColor: progressive.totalVolumePct && progressive.totalVolumePct > 2 ? 'rgba(16,185,129,0.25)' : 'var(--border)' }}>
-                  Volym {formatTrendPct(progressive.totalVolumePct)}
-                </div>
-              </div>
-            </div>
-
-            {progressive.displayExercises.length ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {progressive.displayExercises.map(ex => (
-                    <button key={ex.key} onClick={() => setSelectedExercise(ex.name)} className="card-sm" style={{ textAlign: 'left', cursor: 'pointer', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr auto', gap: '10px', alignItems: 'center' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 750, color: 'var(--text)' }}>{ex.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
-                          {ex.previousBest ? `${Math.round(ex.previousBest)} → ${Math.round(ex.recentBest)} kg e1RM` : `Ny/återupptagen · ${Math.round(ex.recentBest || 0)} kg e1RM`}
-                        </div>
-                      </div>
-                      <div className="mono" style={{ color: trendColor(ex.pct), fontSize: '14px', fontWeight: 800 }}>
-                        {formatTrendPct(ex.pct)}
-                      </div>
-                    </button>
-                  ))}
+          {/* Main training analysis layout */}
+          <div className="training-v2-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(320px, 0.85fr)', gap: '16px', alignItems: 'start', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+              {/* Progressive overload */}
+              <div className="card" style={{ minHeight: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <TrendingUp size={13} color="var(--accent)" /> PROGRESSIVE OVERLOAD · 60 DAGAR
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted2)', marginTop: '4px', maxWidth: '680px' }}>
+                      Styrketrend = bästa e1RM senaste 30d jämfört med 30d före. Muskelvolym mäts som effektiva set, där primära muskler väger tyngre än sekundära.
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <div className="glass-pill" style={{ color: trendColor(progressive.avgStrengthPct), borderColor: progressive.avgStrengthPct && progressive.avgStrengthPct > 2 ? 'rgba(16,185,129,0.25)' : 'var(--border)' }}>
+                      e1RM {formatTrendPct(progressive.avgStrengthPct)}
+                    </div>
+                    <div className="glass-pill" style={{ color: trendColor(progressive.totalVolumePct), borderColor: progressive.totalVolumePct && progressive.totalVolumePct > 2 ? 'rgba(16,185,129,0.25)' : 'var(--border)' }}>
+                      Arbetsvolym {formatTrendPct(progressive.totalVolumePct)}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="card-sm" style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>MUSKELVOLYM 60D</div>
-                  {progressive.muscleVolume.length ? (
+                {progressive.displayExercises.length ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '12px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {progressive.muscleVolume.map(m => {
-                        const maxVolume = Math.max(...progressive.muscleVolume.map(x => x.volume), 1)
-                        const width = Math.max(6, Math.round((m.volume / maxVolume) * 100))
-                        return (
-                          <div key={m.name}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '11px', marginBottom: '4px' }}>
-                              <span style={{ color: 'var(--muted2)' }}>{m.name}</span>
-                              <span className="mono" style={{ color: 'var(--text)', fontWeight: 700 }}>{Math.round(m.volume)} kg</span>
-                            </div>
-                            <div style={{ height: '6px', borderRadius: '999px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${width}%`, borderRadius: '999px', background: 'linear-gradient(90deg, var(--accent), #10b981)' }} />
+                      {progressive.displayExercises.map(ex => (
+                        <button key={ex.key} onClick={() => setSelectedExercise(ex.name)} className="card-sm" style={{ textAlign: 'left', cursor: 'pointer', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr auto', gap: '10px', alignItems: 'center' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 750, color: 'var(--text)' }}>{ex.name}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
+                              {ex.previousBest ? `${Math.round(ex.previousBest)} → ${Math.round(ex.recentBest)} kg e1RM` : `Ny/återupptagen · ${Math.round(ex.recentBest || 0)} kg e1RM`}
                             </div>
                           </div>
-                        )
-                      })}
+                          <div className="mono" style={{ color: trendColor(ex.pct), fontSize: '14px', fontWeight: 800 }}>
+                            {formatTrendPct(ex.pct)}
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                  ) : (
-                    <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Logga fler styrkeset för muskelvolym.</div>
+
+                    <div className="card-sm" style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline', marginBottom: '10px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em' }}>MUSKELVOLYM 60D</div>
+                        <div style={{ fontSize: '10px', color: 'var(--muted)' }}>effektiva set</div>
+                      </div>
+                      {progressive.muscleVolume.length ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {progressive.muscleVolume.map(m => {
+                            const maxSets = Math.max(...progressive.muscleVolume.map(x => x.effectiveSets), 1)
+                            const width = Math.max(6, Math.round((m.effectiveSets / maxSets) * 100))
+                            return (
+                              <div key={m.name}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '11px', marginBottom: '4px' }}>
+                                  <span style={{ color: 'var(--muted2)' }}>{m.name}</span>
+                                  <span className="mono" style={{ color: 'var(--text)', fontWeight: 700 }}>{m.effectiveSets.toFixed(m.effectiveSets % 1 ? 1 : 0)} set</span>
+                                </div>
+                                <div style={{ height: '6px', borderRadius: '999px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${width}%`, borderRadius: '999px', background: 'linear-gradient(90deg, var(--accent), #10b981)' }} />
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Logga fler styrkeset för muskelvolym.</div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="card-sm" style={{ color: 'var(--muted)', fontSize: '13px' }}>
+                    Behöver minst ett styrkepass senaste 60 dagarna för att visa overload.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+              {/* Strength PRs */}
+              {prs.length > 0 && (
+                <div className="card">
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Trophy size={12} color="#f59e0b" /> STYRKA — PERSONLIGA REKORD
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))', gap: '8px' }}>
+                    {prs.slice(0, 5).map(pr => (
+                      <div key={pr.id} className="card-sm" onClick={() => setSelectedExercise(pr.exercise_name)}
+                        style={{ cursor: 'pointer' }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{pr.exercise_name}</div>
+                        <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
+                          {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
+                        </div>
+                        {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
+                        <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <TrendingUp size={10} /> Se historik
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {prs.length > 5 && (
+                    <button
+                      onClick={() => setShowAllPrModal(true)}
+                      className="btn btn-ghost"
+                      style={{ marginTop: '10px', width: '100%', justifyContent: 'center' }}
+                    >
+                      Se alla PBn →
+                    </button>
                   )}
                 </div>
-              </div>
-            ) : (
-              <div className="card-sm" style={{ color: 'var(--muted)', fontSize: '13px' }}>
-                Behöver minst ett styrkepass senaste 60 dagarna för att visa overload.
-              </div>
-            )}
-          </div>
-
-          {/* Strength PRs */}
-          {prs.length > 0 && (
-            <div className="card" style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Trophy size={12} color="#f59e0b" /> STYRKA — PERSONLIGA REKORD
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
-                {prs.slice(0, 5).map(pr => (
-                  <div key={pr.id} className="card-sm" onClick={() => setSelectedExercise(pr.exercise_name)}
-                    style={{ cursor: 'pointer' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{pr.exercise_name}</div>
-                    <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
-                      {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
-                    </div>
-                    {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
-                    <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      <TrendingUp size={10} /> Se historik
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {prs.length > 5 && (
-                <button
-                  onClick={() => setShowAllPrModal(true)}
-                  className="btn btn-ghost"
-                  style={{ marginTop: '10px', width: '100%', justifyContent: 'center' }}
-                >
-                  Se mer PR-historik →
-                </button>
               )}
-            </div>
-          )}
 
-          {/* Run PRs */}
-          <div className="card" style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Trophy size={12} color="#10b981" /> LÖPNING — PERSONLIGA REKORD</span>
-              <button onClick={() => setShowRunModal(true)} style={{ fontSize: '11px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                Se all löphistorik →
-              </button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-              {RUN_PR_DISTANCES.map(({ label }) => {
-                const pr = runPRs.find(r => r.label === label)
-                const hasTime = pr?.time
-                return (
-                  <div key={label} className="card-sm" onClick={() => setShowRunModal(true)}
-                    style={{ cursor: 'pointer' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
-                    {hasTime ? (
-                      <>
-                        <div className="mono" style={{ fontSize: '16px', fontWeight: '600', color: '#10b981' }}>
-                          {formatDuration(pr.time)}
+              {/* Run PRs */}
+              <div className="card">
+                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Trophy size={12} color="#10b981" /> LÖPNING — PERSONLIGA REKORD</span>
+                  <button onClick={() => setShowRunModal(true)} style={{ fontSize: '11px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                    Se all löphistorik →
+                  </button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                  {RUN_PR_DISTANCES.map(({ label }) => {
+                    const pr = runPRs.find(r => r.label === label)
+                    const hasTime = pr?.time
+                    return (
+                      <div key={label} className="card-sm" onClick={() => setShowRunModal(true)}
+                        style={{ cursor: 'pointer' }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
+                        {hasTime ? (
+                          <>
+                            <div className="mono" style={{ fontSize: '16px', fontWeight: '600', color: '#10b981' }}>
+                              {formatDuration(pr.time)}
+                            </div>
+                            <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>
+                              {format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ej loggat</div>
+                        )}
+                        <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <TrendingUp size={10} /> Se historik
                         </div>
-                        <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>
-                          {format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ej loggat</div>
-                    )}
-                    <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                      <TrendingUp size={10} /> Se historik
-                    </div>
-                  </div>
-                )
-              })}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1943,54 +2003,152 @@ export default function TraningPage() {
 
       {showAllPrModal && (
         <div onClick={() => setShowAllPrModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(10px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} className="card" style={{ width: 'min(920px, 100%)', maxHeight: '86vh', overflowY: 'auto', padding: 0 }}>
+          <div onClick={e => e.stopPropagation()} className="card" style={{ width: 'min(1040px, 100%)', maxHeight: '86vh', overflowY: 'auto', padding: 0 }}>
             <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
               <div>
-                <div style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.04em' }}>Alla personliga rekord</div>
-                <div style={{ fontSize: '13px', color: 'var(--muted2)', marginTop: '3px' }}>Styrke-PR och Strava best efforts. Klicka en övning för historik.</div>
+                <div style={{ fontSize: '24px', fontWeight: 850, letterSpacing: '-0.045em' }}>Alla PBn</div>
+                <div style={{ fontSize: '13px', color: 'var(--muted2)', marginTop: '3px' }}>
+                  Styrke-PB, löpbestar och alla importerade Strava best efforts. Klicka för historik eller källpass.
+                </div>
               </div>
               <button onClick={() => setShowAllPrModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={20} /></button>
             </div>
 
-            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              <section>
-                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>STYRKA</div>
-                {prs.length ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px' }}>
-                    {prs.map(pr => (
-                      <button key={pr.id} onClick={() => { setSelectedExercise(pr.exercise_name); setShowAllPrModal(false) }} className="card-sm" style={{ cursor: 'pointer', textAlign: 'left' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{pr.exercise_name}</div>
-                        <div className="mono" style={{ fontSize: '18px', fontWeight: 800, color: '#f59e0b' }}>{pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span></div>
-                        {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="card-sm" style={{ color: 'var(--muted)' }}>Inga styrke-PR ännu.</div>
-                )}
-              </section>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {[
+                  ['all', 'Alla'],
+                  ['strength', 'Styrka'],
+                  ['run', 'Löpning'],
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setAllPrFilter(id)}
+                    className={`btn ${allPrFilter === id ? 'btn-primary' : 'btn-ghost'}`}
+                    style={{ padding: '7px 13px' }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-              <section>
-                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>LÖPNING · BÄSTA PER DISTANS</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px' }}>
-                  {RUN_PR_DISTANCES.map(({ label }) => {
-                    const pr = runPRs.find(r => r.label === label)
-                    return (
-                      <button key={label} onClick={() => { setShowRunModal(true); setShowAllPrModal(false) }} className="card-sm" style={{ cursor: 'pointer', textAlign: 'left' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
-                        {pr?.time ? (
-                          <>
-                            <div className="mono" style={{ fontSize: '18px', fontWeight: 800, color: '#10b981' }}>{formatDuration(pr.time)}</div>
-                            <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>
-                          </>
-                        ) : (
-                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ej loggat</div>
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-              </section>
+              <div style={{ position: 'relative', minWidth: '220px' }}>
+                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+                <input
+                  className="input"
+                  value={allPrSearch}
+                  onChange={e => setAllPrSearch(e.target.value)}
+                  placeholder="Sök PB..."
+                  style={{ paddingLeft: '32px', height: '36px' }}
+                />
+              </div>
+
+              <select className="input" value={allPrSort} onChange={e => setAllPrSort(e.target.value)} style={{ height: '36px', width: '145px' }}>
+                <option value="date">Senaste</option>
+                <option value="name">Namn</option>
+                <option value="value">Bäst värde</option>
+              </select>
+            </div>
+
+            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {(allPrFilter === 'all' || allPrFilter === 'strength') && (
+                <section>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '0.08em' }}>STYRKA — PERSONLIGA REKORD</div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{filteredStrengthPrs.length} PBn</div>
+                  </div>
+                  {filteredStrengthPrs.length ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '9px' }}>
+                      {filteredStrengthPrs.map(pr => (
+                        <button
+                          key={pr.id}
+                          onClick={() => { setSelectedExercise(pr.exercise_name); setShowAllPrModal(false) }}
+                          className="card-sm"
+                          style={{ cursor: 'pointer', textAlign: 'left', minHeight: '92px' }}
+                          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+                          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                        >
+                          <div style={{ fontSize: '12px', color: 'var(--muted2)', marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pr.exercise_name}</div>
+                          <div className="mono" style={{ fontSize: '20px', fontWeight: 850, color: '#f59e0b' }}>{pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{pr.date ? format(new Date(pr.date), 'd MMM yyyy', { locale: sv }) : 'Datum saknas'}</span>
+                            <span style={{ fontSize: '10px', color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><TrendingUp size={10} /> Historik</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="card-sm" style={{ color: 'var(--muted)' }}>Inga styrke-PB matchar filtret.</div>
+                  )}
+                </section>
+              )}
+
+              {(allPrFilter === 'all' || allPrFilter === 'run') && (
+                <section>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '0.08em' }}>LÖPNING — BÄSTA PER DISTANS</div>
+                    <button onClick={() => { setShowRunModal(true); setShowAllPrModal(false) }} className="btn btn-ghost" style={{ padding: '5px 10px', fontSize: '11px' }}>All löphistorik →</button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '9px', marginBottom: '14px' }}>
+                    {RUN_PR_DISTANCES.map(({ label }) => {
+                      const pr = runPRs.find(r => r.label === label)
+                      const sourceEffort = pr?.activityId ? runEfforts.find(e => String(e.strava_activity_id) === String(pr.activityId) && e.time_seconds === pr.time) : null
+                      return (
+                        <button
+                          key={label}
+                          onClick={() => sourceEffort ? openRunEffortSource(sourceEffort) : setShowRunModal(true)}
+                          className="card-sm"
+                          style={{ cursor: 'pointer', textAlign: 'left', minHeight: '92px' }}
+                          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+                          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                        >
+                          <div style={{ fontSize: '12px', color: 'var(--muted2)', marginBottom: '5px' }}>{label}</div>
+                          {pr?.time ? (
+                            <>
+                              <div className="mono" style={{ fontSize: '20px', fontWeight: 850, color: '#10b981' }}>{formatDuration(pr.time)}</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
+                                <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</span>
+                                <span style={{ fontSize: '10px', color: 'var(--accent)' }}>Källpass ↗</span>
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ej loggat</div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '0.08em', marginBottom: '10px' }}>ALLA STRAVA BEST EFFORTS</div>
+                  {filteredRunEfforts.length ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                      {filteredRunEfforts.slice(0, 80).map((effort, idx) => {
+                        const label = runKeyLabels[effort.distance_key] || effort.label || effort.distance_key
+                        return (
+                          <button
+                            key={`${effort.strava_activity_id || effort.date}-${effort.distance_key}-${idx}`}
+                            onClick={() => openRunEffortSource(effort)}
+                            className="card-sm"
+                            style={{ cursor: 'pointer', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '12px', alignItems: 'center', padding: '10px 12px' }}
+                            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+                            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                          >
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '13px', fontWeight: 750, color: 'var(--text)' }}>{label}</div>
+                              <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{effort.strava_activity_id ? `Strava #${effort.strava_activity_id}` : 'Strava best effort'}</div>
+                            </div>
+                            <div className="mono" style={{ fontSize: '14px', fontWeight: 850, color: '#10b981' }}>{formatDuration(Number(effort.time_seconds || 0))}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--muted2)' }}>{effort.date ? format(new Date(effort.date), 'd MMM yyyy', { locale: sv }) : '—'}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--accent)', whiteSpace: 'nowrap' }}>Öppna pass ↗</div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="card-sm" style={{ color: 'var(--muted)' }}>Inga löp-best-efforts matchar filtret.</div>
+                  )}
+                </section>
+              )}
             </div>
           </div>
         </div>
