@@ -103,6 +103,7 @@ export default function TraningPage() {
   const [stravaConnected, setStravaConnected] = useState(false)
   const [stravaSyncing, setStravaSyncing] = useState(false)
   const [stravaResult, setStravaResult] = useState(null)
+  const [fetchingPrs, setFetchingPrs] = useState(false)
   const [csvImporting, setCsvImporting] = useState(false)
   const csvRef = useRef(null)
 
@@ -203,6 +204,22 @@ export default function TraningPage() {
       if (json.synced > 0) await fetchSessions()
     } catch (e) { console.error(e) }
     setStravaSyncing(false)
+  }
+
+  async function fetchStravaPrs() {
+    setFetchingPrs(true)
+    try {
+      const session = (await supabase.auth.getSession()).data.session
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/strava-sync?action=fetch_prs`, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        }
+      })
+      const json = await res.json()
+      setStravaResult({ ...json, synced: 0, skipped: 0, total: json.processed, prsUpdated: json.prsUpdated })
+    } catch (e) { console.error(e) }
+    setFetchingPrs(false)
   }
 
   // CSV Import from Strava export
@@ -594,9 +611,14 @@ export default function TraningPage() {
         <div className="page-header-actions">
           <input ref={csvRef} type="file" accept=".csv" onChange={handleCsvImport} style={{ display: 'none' }} />
           {stravaConnected ? (
+            <>
             <button onClick={syncStrava} disabled={stravaSyncing} className="btn btn-ghost" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)' }}>
               {stravaSyncing ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Synkar...</> : <><RefreshCw size={13} /> Strava</>}
             </button>
+            <button onClick={fetchStravaPrs} disabled={fetchingPrs} className="btn btn-ghost" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)', fontSize: '11px' }}>
+              {fetchingPrs ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Hämtar PRs...</> : '🏅 Hämta PRs'}
+            </button>
+            </>
           ) : (
             <button onClick={connectStrava} className="btn btn-ghost" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)' }}>
               <Link size={13} /> Koppla Strava
@@ -622,7 +644,7 @@ export default function TraningPage() {
       {stravaResult && (
         <div style={{ padding: '12px 16px', background: 'rgba(252,76,2,0.08)', border: '1px solid rgba(252,76,2,0.2)', borderRadius: '10px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '13px', color: '#fc4c02' }}>
-            ✓ Importerade {stravaResult.synced} pass ({stravaResult.skipped} redan synkade av {stravaResult.total} totalt){stravaResult.prsUpdated > 0 ? ` · ${stravaResult.prsUpdated} PRs uppdaterade` : ''}
+            ✓ {stravaResult.synced > 0 ? `Importerade ${stravaResult.synced} pass (${stravaResult.skipped} redan synkade av ${stravaResult.total} totalt)` : `Analyserade ${stravaResult.total} pass`}{stravaResult.prsUpdated > 0 ? ` · ${stravaResult.prsUpdated} PRs uppdaterade` : ''}
           </span>
           <button onClick={() => setStravaResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={14} /></button>
         </div>

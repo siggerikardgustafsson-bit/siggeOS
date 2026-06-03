@@ -53,6 +53,110 @@ serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, athlete: data.athlete }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 
+  // ===== FETCH PRs FOR EXISTING STRAVA RUNS =====
+  if (action === 'fetch_prs') {
+    const { data: tokenRow } = await supabase.from('strava_tokens').select('*').eq('user_id', user.id).single()
+    if (!tokenRow) return new Response(JSON.stringify({ error: 'Not connected' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
+    let accessToken = tokenRow.access_token
+    if (new Date(tokenRow.expires_at) < new Date()) {
+      const res = await fetch('https://www.strava.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: STRAVA_CLIENT_ID,
+          client_secret: STRAVA_CLIENT_SECRET,
+          refresh_token: tokenRow.refresh_token,
+          grant_type: 'refresh_token',
+        }),
+      })
+      const refreshed = await res.json()
+      accessToken = refreshed.access_token
+      await supabase.from('strava_tokens').update({
+        access_token: refreshed.access_token,
+        refresh_token: refreshed.refresh_token,
+        expires_at: new Date(refreshed.expires_at * 1000).toISOString(),
+      }).eq('user_id', user.id)
+    }
+
+    const bestEffortMap: Record<string, { km: number; label: string }> = {
+      '400m':         { km: 0.4,    label: '400m PR' },
+      '1/2 mile':     { km: 0.805,  label: '800m PR' },
+      '1k':           { km: 1.0,    label: '1km PR' },
+      '1 mile':       { km: 1.609,  label: '1 mile PR' },
+      '2 mile':       { km: 3.219,  label: '2 mile PR' },
+      '5k':           { km: 5.0,    label: '5km PR' },
+      '10k':          { km: 10.0,   label: '10km PR' },
+      '1/2 marathon': { km: 21.097, label: 'Halvmara PR' },
+      'marathon':     { km: 42.195, label: 'Mara PR' },
+    }
+
+    // Get all strava run sessions with their strava_id
+    const { data: sessions } = await supabase
+      .from('training_sessions')
+      .select('strava_id, date')
+      .eq('user_id', user.id)
+      .eq('source', 'strava')
+      .eq('session_type', 'run')
+      .not('strava_id', 'is', null)
+
+    if (!sessions || sessions.length === 0) {
+      return new Response(JSON.stringify({ ok: true, prsUpdated: 0, processed: 0 }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Track best time per distance across all activities
+    const bestTimes: Record<string, { time: number; pace: number; date: string; km: number }> = {}
+
+    for (const session of sessions) {
+      if (!session.strava_id) continue
+      try {
+        const res = await fetch(`https://www.strava.com/api/v3/activities/${session.strava_id}`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        })
+        const detail = await res.json()
+        if (!Array.isArray(detail.best_efforts)) continue
+
+        for (const effort of detail.best_efforts) {
+          const mapping = bestEffortMap[effort.name]
+          if (!mapping || !effort.elapsed_time) continue
+          const existing = bestTimes[mapping.label]
+          if (!existing || effort.elapsed_time < existing.time) {
+            bestTimes[mapping.label] = {
+              time: effort.elapsed_time,
+              pace: Math.round(effort.elapsed_time / mapping.km),
+              date: effort.start_date_local?.slice(0, 10) || session.date,
+              km: mapping.km,
+            }
+          }
+        }
+        // Small delay to avoid rate limiting
+        await new Promise(r => setTimeout(r, 100))
+      } catch (e) {
+        console.warn(`PR fetch failed for ${session.strava_id}:`, e)
+      }
+    }
+
+    // Upsert all best times
+    let prsUpdated = 0
+    for (const [label, best] of Object.entries(bestTimes)) {
+      await supabase.from('personal_records').upsert({
+        user_id: user.id,
+        exercise_name: label,
+        time_seconds: best.time,
+        distance_km: best.km,
+        pace_per_km: best.pace,
+        date: best.date,
+      }, { onConflict: 'user_id,exercise_name' })
+      prsUpdated++
+    }
+
+    return new Response(JSON.stringify({ ok: true, prsUpdated, processed: sessions.length }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+
   // ===== SYNC ACTIVITIES =====
   if (action === 'sync') {
     // Get token
