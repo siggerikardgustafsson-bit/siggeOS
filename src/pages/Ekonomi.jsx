@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, X, Save, Loader, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Map, Target, RefreshCw, Edit2, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 
 const EXPENSE_CATEGORIES = [
@@ -94,6 +95,7 @@ function NetWorthTab({ user }) {
   const [goal, setGoal] = useState({ target: '', deadline: '' })
   const [savingGoal, setSavingGoal] = useState(false)
   const [showGoalForm, setShowGoalForm] = useState(false)
+  const [history, setHistory] = useState([])
   const [form, setForm] = useState({ name: '', ticker: '', type: 'stock', quantity: '', manual_price_sek: '' })
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
@@ -101,12 +103,14 @@ function NetWorthTab({ user }) {
 
   async function init() {
     setLoading(true)
-    const [{ data: assetData }, { data: goalData }] = await Promise.all([
+    const [{ data: assetData }, { data: goalData }, { data: histData }] = await Promise.all([
       supabase.from('assets').select('*').eq('user_id', user.id).order('created_at'),
       supabase.from('user_settings').select('goals').eq('user_id', user.id).single(),
+      supabase.from('net_worth_history').select('date,total_sek').eq('user_id', user.id).order('date', { ascending: true }).limit(90),
     ])
     const loadedAssets = assetData || []
     setAssets(loadedAssets)
+    setHistory(histData || [])
     const nwGoal = goalData?.goals?.net_worth_goal || {}
     setGoal({ target: nwGoal.target || '', deadline: nwGoal.deadline || '' })
 
@@ -114,6 +118,32 @@ function NetWorthTab({ user }) {
       const { prices: livePrices, usdSek: fx } = await fetchPricesViaEdge(loadedAssets)
       setPrices(livePrices)
       setUsdSek(fx || 10.5)
+      // Save daily snapshot
+      const total = loadedAssets.reduce((sum, a) => {
+        if (a.type === 'cash') return sum + (a.manual_price_sek || 0)
+        return sum + (livePrices[a.id]?.price || 0) * a.quantity
+      }, 0)
+      if (total > 0) {
+        const today = format(new Date(), 'yyyy-MM-dd')
+        await supabase.from('net_worth_history').upsert(
+          { user_id: user.id, date: today, total_sek: Math.round(total) },
+          { onConflict: 'user_id,date' }
+        )
+        setHistory(prev => {
+          const filtered = prev.filter(h => h.date !== today)
+          return [...filtered, { date: today, total_sek: Math.round(total) }].sort((a, b) => a.date.localeCompare(b.date))
+        })
+      }
+    } else {
+      // Cash-only: still snapshot
+      const total = loadedAssets.reduce((sum, a) => sum + (a.manual_price_sek || 0), 0)
+      if (total > 0) {
+        const today = format(new Date(), 'yyyy-MM-dd')
+        await supabase.from('net_worth_history').upsert(
+          { user_id: user.id, date: today, total_sek: Math.round(total) },
+          { onConflict: 'user_id,date' }
+        )
+      }
     }
     setLoading(false)
   }
@@ -257,6 +287,26 @@ function NetWorthTab({ user }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Net worth history chart */}
+      {history.length > 1 && (
+        <div className="card" style={{ padding: '16px' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 14 }}>Historik (senaste 90 dagarna)</div>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={history.map(h => ({ date: h.date.slice(5), value: h.total_sek }))}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} tickLine={false} axisLine={false} tickFormatter={v => Math.round(v/1000) + 'k'} width={36} />
+              <Tooltip
+                contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: 'var(--muted)' }}
+                formatter={v => [Math.round(v).toLocaleString('sv-SE') + ' kr', 'Net Worth']}
+              />
+              <Line type="monotone" dataKey="value" stroke="#10b981" strokeWidth={2} dot={false} activeDot={{ r: 4, fill: '#10b981' }} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       )}
 
@@ -567,7 +617,6 @@ export default function EkonomiPage() {
   const tabs = [
     { id: 'overview', label: 'Översikt' },
     { id: 'log',      label: 'Logga' },
-    { id: 'trips',    label: 'Resebudget' },
     { id: 'savings',  label: 'Sparande' },
   ]
 
