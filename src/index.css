@@ -1348,3 +1348,160 @@ body {
     font-size: 36px !important;
   }
 }
+
+/* ============================================================
+   MOBILE GLASS / BACKGROUND RESTORE V3
+   Keeps the readable mobile layout, but restores the blurred
+   background + glass aesthetic and lets the background run under
+   the iPhone standalone status area.
+   ============================================================ */
+@media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    background: var(--bg) !important;
+    min-height: 100dvh !important;
+  }
+
+  body {
+    overflow-x: hidden !important;
+  }
+
+  /* Make every background layer cover the real iPhone viewport, including
+     the area behind the Dynamic Island/status bar in standalone mode. */
+  #bg-gradient,
+  #bg-image {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    transform: translateZ(0) !important;
+  }
+
+  #bg-gradient {
+    opacity: 1 !important;
+    background-image:
+      radial-gradient(ellipse 95% 60% at 15% -8%, rgba(79,142,247,0.22) 0%, transparent 62%),
+      radial-gradient(ellipse 70% 55% at 100% 100%, rgba(139,92,246,0.16) 0%, transparent 62%),
+      radial-gradient(ellipse 50% 40% at 42% 52%, rgba(20,184,166,0.08) 0%, transparent 70%) !important;
+  }
+
+  #bg-image {
+    background-size: cover !important;
+    background-position: center !important;
+  }
+
+  #bg-image::after {
+    background: rgba(7, 9, 15, 0.46) !important;
+    backdrop-filter: blur(24px) saturate(1.12) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(1.12) !important;
+  }
+
+  body.has-bg-image #bg-image::after {
+    background: rgba(7, 9, 15, 0.50) !important;
+    backdrop-filter: blur(22px) saturate(1.15) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(1.15) !important;
+  }
+
+  .orb {
+    opacity: 0.13 !important;
+  }
+
+  .sigge-app-shell {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    background: transparent !important;
+  }
+
+  .sigge-main-scroll {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    background: transparent !important;
+    padding-top: calc(12px + env(safe-area-inset-top)) !important;
+  }
+
+  :root {
+    --surface: rgba(24, 32, 52, 0.58) !important;
+    --surface2: rgba(24, 32, 52, 0.38) !important;
+    --surface3: rgba(35, 45, 68, 0.64) !important;
+    --glass-blur: blur(24px) saturate(1.12) !important;
+    --glass-border: rgba(255,255,255,0.18) !important;
+    --border: rgba(255,255,255,0.14) !important;
+    --border2: rgba(255,255,255,0.24) !important;
+    --text: rgba(255,255,255,0.96) !important;
+    --muted: rgba(255,255,255,0.68) !important;
+    --muted2: rgba(255,255,255,0.80) !important;
+    --glass-shadow: 0 8px 30px rgba(0,0,0,0.34), 0 1px 0 rgba(255,255,255,0.10) inset !important;
+  }
+
+  body.has-bg-image {
+    --surface: rgba(18, 24, 40, 0.42) !important;
+    --surface2: rgba(18, 24, 40, 0.30) !important;
+    --surface3: rgba(29, 38, 58, 0.54) !important;
+    --glass-border: rgba(255,255,255,0.16) !important;
+  }
+
+  .page-header,
+  .card,
+  .card-sm,
+  .widget,
+  .cat-card,
+  .category-card,
+  .course-card,
+  [class*="card"] {
+    background: linear-gradient(180deg, rgba(31, 41, 66, 0.64), rgba(16, 22, 37, 0.48)) !important;
+    backdrop-filter: blur(24px) saturate(1.12) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(1.12) !important;
+    border-color: rgba(255,255,255,0.17) !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.32), 0 1px 0 rgba(255,255,255,0.10) inset !important;
+  }
+
+  body.has-bg-image .page-header,
+  body.has-bg-image .card,
+  body.has-bg-image .card-sm,
+  body.has-bg-image .widget,
+  body.has-bg-image .cat-card,
+  body.has-bg-image .category-card,
+  body.has-bg-image .course-card,
+  body.has-bg-image [class*="card"] {
+    background: linear-gradient(180deg, rgba(27, 36, 58, 0.48), rgba(12, 18, 31, 0.34)) !important;
+    backdrop-filter: blur(26px) saturate(1.18) !important;
+    -webkit-backdrop-filter: blur(26px) saturate(1.18) !important;
+  }
+
+  /* The header can stay glassy without becoming a solid slab. */
+  .page-header {
+    background: linear-gradient(180deg, rgba(36, 48, 76, 0.66), rgba(22, 30, 50, 0.48)) !important;
+  }
+
+  /* Keep readability while allowing glass/background to show through. */
+  .card h1, .card h2, .card h3,
+  .widget h1, .widget h2, .widget h3,
+  .cat-card h1, .cat-card h2, .cat-card h3,
+  .category-card h1, .category-card h2, .category-card h3,
+  .card-title, .section-title, .widget-title {
+    color: rgba(255,255,255,0.97) !important;
+    text-shadow: 0 1px 14px rgba(0,0,0,0.22) !important;
+  }
+
+  .metric-label,
+  .metric-value,
+  .card-subtitle,
+  .widget-subtitle,
+  .mono,
+  small,
+  p,
+  span {
+    text-shadow: 0 1px 12px rgba(0,0,0,0.18);
+  }
+
+  /* Bottom nav should still feel like glass, not a flat black footer. */
+  .bottom-nav {
+    background: rgba(20, 24, 38, 0.72) !important;
+    backdrop-filter: blur(28px) saturate(1.18) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(1.18) !important;
+    border-top: 1px solid rgba(255,255,255,0.18) !important;
+    box-shadow: 0 -10px 32px rgba(0,0,0,0.30), 0 1px 0 rgba(255,255,255,0.08) inset !important;
+  }
+}
