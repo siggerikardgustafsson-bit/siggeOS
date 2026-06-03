@@ -134,6 +134,8 @@ export default function TraningPage() {
   const [calendarMonth, setCalendarMonth] = useState(new Date())
   const [selectedExercise, setSelectedExercise] = useState(null)
   const [showRunModal, setShowRunModal] = useState(false)
+  const [runEfforts, setRunEfforts] = useState([])
+  const [selectedSessionDetail, setSelectedSessionDetail] = useState(null)
 
   useEffect(() => {
     if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); loadCustomExercises(); fetchExerciseLibrary() }
@@ -600,6 +602,8 @@ export default function TraningPage() {
       .eq('user_id', user.id)
       .order('date', { ascending: false })
 
+    setRunEfforts(data || [])
+
     const keyByLabel = {
       '1 km': '1k',
       '5 km': '5k',
@@ -795,6 +799,72 @@ export default function TraningPage() {
     }
   }
 
+
+  function getSessionTitle(session) {
+    if (!session) return 'Pass'
+    if (session.session_type === 'gym') return 'Styrkepass'
+    if (session.session_type === 'run') return `Löpning${session.distance_km ? ` ${Number(session.distance_km).toFixed(1)} km` : ''}`
+    return session.notes?.split(' — ')[0] || 'Aktivitet'
+  }
+
+  function getSessionRunEfforts(session) {
+    if (!session || session.session_type !== 'run') return []
+    const byActivity = runEfforts.filter(e =>
+      session.strava_id && String(e.strava_activity_id) === String(session.strava_id)
+    )
+    const source = byActivity.length
+      ? byActivity
+      : runEfforts.filter(e => e.date === session.date)
+
+    const order = { '1k': 1, '5k': 2, '10k': 3, 'half_marathon': 4 }
+    return source
+      .filter(e => ['1k', '5k', '10k', 'half_marathon'].includes(e.distance_key))
+      .sort((a, b) => (order[a.distance_key] || 99) - (order[b.distance_key] || 99))
+  }
+
+  function groupSessionExercises(session) {
+    const rows = session?.training_exercises || []
+    return Object.entries(rows.reduce((acc, ex) => {
+      const key = ex.exercise_name || 'Okänd övning'
+      if (!acc[key]) acc[key] = []
+      acc[key].push(ex)
+      return acc
+    }, {})).map(([name, sets]) => ({
+      name,
+      sets: sets.sort((a, b) => (a.set_number || 0) - (b.set_number || 0)),
+      exerciseId: sets.find(s => s.exercise_id)?.exercise_id || null,
+    }))
+  }
+
+  function getSessionMuscles(session) {
+    const groups = groupSessionExercises(session)
+    const byExerciseId = new Map(libraryExercises.map(e => [e.id, e]))
+    const byName = new Map(libraryExercises.map(e => [String(e.name || '').toLowerCase(), e]))
+    const muscles = new Map()
+
+    groups.forEach(group => {
+      const lib = (group.exerciseId && byExerciseId.get(group.exerciseId)) || byName.get(group.name.toLowerCase())
+      ;(lib?.muscles || []).forEach(m => {
+        const key = m.muscle_slug || m.muscle_name
+        if (!key) return
+        const prev = muscles.get(key)
+        if (!prev || prev.role !== 'primary') {
+          muscles.set(key, { name: m.muscle_name, role: m.role })
+        }
+      })
+    })
+
+    return Array.from(muscles.values()).sort((a, b) => {
+      if (a.role === b.role) return a.name.localeCompare(b.name)
+      return a.role === 'primary' ? -1 : 1
+    })
+  }
+
+  function openSessionDetail(session) {
+    setExpandedSession(null)
+    setSelectedSessionDetail(session)
+  }
+
   const recentSessions = sessions.slice(0, 10)
   const thisWeekSessions = sessions.filter(s => {
     const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
@@ -890,7 +960,7 @@ export default function TraningPage() {
                 <Trophy size={12} color="#f59e0b" /> STYRKA — PERSONLIGA REKORD
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
-                {prs.map(pr => (
+                {prs.slice(0, 5).map(pr => (
                   <div key={pr.id} className="card-sm" onClick={() => setSelectedExercise(pr.exercise_name)}
                     style={{ cursor: 'pointer' }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
@@ -906,6 +976,15 @@ export default function TraningPage() {
                   </div>
                 ))}
               </div>
+              {prs.length > 5 && (
+                <button
+                  onClick={() => setSelectedExercise(prs[0]?.exercise_name || null)}
+                  className="btn btn-ghost"
+                  style={{ marginTop: '10px', width: '100%', justifyContent: 'center' }}
+                >
+                  Se mer PR-historik →
+                </button>
+              )}
             </div>
           )}
 
@@ -971,9 +1050,7 @@ export default function TraningPage() {
                           </div>
                           <div>
                             <div style={{ fontSize: '14px', fontWeight: '500' }}>
-                              {session.session_type === 'gym' ? 'Gympass' :
-                               session.session_type === 'run' ? `Löpning ${session.distance_km ? session.distance_km + ' km' : ''}` :
-                               session.notes?.split(' — ')[0] || 'Aktivitet'}
+                              {getSessionTitle(session)}
                             </div>
                             <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
                               {format(new Date(session.date), 'd MMM', { locale: sv })}
@@ -996,6 +1073,9 @@ export default function TraningPage() {
                         <>
                           {/* Action buttons */}
                           <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }} onClick={e => e.stopPropagation()}>
+                            <button onClick={e => { e.stopPropagation(); openSessionDetail(session) }} className="btn btn-primary btn-sm">
+                              Öppna pass
+                            </button>
                             <button onClick={e => { e.stopPropagation(); openEditSession(session) }} className="btn btn-ghost btn-sm">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                               Redigera
@@ -1594,6 +1674,158 @@ export default function TraningPage() {
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+
+
+      {selectedSessionDetail && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(10px)', zIndex: 650, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={e => e.target === e.currentTarget && setSelectedSessionDetail(null)}>
+          <div style={{ background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '20px', width: '100%', maxWidth: '760px', maxHeight: '88vh', overflowY: 'auto', padding: '22px', boxShadow: 'var(--glass-shadow)' }}>
+            {(() => {
+              const session = selectedSessionDetail
+              const typeInfo = SESSION_TYPES.find(t => t.id === session.session_type) || SESSION_TYPES[3]
+              const Icon = typeInfo.icon
+              const exerciseGroups = groupSessionExercises(session)
+              const efforts = getSessionRunEfforts(session)
+              const muscles = getSessionMuscles(session)
+              const totalSets = exerciseGroups.reduce((sum, group) => sum + group.sets.length, 0)
+              const totalVolume = exerciseGroups.reduce((sum, group) => (
+                sum + group.sets.reduce((setSum, s) => setSum + (Number(s.reps || 0) * Number(s.weight_kg || 0)), 0)
+              ), 0)
+
+              return (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '14px', marginBottom: '18px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: typeInfo.color + '20', border: `1px solid ${typeInfo.color}45`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Icon size={20} color={typeInfo.color} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.04em' }}>{getSessionTitle(session)}</div>
+                        <div style={{ fontSize: '13px', color: 'var(--muted2)', marginTop: '3px' }}>
+                          {format(new Date(session.date), 'EEEE d MMMM yyyy', { locale: sv })}
+                          {session.source && ` · ${session.source}`}
+                          {session.strava_id && ` · Strava #${session.strava_id}`}
+                        </div>
+                      </div>
+                    </div>
+                    <button onClick={() => setSelectedSessionDetail(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0 }}>
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '10px', marginBottom: '16px' }}>
+                    <div className="card-sm">
+                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Typ</div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>{typeInfo.label}</div>
+                    </div>
+                    <div className="card-sm">
+                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tid</div>
+                      <div className="mono" style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>{session.duration_minutes ? `${session.duration_minutes} min` : session.time_seconds ? formatDuration(session.time_seconds) : '—'}</div>
+                    </div>
+                    <div className="card-sm">
+                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Känsla</div>
+                      <div className="mono" style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>{session.feeling ? `${session.feeling}/10` : '—'}</div>
+                    </div>
+                    <div className="card-sm">
+                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{session.session_type === 'gym' ? 'Volym' : 'Distans'}</div>
+                      <div className="mono" style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>
+                        {session.session_type === 'gym' ? `${Math.round(totalVolume)} kg` : session.distance_km ? `${Number(session.distance_km).toFixed(1)} km` : '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {session.notes && (
+                    <div className="card-sm" style={{ marginBottom: '16px' }}>
+                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Anteckningar</div>
+                      <div style={{ fontSize: '14px', color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{session.notes}</div>
+                    </div>
+                  )}
+
+                  {session.session_type === 'run' && (
+                    <div className="card-sm" style={{ marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', marginBottom: '12px' }}>
+                        <div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em' }}>STRAVA BEST EFFORTS</div>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Källvärden från detta pass</div>
+                        </div>
+                      </div>
+
+                      {efforts.length ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
+                          {efforts.map(effort => (
+                            <div key={`${effort.distance_key}-${effort.id || effort.time_seconds}`} style={{ padding: '10px', borderRadius: '12px', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                              <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{effort.label || effort.strava_effort_name}</div>
+                              <div className="mono" style={{ fontSize: '18px', fontWeight: 800, color: '#10b981' }}>{formatDuration(Number(effort.time_seconds))}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>{formatPace(Number(effort.pace_per_km))}/km</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--surface2)', color: 'var(--muted)', fontSize: '13px' }}>
+                          Inga Strava best efforts hittades för detta pass.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {session.session_type === 'gym' && (
+                    <>
+                      <div className="card-sm" style={{ marginBottom: '16px' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '12px' }}>
+                          ÖVNINGAR · {exerciseGroups.length} övningar · {totalSets} set
+                        </div>
+
+                        {exerciseGroups.length ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {exerciseGroups.map(group => (
+                              <div key={group.name} style={{ padding: '12px', borderRadius: '12px', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                                <button onClick={() => setSelectedExercise(group.name)} style={{ background: 'none', border: 'none', padding: 0, marginBottom: '8px', color: 'var(--accent)', fontSize: '14px', fontWeight: 750, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                  {group.name}
+                                  <TrendingUp size={12} />
+                                </button>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                  {group.sets.map((s, i) => (
+                                    <span key={s.id || i} className="mono" style={{ fontSize: '12px', padding: '5px 9px', borderRadius: '8px', background: s.is_dropset ? 'rgba(245,158,11,0.12)' : 'var(--accent-soft)', color: s.is_dropset ? '#f59e0b' : 'var(--accent)', border: s.is_dropset ? '1px solid rgba(245,158,11,0.25)' : '1px solid var(--accent-border)' }}>
+                                      {s.reps ?? '—'}×{s.weight_kg ?? '—'}kg{s.is_dropset ? ' ↓' : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Inga övningsrader hittades för detta pass.</div>
+                        )}
+                      </div>
+
+                      {muscles.length > 0 && (
+                        <div className="card-sm" style={{ marginBottom: '16px' }}>
+                          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>MUSKLER BELASTADE</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
+                            {muscles.map(m => (
+                              <span key={`${m.name}-${m.role}`} style={{ fontSize: '12px', padding: '6px 9px', borderRadius: '999px', background: m.role === 'primary' ? 'var(--accent-soft)' : 'var(--surface2)', color: m.role === 'primary' ? 'var(--accent)' : 'var(--muted2)', border: m.role === 'primary' ? '1px solid var(--accent-border)' : '1px solid var(--border)' }}>
+                                {m.name} {m.role === 'primary' ? 'primär' : 'sekundär'}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                    {session.session_type === 'gym' && (
+                      <button onClick={() => { openEditSession(session); setSelectedSessionDetail(null) }} className="btn btn-ghost">
+                        <Edit3 size={14} /> Redigera
+                      </button>
+                    )}
+                    <button onClick={() => setSelectedSessionDetail(null)} className="btn btn-primary">Stäng</button>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        </div>
+      )}
 
       {selectedExercise && (
         <ExerciseModal exerciseName={selectedExercise} onClose={() => setSelectedExercise(null)} />
