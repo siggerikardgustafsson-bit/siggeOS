@@ -613,6 +613,8 @@ export default function PluggPage() {
                     {isExpanded && (
                       <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
 
+                        <div style={{ display: "flex", gap: "24px", alignItems: "flex-start" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                         {/* Obligatoriska */}
                         {mandatoryForCourse.length > 0 && (
                           <div style={{ marginBottom: '16px' }}>
@@ -768,6 +770,8 @@ export default function PluggPage() {
                         </div>
 
                         {/* Examinationer */}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ marginBottom: '16px' }}>
                           <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>EXAMINATIONER</div>
                           {courseExams.map(exam => {
@@ -778,40 +782,35 @@ export default function PluggPage() {
                             const totalFiles = examFilesForExam.length + examMaterials.length + (examGoalList.some(g => g.source_file && g.source_file !== 'manual') ? 1 : 0)
                             const showFiles = showFilesFor === exam.id
                             return (
-                              <div key={exam.id} style={{ marginBottom: '8px', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-                                <div style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                  background: exam.grade === 'G' ? 'rgba(16,185,129,0.06)' : exam.grade === 'IG' ? 'rgba(239,68,68,0.06)' : 'var(--surface2)',
-                                  borderLeft: `3px solid ${exam.grade === 'G' ? '#10b981' : exam.grade === 'IG' ? '#ef4444' : 'var(--border)'}` }}
+                              <div key={exam.id} style={{ marginBottom: '10px', border: `1px solid ${exam.grade === 'G' ? 'rgba(16,185,129,0.3)' : exam.grade === 'IG' ? 'rgba(239,68,68,0.3)' : 'rgba(139,92,246,0.2)'}`, borderRadius: '12px', overflow: 'hidden', background: exam.grade === 'G' ? 'rgba(16,185,129,0.07)' : exam.grade === 'IG' ? 'rgba(239,68,68,0.07)' : 'rgba(139,92,246,0.05)' }}>
+                                <div style={{ padding: '14px', cursor: 'pointer' }}
                                   onClick={() => setExpandedExam(isExamExpanded ? null : exam.id)}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: '13px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exam.name}</div>
-                                    {exam.exam_date && <CountdownBadge examDate={exam.exam_date} />}
-                                    {examGoalList.length > 0 && <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{examGoalList.length} mål</span>}
+                                  {/* Top: name + grade + expand */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 10 }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text)', lineHeight: 1.3, flex: 1 }}>{exam.name}</div>
+                                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                                      {GRADES.map(g => (
+                                        <button key={g} onClick={e => { e.stopPropagation(); updateExamGrade(exam.id, exam.grade === g ? null : g) }} style={{ padding: '3px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif', border: `1px solid ${exam.grade === g ? (g === 'G' ? '#10b981' : '#ef4444') : 'var(--border)'}`, background: exam.grade === g ? (g === 'G' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)') : 'transparent', color: exam.grade === g ? (g === 'G' ? '#10b981' : '#ef4444') : 'var(--muted)', fontWeight: exam.grade === g ? 700 : 400 }}>{g}</button>
+                                      ))}
+                                      {isExamExpanded ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
+                                    </div>
                                   </div>
-                                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+                                  {/* Middle: date + goals count */}
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+                                    {exam.exam_date && <CountdownBadge examDate={exam.exam_date} />}
+                                    {examGoalList.length > 0 && <span style={{ fontSize: '11px', color: 'var(--muted)', background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: 20 }}>{examGoalList.length} lärandemål</span>}
+                                  </div>
+                                  {/* Bottom: action buttons */}
+                                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                     {examGoalList.length > 0 && (
-                                      <button onClick={e => { e.stopPropagation(); setStudySession({ exam, courseId: course.id, goals: examGoalList }) }} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 14px', borderRadius: '7px', border: 'none', background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', color: 'white', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif', fontWeight: '700', boxShadow: '0 2px 8px rgba(139,92,246,0.4)' }}><BookOpen size={12} /> Plugga</button>
+                                      <button onClick={e => { e.stopPropagation(); setStudySession({ exam, courseId: course.id, goals: examGoalList }) }} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '7px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', color: 'white', cursor: 'pointer', fontSize: '13px', fontFamily: 'Inter, sans-serif', fontWeight: '700', boxShadow: '0 2px 8px rgba(139,92,246,0.4)', flex: 1, justifyContent: 'center' }}><BookOpen size={13} /> Plugga</button>
                                     )}
-                                    <button onClick={e => { e.stopPropagation(); setShowFilesFor(showFiles ? null : exam.id) }} style={{
-                                      display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '6px',
-                                      border: '1px solid var(--border)', background: showFiles ? 'var(--accent-soft)' : 'transparent',
-                                      color: showFiles ? 'var(--accent)' : 'var(--muted)',
-                                      cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif',
-                                    }}>
-                                      <FileText size={11} /> Filer {totalFiles > 0 && `(${totalFiles})`}
+                                    <button onClick={e => { e.stopPropagation(); setShowFilesFor(showFiles ? null : exam.id) }} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '7px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: showFiles ? 'var(--accent-soft)' : 'rgba(255,255,255,0.04)', color: showFiles ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
+                                      <FileText size={11} /> {totalFiles > 0 ? `Filer (${totalFiles})` : 'Filer'}
                                     </button>
-                                    {GRADES.map(g => (
-                                      <button key={g} onClick={e => { e.stopPropagation(); updateExamGrade(exam.id, exam.grade === g ? null : g) }} style={{
-                                        padding: '3px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
-                                        border: `1px solid ${exam.grade === g ? (g === 'G' ? '#10b981' : '#ef4444') : 'var(--border)'}`,
-                                        background: exam.grade === g ? (g === 'G' ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)') : 'transparent',
-                                        color: exam.grade === g ? (g === 'G' ? '#10b981' : '#ef4444') : 'var(--muted)',
-                                      }}>{g}</button>
-                                    ))}
-                                    <button onClick={e => { e.stopPropagation(); deleteExam(exam.id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', opacity: 0.5, padding: '2px' }}>
+                                    <button onClick={e => { e.stopPropagation(); deleteExam(exam.id) }} style={{ background: 'none', border: '1px solid rgba(248,113,113,0.2)', borderRadius: '8px', padding: '7px 10px', cursor: 'pointer', color: 'rgba(248,113,113,0.6)' }}>
                                       <X size={13} />
                                     </button>
-                                    {isExamExpanded ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
                                   </div>
                                 </div>
 
@@ -1004,6 +1003,8 @@ export default function PluggPage() {
                           </button>
                         )}
 
+                          </div>
+                        </div>
                         <div style={{ display: 'flex', gap: '8px', paddingTop: '12px', borderTop: '1px solid var(--border)', flexWrap: 'wrap', alignItems: 'center' }}>
                           <button onClick={() => copyGoals(course.id)} className="btn btn-ghost" style={{ fontSize: '12px' }}>
                             {copied === course.id ? <><Check size={12} /> Kopierat!</> : <><Copy size={12} /> Kopiera mål</>}
