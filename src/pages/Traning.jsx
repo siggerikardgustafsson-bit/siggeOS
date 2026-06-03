@@ -28,10 +28,10 @@ const BW_EXERCISES = new Set([
 ])
 
 const RUN_PR_DISTANCES = [
-  { key: '1k', label: '1 km', distanceKm: 1 },
-  { key: '5k', label: '5 km', distanceKm: 5 },
-  { key: '10k', label: '10 km', distanceKm: 10 },
-  { key: 'half_marathon', label: 'Halvmaraton', distanceKm: 21.097 },
+  { label: '1 km',       meters: 1000 },
+  { label: '5 km',       meters: 5000 },
+  { label: '10 km',      meters: 10000 },
+  { label: 'Halvmaraton', meters: 21097 },
 ]
 
 const SESSION_TYPES = [
@@ -219,8 +219,6 @@ export default function TraningPage() {
       })
       const json = await res.json()
       setStravaResult({ ...json, synced: 0, skipped: 0, total: json.processed, prsUpdated: json.prsUpdated })
-      await fetchRunPRs()
-      await fetchPRs()
     } catch (e) { console.error(e) }
     setFetchingPrs(false)
   }
@@ -383,33 +381,55 @@ export default function TraningPage() {
       .from('personal_records')
       .select('*')
       .eq('user_id', user.id)
-      .is('time_seconds', null)
-      .is('distance_km', null)
-      .is('pace_per_km', null)
-      .not('weight_kg', 'is', null)
       .order('exercise_name')
-    setPrs(data || [])
+
+    // Strength PBs only. Running best efforts live in run_personal_records.
+    const runRecordNames = new Set([
+      '400m pr', '800m pr', '1 mile pr', '2 mile pr', 'mara pr',
+      '1km pr', '1 km pr', '1k pr',
+      '5km pr', '5 km pr', '5k pr',
+      '10km pr', '10 km pr', '10k pr',
+      'halvmara pr', 'half marathon pr', 'halvmaraton pr', '1/2 marathon pr',
+    ])
+
+    setPrs((data || []).filter(pr => {
+      const name = String(pr.exercise_name || '').trim().toLowerCase()
+      return !runRecordNames.has(name) &&
+        pr.distance_km == null &&
+        pr.pace_per_km == null &&
+        !(pr.time_seconds != null && pr.weight_kg == null)
+    }))
   }
 
   async function fetchRunPRs() {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('run_personal_records')
-      .select('distance_key, label, distance_km, time_seconds, pace_per_km, date')
+      .select('distance_key,label,distance_km,time_seconds,pace_per_km,date,strava_activity_id,strava_effort_name,source')
       .eq('user_id', user.id)
+      .order('date', { ascending: false })
 
-    if (error) {
-      console.error('Kunde inte hämta run_personal_records', error)
-      setRunPRs(RUN_PR_DISTANCES.map(d => ({ label: d.label, time: null, date: null })))
-      return
+    const keyByLabel = {
+      '1 km': '1k',
+      '5 km': '5k',
+      '10 km': '10k',
+      'Halvmaraton': 'half_marathon',
     }
 
-    const bests = RUN_PR_DISTANCES.map(({ key, label }) => {
-      const pr = (data || []).find(r => r.distance_key === key)
+    const bests = RUN_PR_DISTANCES.map(({ label }) => {
+      const key = keyByLabel[label]
+      const efforts = (data || []).filter(r => r.distance_key === key && r.time_seconds)
+      if (!efforts.length) return { label, time: null, date: null }
+
+      const best = efforts.reduce((a, b) =>
+        Number(a.time_seconds) < Number(b.time_seconds) ? a : b
+      )
+
       return {
         label,
-        time: pr?.time_seconds || null,
-        date: pr?.date || null,
-        pace: pr?.pace_per_km || null,
+        time: Number(best.time_seconds),
+        date: best.date,
+        activityId: best.strava_activity_id,
+        effortName: best.strava_effort_name,
       }
     })
 

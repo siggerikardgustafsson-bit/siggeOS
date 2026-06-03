@@ -177,12 +177,7 @@ export default function Dashboard() {
         { data: exData }, { data: supplementLogs }, { data: snapshots }, { data: incomeData },
       ] = await Promise.all([
         supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
-        supabase.from('run_personal_records')
-          .select('distance_key,label,distance_km,time_seconds,pace_per_km,date,strava_activity_id,strava_effort_name')
-          .eq('user_id', userId)
-          .in('distance_key', ['1k','5k','10k','half_marathon'])
-          .then(r => r)
-          .catch(() => ({ data: [] })),
+        supabase.from('run_personal_records').select('distance_key,label,distance_km,time_seconds,pace_per_km,date,strava_activity_id,strava_effort_name,source').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}).then(r => r).catch(() => ({ data: [] })),
         supabase.from('personal_records').select('exercise_name,weight_kg,reps,date').eq('user_id',userId).order('weight_kg',{ascending:false}),
         supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
         supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
@@ -223,70 +218,35 @@ export default function Dashboard() {
       setBodyWeight(bw)
       if (userSettings?.display_name) setDisplayName(userSettings.display_name)
 
-      // Best actual pace-based time for a target distance
-      // A longer run gives your actual pace at that distance — not an estimate
-      function bestActual(targetKm) {
-        // Prefer real Strava PR/best-effort rows. These are separate from strength PRs.
-        const keyByDistance = {
-          1: '1k',
-          5: '5k',
-          10: '10k',
-          21.1: 'half_marathon',
-        }
-        const key = keyByDistance[targetKm]
-        const directPr = key ? (runPrData || [])
-          .filter(r => r.distance_key === key && r.time_seconds && r.date && r.date >= since90)
-          .sort((a, b) => Number(a.time_seconds) - Number(b.time_seconds))[0] : null
-
-        if (directPr) {
-          return {
-            date: directPr.date,
-            distance_km: Number(directPr.distance_km) || targetKm,
-            time_seconds: Number(directPr.time_seconds),
-            pace_per_km: directPr.pace_per_km || Math.round(Number(directPr.time_seconds) / (Number(directPr.distance_km) || targetKm)),
-            _t: Number(directPr.time_seconds),
-          }
-        }
-
-        // Fallback: old session-based estimate if Strava PR is missing.
-        // This should only act as backup, not override Strava best efforts.
-        const tol = Math.max(0.5, targetKm * 0.1)
-        const direct = (runData || []).filter(r =>
-          r.distance_km >= targetKm - tol &&
-          r.distance_km <= targetKm + tol &&
-          (r.time_seconds || r.pace_per_km)
+      // Strava best efforts per activity.
+      // Important: do NOT estimate 1 km / 5 km / 10 km from whole-run average pace.
+      // Dashboard should represent current fitness from actual Strava "Bästa insatser"
+      // saved in run_personal_records for the last 90 days.
+      function bestActual(distanceKey) {
+        const efforts = (runPrData || []).filter(r =>
+          r.distance_key === distanceKey &&
+          r.time_seconds &&
+          r.date >= since90
         )
-        const longer = (runData || []).filter(r =>
-          r.distance_km > targetKm + tol &&
-          (r.time_seconds || r.pace_per_km)
-        )
-        const all = [...direct, ...longer]
-        if (!all.length) return null
+        if (!efforts.length) return null
 
-        return all.reduce((b, r) => {
-          const pace = r.pace_per_km || (r.time_seconds / r.distance_km)
-          const t = Math.round(pace * targetKm)
-          const bt = b._t
-          return t < bt ? { ...r, _t: t } : b
-        }, { ...all[0], _t: (() => {
-          const r = all[0]
-          const pace = r.pace_per_km || (r.time_seconds / r.distance_km)
-          return Math.round(pace * targetKm)
-        })() })
+        return efforts.reduce((best, r) => {
+          const t = Number(r.time_seconds)
+          const bt = Number(best.time_seconds)
+          return t < bt ? r : best
+        }, efforts[0])
       }
 
-      function toDecayed(run, targetKm) {
+      function toDecayed(run) {
         if (!run) return null
-        const pace = run.pace_per_km || (run.time_seconds / run.distance_km)
-        const t = run._t || Math.round(pace * targetKm)
-        return getDecayedValue(t, run.date, 90)
+        return getDecayedValue(Number(run.time_seconds), run.date, 90)
       }
 
-      const r1D  = toDecayed(bestActual(1), 1)
-      const r5D  = toDecayed(bestActual(5), 5)
-      const r10D = toDecayed(bestActual(10), 10)
-      const rHD  = toDecayed(bestActual(21.1), 21.1)
-      const rMD  = toDecayed(bestActual(42.2), 42.2)
+      const r1D  = toDecayed(bestActual('1k'))
+      const r5D  = toDecayed(bestActual('5k'))
+      const r10D = toDecayed(bestActual('10k'))
+      const rHD  = toDecayed(bestActual('half_marathon'))
+      const rMD  = null
 
       const r1T  = r1D  ? getTier(r1D.value,  RUN_5K_THRESHOLDS.map(t=>t*0.195), false) : null
       const r5T  = r5D  ? getTier(r5D.value,  RUN_5K_THRESHOLDS, false) : null
@@ -294,17 +254,13 @@ export default function Dashboard() {
       const rHT  = rHD  ? getTier(rHD.value,  RUN_HALF_THRESHOLDS, false) : null
       const rMT  = rMD  ? getTier(rMD.value,  RUN_MARA_THRESHOLDS, false) : null
 
-      const hasRunData = !!(runData?.length || runPrData?.length)
+      const hasRunData = !!(runPrData?.length || runData?.length)
 
-      // Coverage check: a run of distance D covers all shorter required distances
-      // (e.g. a halvmara proves you can run 1km, 5km, 10km)
-      const longestRun = hasRunData
-        ? Math.max(...(runData||[]).map(r => r.distance_km || 0))
-        : 0
-      const covered1  = !!(r1D  || longestRun >= 1)
-      const covered5  = !!(r5D  || longestRun >= 5)
-      const covered10 = !!(r10D || longestRun >= 10)
-      const coveredH  = !!(rHD  || longestRun >= 21)
+      // Coverage check uses actual imported Strava best efforts.
+      const covered1  = !!r1D
+      const covered5  = !!r5D
+      const covered10 = !!r10D
+      const coveredH  = !!rHD
 
       const allFourCovered = covered1 && covered5 && covered10 && coveredH
 
