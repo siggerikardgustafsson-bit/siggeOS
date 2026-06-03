@@ -56,8 +56,8 @@ export default function PluggPage() {
   const [examPointsForm, setExamPointsForm] = useState({ points_earned: '', points_max: '' })
   const [newGoal, setNewGoal] = useState('')
   const [addingGoalTo, setAddingGoalTo] = useState(null)
-  const [courseForm, setCourseForm] = useState({ name: '', term: 'Termin 3', end_date: '' })
-  const [archiveForm, setArchiveForm] = useState({ name: '', term: 'Termin 1', end_date: '', grade: 'G' })
+  const [courseForm, setCourseForm] = useState({ name: '', term: 'Termin 3', exam_date: '' })
+  const [archiveForm, setArchiveForm] = useState({ name: '', term: 'Termin 1', exam_date: '', grade: 'G' })
   const [sessionForm, setSessionForm] = useState({ course_id: '', subject: '', hours: '', notes: '', date: format(new Date(), 'yyyy-MM-dd') })
   const [mandatorySessions, setMandatorySessions] = useState({})
   const [mandatoryUnmatched, setMandatoryUnmatched] = useState([])
@@ -193,7 +193,7 @@ export default function PluggPage() {
     setSaving(true)
     await supabase.from('courses').insert({ user_id: user.id, ...courseForm, active: true })
     await fetchCourses()
-    setCourseForm({ name: '', term: 'Termin 3', end_date: '' })
+    setCourseForm({ name: '', term: 'Termin 3', exam_date: '' })
     setShowNewCourse(false)
     setSaving(false)
   }
@@ -202,7 +202,7 @@ export default function PluggPage() {
     setSaving(true)
     await supabase.from('courses').insert({ user_id: user.id, ...archiveForm, active: false })
     await fetchCourses()
-    setArchiveForm({ name: '', term: 'Termin 1', end_date: '', grade: 'G' })
+    setArchiveForm({ name: '', term: 'Termin 1', exam_date: '', grade: 'G' })
     setShowNewArchive(false)
     setSaving(false)
   }
@@ -541,7 +541,7 @@ export default function PluggPage() {
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Slutdatum</label>
-                  <input className="input" type="date" value={courseForm.end_date} onChange={e => setCourseForm(f => ({ ...f, end_date: e.target.value }))} />
+                  <input className="input" type="date" value={courseForm.exam_date} onChange={e => setCourseForm(f => ({ ...f, exam_date: e.target.value }))} />
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -558,7 +558,7 @@ export default function PluggPage() {
             const courseExams = exams[course.id] || []
             const doneExams = courseExams.filter(e => e.grade === 'G').length
             const isEditing = editingCourse === course.id
-            const daysLeft = course.end_date ? differenceInDays(parseISO(course.end_date), new Date()) : null
+            const daysLeft = course.exam_date ? differenceInDays(parseISO(course.exam_date), new Date()) : null
             const mandatoryForCourse = mandatorySessions[course.id] || []
             const attendedCount = mandatoryForCourse.filter(m => m.attended).length
 
@@ -571,7 +571,7 @@ export default function PluggPage() {
                       <select className="input" value={editForm.term || ''} onChange={e => setEditForm(f => ({ ...f, term: e.target.value }))}>
                         {TERMS.map(t => <option key={t}>{t}</option>)}
                       </select>
-                      <input className="input" type="date" value={editForm.end_date || ''} onChange={e => setEditForm(f => ({ ...f, end_date: e.target.value }))} />
+                      <input className="input" type="date" value={editForm.exam_date || ''} onChange={e => setEditForm(f => ({ ...f, exam_date: e.target.value }))} />
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button onClick={saveEditCourse} className="btn btn-primary" disabled={saving}><Save size={14} /> Spara</button>
@@ -604,7 +604,7 @@ export default function PluggPage() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                        <button onClick={e => { e.stopPropagation(); setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, end_date: course.end_date || '' }) }}
+                        <button onClick={e => { e.stopPropagation(); setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, exam_date: course.exam_date || '' }) }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', opacity: 0.6 }}>️</button>
                         {isExpanded ? <ChevronUp size={16} color="var(--muted)" /> : <ChevronDown size={16} color="var(--muted)" />}
                       </div>
@@ -1074,7 +1074,7 @@ export default function PluggPage() {
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Slutdatum</label>
-                  <input className="input" type="date" value={archiveForm.end_date} onChange={e => setArchiveForm(f => ({ ...f, end_date: e.target.value }))} />
+                  <input className="input" type="date" value={archiveForm.exam_date} onChange={e => setArchiveForm(f => ({ ...f, exam_date: e.target.value }))} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Betyg</label>
@@ -1118,7 +1118,7 @@ export default function PluggPage() {
                       {courseExams.length > 0 && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{doneExams}/{courseExams.length} klara</span>}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                      {course.term}{course.end_date ? ` · ${format(parseISO(course.end_date), 'MMM yyyy', { locale: sv })}` : ''}
+                      {course.term}{course.exam_date ? ` · ${format(parseISO(course.exam_date), 'MMM yyyy', { locale: sv })}` : ''}
                     </div>
                   </div>
                   {isExpanded ? <ChevronUp size={14} color="var(--muted)" /> : <ChevronDown size={14} color="var(--muted)" />}
