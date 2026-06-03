@@ -7,7 +7,7 @@ import {
   differenceInDays, isToday
 } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Loader, RefreshCw, Dumbbell, Timer, Briefcase, FileText, GraduationCap, BookOpen, Heart, Clock, Plane } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader, RefreshCw, Dumbbell, Timer, Briefcase, FileText, GraduationCap, BookOpen, Heart, Clock, Plane, CheckCircle2, Circle } from 'lucide-react'
 
 const EVENT_TYPES = {
   training:   { label: 'Träning',      color: '#3b82f6', Icon: Dumbbell },
@@ -15,6 +15,7 @@ const EVENT_TYPES = {
   pa:         { label: 'PA-pass',      color: '#f97316', Icon: Briefcase },
   exam:       { label: 'Tenta',        color: '#ef4444', Icon: FileText },
   mandatory:  { label: 'Obligatorisk', color: '#8b5cf6', Icon: GraduationCap },
+  study_deadline: { label: 'Pluggdeadline', color: '#a78bfa', Icon: BookOpen },
   journal:    { label: 'Journal',      color: '#06b6d4', Icon: BookOpen },
   health:     { label: 'Hälsa',        color: '#10b981', Icon: Heart },
   erik:       { label: 'Erik',         color: '#f59e0b', Icon: Briefcase },
@@ -72,11 +73,20 @@ export default function KalenderPage() {
     const start = format(startOfMonth(month), 'yyyy-MM-dd')
     const end = format(endOfMonth(month), 'yyyy-MM-dd')
 
-    const [trainRes, paRes, examRes, mandRes, journalRes, healthRes, erikRes, tripRes] = await Promise.all([
+    const [trainRes, paRes, examRes, mandRes, taskDeadlineRes, journalRes, healthRes, erikRes, tripRes] = await Promise.all([
       supabase.from('training_sessions').select('date, session_type, distance_km, duration_minutes, notes').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase.from('pa_shifts').select('date, hours_worked, shift_type, start_time, end_time').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase.from('course_exams').select('exam_date, name, courses(name)').eq('user_id', user.id).not('exam_date', 'is', null).gte('exam_date', start).lte('exam_date', end),
       supabase.from('mandatory_sessions').select('date, title, start_time, end_time, attended').eq('user_id', user.id).gte('date', start).lte('date', end),
+      supabase
+        .from('study_task_deadlines')
+        .select('id, task_id, name, due_date, completed, sort_order, study_tasks(title, task_type, status, priority, courses(name))')
+        .eq('user_id', user.id)
+        .not('due_date', 'is', null)
+        .gte('due_date', start)
+        .lte('due_date', end)
+        .order('due_date', { ascending: true })
+        .order('sort_order', { ascending: true }),
       supabase.from('journal_entries').select('date, mood, energy').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase.from('health_logs').select('date, weight_kg, steps').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase.from('erik_tasks').select('deadline, title, tag').eq('user_id', user.id).not('deadline', 'is', null).gte('deadline', start).lte('deadline', end),
@@ -102,6 +112,21 @@ export default function KalenderPage() {
     for (const m of mandRes.data || []) {
       const timeStr = m.start_time ? format(parseISO(m.start_time), 'HH:mm') + (m.end_time ? '–' + format(parseISO(m.end_time), 'HH:mm') : '') : null
       add(m.date, 'mandatory', { label: m.title, attended: m.attended, id: m.id, time: timeStr })
+    }
+    for (const d of taskDeadlineRes.data || []) {
+      const task = d.study_tasks
+      if (!d.due_date || !task) continue
+      add(d.due_date, 'study_deadline', {
+        id: d.id,
+        taskId: d.task_id,
+        label: d.name || 'Deadline',
+        sub: task.title,
+        course: task.courses?.name,
+        taskType: task.task_type,
+        priority: task.priority,
+        taskStatus: task.status,
+        completed: d.completed,
+      })
     }
     for (const j of journalRes.data || []) {
       add(j.date, 'journal', { label: `humör ${j.mood}/10`, sub: `energi ${j.energy}/10` })
@@ -170,12 +195,24 @@ export default function KalenderPage() {
     await fetchAll()
   }
 
+  async function toggleStudyDeadline(deadlineId, current) {
+    await supabase
+      .from('study_task_deadlines')
+      .update({
+        completed: !current,
+        completed_at: !current ? new Date().toISOString() : null,
+      })
+      .eq('id', deadlineId)
+      .eq('user_id', user.id)
+    await fetchAll()
+  }
+
   const calStart = startOfWeek(startOfMonth(month), { weekStartsOn: 1 })
   const calEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 1 })
   const days = eachDayOfInterval({ start: calStart, end: calEnd })
   const dayHeaders = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön']
 
-  const selectedEvents = selectedDay ? (events[selectedDay] || []) : []
+  const selectedEvents = selectedDay ? (events[selectedDay] || []).filter(e => filterTypes.has(e.type)) : []
   const filteredEvents = (date) => (events[date] || []).filter(e => filterTypes.has(e.type))
 
   // Month stats
@@ -184,6 +221,7 @@ export default function KalenderPage() {
   const paCount = allEvents.filter(e => e.type === 'pa').length
   const mandCount = allEvents.filter(e => e.type === 'mandatory').length
   const examCount = allEvents.filter(e => e.type === 'exam').length
+  const studyDeadlineCount = allEvents.filter(e => e.type === 'study_deadline').length
 
   return (
     <div className="page-wrap">
@@ -247,6 +285,7 @@ export default function KalenderPage() {
               const isWeekend = day.getDay() === 0 || day.getDay() === 6
               const hasExam = dayEvents.some(e => e.type === 'exam')
               const hasPA = dayEvents.some(e => e.type === 'pa')
+              const hasStudyDeadline = dayEvents.some(e => e.type === 'study_deadline')
               const tripEvents = dayEvents.filter(e => e.type === 'trip')
               const nonTripEvents = dayEvents.filter(e => e.type !== 'trip')
               const hasTrip = tripEvents.length > 0
@@ -254,8 +293,8 @@ export default function KalenderPage() {
               return (
                 <div key={dateStr} onClick={() => setSelectedDay(isSelected ? null : dateStr)} style={{
                   minHeight: '68px', padding: '4px', borderRadius: '6px', cursor: 'pointer',
-                  background: isSelected ? 'var(--accent-soft)' : today ? 'rgba(79,142,247,0.06)' : hasExam ? 'rgba(239,68,68,0.04)' : hasPA ? 'rgba(249,115,22,0.04)' : hasTrip ? 'rgba(232,121,249,0.06)' : isWeekend ? 'rgba(255,255,255,0.01)' : 'transparent',
-                  border: `1px solid ${isSelected ? 'var(--accent-border)' : today ? 'var(--accent-border)' : hasTrip ? 'rgba(232,121,249,0.25)' : dayEvents.length > 0 ? 'var(--border)' : 'transparent'}`,
+                  background: isSelected ? 'var(--accent-soft)' : today ? 'rgba(79,142,247,0.06)' : hasExam ? 'rgba(239,68,68,0.04)' : hasPA ? 'rgba(249,115,22,0.04)' : hasTrip ? 'rgba(232,121,249,0.06)' : hasStudyDeadline ? 'rgba(167,139,250,0.06)' : isWeekend ? 'rgba(255,255,255,0.01)' : 'transparent',
+                  border: `1px solid ${isSelected ? 'var(--accent-border)' : today ? 'var(--accent-border)' : hasTrip ? 'rgba(232,121,249,0.25)' : hasStudyDeadline ? 'rgba(167,139,250,0.25)' : dayEvents.length > 0 ? 'var(--border)' : 'transparent'}`,
                   opacity: inMonth ? 1 : 0.3,
                   transition: 'all 0.12s',
                   overflow: 'hidden',
@@ -336,13 +375,34 @@ export default function KalenderPage() {
                             {ev.attended ? '✓ Närvaro' : 'Markera'}
                           </button>
                         )}
+                        {ev.type === 'study_deadline' && (
+                          <button onClick={() => toggleStudyDeadline(ev.id, ev.completed)} style={{
+                            marginLeft: 'auto', fontSize: '10px', padding: '2px 8px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+                            background: ev.completed ? 'rgba(16,185,129,0.18)' : 'rgba(167,139,250,0.16)',
+                            color: ev.completed ? '#10b981' : t.color, fontFamily: 'Inter, sans-serif',
+                            display: 'flex', alignItems: 'center', gap: '4px',
+                          }}>
+                            {ev.completed ? <CheckCircle2 size={10} /> : <Circle size={10} />}
+                            {ev.completed ? 'Klar' : 'Markera klar'}
+                          </button>
+                        )}
                         {ev.type === 'trip' && ev.totalDays > 1 && (
                           <span style={{ marginLeft: 'auto', fontSize: '10px', color: t.color, fontWeight: 600 }}>
                             Dag {ev.dayIndex}/{ev.totalDays}
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: '13px', fontWeight: '500', lineHeight: '1.4' }}>{ev.label}</div>
+                      <div style={{ fontSize: '13px', fontWeight: '500', lineHeight: '1.4', textDecoration: ev.completed ? 'line-through' : 'none', opacity: ev.completed ? 0.65 : 1 }}>{ev.label}</div>
+                      {ev.type === 'study_deadline' && (
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px', lineHeight: 1.35 }}>
+                          {ev.sub && <div>Uppgift: {ev.sub}</div>}
+                          {ev.course && <div>Kurs: {ev.course}</div>}
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                            {ev.taskType && <span style={{ color: t.color }}>{ev.taskType}</span>}
+                            {ev.priority && <span>Prio: {ev.priority}</span>}
+                          </div>
+                        </div>
+                      )}
                       {ev.type === 'trip' && ev.rating > 0 && (
                         <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '3px' }}>{'★'.repeat(ev.rating)}{'☆'.repeat(5 - ev.rating)}</div>
                       )}
