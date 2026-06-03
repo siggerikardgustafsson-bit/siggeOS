@@ -20,11 +20,13 @@ export default function AppLayout() {
       })
   }, [user])
 
+  const routeClass = `route-${(location.pathname === '/' ? 'dashboard' : location.pathname.replace(/^\//, '').replace(/\//g, '-') || 'dashboard')}`
+
   return (
-    <div className="sigge-app-shell" style={{
+    <div className={`sigge-app-shell ${routeClass}`} style={{
       display: 'flex',
-      height: '100dvh',
-      minHeight: '100vh',
+      height: '100svh',
+      minHeight: '100svh',
       overflow: 'hidden',
       padding: '0',
       gap: '0',
@@ -36,7 +38,7 @@ export default function AppLayout() {
         flexShrink: 0,
         padding: '10px 0 10px 10px',
         boxSizing: 'border-box',
-        height: '100dvh',
+        height: '100svh',
       }}>
         <div style={{
           height: '100%',
@@ -55,7 +57,7 @@ export default function AppLayout() {
         overflowX: 'hidden',
         background: 'transparent',
         minHeight: 0,
-        maxHeight: '100dvh',
+        maxHeight: '100svh',
         display: 'flex',
         flexDirection: 'column',
         padding: '10px',
