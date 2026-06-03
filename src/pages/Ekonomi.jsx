@@ -70,7 +70,7 @@ const ASSET_TYPES = [
 ]
 
 
-async function fetchPricesViaEdge(assets: any[]) {
+async function fetchPricesViaEdge(assets) {
   try {
     const res = await supabase.functions.invoke('price-fetch', {
       body: { assets: assets.map(a => ({ id: a.id, ticker: a.ticker, type: a.type })) }
