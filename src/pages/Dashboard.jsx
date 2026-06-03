@@ -388,11 +388,21 @@ export default function Dashboard() {
       const byCourse={}
       aG.forEach(g=>{const cn=g.courses?.name||'Okänd';if(!byCourse[cn])byCourse[cn]=[];byCourse[cn].push(g.mastery||0)})
 
-      const totIncomeLogged = (incomeData||[]).reduce((s,i)=>s+(Number(i.amount)||0),0)
-      const totPAEst = (paData||[]).reduce((s,sh)=>s+(sh.estimated_pay||0),0)
-      // Use income_logs if any exist this period (they're logged net), otherwise fall back to PA estimate
+      const INCOME_SOURCES = ['PA-jobb', 'Erik Norling']
+      const totIncomeLogged = (incomeData||[])
+        .filter(i => INCOME_SOURCES.includes(i.source))
+        .reduce((s,i) => {
+          const amt = Number(i.amount) || 0
+          return s + (i.source === 'PA-jobb' ? amt * 0.7 : amt)
+        }, 0)
+      const totPAEst = (paData||[]).reduce((s,sh) => s + (sh.estimated_pay||0), 0) * 0.7
       const totPA = totIncomeLogged > 0 ? totIncomeLogged : totPAEst
-      const sav=userSettings?.goals?.savings||null
+
+      // Savings: fetch total net worth from assets table
+      const { data: assetsData } = await supabase.from('assets').select('type,quantity,manual_price_sek').eq('user_id', userId)
+      // Use latest net_worth_history snapshot if available, otherwise sum cash assets
+      const { data: nwhData } = await supabase.from('net_worth_history').select('total_sek').eq('user_id', userId).order('date', { ascending: false }).limit(1)
+      const sav = nwhData?.[0]?.total_sek || (assetsData||[]).reduce((s,a) => s + (a.type === 'cash' ? (a.manual_price_sek||0) : 0), 0) || null
       const incT=totPA?getTier(totPA,INCOME_THRESHOLDS,true):null
       const savT=sav!=null?getTier(sav,SAVINGS_THRESHOLDS,true):null
       // Ekonomi: min of logged metrics — weak link (high income doesn't offset zero savings)
