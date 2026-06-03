@@ -304,7 +304,7 @@ export default function Dashboard() {
           subtitle: 'Strava best effort från enskilt löppass',
           value: formatRunTime(Number(row.time_seconds)),
           date: row.date,
-          navTarget: '/traning',
+          navTarget: row.strava_activity_id ? `/traning?stravaActivity=${row.strava_activity_id}` : '/traning',
           navLabel: 'Träning',
           rows: [
             { label: 'Källa', value: 'run_personal_records' },
@@ -448,7 +448,7 @@ export default function Dashboard() {
           subtitle: 'Bästa e1RM-källa senaste 60 dagar eller PR-rad',
           value: Math.round(best.e1rm) + ' kg',
           date: best.date,
-          navTarget: '/traning',
+          navTarget: best.sessionId ? `/traning?session=${best.sessionId}` : '/traning',
           navLabel: 'Träning',
           rows: [
             { label: 'e1RM', value: Math.round(best.e1rm) + ' kg' },
@@ -909,7 +909,7 @@ export default function Dashboard() {
             <div className="grid-4 dashboard-category-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:'12px' }}>
               {categories.map((cat,i) => (
                 <div key={cat.id} className={'fade-up fade-up-delay-'+Math.min(i+1,7)}>
-                  <CategoryCard category={cat} onClick={setSelectedCategory} onMetricClick={setSelectedEvidence} />
+                  <CategoryCard category={cat} onClick={setSelectedCategory} onMetricClick={(evidence) => { if (evidence?.navTarget) window.location.href = evidence.navTarget; else setSelectedEvidence(evidence) }} />
                 </div>
               ))}
             </div>

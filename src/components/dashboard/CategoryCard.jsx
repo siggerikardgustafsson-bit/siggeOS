@@ -93,6 +93,59 @@ export default function CategoryCard({ category, onClick, onMetricClick }) {
   return (
     <div onClick={openCard} className="widget cat-card fade-up"
       style={{ padding: '12px', minHeight: '140px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <style>{`
+        .metric-source-row {
+          appearance: none;
+          width: 100%;
+          border: 1px solid transparent;
+          background: rgba(255,255,255,0.025);
+          border-radius: 9px;
+          padding: 4px 5px;
+          cursor: pointer;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto auto;
+          gap: 6px;
+          align-items: center;
+          text-align: left;
+          transition: transform .14s ease, background .14s ease, border-color .14s ease, box-shadow .14s ease;
+        }
+        .metric-source-row:hover {
+          transform: translateY(-1px);
+          background: var(--accent-soft);
+          border-color: var(--accent-border);
+          box-shadow: 0 0 0 3px var(--accent-soft), 0 6px 18px rgba(0,0,0,.18);
+        }
+        .metric-source-row:active { transform: translateY(0) scale(.99); }
+        .metric-source-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 6px;
+          border-radius: 999px;
+          background: rgba(79,142,247,.14);
+          border: 1px solid rgba(79,142,247,.26);
+          color: var(--accent);
+          font-size: 8px;
+          font-weight: 850;
+          letter-spacing: .06em;
+          text-transform: uppercase;
+          opacity: .72;
+          transition: opacity .14s ease, transform .14s ease, background .14s ease;
+          white-space: nowrap;
+        }
+        .metric-source-row:hover .metric-source-pill {
+          opacity: 1;
+          transform: scale(1.04);
+          background: rgba(79,142,247,.22);
+        }
+        .metric-source-value {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+      `}</style>
 
       {hasData && tierNum > 0 && (
         <div style={{ position: 'absolute', top: -20, right: -20, width: 70, height: 70, borderRadius: '50%', background: color + '12', filter: 'blur(18px)', pointerEvents: 'none' }} />
@@ -119,20 +172,20 @@ export default function CategoryCard({ category, onClick, onMetricClick }) {
                 const clickable = !!m.evidence && !!onMetricClick
                 const RowTag = clickable ? 'button' : 'div'
                 return (
-                  <RowTag key={i} onClick={clickable ? (e) => handleMetricClick(e, m) : undefined}
-                    title={clickable ? 'Visa källa' : undefined}
-                    style={{
-                      appearance: 'none', width: '100%', border: clickable ? '1px solid transparent' : 'none',
-                      background: clickable ? color + '08' : 'transparent', borderRadius: 7,
-                      padding: clickable ? '3px 5px' : '0', cursor: clickable ? 'pointer' : 'inherit',
-                      display: 'flex', justifyContent: 'space-between', gap: '4px', alignItems: 'baseline', textAlign: 'left',
-                    }}>
-                    <span style={{ fontSize: '10px', color: clickable ? 'var(--muted2)' : 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1 }}>
+                  <RowTag key={i}
+                    onClick={clickable ? (e) => handleMetricClick(e, m) : undefined}
+                    title={clickable ? 'Öppna pass/källa' : undefined}
+                    className={clickable ? 'metric-source-row' : undefined}
+                    style={!clickable ? {
+                      width: '100%', display: 'flex', justifyContent: 'space-between', gap: '4px', alignItems: 'baseline', textAlign: 'left', padding: 0,
+                    } : undefined}>
+                    <span style={{ fontSize: '10px', color: clickable ? 'var(--muted2)' : 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                       {m.label}
                     </span>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: i === 0 ? '12px' : '11px', fontWeight: i === 0 ? 700 : 500, color: m.highlight ? color : 'var(--text)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                      {m.value}{clickable && <span style={{ color, fontSize: 10, opacity: .9 }}>↗</span>}
+                    <span className={clickable ? 'metric-source-value' : undefined} style={{ fontSize: i === 0 ? '12px' : '11px', fontWeight: i === 0 ? 800 : 650, color: m.highlight ? color : 'var(--text)' }}>
+                      {m.value}
                     </span>
+                    {clickable && <span className="metric-source-pill">Källa ↗</span>}
                   </RowTag>
                 )
               })}

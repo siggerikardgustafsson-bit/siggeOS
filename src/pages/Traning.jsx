@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from 'date-fns'
@@ -89,6 +90,7 @@ function WeekBar({ sessions }) {
 
 export default function TraningPage() {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [view, setView] = useState('overview') // overview | log
   const [sessionType, setSessionType] = useState('gym')
   const [sessions, setSessions] = useState([])
@@ -140,6 +142,25 @@ export default function TraningPage() {
   useEffect(() => {
     if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); loadCustomExercises(); fetchExerciseLibrary() }
   }, [user])
+
+  useEffect(() => {
+    const sessionId = searchParams.get('session')
+    const stravaActivity = searchParams.get('stravaActivity')
+    if (!sessions.length || (!sessionId && !stravaActivity)) return
+
+    const match = sessions.find(session => {
+      if (sessionId && String(session.id) === String(sessionId)) return true
+      if (stravaActivity && String(session.strava_id || '') === String(stravaActivity)) return true
+      return false
+    })
+
+    if (match) {
+      setView('overview')
+      setExpandedSession(null)
+      setSelectedSessionDetail(match)
+      setSearchParams({}, { replace: true })
+    }
+  }, [sessions, searchParams, setSearchParams])
 
   async function loadCustomExercises() {
     const [settingsRes, historyRes] = await Promise.all([
