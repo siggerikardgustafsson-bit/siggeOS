@@ -69,75 +69,17 @@ const ASSET_TYPES = [
   { id: 'cash',    label: 'Sparkonto',color: '#10b981' },
 ]
 
-const CRYPTO_IDS = { 'BTC': 'bitcoin', 'ETH': 'ethereum', 'bitcoin': 'bitcoin', 'ethereum': 'ethereum' }
 
-async function fetchYahooPrice(ticker, timeoutMs = 4000) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
+async function fetchPricesViaEdge(assets: any[]) {
   try {
-    // Try direct Yahoo Finance first (works in some browsers/environments)
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`
-    const res = await fetch(url, { signal: controller.signal }).catch(() => null)
-    if (res?.ok) {
-      const data = await res.json()
-      const price = data?.chart?.result?.[0]?.meta?.regularMarketPrice
-      const currency = data?.chart?.result?.[0]?.meta?.currency
-      clearTimeout(timer)
-      return { price, currency }
-    }
-    // Fallback: corsproxy.io (faster than allorigins)
-    const proxy = `https://corsproxy.io/?${encodeURIComponent(url)}`
-    const res2 = await fetch(proxy, { signal: controller.signal })
-    const data2 = await res2.json()
-    const price2 = data2?.chart?.result?.[0]?.meta?.regularMarketPrice
-    const currency2 = data2?.chart?.result?.[0]?.meta?.currency
-    clearTimeout(timer)
-    return { price: price2, currency: currency2 }
+    const res = await supabase.functions.invoke('price-fetch', {
+      body: { assets: assets.map(a => ({ id: a.id, ticker: a.ticker, type: a.type })) }
+    })
+    return res.data || { prices: {}, usdSek: 10.5 }
   } catch(e) {
-    clearTimeout(timer)
-    return { price: null, currency: null }
+    console.warn('price-fetch edge function failed', e)
+    return { prices: {}, usdSek: 10.5 }
   }
-}
-
-async function fetchLivePrices(assets, usdSek) {
-  const results = {}
-  const stocks = assets.filter(a => a.type === 'stock' || a.type === 'fund')
-  const cryptos = assets.filter(a => a.type === 'crypto')
-
-  // Fetch all stock/fund prices in parallel
-  await Promise.all(stocks.map(async (asset) => {
-    if (!asset.ticker) return
-    const { price, currency } = await fetchYahooPrice(asset.ticker)
-    if (price) {
-      const priceSek = currency === 'SEK' ? price : price * (usdSek || 10.5)
-      results[asset.id] = { price: priceSek, currency: 'SEK', source: 'yahoo' }
-    }
-  }))
-
-  // Fetch all crypto prices in one request
-  if (cryptos.length > 0) {
-    try {
-      const ids = cryptos.map(a => CRYPTO_IDS[a.ticker] || a.ticker.toLowerCase()).join(',')
-      const controller = new AbortController()
-      setTimeout(() => controller.abort(), 5000)
-      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=sek`, { signal: controller.signal })
-      const data = await res.json()
-      for (const asset of cryptos) {
-        const geckoId = CRYPTO_IDS[asset.ticker] || asset.ticker.toLowerCase()
-        const priceSek = data?.[geckoId]?.sek
-        if (priceSek) results[asset.id] = { price: priceSek, currency: 'SEK', source: 'coingecko' }
-      }
-    } catch(e) { console.warn('CoinGecko failed', e) }
-  }
-
-  return results
-}
-
-async function fetchUsdSek() {
-  try {
-    const { price } = await fetchYahooPrice('USDSEK=X', 3000)
-    return price || 10.5
-  } catch { return 10.5 }
 }
 
 function NetWorthTab({ user }) {
@@ -168,21 +110,19 @@ function NetWorthTab({ user }) {
     const nwGoal = goalData?.goals?.net_worth_goal || {}
     setGoal({ target: nwGoal.target || '', deadline: nwGoal.deadline || '' })
 
-    const fx = await fetchUsdSek()
-    setUsdSek(fx)
-    if (loadedAssets.length) {
-      const livePrices = await fetchLivePrices(loadedAssets, fx)
+    if (loadedAssets.filter(a => a.type !== 'cash').length > 0) {
+      const { prices: livePrices, usdSek: fx } = await fetchPricesViaEdge(loadedAssets)
       setPrices(livePrices)
+      setUsdSek(fx || 10.5)
     }
     setLoading(false)
   }
 
   async function refreshPrices() {
     setRefreshing(true)
-    const fx = await fetchUsdSek()
-    setUsdSek(fx)
-    const livePrices = await fetchLivePrices(assets, fx)
+    const { prices: livePrices, usdSek: fx } = await fetchPricesViaEdge(assets)
     setPrices(livePrices)
+    setUsdSek(fx || 10.5)
     setRefreshing(false)
   }
 
