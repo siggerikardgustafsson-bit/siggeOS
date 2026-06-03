@@ -313,7 +313,7 @@ export default function InsightsPage() {
       <div className="page-header">
         <div>
           <div className="page-header-title">Insights</div>
-          <div className="page-header-sub">Senaste 90 dagarna</div>
+          <div className="page-header-sub">Mönster, risker och signaler senaste 90 dagarna</div>
         </div>
         <button onClick={generateWeeklyReport} disabled={generatingReport} style={{
           display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 13px',
@@ -322,7 +322,7 @@ export default function InsightsPage() {
           color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif', fontWeight: '600',
         }}>
           {generatingReport ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={12} />}
-          Veckorapport
+          Analysera vecka
         </button>
       </div>
 
@@ -332,7 +332,7 @@ export default function InsightsPage() {
       {/* Jarvis weekly report */}
       {weeklyReport && (
         <div className="card" style={{ marginBottom: '24px', borderColor: 'rgba(139,92,246,0.2)', background: 'rgba(139,92,246,0.04)' }}>
-          <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600', marginBottom: '10px' }}>JARVIS VECKORAPPORT</div>
+          <div style={{ fontSize: '12px', color: '#a78bfa', fontWeight: '600', marginBottom: '10px' }}>JARVIS · VECKORAPPORT</div>
           <div style={{ fontSize: '14px', lineHeight: '1.7', color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{weeklyReport}</div>
         </div>
       )}
@@ -354,7 +354,7 @@ export default function InsightsPage() {
             </div>
             <button onClick={() => generateObservations(data, true)} disabled={loadingObs} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
               {loadingObs ? <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={11} />}
-              {loadingObs ? 'Analyserar...' : 'Uppdatera'}
+              {loadingObs ? 'Analyserar 90 dagar…' : 'Uppdatera'}
             </button>
           </div>
           {loadingObs && aiObservations.length === 0 ? (

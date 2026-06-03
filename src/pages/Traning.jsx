@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight, RefreshCw, Link, Upload, Search, Edit3, Library, Check } from 'lucide-react'
+import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight, RefreshCw, Link, Upload } from 'lucide-react'
 import ExerciseModal from '../components/ExerciseModal'
 import RunModal from '../components/RunModal'
 
@@ -29,18 +28,9 @@ const BW_EXERCISES = new Set([
 ])
 
 const RUN_PR_DISTANCES = [
-  { label: '1 km',       meters: 1000 },
   { label: '5 km',       meters: 5000 },
   { label: '10 km',      meters: 10000 },
   { label: 'Halvmaraton', meters: 21097 },
-]
-
-
-const FEATURED_STRENGTH_PBS = [
-  { label: 'Bänkpress', aliases: ['bänkpress', 'bankpress', 'bench press', 'bänk'] },
-  { label: 'Marklyft', aliases: ['marklyft', 'deadlift'] },
-  { label: 'Knäböj', aliases: ['knäböj', 'knaboj', 'squat', 'böj'] },
-  { label: 'Pull-ups', aliases: ['pull-ups', 'pullups', 'pull up', 'pull-up', 'weighted pull-up', 'chins'] },
 ]
 
 const SESSION_TYPES = [
@@ -98,7 +88,6 @@ function WeekBar({ sessions }) {
 
 export default function TraningPage() {
   const { user } = useAuth()
-  const [searchParams, setSearchParams] = useSearchParams()
   const [view, setView] = useState('overview') // overview | log
   const [sessionType, setSessionType] = useState('gym')
   const [sessions, setSessions] = useState([])
@@ -109,15 +98,6 @@ export default function TraningPage() {
   const [editingSession, setEditingSession] = useState(null) // session being edited
   const [customExercise, setCustomExercise] = useState('')
   const [exerciseLibrary, setExerciseLibrary] = useState(BASE_EXERCISE_LIBRARY)
-
-  // Exercise library 2.0
-  const [libraryExercises, setLibraryExercises] = useState([])
-  const [muscleGroups, setMuscleGroups] = useState([])
-  const [exerciseAliases, setExerciseAliases] = useState({})
-  const [librarySearch, setLibrarySearch] = useState('')
-  const [libraryLoading, setLibraryLoading] = useState(false)
-  const [editingLibraryExercise, setEditingLibraryExercise] = useState(null)
-  const [savingLibraryExercise, setSavingLibraryExercise] = useState(false)
 
   // Strava
   const [stravaConnected, setStravaConnected] = useState(false)
@@ -144,37 +124,10 @@ export default function TraningPage() {
   const [calendarMonth, setCalendarMonth] = useState(new Date())
   const [selectedExercise, setSelectedExercise] = useState(null)
   const [showRunModal, setShowRunModal] = useState(false)
-  const [showAllPrModal, setShowAllPrModal] = useState(false)
-  const [showStrengthPrModal, setShowStrengthPrModal] = useState(false)
-  const [showRunPrModal, setShowRunPrModal] = useState(false)
-  const [allPrFilter, setAllPrFilter] = useState('all') // all | strength | run
-  const [allPrSearch, setAllPrSearch] = useState('')
-  const [allPrSort, setAllPrSort] = useState('date') // date | name | value
-  const [runEfforts, setRunEfforts] = useState([])
-  const [selectedSessionDetail, setSelectedSessionDetail] = useState(null)
 
   useEffect(() => {
-    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); loadCustomExercises(); fetchExerciseLibrary() }
+    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); loadCustomExercises() }
   }, [user])
-
-  useEffect(() => {
-    const sessionId = searchParams.get('session')
-    const stravaActivity = searchParams.get('stravaActivity')
-    if (!sessions.length || (!sessionId && !stravaActivity)) return
-
-    const match = sessions.find(session => {
-      if (sessionId && String(session.id) === String(sessionId)) return true
-      if (stravaActivity && String(session.strava_id || '') === String(stravaActivity)) return true
-      return false
-    })
-
-    if (match) {
-      setView('overview')
-      setExpandedSession(null)
-      setSelectedSessionDetail(match)
-      setSearchParams({}, { replace: true })
-    }
-  }, [sessions, searchParams, setSearchParams])
 
   async function loadCustomExercises() {
     const [settingsRes, historyRes] = await Promise.all([
@@ -197,184 +150,6 @@ export default function TraningPage() {
     const allCustom = [...new Set([...custom, ...fromHistory])]
 
     setExerciseLibrary(prev => ({ ...prev, 'Egna': allCustom }))
-  }
-
-  function normalizeSlug(value) {
-    return String(value || '')
-      .trim()
-      .toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/å/g, 'a').replace(/ä/g, 'a').replace(/ö/g, 'o')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-  }
-
-  function uniqueBySlugPreferOwn(rows) {
-    const sorted = [...(rows || [])].sort((a, b) => {
-      if (a.user_id && !b.user_id) return -1
-      if (!a.user_id && b.user_id) return 1
-      return String(a.name || '').localeCompare(String(b.name || ''))
-    })
-    const seen = new Set()
-    return sorted.filter(row => {
-      const key = row.slug || normalizeSlug(row.name)
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-  }
-
-  async function fetchExerciseLibrary() {
-    if (!user) return
-    setLibraryLoading(true)
-    const [exerciseRes, muscleRes, aliasRes] = await Promise.all([
-      supabase.from('exercise_library_with_muscles').select('*').order('category').order('name'),
-      supabase.from('muscle_groups').select('*').eq('is_active', true).order('sort_order'),
-      supabase.from('exercise_aliases').select('id, exercise_id, alias, slug').order('alias'),
-    ])
-
-    const visibleExercises = uniqueBySlugPreferOwn(exerciseRes.data || [])
-    const aliasMap = {}
-    for (const alias of aliasRes.data || []) {
-      if (!aliasMap[alias.exercise_id]) aliasMap[alias.exercise_id] = []
-      aliasMap[alias.exercise_id].push(alias)
-    }
-
-    setLibraryExercises(visibleExercises)
-    setMuscleGroups(muscleRes.data || [])
-    setExerciseAliases(aliasMap)
-    setLibraryLoading(false)
-  }
-
-  function openLibraryExercise(exercise) {
-    const aliases = exerciseAliases[exercise.id] || []
-    setEditingLibraryExercise({
-      ...exercise,
-      original_id: exercise.id,
-      original_user_id: exercise.user_id,
-      name: exercise.name || '',
-      slug: exercise.slug || normalizeSlug(exercise.name),
-      category: exercise.category || '',
-      equipment: exercise.equipment || '',
-      measurement_type: exercise.measurement_type || 'weight_reps',
-      is_bodyweight: !!exercise.is_bodyweight,
-      is_active: exercise.is_active !== false,
-      notes: exercise.notes || '',
-      primaryMuscleIds: (exercise.muscles || []).filter(m => m.role === 'primary').map(m => m.muscle_id),
-      secondaryMuscleIds: (exercise.muscles || []).filter(m => m.role === 'secondary').map(m => m.muscle_id),
-      aliasText: aliases.map(a => a.alias).join(', '),
-    })
-  }
-
-  function updateEditingLibraryExercise(field, value) {
-    setEditingLibraryExercise(prev => {
-      if (!prev) return prev
-      const next = { ...prev, [field]: value }
-      if (field === 'name') next.slug = normalizeSlug(value)
-      return next
-    })
-  }
-
-  function toggleMuscleInEditor(role, muscleId) {
-    setEditingLibraryExercise(prev => {
-      if (!prev) return prev
-      const primary = new Set(prev.primaryMuscleIds || [])
-      const secondary = new Set(prev.secondaryMuscleIds || [])
-      if (role === 'primary') {
-        primary.has(muscleId) ? primary.delete(muscleId) : primary.add(muscleId)
-        secondary.delete(muscleId)
-      } else {
-        secondary.has(muscleId) ? secondary.delete(muscleId) : secondary.add(muscleId)
-        primary.delete(muscleId)
-      }
-      return { ...prev, primaryMuscleIds: [...primary], secondaryMuscleIds: [...secondary] }
-    })
-  }
-
-  async function ensureOwnExerciseFromEditor(editor) {
-    if (editor.original_user_id) return editor.original_id
-
-    // Global/default exercises are read-only. Create a user-owned override and migrate this user's old sets/PRs to it.
-    const payload = {
-      user_id: user.id,
-      name: editor.name,
-      slug: editor.slug || normalizeSlug(editor.name),
-      category: editor.category || null,
-      equipment: editor.equipment || null,
-      measurement_type: editor.measurement_type || 'weight_reps',
-      is_bodyweight: !!editor.is_bodyweight,
-      is_active: editor.is_active !== false,
-      notes: editor.notes || null,
-    }
-
-    const { data: own, error } = await supabase
-      .from('exercise_library')
-      .upsert(payload, { onConflict: 'user_id,slug' })
-      .select()
-      .single()
-
-    if (error) throw error
-
-    await supabase
-      .from('training_exercises')
-      .update({ exercise_id: own.id, exercise_name: own.name })
-      .eq('exercise_id', editor.original_id)
-
-    await supabase
-      .from('personal_records')
-      .update({ exercise_id: own.id, exercise_name: own.name })
-      .eq('user_id', user.id)
-      .eq('exercise_id', editor.original_id)
-
-    return own.id
-  }
-
-  async function saveLibraryExercise() {
-    if (!editingLibraryExercise || !editingLibraryExercise.name.trim()) return
-    setSavingLibraryExercise(true)
-    try {
-      const editor = {
-        ...editingLibraryExercise,
-        slug: editingLibraryExercise.slug || normalizeSlug(editingLibraryExercise.name),
-      }
-      const exerciseId = await ensureOwnExerciseFromEditor(editor)
-
-      if (editor.original_user_id) {
-        await supabase.from('exercise_library').update({
-          name: editor.name,
-          slug: editor.slug,
-          category: editor.category || null,
-          equipment: editor.equipment || null,
-          measurement_type: editor.measurement_type || 'weight_reps',
-          is_bodyweight: !!editor.is_bodyweight,
-          is_active: editor.is_active !== false,
-          notes: editor.notes || null,
-        }).eq('id', exerciseId)
-
-        await supabase.from('training_exercises').update({ exercise_name: editor.name }).eq('exercise_id', exerciseId)
-        await supabase.from('personal_records').update({ exercise_name: editor.name }).eq('user_id', user.id).eq('exercise_id', exerciseId)
-      }
-
-      await supabase.from('exercise_muscles').delete().eq('exercise_id', exerciseId)
-      const muscleRows = [
-        ...(editor.primaryMuscleIds || []).map(id => ({ exercise_id: exerciseId, muscle_group_id: id, role: 'primary', load_factor: 1.0 })),
-        ...(editor.secondaryMuscleIds || []).map(id => ({ exercise_id: exerciseId, muscle_group_id: id, role: 'secondary', load_factor: 0.5 })),
-      ]
-      if (muscleRows.length) await supabase.from('exercise_muscles').insert(muscleRows)
-
-      await supabase.from('exercise_aliases').delete().eq('exercise_id', exerciseId)
-      const aliasRows = [...new Set(String(editor.aliasText || '').split(',').map(a => a.trim()).filter(Boolean))]
-        .filter(alias => alias.toLowerCase() !== editor.name.toLowerCase())
-        .map(alias => ({ exercise_id: exerciseId, alias, slug: normalizeSlug(alias) }))
-      if (aliasRows.length) await supabase.from('exercise_aliases').insert(aliasRows)
-
-      setEditingLibraryExercise(null)
-      await Promise.all([fetchExerciseLibrary(), fetchSessions(), fetchPRs()])
-    } catch (error) {
-      console.error(error)
-      alert('Kunde inte spara övningen. Kontrollera att SQL-migrationen är körd och att inga dubletter finns.')
-    }
-    setSavingLibraryExercise(false)
   }
 
   async function saveCustomExercise(name) {
@@ -565,17 +340,12 @@ export default function TraningPage() {
     setEditingSession({ id: session.id, date: session.date, sessionType: session.session_type, feeling: session.feeling || '', notes: session.notes || '', exercises: exList.length ? exList : [{ name: '', sets: [{ reps: '', weight: '', is_dropset: false }] }] })
   }
 
-  function findLibraryExerciseByName(name) {
-    const normalized = normalizeSlug(name)
-    return libraryExercises.find(e => e.slug === normalized || normalizeSlug(e.name) === normalized)
-  }
-
   async function saveEditSession() {
     if (!editingSession) return
     const { id, date, sessionType, feeling, notes, exercises } = editingSession
     await supabase.from('training_sessions').update({ date, session_type: sessionType, feeling: feeling ? parseInt(feeling) : null, notes: notes || null }).eq('id', id)
     await supabase.from('training_exercises').delete().eq('session_id', id)
-    const rows = exercises.flatMap((ex, _) => ex.sets.map((s, si) => ({ session_id: id, exercise_id: findLibraryExerciseByName(ex.name)?.id || null, exercise_name: ex.name, set_number: si + 1, reps: s.reps ? parseInt(s.reps) : null, weight_kg: s.weight !== '' ? parseFloat(s.weight) : null, is_dropset: s.is_dropset || false }))).filter(r => r.exercise_name)
+    const rows = exercises.flatMap((ex, _) => ex.sets.map((s, si) => ({ session_id: id, exercise_name: ex.name, set_number: si + 1, reps: s.reps ? parseInt(s.reps) : null, weight_kg: s.weight !== '' ? parseFloat(s.weight) : null, is_dropset: s.is_dropset || false }))).filter(r => r.exercise_name)
     if (rows.length) await supabase.from('training_exercises').insert(rows)
     setEditingSession(null)
     fetchSessions()
@@ -611,57 +381,48 @@ export default function TraningPage() {
       .select('*')
       .eq('user_id', user.id)
       .order('exercise_name')
-
-    // Strength PBs only. Running best efforts live in run_personal_records.
-    const runRecordNames = new Set([
-      '400m pr', '800m pr', '1 mile pr', '2 mile pr', 'mara pr',
-      '1km pr', '1 km pr', '1k pr',
-      '5km pr', '5 km pr', '5k pr',
-      '10km pr', '10 km pr', '10k pr',
-      'halvmara pr', 'half marathon pr', 'halvmaraton pr', '1/2 marathon pr',
-    ])
-
-    setPrs((data || []).filter(pr => {
-      const name = String(pr.exercise_name || '').trim().toLowerCase()
-      return !runRecordNames.has(name) &&
-        pr.distance_km == null &&
-        pr.pace_per_km == null &&
-        !(pr.time_seconds != null && pr.weight_kg == null)
-    }))
+    setPrs(data || [])
   }
 
   async function fetchRunPRs() {
     const { data } = await supabase
-      .from('run_personal_records')
-      .select('distance_key,label,distance_km,time_seconds,pace_per_km,date,strava_activity_id,strava_effort_name,source')
+      .from('training_sessions')
+      .select('distance_km, duration_minutes, pace_per_km, time_seconds, date')
       .eq('user_id', user.id)
-      .order('date', { ascending: false })
+      .eq('session_type', 'run')
+      .not('distance_km', 'is', null)
+      .order('date')
 
-    setRunEfforts(data || [])
+    if (!data) return
 
-    const keyByLabel = {
-      '1 km': '1k',
-      '5 km': '5k',
-      '10 km': '10k',
-      'Halvmaraton': 'half_marathon',
-    }
+    const bests = RUN_PR_DISTANCES.map(({ label, meters }) => {
+      const kmTarget = meters / 1000
 
-    const bests = RUN_PR_DISTANCES.map(({ label }) => {
-      const key = keyByLabel[label]
-      const efforts = (data || []).filter(r => r.distance_key === key && r.time_seconds)
-      if (!efforts.length) return { label, time: null, date: null }
+      // Accept runs that are at least 95% of the target distance
+      const eligible = data.filter(r => r.distance_km >= kmTarget * 0.95)
+      if (eligible.length === 0) return { label, time: null, date: null }
 
-      const best = efforts.reduce((a, b) =>
-        Number(a.time_seconds) < Number(b.time_seconds) ? a : b
-      )
+      // Calculate estimated time for target distance using pace_per_km
+      const withTime = eligible.map(r => {
+        let seconds = null
+        if (r.time_seconds && Math.abs(r.distance_km - kmTarget) / kmTarget < 0.05) {
+          // Exact distance match — use real time
+          seconds = r.time_seconds
+        } else if (r.pace_per_km) {
+          // Estimate time from pace × target distance
+          seconds = Math.round(r.pace_per_km * kmTarget)
+        } else if (r.duration_minutes && r.distance_km) {
+          // Derive pace from duration and use it
+          const pacePerKm = (r.duration_minutes * 60) / r.distance_km
+          seconds = Math.round(pacePerKm * kmTarget)
+        }
+        return { ...r, estSeconds: seconds }
+      }).filter(r => r.estSeconds)
 
-      return {
-        label,
-        time: Number(best.time_seconds),
-        date: best.date,
-        activityId: best.strava_activity_id,
-        effortName: best.strava_effort_name,
-      }
+      if (!withTime.length) return { label, time: null, date: null }
+
+      const best = withTime.reduce((a, b) => a.estSeconds < b.estSeconds ? a : b)
+      return { label, time: best.estSeconds, date: best.date }
     })
 
     setRunPRs(bests)
@@ -724,7 +485,6 @@ export default function TraningPage() {
       const exerciseRows = exercises.flatMap(ex =>
         ex.sets.map((s, setIdx) => ({
           session_id: session.id,
-          exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
           exercise_name: ex.name,
           set_number: setIdx + 1,
           reps: s.reps ? parseInt(s.reps) : null,
@@ -745,7 +505,6 @@ export default function TraningPage() {
           if (!existingPR || maxWeight > existingPR.weight_kg) {
             await supabase.from('personal_records').upsert({
               user_id: user.id,
-              exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
               exercise_name: ex.name,
               weight_kg: maxWeight,
               date: sessionDate,
@@ -834,254 +593,11 @@ export default function TraningPage() {
     }
   }
 
-
-  function getSessionTitle(session) {
-    if (!session) return 'Pass'
-    if (session.session_type === 'gym') return 'Styrkepass'
-    if (session.session_type === 'run') return `Löpning${session.distance_km ? ` ${Number(session.distance_km).toFixed(1)} km` : ''}`
-    return session.notes?.split(' — ')[0] || 'Aktivitet'
-  }
-
-  function getSessionRunEfforts(session) {
-    if (!session || session.session_type !== 'run') return []
-    const byActivity = runEfforts.filter(e =>
-      session.strava_id && String(e.strava_activity_id) === String(session.strava_id)
-    )
-    const source = byActivity.length
-      ? byActivity
-      : runEfforts.filter(e => e.date === session.date)
-
-    const order = { '1k': 1, '5k': 2, '10k': 3, 'half_marathon': 4 }
-    return source
-      .filter(e => ['1k', '5k', '10k', 'half_marathon'].includes(e.distance_key))
-      .sort((a, b) => (order[a.distance_key] || 99) - (order[b.distance_key] || 99))
-  }
-
-  function groupSessionExercises(session) {
-    const rows = session?.training_exercises || []
-    return Object.entries(rows.reduce((acc, ex) => {
-      const key = ex.exercise_name || 'Okänd övning'
-      if (!acc[key]) acc[key] = []
-      acc[key].push(ex)
-      return acc
-    }, {})).map(([name, sets]) => ({
-      name,
-      sets: sets.sort((a, b) => (a.set_number || 0) - (b.set_number || 0)),
-      exerciseId: sets.find(s => s.exercise_id)?.exercise_id || null,
-    }))
-  }
-
-  function getSessionMuscles(session) {
-    const groups = groupSessionExercises(session)
-    const byExerciseId = new Map(libraryExercises.map(e => [e.id, e]))
-    const byName = new Map(libraryExercises.map(e => [String(e.name || '').toLowerCase(), e]))
-    const muscles = new Map()
-
-    groups.forEach(group => {
-      const lib = (group.exerciseId && byExerciseId.get(group.exerciseId)) || byName.get(group.name.toLowerCase())
-      ;(lib?.muscles || []).forEach(m => {
-        const key = m.muscle_slug || m.muscle_name
-        if (!key) return
-        const prev = muscles.get(key)
-        if (!prev || prev.role !== 'primary') {
-          muscles.set(key, { name: m.muscle_name, role: m.role })
-        }
-      })
-    })
-
-    return Array.from(muscles.values()).sort((a, b) => {
-      if (a.role === b.role) return a.name.localeCompare(b.name)
-      return a.role === 'primary' ? -1 : 1
-    })
-  }
-
-
-  function estimateOneRm(weight, reps) {
-    const w = Number(weight)
-    const r = Number(reps)
-    if (!w || !r || w <= 0 || r <= 0) return null
-    // Epley with a cap: high-rep sets should not fake huge strength jumps.
-    // 1-12 reps are useful for strength trend; >12 still counts as 12.
-    const cappedReps = Math.min(r, 12)
-    return w * (1 + cappedReps / 30)
-  }
-
-  function getProgressiveOverloadData() {
-    const today = new Date()
-    const recentStart = format(subDays(today, 30), 'yyyy-MM-dd')
-    const previousStart = format(subDays(today, 60), 'yyyy-MM-dd')
-    const byExerciseId = new Map(libraryExercises.map(e => [e.id, e]))
-    const byName = new Map(libraryExercises.map(e => [String(e.name || '').toLowerCase(), e]))
-
-    const emptyPeriod = () => ({ bestE1rm: null, volume: 0, sets: 0, reps: 0, sessions: new Set(), date: null })
-    const exerciseMap = new Map()
-    const muscleMap = new Map()
-
-    const getExerciseEntry = (key, name) => {
-      if (!exerciseMap.has(key)) exerciseMap.set(key, { key, name, recent: emptyPeriod(), previous: emptyPeriod() })
-      return exerciseMap.get(key)
-    }
-
-    const addToPeriod = (period, session, set) => {
-      const e1rm = estimateOneRm(set.weight_kg, set.reps)
-      const volume = (Number(set.weight_kg) || 0) * (Number(set.reps) || 0)
-      period.volume += volume
-      period.reps += Number(set.reps) || 0
-      period.sets += set.reps ? 1 : 0
-      period.sessions.add(session.id)
-      if (e1rm && (!period.bestE1rm || e1rm > period.bestE1rm)) {
-        period.bestE1rm = e1rm
-        period.date = session.date
-      }
-    }
-
-    sessions
-      .filter(s => s.session_type === 'gym' && s.date >= previousStart)
-      .forEach(session => {
-        const periodKey = session.date >= recentStart ? 'recent' : 'previous'
-        ;(session.training_exercises || []).forEach(set => {
-          const lib = (set.exercise_id && byExerciseId.get(set.exercise_id)) || byName.get(String(set.exercise_name || '').toLowerCase())
-          const key = set.exercise_id || String(set.exercise_name || '').toLowerCase()
-          if (!key) return
-          const entry = getExerciseEntry(key, lib?.name || set.exercise_name || 'Okänd övning')
-          addToPeriod(entry[periodKey], session, set)
-
-          const volume = (Number(set.weight_kg) || 0) * (Number(set.reps) || 0)
-          ;(lib?.muscles || []).forEach(m => {
-            const muscleKey = m.muscle_slug || m.muscle_name
-            if (!muscleKey) return
-            const prev = muscleMap.get(muscleKey) || { name: m.muscle_name, effectiveSets: 0, directSets: 0, primarySets: 0 }
-            const factor = Number(m.load_factor) || (m.role === 'primary' ? 1 : 0.5)
-            if (set.reps) {
-              prev.effectiveSets += factor
-              prev.directSets += 1
-              if (m.role === 'primary') prev.primarySets += 1
-            }
-            muscleMap.set(muscleKey, prev)
-          })
-        })
-      })
-
-    const exerciseTrends = Array.from(exerciseMap.values())
-      .map(entry => {
-        const recentBest = entry.recent.bestE1rm
-        const previousBest = entry.previous.bestE1rm
-        const pct = recentBest && previousBest ? ((recentBest - previousBest) / previousBest) * 100 : null
-        const recentVolume = entry.recent.volume
-        const previousVolume = entry.previous.volume
-        const volumePct = previousVolume > 0 ? ((recentVolume - previousVolume) / previousVolume) * 100 : null
-        return { ...entry, recentBest, previousBest, pct, recentVolume, previousVolume, volumePct }
-      })
-      .filter(e => e.recent.sets > 0 || e.previous.sets > 0)
-
-    const improving = exerciseTrends
-      .filter(e => e.pct !== null)
-      .sort((a, b) => b.pct - a.pct)
-      .slice(0, 4)
-    const newOrRecent = exerciseTrends
-      .filter(e => e.pct === null && e.recentBest)
-      .sort((a, b) => (b.recentBest || 0) - (a.recentBest || 0))
-      .slice(0, Math.max(0, 4 - improving.length))
-    const displayExercises = [...improving, ...newOrRecent]
-
-    const recentTotalVolume = exerciseTrends.reduce((sum, e) => sum + e.recentVolume, 0)
-    const previousTotalVolume = exerciseTrends.reduce((sum, e) => sum + e.previousVolume, 0)
-    const totalVolumePct = previousTotalVolume > 0 ? ((recentTotalVolume - previousTotalVolume) / previousTotalVolume) * 100 : null
-    const avgStrengthPct = exerciseTrends.filter(e => e.pct !== null).length
-      ? exerciseTrends.filter(e => e.pct !== null).reduce((sum, e) => sum + e.pct, 0) / exerciseTrends.filter(e => e.pct !== null).length
-      : null
-
-    return {
-      displayExercises,
-      muscleVolume: Array.from(muscleMap.values()).sort((a, b) => b.effectiveSets - a.effectiveSets).slice(0, 6),
-      recentTotalVolume,
-      previousTotalVolume,
-      totalVolumePct,
-      avgStrengthPct,
-      recentStart,
-      previousStart,
-    }
-  }
-
-  function trendColor(value) {
-    if (value == null) return 'var(--muted)'
-    if (value > 2) return '#10b981'
-    if (value < -2) return '#ef4444'
-    return '#f59e0b'
-  }
-
-  function formatTrendPct(value) {
-    if (value == null) return 'ny data'
-    const sign = value > 0 ? '+' : ''
-    return `${sign}${value.toFixed(1)}%`
-  }
-
-  function openSessionDetail(session) {
-    setExpandedSession(null)
-    setSelectedSessionDetail(session)
-  }
-
-  function openRunEffortSource(effort) {
-    const match = sessions.find(session =>
-      session.session_type === 'run' && (
-        (effort.strava_activity_id && String(session.strava_id || '') === String(effort.strava_activity_id)) ||
-        (!effort.strava_activity_id && session.date === effort.date)
-      )
-    )
-
-    if (match) {
-      setShowAllPrModal(false)
-      setShowRunPrModal(false)
-      openSessionDetail(match)
-      return
-    }
-
-    setShowAllPrModal(false)
-    setShowRunPrModal(false)
-    setShowRunModal(true)
-  }
-
   const recentSessions = sessions.slice(0, 10)
   const thisWeekSessions = sessions.filter(s => {
     const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
     return s.date >= weekStart
   })
-  const progressive = getProgressiveOverloadData()
-
-  const prSearch = allPrSearch.trim().toLowerCase()
-  const filteredStrengthPrs = [...prs]
-    .filter(pr => !prSearch || String(pr.exercise_name || '').toLowerCase().includes(prSearch))
-    .sort((a, b) => {
-      if (allPrSort === 'name') return String(a.exercise_name || '').localeCompare(String(b.exercise_name || ''))
-      if (allPrSort === 'value') return Number(b.weight_kg || 0) - Number(a.weight_kg || 0)
-      return String(b.date || '').localeCompare(String(a.date || ''))
-    })
-
-  const runKeyLabels = {
-    '1k': '1 km',
-    '5k': '5 km',
-    '10k': '10 km',
-    'half_marathon': 'Halvmaraton',
-  }
-
-  const featuredStrengthPrs = FEATURED_STRENGTH_PBS.map(feature => ({
-    ...feature,
-    pr: prs.find(pr => {
-      const name = String(pr.exercise_name || '').trim().toLowerCase()
-      return feature.aliases.some(alias => name === alias || name.includes(alias))
-    }) || null,
-  }))
-
-  const filteredRunEfforts = [...runEfforts]
-    .filter(effort => {
-      const label = runKeyLabels[effort.distance_key] || effort.label || effort.distance_key
-      return !prSearch || String(label || '').toLowerCase().includes(prSearch) || String(effort.date || '').includes(prSearch)
-    })
-    .sort((a, b) => {
-      if (allPrSort === 'name') return String(runKeyLabels[a.distance_key] || a.label || '').localeCompare(String(runKeyLabels[b.distance_key] || b.label || ''))
-      if (allPrSort === 'value') return Number(a.time_seconds || 999999999) - Number(b.time_seconds || 999999999)
-      return String(b.date || '').localeCompare(String(a.date || ''))
-    })
 
   return (
     <div className="page-wrap">
@@ -1100,7 +616,7 @@ export default function TraningPage() {
               {stravaSyncing ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Synkar...</> : <><RefreshCw size={13} /> Strava</>}
             </button>
             <button onClick={fetchStravaPrs} disabled={fetchingPrs} className="btn btn-ghost" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)', fontSize: '11px' }}>
-              {fetchingPrs ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Hämtar PRs...</> : '🏅 Hämta PRs'}
+              {fetchingPrs ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Synkar PBn…</> : 'Synka PBn'}
             </button>
             </>
           ) : (
@@ -1109,10 +625,7 @@ export default function TraningPage() {
             </button>
           )}
           <button onClick={() => csvRef.current?.click()} disabled={csvImporting} className="btn btn-ghost">
-            {csvImporting ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : <><Upload size={13} /> CSV</>}
-          </button>
-          <button onClick={() => setView(view === 'library' ? 'overview' : 'library')} className="btn btn-ghost">
-            <Library size={14} /> {view === 'library' ? 'Översikt' : 'Övningar'}
+            {csvImporting ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Importerar CSV…</> : <><Upload size={13} /> Importera</>}
           </button>
           <button onClick={() => setView(view === 'calendar' ? 'overview' : 'calendar')} className="btn btn-ghost">
             <Calendar size={14} /> {view === 'calendar' ? 'Översikt' : 'Kalender'}
@@ -1125,7 +638,7 @@ export default function TraningPage() {
 
       {/* Scrollable content */}
       <div className="page-content-scroll">
-      <div style={{ padding: '16px 16px 0', maxWidth: '1120px', margin: '0 auto' }}>
+      <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
 
       {/* Strava result */}
       {stravaResult && (
@@ -1165,161 +678,68 @@ export default function TraningPage() {
             </div>
           </div>
 
-          {/* Main training analysis layout */}
-          <div className="training-v2-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(320px, 0.85fr)', gap: '16px', alignItems: 'start', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
-              {/* Progressive overload */}
-              <div className="card" style={{ minHeight: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap' }}>
-                  <div>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <TrendingUp size={13} color="var(--accent)" /> PROGRESSIVE OVERLOAD · 60 DAGAR
+          {/* Strength PRs */}
+          {prs.length > 0 && (
+            <div className="card" style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Trophy size={12} color="#f59e0b" /> STYRKA — PERSONLIGA REKORD
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
+                {prs.map(pr => (
+                  <div key={pr.id} className="card-sm" onClick={() => setSelectedExercise(pr.exercise_name)}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{pr.exercise_name}</div>
+                    <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
+                      {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
                     </div>
-                    <div style={{ fontSize: '12px', color: 'var(--muted2)', marginTop: '4px', maxWidth: '680px' }}>
-                      Styrketrend = bästa e1RM senaste 30d jämfört med 30d före. Muskelvolym mäts som effektiva set, där primära muskler väger tyngre än sekundära.
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <div className="glass-pill" style={{ color: trendColor(progressive.avgStrengthPct), borderColor: progressive.avgStrengthPct && progressive.avgStrengthPct > 2 ? 'rgba(16,185,129,0.25)' : 'var(--border)' }}>
-                      e1RM {formatTrendPct(progressive.avgStrengthPct)}
-                    </div>
-                    <div className="glass-pill" style={{ color: trendColor(progressive.totalVolumePct), borderColor: progressive.totalVolumePct && progressive.totalVolumePct > 2 ? 'rgba(16,185,129,0.25)' : 'var(--border)' }}>
-                      Arbetsvolym {formatTrendPct(progressive.totalVolumePct)}
-                    </div>
-                  </div>
-                </div>
-
-                {progressive.displayExercises.length ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {progressive.displayExercises.map(ex => (
-                        <button key={ex.key} onClick={() => setSelectedExercise(ex.name)} className="card-sm" style={{ textAlign: 'left', cursor: 'pointer', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr auto', gap: '10px', alignItems: 'center' }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 750, color: 'var(--text)' }}>{ex.name}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
-                              {ex.previousBest ? `${Math.round(ex.previousBest)} → ${Math.round(ex.recentBest)} kg e1RM` : `Ny/återupptagen · ${Math.round(ex.recentBest || 0)} kg e1RM`}
-                            </div>
-                          </div>
-                          <div className="mono" style={{ color: trendColor(ex.pct), fontSize: '14px', fontWeight: 800 }}>
-                            {formatTrendPct(ex.pct)}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="card-sm" style={{ minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'baseline', marginBottom: '10px' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em' }}>MUSKELVOLYM 60D</div>
-                        <div style={{ fontSize: '10px', color: 'var(--muted)' }}>effektiva set</div>
-                      </div>
-                      {progressive.muscleVolume.length ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {progressive.muscleVolume.map(m => {
-                            const maxSets = Math.max(...progressive.muscleVolume.map(x => x.effectiveSets), 1)
-                            const width = Math.max(6, Math.round((m.effectiveSets / maxSets) * 100))
-                            return (
-                              <div key={m.name}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', fontSize: '11px', marginBottom: '4px' }}>
-                                  <span style={{ color: 'var(--muted2)' }}>{m.name}</span>
-                                  <span className="mono" style={{ color: 'var(--text)', fontWeight: 700 }}>{m.effectiveSets.toFixed(m.effectiveSets % 1 ? 1 : 0)} set</span>
-                                </div>
-                                <div style={{ height: '6px', borderRadius: '999px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                                  <div style={{ height: '100%', width: `${width}%`, borderRadius: '999px', background: 'linear-gradient(90deg, var(--accent), #10b981)' }} />
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Logga fler styrkeset för muskelvolym.</div>
-                      )}
+                    {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
+                    <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <TrendingUp size={10} /> Se historik
                     </div>
                   </div>
-                ) : (
-                  <div className="card-sm" style={{ color: 'var(--muted)', fontSize: '13px' }}>
-                    Behöver minst ett styrkepass senaste 60 dagarna för att visa overload.
-                  </div>
-                )}
+                ))}
               </div>
             </div>
+          )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
-              {/* Strength PRs */}
-              <div className="card">
-                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Trophy size={12} color="#f59e0b" /> STYRKA — PERSONLIGA REKORD
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
-                  {featuredStrengthPrs.map(({ label, pr }) => (
-                    <div key={label} className="card-sm" onClick={() => pr && setSelectedExercise(pr.exercise_name)}
-                      style={{ cursor: pr ? 'pointer' : 'default', opacity: pr ? 1 : 0.62 }}
-                      onMouseEnter={e => { if (pr) e.currentTarget.style.borderColor = 'var(--accent-border)' }}
-                      onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
-                      {pr ? (
-                        <>
-                          <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
-                            {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
-                          </div>
-                          {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
-                          <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <TrendingUp size={10} /> Se historik
-                          </div>
-                        </>
-                      ) : (
-                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Saknas</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button
-                  onClick={() => setShowStrengthPrModal(true)}
-                  className="btn btn-ghost"
-                  style={{ marginTop: '10px', width: '100%', justifyContent: 'center' }}
-                >
-                  Se alla styrke-PBn →
-                </button>
-              </div>
-
-              {/* Run PRs */}
-              <div className="card">
-                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Trophy size={12} color="#10b981" /> LÖPNING — PERSONLIGA REKORD</span>
-                  <button onClick={() => setShowRunPrModal(true)} style={{ fontSize: '11px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                    Se alla löp-PBn →
-                  </button>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
-                  {RUN_PR_DISTANCES.map(({ label }) => {
-                    const pr = runPRs.find(r => r.label === label)
-                    const hasTime = pr?.time
-                    const sourceEffort = pr?.activityId ? runEfforts.find(e => String(e.strava_activity_id) === String(pr.activityId) && e.time_seconds === pr.time) : null
-                    return (
-                      <div key={label} className="card-sm" onClick={() => sourceEffort ? openRunEffortSource(sourceEffort) : setShowRunPrModal(true)}
-                        style={{ cursor: 'pointer' }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
-                        {hasTime ? (
-                          <>
-                            <div className="mono" style={{ fontSize: '16px', fontWeight: '600', color: '#10b981' }}>
-                              {formatDuration(pr.time)}
-                            </div>
-                            <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>
-                              {format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}
-                            </div>
-                          </>
-                        ) : (
-                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ej loggat</div>
-                        )}
-                        <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                          <TrendingUp size={10} /> Se historik
+          {/* Run PRs */}
+          <div className="card" style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Trophy size={12} color="#10b981" /> LÖPNING — PERSONLIGA REKORD</span>
+              <button onClick={() => setShowRunModal(true)} style={{ fontSize: '11px', color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
+                Se all löphistorik →
+              </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+              {RUN_PR_DISTANCES.map(({ label }) => {
+                const pr = runPRs.find(r => r.label === label)
+                const hasTime = pr?.time
+                return (
+                  <div key={label} className="card-sm" onClick={() => setShowRunModal(true)}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
+                    {hasTime ? (
+                      <>
+                        <div className="mono" style={{ fontSize: '16px', fontWeight: '600', color: '#10b981' }}>
+                          {formatDuration(pr.time)}
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+                        <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>
+                          {format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ej loggat</div>
+                    )}
+                    <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <TrendingUp size={10} /> Se historik
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -1346,7 +766,9 @@ export default function TraningPage() {
                           </div>
                           <div>
                             <div style={{ fontSize: '14px', fontWeight: '500' }}>
-                              {getSessionTitle(session)}
+                              {session.session_type === 'gym' ? 'Gympass' :
+                               session.session_type === 'run' ? `Löpning ${session.distance_km ? session.distance_km + ' km' : ''}` :
+                               session.notes?.split(' — ')[0] || 'Aktivitet'}
                             </div>
                             <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
                               {format(new Date(session.date), 'd MMM', { locale: sv })}
@@ -1369,9 +791,6 @@ export default function TraningPage() {
                         <>
                           {/* Action buttons */}
                           <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }} onClick={e => e.stopPropagation()}>
-                            <button onClick={e => { e.stopPropagation(); openSessionDetail(session) }} className="btn btn-primary btn-sm">
-                              Öppna pass
-                            </button>
                             <button onClick={e => { e.stopPropagation(); openEditSession(session) }} className="btn btn-ghost btn-sm">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                               Redigera
@@ -1423,76 +842,6 @@ export default function TraningPage() {
             )}
           </div>
         </>
-      )}
-
-      {view === 'library' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', letterSpacing: '0.06em' }}>ÖVNINGSBIBLIOTEK</div>
-                <div style={{ fontSize: '13px', color: 'var(--muted2)', marginTop: '4px' }}>
-                  Redigera övningar, muskler och alias. Globala övningar sparas som din egen version när du ändrar dem.
-                </div>
-              </div>
-              <button onClick={fetchExerciseLibrary} className="btn btn-ghost btn-sm" disabled={libraryLoading}>
-                {libraryLoading ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />} Uppdatera
-              </button>
-            </div>
-            <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-              <input className="input" placeholder="Sök övning, kategori eller muskel..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} style={{ paddingLeft: '34px' }} />
-            </div>
-          </div>
-
-          {libraryLoading ? (
-            <div className="card" style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>Laddar övningsbibliotek...</div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
-              {libraryExercises
-                .filter(ex => {
-                  const q = librarySearch.trim().toLowerCase()
-                  if (!q) return true
-                  const muscleText = (ex.muscles || []).map(m => `${m.muscle_name} ${m.role}`).join(' ').toLowerCase()
-                  return `${ex.name} ${ex.category || ''} ${ex.equipment || ''} ${muscleText}`.toLowerCase().includes(q)
-                })
-                .map(ex => {
-                  const primary = (ex.muscles || []).filter(m => m.role === 'primary').map(m => m.muscle_name)
-                  const secondary = (ex.muscles || []).filter(m => m.role === 'secondary').map(m => m.muscle_name)
-                  return (
-                    <div key={ex.id} className="card-sm" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text)' }}>{ex.name}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                            {ex.category || 'Okategori'}{ex.equipment ? ` · ${ex.equipment}` : ''}{ex.user_id ? ' · egen' : ' · standard'}
-                          </div>
-                        </div>
-                        <button onClick={() => openLibraryExercise(ex)} className="btn btn-ghost btn-icon" title="Redigera övning">
-                          <Edit3 size={13} />
-                        </button>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div>
-                          <div style={{ fontSize: '10px', color: 'var(--muted)', letterSpacing: '0.06em', fontWeight: '700', marginBottom: '4px' }}>PRIMÄR</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                            {primary.length ? primary.map(m => <span key={m} className="glass-pill" style={{ fontSize: '11px', padding: '2px 8px', color: '#10b981', borderColor: 'rgba(16,185,129,0.25)' }}>{m}</span>) : <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Saknas</span>}
-                          </div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '10px', color: 'var(--muted)', letterSpacing: '0.06em', fontWeight: '700', marginBottom: '4px' }}>SEKUNDÄR</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                            {secondary.length ? secondary.map(m => <span key={m} className="glass-pill" style={{ fontSize: '11px', padding: '2px 8px' }}>{m}</span>) : <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Saknas</span>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-            </div>
-          )}
-        </div>
       )}
 
       {view === 'calendar' && (
@@ -1580,84 +929,32 @@ export default function TraningPage() {
                         </div>
                         <button onClick={() => setExpandedSession(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={14} /></button>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {daySess.map(session => {
-                          const TypeIcon = session.session_type === 'gym' ? Dumbbell : session.session_type === 'run' ? Timer : Flame
-                          const typeColor = session.session_type === 'gym' ? '#3b82f6' : session.session_type === 'run' ? '#10b981' : '#f472b6'
-                          const title = getSessionTitle(session)
-                          const exerciseCount = session.training_exercises?.length || 0
-                          const runEfforts = getSessionRunEfforts(session)
-
-                          return (
-                            <div key={session.id} style={{
-                              padding: '12px',
-                              borderRadius: '12px',
-                              background: 'var(--surface2)',
-                              border: '1px solid var(--border)',
-                            }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: session.session_type === 'gym' && exerciseCount ? '10px' : '0' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                                  <div style={{ width: '34px', height: '34px', borderRadius: '10px', background: `${typeColor}18`, border: `1px solid ${typeColor}35`, color: typeColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                    <TypeIcon size={16} />
-                                  </div>
-                                  <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-                                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
-                                      {session.session_type === 'gym' ? `${exerciseCount} set` : session.session_type === 'run' ? `${session.distance_km || '—'} km · ${formatDuration(session.time_seconds)}` : `${session.duration_minutes || 0} min`}
-                                    </div>
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => openSessionDetail(session)}
-                                  className="btn btn-primary btn-sm"
-                                  style={{ flexShrink: 0 }}
-                                >
-                                  Öppna pass
-                                </button>
+                      {gymSess && gymSess.training_exercises?.length > 0 && (
+                        <>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>ÖVNINGAR — klicka för historik</div>
+                          {Object.entries(gymSess.training_exercises.reduce((acc, ex) => {
+                            if (!acc[ex.exercise_name]) acc[ex.exercise_name] = []
+                            acc[ex.exercise_name].push(ex)
+                            return acc
+                          }, {})).map(([name, sets]) => (
+                            <div key={name} style={{ marginBottom: '10px' }}>
+                              <div onClick={() => setSelectedExercise(name)} style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent)', cursor: 'pointer', marginBottom: '5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                {name} <TrendingUp size={11} />
                               </div>
-
-                              {session.session_type === 'gym' && exerciseCount > 0 && (
-                                <>
-                                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '8px' }}>ÖVNINGAR — klicka för historik</div>
-                                  {Object.entries(session.training_exercises.reduce((acc, ex) => {
-                                    if (!acc[ex.exercise_name]) acc[ex.exercise_name] = []
-                                    acc[ex.exercise_name].push(ex)
-                                    return acc
-                                  }, {})).slice(0, 4).map(([name, sets]) => (
-                                    <div key={name} style={{ marginBottom: '8px' }}>
-                                      <div onClick={() => setSelectedExercise(name)} style={{ fontSize: '13px', fontWeight: '600', color: 'var(--accent)', cursor: 'pointer', marginBottom: '5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                        {name} <TrendingUp size={11} />
-                                      </div>
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                                        {sets.sort((a,b) => a.set_number - b.set_number).map((s, i) => (
-                                          <span key={i} className="mono" style={{ fontSize: '12px', padding: '3px 8px', background: 'var(--accent-soft)', borderRadius: '5px', color: 'var(--accent)' }}>
-                                            {s.reps}×{s.weight_kg}kg
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ))}
-                                  {Object.keys(session.training_exercises.reduce((acc, ex) => ({ ...acc, [ex.exercise_name]: true }), {})).length > 4 && (
-                                    <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
-                                      Fler övningar finns i passdetaljen.
-                                    </div>
-                                  )}
-                                </>
-                              )}
-
-                              {session.session_type === 'run' && runEfforts.length > 0 && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
-                                  {runEfforts.map(effort => (
-                                    <span key={effort.id} className="glass-pill" style={{ fontSize: '11px', padding: '3px 8px', color: '#34d399', borderColor: 'rgba(52,211,153,0.25)' }}>
-                                      {effort.label}: {formatDuration(effort.time_seconds)}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                                {sets.sort((a,b) => a.set_number - b.set_number).map((s, i) => (
+                                  <span key={i} className="mono" style={{ fontSize: '12px', padding: '3px 8px', background: 'var(--accent-soft)', borderRadius: '5px', color: 'var(--accent)' }}>
+                                    {s.reps}×{s.weight_kg}kg
+                                  </span>
+                                ))}
+                              </div>
                             </div>
-                          )
-                        })}
-                      </div>
+                          ))}
+                        </>
+                      )}
+                      {daySess.filter(s => s.session_type === 'run').map(s => (
+                        <div key={s.id} style={{ fontSize: '13px', color: '#34d399' }}>{s.distance_km}km {s.duration_minutes && `· ${s.duration_minutes}min`}</div>
+                      ))}
                     </div>
                   )
                 })()}
@@ -1927,395 +1224,7 @@ export default function TraningPage() {
         </div>
       )}
 
-      {editingLibraryExercise && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={e => e.target === e.currentTarget && setEditingLibraryExercise(null)}>
-          <div style={{ background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '20px', width: '100%', maxWidth: '760px', maxHeight: '88vh', overflowY: 'auto', padding: '22px', boxShadow: 'var(--glass-shadow)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '18px' }}>
-              <div>
-                <div style={{ fontSize: '20px', fontWeight: '800', letterSpacing: '-0.04em' }}>Redigera övning</div>
-                <div style={{ fontSize: '12px', color: 'var(--muted2)', marginTop: '4px' }}>
-                  {editingLibraryExercise.original_user_id ? 'Egen övning' : 'Standardövning — sparas som egen version vid ändring'}
-                </div>
-              </div>
-              <button onClick={() => setEditingLibraryExercise(null)} className="btn btn-ghost btn-icon"><X size={16} /></button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px', marginBottom: '12px' }}>
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Namn</label>
-                <input className="input" value={editingLibraryExercise.name} onChange={e => updateEditingLibraryExercise('name', e.target.value)} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Kategori</label>
-                <input className="input" value={editingLibraryExercise.category} onChange={e => updateEditingLibraryExercise('category', e.target.value)} placeholder="Bröst, Rygg, Ben..." />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Utrustning</label>
-                <input className="input" value={editingLibraryExercise.equipment} onChange={e => updateEditingLibraryExercise('equipment', e.target.value)} placeholder="Skivstång, hantlar, maskin..." />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Mätning</label>
-                <select className="input" value={editingLibraryExercise.measurement_type} onChange={e => updateEditingLibraryExercise('measurement_type', e.target.value)}>
-                  <option value="weight_reps">Vikt + reps</option>
-                  <option value="bodyweight_reps">Kroppsvikt + reps</option>
-                  <option value="time">Tid</option>
-                  <option value="distance_time">Distans + tid</option>
-                  <option value="reps_only">Endast reps</option>
-                </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-              <label className="card-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={editingLibraryExercise.is_bodyweight} onChange={e => updateEditingLibraryExercise('is_bodyweight', e.target.checked)} />
-                <span style={{ fontSize: '13px' }}>Kroppsviktsövning</span>
-              </label>
-              <label className="card-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={editingLibraryExercise.is_active} onChange={e => updateEditingLibraryExercise('is_active', e.target.checked)} />
-                <span style={{ fontSize: '13px' }}>Aktiv i biblioteket</span>
-              </label>
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Alias, separerade med kommatecken</label>
-              <input className="input" value={editingLibraryExercise.aliasText} onChange={e => updateEditingLibraryExercise('aliasText', e.target.value)} placeholder="bench press, bänk, barbell bench" />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-              {[
-                { role: 'primary', title: 'Primära muskler', ids: editingLibraryExercise.primaryMuscleIds || [], color: '#10b981' },
-                { role: 'secondary', title: 'Sekundära muskler', ids: editingLibraryExercise.secondaryMuscleIds || [], color: 'var(--accent)' },
-              ].map(section => (
-                <div key={section.role} className="card-sm">
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '700', letterSpacing: '0.06em', marginBottom: '10px' }}>{section.title}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {muscleGroups.map(muscle => {
-                      const active = section.ids.includes(muscle.id)
-                      return (
-                        <button key={muscle.id} onClick={() => toggleMuscleInEditor(section.role, muscle.id)} style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '4px', border: active ? `1px solid ${section.color}` : '1px solid var(--border)',
-                          background: active ? 'var(--accent-soft)' : 'var(--surface2)', color: active ? section.color : 'var(--muted2)',
-                          borderRadius: '999px', padding: '5px 9px', fontSize: '12px', cursor: 'pointer', fontFamily: 'Inter, sans-serif'
-                        }}>
-                          {active && <Check size={11} />} {muscle.name}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginBottom: '18px' }}>
-              <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Anteckningar</label>
-              <textarea className="input" rows={3} value={editingLibraryExercise.notes} onChange={e => updateEditingLibraryExercise('notes', e.target.value)} placeholder="Teknik, varianter, egna regler..." />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button onClick={() => setEditingLibraryExercise(null)} className="btn btn-ghost">Avbryt</button>
-              <button onClick={saveLibraryExercise} disabled={savingLibraryExercise} className="btn btn-primary">
-                {savingLibraryExercise ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={14} /> Spara övning</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-
-
-      {(showAllPrModal || showStrengthPrModal || showRunPrModal) && (
-        <div onClick={() => { setShowAllPrModal(false); setShowStrengthPrModal(false); setShowRunPrModal(false) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(10px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} className="card" style={{ width: 'min(1040px, 100%)', maxHeight: '86vh', overflowY: 'auto', padding: 0 }}>
-            <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-              <div>
-                <div style={{ fontSize: '24px', fontWeight: 850, letterSpacing: '-0.045em' }}>{showRunPrModal ? 'Alla löp-PBn' : showStrengthPrModal ? 'Alla styrke-PBn' : 'Alla PBn'}</div>
-                <div style={{ fontSize: '13px', color: 'var(--muted2)', marginTop: '3px' }}>
-                  {showRunPrModal ? 'Bästa per distans och alla importerade Strava best efforts. Klicka för källpass.' : showStrengthPrModal ? 'Alla styrkerekord. Klicka en övning för historik.' : 'Styrke-PB, löpbestar och alla importerade Strava best efforts. Klicka för historik eller källpass.'}
-                </div>
-              </div>
-              <button onClick={() => { setShowAllPrModal(false); setShowStrengthPrModal(false); setShowRunPrModal(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={20} /></button>
-            </div>
-
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '10px', alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <div className="glass-pill" style={{ color: 'var(--muted2)' }}>
-                  {showRunPrModal ? 'Löpning' : showStrengthPrModal ? 'Styrka' : 'Alla'}
-                </div>
-              </div>
-
-              <div style={{ position: 'relative', minWidth: '220px' }}>
-                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
-                <input
-                  className="input"
-                  value={allPrSearch}
-                  onChange={e => setAllPrSearch(e.target.value)}
-                  placeholder="Sök PB..."
-                  style={{ paddingLeft: '32px', height: '36px' }}
-                />
-              </div>
-
-              <select className="input" value={allPrSort} onChange={e => setAllPrSort(e.target.value)} style={{ height: '36px', width: '145px' }}>
-                <option value="date">Senaste</option>
-                <option value="name">Namn</option>
-                <option value="value">Bäst värde</option>
-              </select>
-            </div>
-
-            <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {(showStrengthPrModal || (!showRunPrModal && (allPrFilter === 'all' || allPrFilter === 'strength'))) && (
-                <section>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px', marginBottom: '10px' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '0.08em' }}>STYRKA — PERSONLIGA REKORD</div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{filteredStrengthPrs.length} PBn</div>
-                  </div>
-                  {filteredStrengthPrs.length ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '9px' }}>
-                      {filteredStrengthPrs.map(pr => (
-                        <button
-                          key={pr.id}
-                          onClick={() => { setSelectedExercise(pr.exercise_name); setShowAllPrModal(false); setShowStrengthPrModal(false) }}
-                          className="card-sm"
-                          style={{ cursor: 'pointer', textAlign: 'left', minHeight: '92px' }}
-                          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
-                          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                        >
-                          <div style={{ fontSize: '12px', color: 'var(--muted2)', marginBottom: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pr.exercise_name}</div>
-                          <div className="mono" style={{ fontSize: '20px', fontWeight: 850, color: '#f59e0b' }}>{pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span></div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
-                            <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{pr.date ? format(new Date(pr.date), 'd MMM yyyy', { locale: sv }) : 'Datum saknas'}</span>
-                            <span style={{ fontSize: '10px', color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}><TrendingUp size={10} /> Historik</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="card-sm" style={{ color: 'var(--muted)' }}>Inga styrke-PB matchar filtret.</div>
-                  )}
-                </section>
-              )}
-
-              {(showRunPrModal || (!showStrengthPrModal && (allPrFilter === 'all' || allPrFilter === 'run'))) && (
-                <section>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '10px', marginBottom: '10px' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '0.08em' }}>LÖPNING — BÄSTA PER DISTANS</div>
-                    <button onClick={() => { setShowRunModal(true); setShowAllPrModal(false); setShowRunPrModal(false) }} className="btn btn-ghost" style={{ padding: '5px 10px', fontSize: '11px' }}>All löphistorik →</button>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '9px', marginBottom: '14px' }}>
-                    {RUN_PR_DISTANCES.map(({ label }) => {
-                      const pr = runPRs.find(r => r.label === label)
-                      const sourceEffort = pr?.activityId ? runEfforts.find(e => String(e.strava_activity_id) === String(pr.activityId) && e.time_seconds === pr.time) : null
-                      return (
-                        <button
-                          key={label}
-                          onClick={() => sourceEffort ? openRunEffortSource(sourceEffort) : setShowRunModal(true)}
-                          className="card-sm"
-                          style={{ cursor: 'pointer', textAlign: 'left', minHeight: '92px' }}
-                          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
-                          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                        >
-                          <div style={{ fontSize: '12px', color: 'var(--muted2)', marginBottom: '5px' }}>{label}</div>
-                          {pr?.time ? (
-                            <>
-                              <div className="mono" style={{ fontSize: '20px', fontWeight: 850, color: '#10b981' }}>{formatDuration(pr.time)}</div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
-                                <span style={{ fontSize: '10px', color: 'var(--muted)' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</span>
-                                <span style={{ fontSize: '10px', color: 'var(--accent)' }}>Källpass ↗</span>
-                              </div>
-                            </>
-                          ) : (
-                            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Ej loggat</div>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 800, letterSpacing: '0.08em', marginBottom: '10px' }}>ALLA STRAVA BEST EFFORTS</div>
-                  {filteredRunEfforts.length ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                      {filteredRunEfforts.slice(0, 80).map((effort, idx) => {
-                        const label = runKeyLabels[effort.distance_key] || effort.label || effort.distance_key
-                        return (
-                          <button
-                            key={`${effort.strava_activity_id || effort.date}-${effort.distance_key}-${idx}`}
-                            onClick={() => openRunEffortSource(effort)}
-                            className="card-sm"
-                            style={{ cursor: 'pointer', textAlign: 'left', display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '12px', alignItems: 'center', padding: '10px 12px' }}
-                            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-border)'}
-                            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                          >
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: '13px', fontWeight: 750, color: 'var(--text)' }}>{label}</div>
-                              <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{effort.strava_activity_id ? `Strava #${effort.strava_activity_id}` : 'Strava best effort'}</div>
-                            </div>
-                            <div className="mono" style={{ fontSize: '14px', fontWeight: 850, color: '#10b981' }}>{formatDuration(Number(effort.time_seconds || 0))}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--muted2)' }}>{effort.date ? format(new Date(effort.date), 'd MMM yyyy', { locale: sv }) : '—'}</div>
-                            <div style={{ fontSize: '11px', color: 'var(--accent)', whiteSpace: 'nowrap' }}>Öppna pass ↗</div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="card-sm" style={{ color: 'var(--muted)' }}>Inga löp-best-efforts matchar filtret.</div>
-                  )}
-                </section>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedSessionDetail && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(10px)', zIndex: 650, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={e => e.target === e.currentTarget && setSelectedSessionDetail(null)}>
-          <div style={{ background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '20px', width: '100%', maxWidth: '760px', maxHeight: '88vh', overflowY: 'auto', padding: '22px', boxShadow: 'var(--glass-shadow)' }}>
-            {(() => {
-              const session = selectedSessionDetail
-              const typeInfo = SESSION_TYPES.find(t => t.id === session.session_type) || SESSION_TYPES[3]
-              const Icon = typeInfo.icon
-              const exerciseGroups = groupSessionExercises(session)
-              const efforts = getSessionRunEfforts(session)
-              const muscles = getSessionMuscles(session)
-              const totalSets = exerciseGroups.reduce((sum, group) => sum + group.sets.length, 0)
-              const totalVolume = exerciseGroups.reduce((sum, group) => (
-                sum + group.sets.reduce((setSum, s) => setSum + (Number(s.reps || 0) * Number(s.weight_kg || 0)), 0)
-              ), 0)
-
-              return (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '14px', marginBottom: '18px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: typeInfo.color + '20', border: `1px solid ${typeInfo.color}45`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Icon size={20} color={typeInfo.color} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.04em' }}>{getSessionTitle(session)}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--muted2)', marginTop: '3px' }}>
-                          {format(new Date(session.date), 'EEEE d MMMM yyyy', { locale: sv })}
-                          {session.source && ` · ${session.source}`}
-                          {session.strava_id && ` · Strava #${session.strava_id}`}
-                        </div>
-                      </div>
-                    </div>
-                    <button onClick={() => setSelectedSessionDetail(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0 }}>
-                      <X size={20} />
-                    </button>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '10px', marginBottom: '16px' }}>
-                    <div className="card-sm">
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Typ</div>
-                      <div style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>{typeInfo.label}</div>
-                    </div>
-                    <div className="card-sm">
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tid</div>
-                      <div className="mono" style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>{session.duration_minutes ? `${session.duration_minutes} min` : session.time_seconds ? formatDuration(session.time_seconds) : '—'}</div>
-                    </div>
-                    <div className="card-sm">
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Känsla</div>
-                      <div className="mono" style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>{session.feeling ? `${session.feeling}/10` : '—'}</div>
-                    </div>
-                    <div className="card-sm">
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{session.session_type === 'gym' ? 'Volym' : 'Distans'}</div>
-                      <div className="mono" style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>
-                        {session.session_type === 'gym' ? `${Math.round(totalVolume)} kg` : session.distance_km ? `${Number(session.distance_km).toFixed(1)} km` : '—'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {session.notes && (
-                    <div className="card-sm" style={{ marginBottom: '16px' }}>
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Anteckningar</div>
-                      <div style={{ fontSize: '14px', color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{session.notes}</div>
-                    </div>
-                  )}
-
-                  {session.session_type === 'run' && (
-                    <div className="card-sm" style={{ marginBottom: '16px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', marginBottom: '12px' }}>
-                        <div>
-                          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em' }}>STRAVA BEST EFFORTS</div>
-                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Källvärden från detta pass</div>
-                        </div>
-                      </div>
-
-                      {efforts.length ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
-                          {efforts.map(effort => (
-                            <div key={`${effort.distance_key}-${effort.id || effort.time_seconds}`} style={{ padding: '10px', borderRadius: '12px', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
-                              <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{effort.label || effort.strava_effort_name}</div>
-                              <div className="mono" style={{ fontSize: '18px', fontWeight: 800, color: '#10b981' }}>{formatDuration(Number(effort.time_seconds))}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>{formatPace(Number(effort.pace_per_km))}/km</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--surface2)', color: 'var(--muted)', fontSize: '13px' }}>
-                          Inga Strava best efforts hittades för detta pass.
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {session.session_type === 'gym' && (
-                    <>
-                      <div className="card-sm" style={{ marginBottom: '16px' }}>
-                        <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '12px' }}>
-                          ÖVNINGAR · {exerciseGroups.length} övningar · {totalSets} set
-                        </div>
-
-                        {exerciseGroups.length ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            {exerciseGroups.map(group => (
-                              <div key={group.name} style={{ padding: '12px', borderRadius: '12px', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
-                                <button onClick={() => setSelectedExercise(group.name)} style={{ background: 'none', border: 'none', padding: 0, marginBottom: '8px', color: 'var(--accent)', fontSize: '14px', fontWeight: 750, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                                  {group.name}
-                                  <TrendingUp size={12} />
-                                </button>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                  {group.sets.map((s, i) => (
-                                    <span key={s.id || i} className="mono" style={{ fontSize: '12px', padding: '5px 9px', borderRadius: '8px', background: s.is_dropset ? 'rgba(245,158,11,0.12)' : 'var(--accent-soft)', color: s.is_dropset ? '#f59e0b' : 'var(--accent)', border: s.is_dropset ? '1px solid rgba(245,158,11,0.25)' : '1px solid var(--accent-border)' }}>
-                                      {s.reps ?? '—'}×{s.weight_kg ?? '—'}kg{s.is_dropset ? ' ↓' : ''}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Inga övningsrader hittades för detta pass.</div>
-                        )}
-                      </div>
-
-                      {muscles.length > 0 && (
-                        <div className="card-sm" style={{ marginBottom: '16px' }}>
-                          <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>MUSKLER BELASTADE</div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
-                            {muscles.map(m => (
-                              <span key={`${m.name}-${m.role}`} style={{ fontSize: '12px', padding: '6px 9px', borderRadius: '999px', background: m.role === 'primary' ? 'var(--accent-soft)' : 'var(--surface2)', color: m.role === 'primary' ? 'var(--accent)' : 'var(--muted2)', border: m.role === 'primary' ? '1px solid var(--accent-border)' : '1px solid var(--border)' }}>
-                                {m.name} {m.role === 'primary' ? 'primär' : 'sekundär'}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                    {session.session_type === 'gym' && (
-                      <button onClick={() => { openEditSession(session); setSelectedSessionDetail(null) }} className="btn btn-ghost">
-                        <Edit3 size={14} /> Redigera
-                      </button>
-                    )}
-                    <button onClick={() => setSelectedSessionDetail(null)} className="btn btn-primary">Stäng</button>
-                  </div>
-                </>
-              )
-            })()}
-          </div>
-        </div>
-      )}
 
       {selectedExercise && (
         <ExerciseModal exerciseName={selectedExercise} onClose={() => setSelectedExercise(null)} />

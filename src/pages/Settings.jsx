@@ -279,7 +279,7 @@ export default function SettingsPage() {
       <div className="page-header">
         <div>
           <div className="page-header-title">Inställningar</div>
-          <div className="page-header-sub">Anpassa Sigge OS efter dina preferenser</div>
+          <div className="page-header-sub">Styr MaxxIt, SiggeOS och Jarvis efter dina preferenser</div>
         </div>
       </div>
 
@@ -312,6 +312,21 @@ export default function SettingsPage() {
           {/* ===== UTSEENDE ===== */}
           {activeSection === 'utseende' && (
             <>
+              <div className="card" style={{ borderColor: 'var(--accent-border)', background: 'linear-gradient(135deg, var(--accent-soft), var(--surface) 55%)' }}>
+                <div className="brand-kicker">MAXXIT BRAND</div>
+                <div style={{ fontSize: 18, fontWeight: 850, letterSpacing: '-0.03em', marginTop: 8 }}>Premium, direkt och prestationsdrivet</div>
+                <div style={{ color: 'var(--muted2)', marginTop: 6, fontSize: 13 }}>
+                  SiggeOS är din privata installation. MaxxIt är produktidentiteten. Jarvis coachar, Dashboard visar instrumentpanelen.
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+                  <span className="command-chip">Logga</span>
+                  <span className="command-chip">Synka</span>
+                  <span className="command-chip">Analysera</span>
+                  <span className="command-chip">Öppna källa</span>
+                  <span className="command-chip">Rank up</span>
+                </div>
+              </div>
+
               <div className="card">
                 <SectionHeader icon={Moon} title="Tema" subtitle="Välj mörkt eller ljust läge" />
 

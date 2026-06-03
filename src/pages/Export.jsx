@@ -185,7 +185,7 @@ export default function ExportPage() {
       <div className="page-header">
         <div>
           <div className="page-header-title">Exportera data</div>
-          <div className="page-header-sub">Ladda ner dina datapunkter som Excel-filer</div>
+          <div className="page-header-sub">Exportera rådata för analys, backup och Jarvis-kontroll</div>
         </div>
       </div>
 

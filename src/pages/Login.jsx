@@ -29,7 +29,8 @@ export default function Login() {
 
         {/* Logo */}
         <div style={{ marginBottom: '48px', textAlign: 'center' }}>
-          <div style={{ fontSize: '32px', fontWeight: '700', letterSpacing: '-1px', marginBottom: '8px' }}>
+          <div className="brand-kicker" style={{ justifyContent: 'center', marginBottom: '10px' }}>MAXXIT</div>
+          <div style={{ fontSize: '36px', fontWeight: '800', letterSpacing: '-1.4px', marginBottom: '8px' }}>
             Sigge
             <span style={{
               background: 'linear-gradient(135deg, #4f8ef7, #a78bfa)',
@@ -39,7 +40,7 @@ export default function Login() {
             }}>OS</span>
           </div>
           <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '13px', letterSpacing: '0.02em' }}>
-            Ditt personliga livs-OS
+            MaxxIt · personlig prestation, data och riktning
           </div>
         </div>
 
@@ -91,13 +92,13 @@ export default function Login() {
               disabled={loading}
               style={{ width: '100%', justifyContent: 'center', marginTop: '4px', padding: '11px', fontSize: '14px' }}
             >
-              {loading ? 'Loggar in...' : 'Logga in'}
+              {loading ? 'Startar systemet…' : 'Logga in'}
             </button>
           </form>
         </div>
 
         <div style={{ marginTop: '28px', color: 'rgba(255,255,255,0.2)', fontSize: '11px', textAlign: 'center', letterSpacing: '0.04em' }}>
-          SIGGE OS · PERSONLIGT & PRIVAT
+          MAXXIT · SIGGEOS · PRIVAT INSTRUMENTPANEL
         </div>
       </div>
     </div>

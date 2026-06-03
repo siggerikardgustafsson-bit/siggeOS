@@ -21,8 +21,17 @@ import StravaCallback from './pages/StravaCallback'
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--muted)' }}>
-      Laddar...
+    <div className="loading-state-premium">
+      <div className="loading-card">
+        <div className="brand-kicker">MAXXIT SYSTEM</div>
+        <div style={{ fontSize: 28, fontWeight: 850, letterSpacing: '-0.04em', marginTop: 8 }}>
+          Startar SiggeOS
+        </div>
+        <div style={{ color: 'var(--muted2)', marginTop: 6 }}>
+          Kontrollerar session och laddar personlig instrumentpanel…
+        </div>
+        <div className="loading-pulse-bar" />
+      </div>
     </div>
   )
   return user ? children : <Navigate to="/login" replace />
