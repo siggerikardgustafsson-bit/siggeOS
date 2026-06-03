@@ -63,6 +63,19 @@ export default function PluggPage() {
   const [studySession, setStudySession] = useState(null)
   const [showFilesFor, setShowFilesFor] = useState(null) // examId
   const [courseMaterials, setCourseMaterials] = useState({}) // examId -> []
+  const [studyTasks, setStudyTasks] = useState({}) // courseId -> []
+  const [taskDeadlines, setTaskDeadlines] = useState({}) // taskId -> []
+  const [showNewTaskFor, setShowNewTaskFor] = useState(null)
+  const [expandedTask, setExpandedTask] = useState(null)
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    task_type: 'läsa',
+    status: 'todo',
+    priority: 'medium',
+    estimated_minutes: '',
+    notes: '',
+    deadlines: [{ name: '', due_date: '' }],
+  })
 
   useEffect(() => { if (user) fetchAll() }, [user])
 
@@ -105,12 +118,16 @@ export default function PluggPage() {
     const { data: activeCourses } = await supabase.from('courses').select('*').eq('user_id', user.id).eq('active', true).order('created_at')
     const { data: archived } = await supabase.from('courses').select('*').eq('user_id', user.id).eq('active', false).order('created_at', { ascending: false })
     const allIds = [...(activeCourses || []), ...(archived || [])].map(c => c.id)
-    if (allIds.length === 0) { setCourses([]); setArchivedCourses([]); return }
-    const [examsRes, goalsRes, examFilesRes, courseMaterialsRes] = await Promise.all([
+    if (allIds.length === 0) {
+      setCourses([]); setArchivedCourses([]); setExams({}); setGoals({}); setExamFiles({}); setCourseMaterials({}); setStudyTasks({}); setTaskDeadlines({})
+      return
+    }
+    const [examsRes, goalsRes, examFilesRes, courseMaterialsRes, tasksRes] = await Promise.all([
       supabase.from('course_exams').select('*').in('course_id', allIds).order('exam_date'),
       supabase.from('learning_goals').select('*').in('course_id', allIds),
       supabase.from('exam_old_files').select('*').in('course_id', allIds),
       supabase.from('course_materials').select('*').in('course_id', allIds),
+      supabase.from('study_tasks').select('*').in('course_id', allIds).order('created_at', { ascending: false }),
     ])
     const examMap = {}
     for (const e of (examsRes.data || [])) { if (!examMap[e.course_id]) examMap[e.course_id] = []; examMap[e.course_id].push(e) }
@@ -120,12 +137,22 @@ export default function PluggPage() {
     for (const f of (examFilesRes.data || [])) { if (!examFileMap[f.exam_id]) examFileMap[f.exam_id] = []; examFileMap[f.exam_id].push(f) }
     const courseMaterialMap = {}
     for (const m of (courseMaterialsRes.data || [])) { if (!courseMaterialMap[m.exam_id]) courseMaterialMap[m.exam_id] = []; courseMaterialMap[m.exam_id].push(m) }
+    const taskMap = {}
+    const taskIds = (tasksRes.data || []).map(t => t.id)
+    for (const t of (tasksRes.data || [])) { if (!taskMap[t.course_id]) taskMap[t.course_id] = []; taskMap[t.course_id].push(t) }
+    const deadlineMap = {}
+    if (taskIds.length > 0) {
+      const { data: deadlines } = await supabase.from('study_task_deadlines').select('*').in('task_id', taskIds).order('sort_order').order('due_date', { ascending: true })
+      for (const d of (deadlines || [])) { if (!deadlineMap[d.task_id]) deadlineMap[d.task_id] = []; deadlineMap[d.task_id].push(d) }
+    }
     setCourses(activeCourses || [])
     setArchivedCourses(archived || [])
     setExams(examMap)
     setGoals(goalMap)
     setExamFiles(examFileMap)
     setCourseMaterials(courseMaterialMap)
+    setStudyTasks(taskMap)
+    setTaskDeadlines(deadlineMap)
   }
 
   async function fetchStudySessions() {
@@ -208,6 +235,89 @@ export default function PluggPage() {
     setSessionForm({ course_id: '', subject: '', hours: '', notes: '', date: format(new Date(), 'yyyy-MM-dd') })
     setShowNewSession(false)
     setSaving(false)
+  }
+
+  function resetTaskForm() {
+    setTaskForm({
+      title: '',
+      task_type: 'läsa',
+      status: 'todo',
+      priority: 'medium',
+      estimated_minutes: '',
+      notes: '',
+      deadlines: [{ name: '', due_date: '' }],
+    })
+  }
+
+  function addTaskDeadlineField() {
+    setTaskForm(f => ({ ...f, deadlines: [...f.deadlines, { name: '', due_date: '' }] }))
+  }
+
+  function updateTaskDeadlineField(index, field, value) {
+    setTaskForm(f => ({
+      ...f,
+      deadlines: f.deadlines.map((d, i) => i === index ? { ...d, [field]: value } : d),
+    }))
+  }
+
+  function removeTaskDeadlineField(index) {
+    setTaskForm(f => ({ ...f, deadlines: f.deadlines.length === 1 ? [{ name: '', due_date: '' }] : f.deadlines.filter((_, i) => i !== index) }))
+  }
+
+  async function saveStudyTask(courseId) {
+    if (!taskForm.title.trim()) return
+    setSaving(true)
+    const { data: task, error } = await supabase.from('study_tasks').insert({
+      user_id: user.id,
+      course_id: courseId,
+      title: taskForm.title.trim(),
+      task_type: taskForm.task_type,
+      status: taskForm.status,
+      priority: taskForm.priority,
+      estimated_minutes: taskForm.estimated_minutes ? parseInt(taskForm.estimated_minutes, 10) : null,
+      notes: taskForm.notes.trim() || null,
+    }).select().single()
+
+    if (!error && task) {
+      const deadlineRows = taskForm.deadlines
+        .map((d, index) => ({
+          user_id: user.id,
+          task_id: task.id,
+          name: d.name.trim(),
+          due_date: d.due_date || null,
+          sort_order: index,
+        }))
+        .filter(d => d.name || d.due_date)
+      if (deadlineRows.length > 0) await supabase.from('study_task_deadlines').insert(deadlineRows)
+    } else if (error) {
+      console.error('Kunde inte skapa uppgift', error)
+      alert('Kunde inte skapa uppgift. Har du kört SQL-migrationen för study_tasks?')
+    }
+
+    resetTaskForm()
+    setShowNewTaskFor(null)
+    await fetchCourses()
+    setSaving(false)
+  }
+
+  async function toggleStudyTask(task) {
+    const nextStatus = task.status === 'done' ? 'todo' : 'done'
+    await supabase.from('study_tasks').update({ status: nextStatus, updated_at: new Date().toISOString() }).eq('id', task.id)
+    await fetchCourses()
+  }
+
+  async function toggleTaskDeadline(deadline) {
+    await supabase.from('study_task_deadlines').update({
+      completed: !deadline.completed,
+      completed_at: !deadline.completed ? new Date().toISOString() : null,
+    }).eq('id', deadline.id)
+    await fetchCourses()
+  }
+
+  async function deleteStudyTask(taskId) {
+    if (!window.confirm('Ta bort uppgift och alla deadlines?')) return
+    await supabase.from('study_tasks').delete().eq('id', taskId)
+    await fetchCourses()
   }
 
   async function archiveCourse(courseId) {
@@ -514,6 +624,115 @@ export default function PluggPage() {
                             </div>
                           </div>
                         )}
+
+                        {/* Uppgifter */}
+                        <div style={{ marginBottom: '16px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600' }}>UPPGIFTER</div>
+                            {showNewTaskFor !== course.id && (
+                              <button onClick={() => { setShowNewTaskFor(course.id); resetTaskForm() }} className="btn btn-ghost" style={{ fontSize: '12px', padding: '5px 10px' }}>
+                                Ny uppgift
+                              </button>
+                            )}
+                          </div>
+
+                          {showNewTaskFor === course.id && (
+                            <div style={{ border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--surface2)', padding: '12px', marginBottom: '10px' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 0.8fr 0.8fr', gap: '8px', marginBottom: '8px' }}>
+                                <input className="input" placeholder="Uppgift, t.ex. Plugga inflammation" value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))} />
+                                <select className="input" value={taskForm.task_type} onChange={e => setTaskForm(f => ({ ...f, task_type: e.target.value }))}>
+                                  {['läsa', 'föreläsning', 'anki', 'tenta', 'repetition', 'annat'].map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                                <select className="input" value={taskForm.priority} onChange={e => setTaskForm(f => ({ ...f, priority: e.target.value }))}>
+                                  <option value="low">Låg</option>
+                                  <option value="medium">Medium</option>
+                                  <option value="high">Hög</option>
+                                </select>
+                                <input className="input" type="number" min="0" placeholder="min" value={taskForm.estimated_minutes} onChange={e => setTaskForm(f => ({ ...f, estimated_minutes: e.target.value }))} />
+                              </div>
+                              <input className="input" placeholder="Anteckningar, valfritt" value={taskForm.notes} onChange={e => setTaskForm(f => ({ ...f, notes: e.target.value }))} style={{ marginBottom: '10px' }} />
+
+                              <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '6px' }}>DEADLINES / MILESTONES</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+                                {taskForm.deadlines.map((deadline, index) => (
+                                  <div key={index} style={{ display: 'grid', gridTemplateColumns: '1fr 170px auto', gap: '8px', alignItems: 'center' }}>
+                                    <input className="input" placeholder="Namn, t.ex. Läs kapitel 4" value={deadline.name} onChange={e => updateTaskDeadlineField(index, 'name', e.target.value)} />
+                                    <input className="input" type="date" value={deadline.due_date} onChange={e => updateTaskDeadlineField(index, 'due_date', e.target.value)} />
+                                    <button onClick={() => removeTaskDeadlineField(index)} className="btn btn-ghost btn-icon" type="button"><X size={13} /></button>
+                                  </div>
+                                ))}
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                                <button onClick={addTaskDeadlineField} className="btn btn-ghost" type="button" style={{ fontSize: '12px' }}>Lägg till deadline</button>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  <button onClick={() => { setShowNewTaskFor(null); resetTaskForm() }} className="btn btn-ghost">Avbryt</button>
+                                  <button onClick={() => saveStudyTask(course.id)} className="btn btn-primary" disabled={saving || !taskForm.title.trim()}>{saving ? 'Sparar...' : 'Spara uppgift'}</button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {(studyTasks[course.id] || []).length === 0 ? (
+                            <div style={{ fontSize: '12px', color: 'var(--muted)', padding: '10px 12px', border: '1px dashed var(--border)', borderRadius: '10px' }}>
+                              Inga uppgifter ännu.
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {(studyTasks[course.id] || []).map(task => {
+                                const deadlinesForTask = taskDeadlines[task.id] || []
+                                const completedDeadlines = deadlinesForTask.filter(d => d.completed).length
+                                const nextDeadline = deadlinesForTask
+                                  .filter(d => !d.completed && d.due_date)
+                                  .sort((a, b) => a.due_date.localeCompare(b.due_date))[0]
+                                const done = task.status === 'done'
+                                const priorityColor = task.priority === 'high' ? '#ef4444' : task.priority === 'low' ? '#6b7280' : '#f59e0b'
+                                return (
+                                  <div key={task.id} style={{ border: '1px solid var(--border)', borderRadius: '10px', background: done ? 'rgba(16,185,129,0.06)' : 'var(--surface2)', overflow: 'hidden' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', padding: '10px 12px', cursor: 'pointer' }} onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '9px', minWidth: 0, flex: 1 }}>
+                                        <button onClick={e => { e.stopPropagation(); toggleStudyTask(task) }} style={{ width: '20px', height: '20px', borderRadius: '6px', border: `1px solid ${done ? '#10b981' : 'var(--border)'}`, background: done ? 'rgba(16,185,129,0.2)' : 'transparent', color: done ? '#10b981' : 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                          {done ? <Check size={13} /> : null}
+                                        </button>
+                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                          <div style={{ fontSize: '13px', fontWeight: '600', color: done ? 'var(--muted)' : 'var(--text)', textDecoration: done ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</div>
+                                          <div style={{ fontSize: '11px', color: 'var(--muted)', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
+                                            <span>{task.task_type}</span>
+                                            <span style={{ color: priorityColor, fontWeight: '600' }}>{task.priority === 'high' ? 'Hög prio' : task.priority === 'low' ? 'Låg prio' : 'Medium prio'}</span>
+                                            {task.estimated_minutes ? <span>{task.estimated_minutes} min</span> : null}
+                                            {deadlinesForTask.length > 0 ? <span>{completedDeadlines}/{deadlinesForTask.length} deadlines</span> : null}
+                                            {nextDeadline ? <span style={{ color: '#3b82f6', fontWeight: '600' }}>Nästa: {nextDeadline.name || 'Deadline'} · {format(parseISO(nextDeadline.due_date), 'd MMM', { locale: sv })}</span> : null}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <button onClick={e => { e.stopPropagation(); deleteStudyTask(task.id) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', opacity: 0.55, padding: '3px' }}><Trash2 size={13} /></button>
+                                        {expandedTask === task.id ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
+                                      </div>
+                                    </div>
+                                    {expandedTask === task.id && (
+                                      <div style={{ padding: '0 12px 12px', borderTop: '1px solid var(--border)' }}>
+                                        {task.notes && <div style={{ fontSize: '12px', color: 'var(--muted2)', lineHeight: '1.5', marginTop: '10px', marginBottom: '8px' }}>{task.notes}</div>}
+                                        {deadlinesForTask.length > 0 && (
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+                                            {deadlinesForTask.map(deadline => (
+                                              <div key={deadline.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '8px 10px', borderRadius: '8px', background: deadline.completed ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.035)', border: `1px solid ${deadline.completed ? 'rgba(16,185,129,0.18)' : 'var(--border)'}` }}>
+                                                <button onClick={() => toggleTaskDeadline(deadline)} style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', color: 'var(--text)' }}>
+                                                  <span style={{ width: '18px', height: '18px', borderRadius: '5px', border: `1px solid ${deadline.completed ? '#10b981' : 'var(--border)'}`, background: deadline.completed ? 'rgba(16,185,129,0.2)' : 'transparent', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{deadline.completed ? <Check size={12} /> : null}</span>
+                                                  <span style={{ fontSize: '12px', fontWeight: '500', color: deadline.completed ? 'var(--muted)' : 'var(--text)', textDecoration: deadline.completed ? 'line-through' : 'none' }}>{deadline.name || 'Deadline'}</span>
+                                                </button>
+                                                {deadline.due_date && <span style={{ fontSize: '11px', color: 'var(--muted)', flexShrink: 0 }}>{format(parseISO(deadline.due_date), 'd MMM yyyy', { locale: sv })}</span>}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
 
                         {/* Examinationer */}
                         <div style={{ marginBottom: '16px' }}>
