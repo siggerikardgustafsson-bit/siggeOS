@@ -96,7 +96,7 @@ export default function AppLayout() {
           justify-content: space-between;
           align-items: center;
           gap: 14px;
-          background: linear-gradient(135deg, rgba(255,255,255,0.075), rgba(255,255,255,0.035));
+          background: linear-gradient(180deg, var(--surface), var(--surface2));
           backdrop-filter: blur(34px);
           -webkit-backdrop-filter: blur(34px);
           border: 1px solid var(--glass-border);
@@ -110,7 +110,7 @@ export default function AppLayout() {
           content: '';
           position: absolute;
           top: 0; left: 10%; right: 10%; height: 1px;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.34), transparent);
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
           pointer-events: none;
         }
 
@@ -121,7 +121,7 @@ export default function AppLayout() {
           width: 360px;
           height: 220px;
           border-radius: 999px;
-          background: radial-gradient(circle, var(--accent-soft), transparent 68%);
+          background: radial-gradient(circle, rgba(79,142,247,0.08), transparent 68%);
           pointer-events: none;
         }
 

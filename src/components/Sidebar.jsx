@@ -51,13 +51,10 @@ export default function Sidebar() {
         padding: '22px 20px 18px',
         borderBottom: '1px solid var(--border)',
       }}>
-        <div className="brand-logo" style={{
+        <div className="brand-logo maxxit-sidebar-logo" style={{
           color: 'var(--text)',
         }}>
-          <span className="brand-logo-main">Sigge</span><span className="brand-logo-os">OS</span>
-        </div>
-        <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px', letterSpacing: '0.02em' }}>
-          Personal OS
+          <span className="brand-logo-main">Maxx</span><span className="brand-logo-os">It</span>
         </div>
       </div>
 

@@ -1179,3 +1179,54 @@ html[data-theme="light"] body.has-bg-image .app-sidebar-floating aside {
   .maxxit-login-card { padding: 24px; }
   .maxxit-logo-hero { font-size: 58px; }
 }
+
+
+/* ============================================================
+   MAXXIT FIX — header/widget consistency + clean logo
+   ============================================================ */
+.page-header {
+  background: linear-gradient(180deg, var(--surface), var(--surface2)) !important;
+  border-color: var(--glass-border) !important;
+  box-shadow: var(--glass-shadow) !important;
+}
+
+.page-header::before {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent) !important;
+}
+
+.page-header::after {
+  opacity: 0.55 !important;
+}
+
+/* Prevent previous CSS fallback from injecting duplicated logo text */
+.maxxit-sidebar-logo .brand-logo-main,
+.maxxit-sidebar-logo .brand-logo-os {
+  font-size: inherit !important;
+}
+.maxxit-sidebar-logo .brand-logo-main::after,
+.maxxit-sidebar-logo .brand-logo-os::after {
+  content: none !important;
+}
+
+.maxxit-sidebar-logo .brand-logo-main,
+.maxxit-sidebar-logo .brand-logo-os {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.075em !important;
+  line-height: 1 !important;
+}
+
+.maxxit-sidebar-logo .brand-logo-main {
+  font-size: 28px !important;
+  color: var(--text) !important;
+}
+
+.maxxit-sidebar-logo .brand-logo-os {
+  font-size: 28px !important;
+  margin-left: 2px !important;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
