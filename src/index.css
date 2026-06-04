@@ -3035,3 +3035,97 @@ body,
     padding: 0 4px 56px 4px !important;
   }
 }
+/* ============================================================
+   MAXXIT LEFT GUTTER FIX v4
+   Purpose: remove the "page inside a page" left edge/gutter and
+   restore the old edge-to-edge feeling in the main content area.
+   Keep this block last in src/index.css.
+   ============================================================ */
+
+/* Main should start right after the floating sidebar, not add a second visual column. */
+.sigge-main-scroll {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+/* Kill route-level max-width rules from earlier layout patches. */
+.route-dashboard .page-content-scroll > div,
+.route-traning .page-content-scroll > div,
+.route-kalender .page-content-scroll > div,
+.route-upplevelser .page-content-scroll > div,
+.route-journal .page-content-scroll > div,
+.route-halsa .page-content-scroll > div,
+.route-ekonomi .page-content-scroll > div,
+.route-jobb .page-content-scroll > div,
+.route-plugg .page-content-scroll > div,
+.route-insights .page-content-scroll > div,
+.route-export .page-content-scroll > div,
+.route-installningar .page-content-scroll > div,
+.page-content-scroll > .page-wrap,
+.page-content-scroll > .dashboard-wrap {
+  max-width: none !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Override inline maxWidth/margin:auto wrappers that exist inside several pages. */
+.page-wrap > div[style*="max-width"],
+.dashboard-wrap > div[style*="max-width"],
+.page-wrap > div[style*="maxWidth"],
+.dashboard-wrap > div[style*="maxWidth"],
+.page-content-scroll div[style*="margin: 0 auto"],
+.page-content-scroll div[style*="margin:0 auto"],
+.page-content-scroll div[style*="margin-left: auto"],
+.page-content-scroll div[style*="margin-right: auto"] {
+  max-width: none !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Header should run across the whole content rail. */
+.page-header {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Make the header/panels feel floating rather than boxed by a hard outline. */
+.page-header,
+.card,
+.card-sm,
+.widget,
+.cat-card,
+.panel {
+  border-color: rgba(255,255,255,0.085) !important;
+  box-shadow: 0 18px 58px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,0.045) inset !important;
+}
+
+/* The sidebar can keep its panel, but remove the extra harsh vertical seam. */
+.app-sidebar-floating {
+  padding-right: 0 !important;
+}
+
+.app-sidebar-floating aside,
+.app-sidebar-frame {
+  border-right-color: rgba(255,255,255,0.075) !important;
+  box-shadow: 0 18px 58px rgba(0,0,0,0.16), 0 1px 0 rgba(255,255,255,0.05) inset !important;
+}
+
+/* Some pages add inner horizontal padding. Keep a little breathing room, not a fake centered column. */
+.page-content-scroll,
+.page-wrap,
+.dashboard-wrap {
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .sigge-main-scroll {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
