@@ -419,7 +419,7 @@ export default function JobbPage() {
     if (projectList.length === 0) {
       const seeds = [
         { user_id: user.id, name: 'Erik Norling', type: 'jobb', client: 'Erik Norling', color: '#f59e0b', description: 'Fastigheter, uppdrag och löpande arbete för Erik.' },
-        { user_id: user.id, name: 'MaxxIt', type: 'sidoprojekt', client: '', color: '#4f8ef7', description: 'Personlig performance- och life-management-app byggd med React + Supabase.' },
+        { user_id: user.id, name: 'MaxxIt', type: 'sidoprojekt', client: '', color: '#4f8ef7', description: 'Personlig life-management app byggd med React + Supabase.' },
       ]
       const { data: seeded } = await supabase.from('projects').insert(seeds).select()
       setProjects(seeded || [])

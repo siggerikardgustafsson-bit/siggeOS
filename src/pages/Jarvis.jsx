@@ -9,7 +9,7 @@ import MarkdownMessage from '../components/MarkdownMessage'
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
 const clean = (value) => value === undefined || value === null || value === '' ? null : value
 
-const JARVIS_SYSTEM_TEMPLATE = `Du är Jarvis – en personlig AI-assistent inbyggd i SiggeOS.
+const JARVIS_SYSTEM_TEMPLATE = `Du är Jarvis – en personlig AI-assistent inbyggd i MaxxIt.
 
 ROLL:
 Du är coach, assistent, analytiker och minne i samma system. Välj själv läge utifrån prompten. Var datadriven, konkret och direkt. Du ska inte vara generisk.
