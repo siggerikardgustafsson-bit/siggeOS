@@ -634,7 +634,7 @@ export default function EkonomiPage() {
         </div>
       </div>
       <div className="page-content-scroll">
-        <div style={{ padding: "16px 16px 0", maxWidth: "900px", margin: "0 auto" }}>
+        <div className="mx-content-edge" style={{ padding: "16px 16px 0", width: "100%", maxWidth: "none", margin: "0" }}>
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>

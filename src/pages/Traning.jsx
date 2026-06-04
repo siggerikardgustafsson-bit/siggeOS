@@ -1125,7 +1125,7 @@ export default function TraningPage() {
 
       {/* Scrollable content */}
       <div className="page-content-scroll">
-      <div style={{ padding: '16px 16px 0', maxWidth: '1120px', margin: '0 auto' }}>
+      <div className="mx-content-edge" style={{ padding: '16px 16px 0', width: '100%', maxWidth: 'none', margin: '0' }}>
 
       {/* Strava result */}
       {stravaResult && (

@@ -2887,3 +2887,151 @@ aside,
   .settings-page .page-header { min-height: 72px !important; }
   .page-header { padding: 14px 16px !important; }
 }
+
+/* ============================================================
+   MAXXIT EDGE-TO-EDGE RESTORE v3
+   Goal: remove the "page inside a page" feeling.
+   Main pages now use the full available canvas; sidebar remains the
+   floating glass anchor. Keep this block last in index.css.
+   ============================================================ */
+
+:root {
+  --mx-page-gap: 14px;
+  --mx-edge-pad: 0px;
+  --mx-edge-inner-pad: 14px;
+}
+
+/* Undo the centered/max-width route rules from earlier layout patches. */
+.route-dashboard .page-content-scroll > div,
+.route-traning .page-content-scroll > div,
+.route-kalender .page-content-scroll > div,
+.route-upplevelser .page-content-scroll > div,
+.route-journal .page-content-scroll > div,
+.route-halsa .page-content-scroll > div,
+.route-ekonomi .page-content-scroll > div,
+.route-jobb .page-content-scroll > div,
+.route-plugg .page-content-scroll > div,
+.route-insights .page-content-scroll > div,
+.route-export .page-content-scroll > div,
+.route-installningar .page-content-scroll > div,
+.page-content-scroll > .mx-content-edge {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* The main scroll area should feel like one continuous canvas, not a centered sheet. */
+.sigge-main-scroll {
+  padding: 10px 10px 10px 10px !important;
+}
+
+/* Keep page wrappers open and edge-to-edge. */
+.page-wrap,
+.dashboard-wrap {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0 0 56px 0 !important;
+  overflow: visible !important;
+}
+
+.page-content-scroll {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0 0 56px 0 !important;
+  overflow: visible !important;
+}
+
+/* Header should span the whole content lane again. */
+.page-header {
+  width: 100% !important;
+  margin: 0 0 16px 0 !important;
+  border-radius: 22px !important;
+  border-color: rgba(255,255,255,0.085) !important;
+  background: linear-gradient(180deg, rgba(14,18,30,0.30), rgba(14,18,30,0.18)) !important;
+  box-shadow:
+    0 14px 42px rgba(0,0,0,0.14),
+    0 1px 0 rgba(255,255,255,0.05) inset !important;
+}
+
+/* Remove the visual "outer page border" feeling from overly boxed content. */
+.page-header::before {
+  opacity: 0.32 !important;
+}
+
+.page-header::after {
+  opacity: 0.10 !important;
+}
+
+/* Cards keep the glass but lose the heavy frame. */
+.card,
+.card-sm,
+.widget,
+.cat-card,
+.panel {
+  border-color: rgba(255,255,255,0.085) !important;
+  box-shadow:
+    0 12px 38px rgba(0,0,0,0.13),
+    0 1px 0 rgba(255,255,255,0.045) inset !important;
+}
+
+.card:hover,
+.card-sm:hover,
+.widget:hover,
+.cat-card:hover {
+  border-color: rgba(255,255,255,0.13) !important;
+  box-shadow:
+    0 18px 52px rgba(0,0,0,0.18),
+    0 1px 0 rgba(255,255,255,0.065) inset !important;
+}
+
+/* Settings should not become a centered/admin-looking island. */
+.settings-layout {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 14px 56px 14px !important;
+}
+
+.settings-content {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.settings-card-stack {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+/* Tab bars like Ekonomi should stretch naturally in the content lane. */
+.page-content-scroll > div > [style*="display: flex"][style*="marginBottom"] {
+  max-width: none !important;
+}
+
+/* Avoid browser/page double-scroll weirdness while keeping main content scrollable. */
+html,
+body,
+#root {
+  overflow: hidden !important;
+}
+
+.maxxit-app-shell {
+  width: 100vw !important;
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+
+@media (max-width: 768px) {
+  .sigge-main-scroll {
+    padding: 8px 8px calc(94px + env(safe-area-inset-bottom)) 8px !important;
+  }
+
+  .page-header {
+    border-radius: 18px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .settings-layout {
+    padding: 0 4px 56px 4px !important;
+  }
+}

@@ -904,7 +904,7 @@ export default function Dashboard() {
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'14px', maxWidth:'1240px', margin:'0 auto', width:'100%' }}>
+        <div className="mx-content-edge" style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'14px', maxWidth:'none', margin:'0', width:'100%' }}>
 
           {/* MAXX SCORE + BOTTLENECK — premium split layout */}
           {!loading && maxxProfile && (
