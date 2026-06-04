@@ -313,9 +313,11 @@ export default function JournalPage() {
             {entries.length} {entries.length === 1 ? 'entry' : 'entries'} i {format(currentMonth, 'MMMM', { locale: sv })}
           </div>
         </div>
-        <button onClick={openNewForm} className="btn btn-primary">
-          <Plus size={14} /> Ny entry
-        </button>
+        <div className="page-header-actions">
+          <button onClick={openNewForm} className="btn btn-primary">
+            <Plus size={14} /> Ny entry
+          </button>
+        </div>
       </div>
 
       <div className="page-content-scroll">

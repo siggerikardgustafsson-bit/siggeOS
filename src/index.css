@@ -1848,3 +1848,424 @@ aside,
   .settings-page .page-header { min-height: 72px !important; }
   .page-header { padding: 14px 16px !important; }
 }
+
+/* ============================================================
+   MAXXIT LAYOUT SYSTEM v2 — page rhythm + header action polish
+   Keep this block last. It intentionally normalizes the app shell,
+   page headers, settings layout and common page widths without
+   touching data logic.
+   ============================================================ */
+
+:root {
+  --mx-shell-padding: 10px;
+  --mx-page-gap: 18px;
+  --mx-content-pad-x: 16px;
+  --mx-content-pad-bottom: 56px;
+  --mx-content-narrow: 960px;
+  --mx-content-default: 1080px;
+  --mx-content-wide: 1240px;
+
+  --mx-glass-base: rgba(14, 18, 30, 0.30);
+  --mx-glass-base-2: rgba(14, 18, 30, 0.20);
+  --mx-glass-hover: rgba(20, 26, 42, 0.40);
+  --mx-glass-border-2: rgba(255,255,255,0.115);
+  --mx-glass-highlight-2: rgba(255,255,255,0.08);
+}
+
+html, body, #root {
+  overflow: hidden;
+}
+
+/* App shell owns scrolling; individual right-column scroll traps should not. */
+.maxxit-app-shell {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  padding: 0;
+  gap: 0;
+  box-sizing: border-box;
+  isolation: isolate;
+}
+
+.app-sidebar-floating {
+  flex: 0 0 auto;
+  width: 274px;
+  height: 100vh;
+  padding: var(--mx-shell-padding) 0 var(--mx-shell-padding) var(--mx-shell-padding);
+  box-sizing: border-box;
+}
+
+.app-sidebar-frame {
+  height: 100%;
+  border-radius: 22px;
+  overflow: hidden;
+}
+
+.sigge-main-scroll {
+  flex: 1;
+  min-width: 0;
+  height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--mx-shell-padding);
+  box-sizing: border-box;
+  background: transparent;
+  scroll-behavior: smooth;
+}
+
+/* Unified glass recipe. Sidebar/page headers/widgets/cards should feel like one material. */
+.app-sidebar-floating aside,
+.page-header,
+.card,
+.card-sm,
+.widget,
+.cat-card,
+.panel,
+.settings-nav,
+.settings-card-stack > .card {
+  background: linear-gradient(180deg, var(--mx-glass-base), var(--mx-glass-base-2)) !important;
+  border: 1px solid var(--mx-glass-border-2) !important;
+  box-shadow: 0 18px 58px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.055) inset !important;
+  backdrop-filter: blur(var(--bg-blur-amount, 22px)) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(var(--bg-blur-amount, 22px)) saturate(145%) !important;
+}
+
+.card:hover,
+.card-sm:hover,
+.widget:hover,
+.cat-card:hover {
+  background: linear-gradient(180deg, var(--mx-glass-hover), var(--mx-glass-base)) !important;
+  border-color: rgba(255,255,255,0.16) !important;
+}
+
+/* Page shell rhythm */
+.page-wrap,
+.dashboard-wrap {
+  min-height: 100%;
+  width: 100%;
+  padding: 0 0 var(--mx-content-pad-bottom) 0 !important;
+  overflow: visible !important;
+}
+
+.page-content-scroll {
+  width: 100%;
+  overflow: visible !important;
+  padding: 0 0 var(--mx-content-pad-bottom) 0 !important;
+}
+
+/* Page header: same material as sidebar, predictable height, clean action row. */
+.page-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 40 !important;
+  min-height: 92px !important;
+  margin: 0 0 var(--mx-page-gap) 0 !important;
+  padding: 18px 24px !important;
+  border-radius: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  overflow: hidden !important;
+}
+
+.page-header::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 14% !important;
+  right: 14% !important;
+  height: 1px !important;
+  background: linear-gradient(90deg, transparent, var(--mx-glass-highlight-2), transparent) !important;
+  opacity: 1 !important;
+  pointer-events: none !important;
+}
+
+.page-header::after {
+  content: '' !important;
+  position: absolute !important;
+  inset: -110% -10% auto auto !important;
+  width: 340px !important;
+  height: 240px !important;
+  border-radius: 999px !important;
+  background: radial-gradient(circle, var(--accent-soft), transparent 70%) !important;
+  opacity: 0.16 !important;
+  pointer-events: none !important;
+}
+
+.page-header > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  position: relative;
+  z-index: 1;
+}
+
+.page-header-title,
+.page-header h1,
+.page-header h2 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  font-size: clamp(36px, 3.1vw, 52px) !important;
+  line-height: 0.9 !important;
+  letter-spacing: -0.07em !important;
+  color: var(--text) !important;
+  white-space: nowrap;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.18);
+}
+
+.page-header-sub {
+  color: var(--muted2) !important;
+  font-size: 12.5px !important;
+  font-weight: 520 !important;
+  margin-top: 8px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Any action container, including older pages with inline action wrappers. */
+.page-header-actions,
+.page-header > button,
+.page-header > a {
+  position: relative;
+  z-index: 1;
+}
+
+.page-header-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  max-width: 58%;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.page-header-actions::-webkit-scrollbar { display: none; }
+
+.page-header .btn,
+.page-header .tab-btn,
+.page-header-actions .btn,
+.page-header-actions .tab-btn {
+  min-height: 36px !important;
+  padding: 7px 13px !important;
+  border-radius: 12px !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+/* Buttons are calmer, more Apple-like, less outlined-noisy. */
+.btn-ghost,
+.tab-btn {
+  background: rgba(14,18,30,0.22) !important;
+  border-color: rgba(255,255,255,0.105) !important;
+  color: var(--muted2) !important;
+}
+
+.btn-ghost:hover,
+.tab-btn:hover {
+  background: rgba(255,255,255,0.065) !important;
+  color: var(--text) !important;
+  border-color: rgba(255,255,255,0.17) !important;
+}
+
+.btn-primary {
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent) !important;
+}
+
+/* Standard page widths: pages can still override maxWidth inline, but this improves defaults. */
+.route-dashboard .page-content-scroll > div,
+.route-traning .page-content-scroll > div,
+.route-kalender .page-content-scroll > div,
+.route-upplevelser .page-content-scroll > div {
+  max-width: var(--mx-content-wide);
+}
+
+.route-journal .page-content-scroll > div,
+.route-halsa .page-content-scroll > div,
+.route-ekonomi .page-content-scroll > div,
+.route-jobb .page-content-scroll > div,
+.route-plugg .page-content-scroll > div,
+.route-insights .page-content-scroll > div,
+.route-export .page-content-scroll > div {
+  max-width: var(--mx-content-default);
+}
+
+/* Settings: no nested scroll traps, premium left nav, full page height. */
+.settings-page {
+  min-height: 100%;
+  overflow: visible !important;
+}
+
+.settings-layout {
+  display: grid !important;
+  grid-template-columns: 220px minmax(0, 1fr) !important;
+  gap: 18px !important;
+  align-items: start !important;
+  min-height: auto !important;
+  overflow: visible !important;
+  padding: 0 var(--mx-content-pad-x) var(--mx-content-pad-bottom) var(--mx-content-pad-x) !important;
+}
+
+.settings-nav-wrap {
+  position: sticky;
+  top: 110px;
+  align-self: start;
+  min-width: 0;
+}
+
+.settings-nav {
+  padding: 8px !important;
+  border-radius: 22px !important;
+}
+
+.settings-nav-btn {
+  width: 100% !important;
+  min-height: 42px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  border-radius: 13px !important;
+  border: 1px solid transparent !important;
+  padding: 10px 12px !important;
+  color: var(--muted2) !important;
+  background: transparent !important;
+  font-weight: 650 !important;
+}
+
+.settings-nav-btn:hover {
+  background: rgba(255,255,255,0.055) !important;
+  color: var(--text) !important;
+}
+
+.settings-nav-btn[style*="var(--accent-soft)"] {
+  background: var(--accent-soft) !important;
+  border-color: var(--accent-border) !important;
+  color: var(--text) !important;
+}
+
+.settings-content {
+  min-width: 0;
+  overflow: visible !important;
+  padding-right: 0 !important;
+}
+
+.settings-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: var(--mx-content-pad-bottom);
+}
+
+.settings-content .card {
+  border-radius: 24px !important;
+}
+
+/* Fix selected background thumbnails feeling like dark rectangles. */
+.settings-content img,
+.settings-content [style*="backgroundImage"] {
+  overflow: hidden;
+}
+
+/* Cinematic bg without washing cards out. */
+#bg-image::after {
+  background: var(--bg-overlay, rgba(7,9,15,0.42)) !important;
+  backdrop-filter: blur(var(--bg-blur-amount, 22px)) saturate(112%) !important;
+  -webkit-backdrop-filter: blur(var(--bg-blur-amount, 22px)) saturate(112%) !important;
+}
+
+/* Light mode keeps the same system but brighter. */
+html[data-theme="light"] {
+  --mx-glass-base: rgba(255,255,255,0.50);
+  --mx-glass-base-2: rgba(255,255,255,0.34);
+  --mx-glass-hover: rgba(255,255,255,0.66);
+  --mx-glass-border-2: rgba(255,255,255,0.68);
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  html, body, #root {
+    overflow: hidden;
+  }
+
+  .maxxit-app-shell {
+    height: 100dvh;
+  }
+
+  .sigge-main-scroll {
+    height: 100dvh;
+    max-height: 100dvh;
+    padding: 8px 8px calc(94px + env(safe-area-inset-bottom)) 8px !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .page-header {
+    min-height: 76px !important;
+    padding: 14px 16px !important;
+    border-radius: 19px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+
+  .page-header-title,
+  .page-header h1,
+  .page-header h2 {
+    font-size: 34px !important;
+    white-space: normal !important;
+  }
+
+  .page-header-sub {
+    font-size: 11px !important;
+    margin-top: 5px !important;
+    white-space: normal !important;
+  }
+
+  .page-header-actions {
+    width: 100%;
+    max-width: 100%;
+    justify-content: flex-start !important;
+    padding-bottom: 1px;
+  }
+
+  .settings-layout {
+    grid-template-columns: 1fr !important;
+    padding: 0 4px var(--mx-content-pad-bottom) 4px !important;
+    gap: 12px !important;
+  }
+
+  .settings-nav-wrap {
+    position: static;
+  }
+
+  .settings-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    gap: 4px !important;
+    padding: 5px !important;
+    scrollbar-width: none;
+  }
+  .settings-nav::-webkit-scrollbar { display: none; }
+
+  .settings-nav-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-height: 36px !important;
+    white-space: nowrap !important;
+    font-size: 12px !important;
+    padding: 8px 11px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .page-header-title,
+  .page-header h1,
+  .page-header h2 {
+    font-size: 31px !important;
+  }
+}

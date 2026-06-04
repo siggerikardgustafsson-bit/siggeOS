@@ -230,7 +230,7 @@ export default function KalenderPage() {
           <div className="page-header-title">Kalender</div>
           <div className="page-header-sub">{format(month, 'MMMM yyyy', { locale: sv })}</div>
         </div>
-        <div style={{ display: "flex", gap: "7px", alignItems: "center" }}>
+        <div className="page-header-actions">
           <button onClick={syncMandatory} disabled={syncing} className="btn btn-ghost" style={{ fontSize: "12px" }}>{syncing ? <Loader size={13} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={13} />} Synka</button><button onClick={() => setMonth(subMonths(month, 1))} className="btn btn-ghost" style={{ padding: "7px 10px" }}><ChevronLeft size={15} /></button><button onClick={() => setMonth(new Date())} className="btn btn-ghost" style={{ fontSize: "12px" }}>Idag</button><button onClick={() => setMonth(addMonths(month, 1))} className="btn btn-ghost" style={{ padding: "7px 10px" }}><ChevronRight size={15} /></button>
         </div>
       </div>

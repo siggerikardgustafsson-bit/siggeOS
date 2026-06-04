@@ -335,7 +335,7 @@ export default function HalsaPage() {
             {supplementCompliance7 != null && <span style={{ color:'#06b6d4' }}>💊 {supplementCompliance7}%</span>}
           </div>
         </div>
-        <div style={{ display:'flex', gap:'7px' }}>
+        <div className="page-header-actions">
           <input ref={fileRef} type="file" accept=".xml" onChange={handleFileImport} style={{ display:'none' }} />
           <button onClick={() => fileRef.current?.click()} className="btn btn-ghost" style={{ fontSize:'12px' }}>
             <Apple size={13} /> Apple Health

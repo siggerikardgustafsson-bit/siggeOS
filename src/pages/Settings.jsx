@@ -275,7 +275,7 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="page-wrap settings-page" style={{ display: 'flex', flexDirection: 'column' }}>
+    <div className="page-wrap settings-page">
       <div className="page-header">
         <div>
           <div className="page-header-title">Inställningar</div>
@@ -283,10 +283,10 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="settings-layout" style={{ display: 'grid', gridTemplateColumns: '220px minmax(0, 1fr)', gap: '16px', flex: 'none', minHeight: 'auto', padding: '0 0 48px 0', overflow: 'visible', alignItems: 'start' }}>
+      <div className="settings-layout">
 
         {/* Sidebar nav — sticky in its own column */}
-        <div style={{ position: 'sticky', top: '96px', alignSelf: 'start', padding: '0 0 0 0' }}>
+        <div className="settings-nav-wrap">
           <div className="card settings-nav" style={{ padding: '8px' }}>
           {sections.map(s => (
             <button key={s.id} onClick={() => setActiveSection(s.id)} className="settings-nav-btn" style={{
@@ -305,9 +305,9 @@ export default function SettingsPage() {
         </div>
         </div>
 
-        {/* Content — scrollable right column */}
-        <div className="settings-content" style={{ overflow: 'visible', paddingRight: 0, minWidth: 0 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '24px' }}>
+        {/* Content */}
+        <div className="settings-content">
+        <div className="settings-card-stack">
 
           {/* ===== UTSEENDE ===== */}
           {activeSection === 'utseende' && (
