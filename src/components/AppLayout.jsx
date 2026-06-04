@@ -20,34 +20,64 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!user) return
-    supabase
-      .from('user_settings')
-      .select('onboarding_done')
-      .eq('user_id', user.id)
-      .single()
+    supabase.from('user_settings').select('onboarding_done').eq('user_id', user.id).single()
       .then(({ data }) => {
         if (!data || !data.onboarding_done) setShowOnboarding(true)
       })
   }, [user])
 
   return (
-    <div className={`maxxit-app-shell ${routeClass(location.pathname)}`}>
-      <div className="hidden-mobile app-sidebar-floating">
-        <div className="app-sidebar-frame">
+    <div className={`sigge-app-shell maxxit-app-shell ${routeClass(location.pathname)}`} style={{
+      display: 'flex',
+      height: '100vh',
+      overflow: 'hidden',
+      padding: '0',
+      gap: '0',
+      boxSizing: 'border-box',
+    }}>
+
+      {/* Sidebar — floating glass panel */}
+      <div className="hidden-mobile app-sidebar-floating" style={{
+        flexShrink: 0,
+        padding: '10px 0 10px 10px',
+        boxSizing: 'border-box',
+        height: '100vh',
+      }}>
+        <div style={{
+          height: '100%',
+          borderRadius: '18px',
+          overflow: 'hidden',
+          boxShadow: 'var(--glass-shadow)',
+        }}>
           <Sidebar />
         </div>
       </div>
 
-      <main className="sigge-main-scroll">
+      {/* Main content */}
+      <main className="sigge-main-scroll" style={{
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        background: 'transparent',
+        minHeight: 0,
+        maxHeight: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '10px',
+        boxSizing: 'border-box',
+      }}>
         <Outlet />
       </main>
 
+      {/* Bottom nav — mobile only */}
       <div className="show-mobile">
         <BottomNav />
       </div>
 
+      {/* Global quick-log FAB — visible on all pages */}
       <QuickLog />
 
+      {/* Onboarding — shown once for new users */}
       {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
     </div>
   )
