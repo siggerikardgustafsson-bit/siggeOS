@@ -51,8 +51,10 @@ export default function Sidebar() {
         padding: '24px 20px 22px',
         borderBottom: '1px solid var(--border)',
       }}>
-        <div className="maxxit-wordmark" aria-label="MaxxIt">
-          <span className="maxxit-wordmark-main">Maxx</span><span className="maxxit-wordmark-accent">It</span>
+        <div className="brand-logo maxxit-sidebar-logo" style={{
+          color: 'var(--text)',
+        }}>
+          <span className="brand-logo-main">Maxx</span><span className="brand-logo-os">It</span>
         </div>
       </div>
 

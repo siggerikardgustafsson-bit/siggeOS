@@ -1705,3 +1705,146 @@ small {
     font-size: 31px !important;
   }
 }
+
+
+/* ============================================================
+   MAXXIT GLASS UNIFICATION v2
+   Final pass: sidebar, headers and widgets use same glass layer.
+   ============================================================ */
+:root {
+  --maxxit-glass: rgba(15, 18, 30, 0.28);
+  --maxxit-glass-strong: rgba(15, 18, 30, 0.36);
+  --maxxit-glass-soft: rgba(15, 18, 30, 0.20);
+  --maxxit-glass-border: rgba(255,255,255,0.105);
+  --maxxit-glass-highlight: rgba(255,255,255,0.085);
+  --maxxit-glass-shadow: 0 18px 54px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.06) inset;
+  --maxxit-glass-shadow-hover: 0 24px 70px rgba(0,0,0,0.24), 0 1px 0 rgba(255,255,255,0.08) inset;
+}
+
+body.has-bg-image {
+  --surface: var(--maxxit-glass) !important;
+  --surface2: var(--maxxit-glass-soft) !important;
+  --surface3: var(--maxxit-glass-strong) !important;
+  --glass-border: var(--maxxit-glass-border) !important;
+  --glass-shadow: var(--maxxit-glass-shadow) !important;
+  --glass-shadow-hover: var(--maxxit-glass-shadow-hover) !important;
+}
+
+/* One common glass recipe. No more different header/widget/sidebar tones. */
+.page-header,
+.card,
+.card-sm,
+.widget,
+aside,
+.settings-nav,
+.settings-content > div > .card,
+.cat-card {
+  background: linear-gradient(180deg, var(--maxxit-glass), var(--maxxit-glass-soft)) !important;
+  border: 1px solid var(--maxxit-glass-border) !important;
+  box-shadow: var(--maxxit-glass-shadow) !important;
+  backdrop-filter: blur(var(--bg-blur-amount, 22px)) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(var(--bg-blur-amount, 22px)) saturate(140%) !important;
+}
+
+.card:hover,
+.card-sm:hover,
+.widget:hover,
+.cat-card:hover {
+  background: linear-gradient(180deg, var(--maxxit-glass-strong), var(--maxxit-glass)) !important;
+  border-color: rgba(255,255,255,0.16) !important;
+  box-shadow: var(--maxxit-glass-shadow-hover) !important;
+}
+
+/* Remove the heavy bright header slab and make it feel like the sidebar. */
+.page-header {
+  min-height: 86px !important;
+  padding: 18px 24px !important;
+  border-radius: 22px !important;
+  overflow: hidden !important;
+}
+.page-header::before {
+  opacity: 0.45 !important;
+  background: linear-gradient(90deg, transparent, var(--maxxit-glass-highlight), transparent) !important;
+}
+.page-header::after {
+  opacity: 0.16 !important;
+  filter: blur(20px) !important;
+}
+
+/* Settings should scroll with the main page, not only the right column. */
+.settings-page,
+.page-wrap.settings-page {
+  min-height: auto !important;
+  overflow: visible !important;
+}
+.settings-layout {
+  overflow: visible !important;
+  align-items: start !important;
+}
+.settings-content {
+  overflow: visible !important;
+  min-width: 0 !important;
+}
+.settings-nav {
+  position: relative;
+}
+.settings-nav-btn {
+  border-left: 0 !important;
+  border: 1px solid transparent !important;
+}
+.settings-nav-btn:hover {
+  background: rgba(255,255,255,0.045) !important;
+  color: var(--text) !important;
+}
+
+/* More coherent logo. */
+.maxxit-sidebar-logo,
+.brand-logo {
+  line-height: 0.92 !important;
+}
+.maxxit-sidebar-logo .brand-logo-main,
+.maxxit-sidebar-logo .brand-logo-os,
+.brand-logo .brand-logo-main,
+.brand-logo .brand-logo-os {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.075em !important;
+  font-size: 30px !important;
+}
+.maxxit-sidebar-logo .brand-logo-main,
+.brand-logo .brand-logo-main {
+  color: var(--text) !important;
+}
+.maxxit-sidebar-logo .brand-logo-os,
+.brand-logo .brand-logo-os {
+  margin-left: 2px !important;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+}
+
+/* Keep background images cinematic without washing the UI out. */
+#bg-image::after {
+  background: var(--bg-overlay, rgba(7,9,15,0.44)) !important;
+  backdrop-filter: blur(var(--bg-blur-amount, 22px)) saturate(110%) !important;
+  -webkit-backdrop-filter: blur(var(--bg-blur-amount, 22px)) saturate(110%) !important;
+}
+
+/* Buttons and inputs should sit on the same glass system. */
+.btn-ghost,
+.input,
+.tab-btn.active {
+  background: rgba(15,18,30,0.24) !important;
+  border-color: rgba(255,255,255,0.10) !important;
+}
+.input:focus {
+  background: rgba(79,142,247,0.10) !important;
+}
+
+@media (max-width: 768px) {
+  .settings-layout { grid-template-columns: 1fr !important; }
+  .settings-page .page-header { min-height: 72px !important; }
+  .page-header { padding: 14px 16px !important; }
+}

@@ -275,7 +275,7 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="page-wrap" style={{ display: 'flex', flexDirection: 'column' }}>
+    <div className="page-wrap settings-page" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="page-header">
         <div>
           <div className="page-header-title">Inställningar</div>
@@ -283,10 +283,10 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '216px 1fr', gap: '16px', flex: 1, minHeight: 0, padding: '0 0 24px 0', overflow: 'hidden' }}>
+      <div className="settings-layout" style={{ display: 'grid', gridTemplateColumns: '220px minmax(0, 1fr)', gap: '16px', flex: 'none', minHeight: 'auto', padding: '0 0 48px 0', overflow: 'visible', alignItems: 'start' }}>
 
         {/* Sidebar nav — sticky in its own column */}
-        <div style={{ position: 'sticky', top: 0, alignSelf: 'start', padding: '0 0 0 0' }}>
+        <div style={{ position: 'sticky', top: '96px', alignSelf: 'start', padding: '0 0 0 0' }}>
           <div className="card settings-nav" style={{ padding: '8px' }}>
           {sections.map(s => (
             <button key={s.id} onClick={() => setActiveSection(s.id)} className="settings-nav-btn" style={{
@@ -306,7 +306,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Content — scrollable right column */}
-        <div style={{ overflowY: 'auto', paddingRight: '4px' }}>
+        <div className="settings-content" style={{ overflow: 'visible', paddingRight: 0, minWidth: 0 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '24px' }}>
 
           {/* ===== UTSEENDE ===== */}
@@ -563,7 +563,7 @@ export default function SettingsPage() {
                 <Toggle value={notifTraining} onChange={v => { setNotifTraining(v); saveProfile() }} />
               </SettingRow>
               <div style={{ marginTop: '14px', padding: '12px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '8px', fontSize: '12px', color: 'var(--amber)' }}>
-                Notiser kräver att MaxxIt är öppen i webbläsaren. Native notiser kräver en installerad app.
+                Notiser kräver att Sigge OS är öppen i webbläsaren. Native notiser kräver en installerad app.
               </div>
             </div>
           )}
