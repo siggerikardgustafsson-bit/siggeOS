@@ -3153,9 +3153,6 @@ body,
   border-bottom-right-radius: 0 !important;
 }
 
-/* Header: floating glass card with rounded corners and margins */
-.page-header {
-
 /* Page header — floating glass card */
 .page-header {
   border-radius: 16px !important;
