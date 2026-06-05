@@ -1179,7 +1179,7 @@ export default function TraningPage() {
           <div className="card" style={{ marginBottom: '16px' }}>
             <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px' }}>DENNA VECKA</div>
             <WeekBar sessions={sessions} />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginTop: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '16px' }}>
               <div>
                 <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Pass</div>
                 <div className="mono" style={{ fontSize: '24px', fontWeight: '600', color: '#3b82f6' }}>{thisWeekSessions.length}</div>
@@ -1202,7 +1202,7 @@ export default function TraningPage() {
           </div>
 
           {/* Main training analysis layout */}
-          <div className="training-v2-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(320px, 0.85fr)', gap: '16px', alignItems: 'start', marginBottom: '16px' }}>
+          <div className="training-v2-grid mob-1col" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(320px, 0.85fr)', gap: '16px', alignItems: 'start', marginBottom: '16px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
               {/* Progressive overload */}
               <div className="card" style={{ minHeight: '100%' }}>
@@ -1285,7 +1285,7 @@ export default function TraningPage() {
                 <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Trophy size={12} color="#f59e0b" /> STYRKA — PERSONLIGA REKORD
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                <div className="pr-grid-2col" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
                   {featuredStrengthPrs.map(({ label, pr }) => (
                     <div key={label} className="card-sm" onClick={() => pr && setSelectedExercise(pr.exercise_name)}
                       style={{ cursor: pr ? 'pointer' : 'default', opacity: pr ? 1 : 0.62 }}
@@ -1325,7 +1325,7 @@ export default function TraningPage() {
                     Se alla löp-PBn →
                   </button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                <div className="pr-grid-2col" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
                   {RUN_PR_DISTANCES.map(({ label }) => {
                     const pr = runPRs.find(r => r.label === label)
                     const hasTime = pr?.time

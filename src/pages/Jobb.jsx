@@ -566,7 +566,7 @@ export default function JobbPage() {
       {activeTab === 'pa' && (
         <>
           {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
+          <div className="jobb-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
             {[
               { label: 'Pass', value: paShifts.length, color: '#3b82f6' },
               { label: 'Timmar', value: `${totalHours.toFixed(1)}h`, color: '#10b981' },

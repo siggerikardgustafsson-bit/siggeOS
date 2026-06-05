@@ -57,7 +57,7 @@ export default function AppLayout() {
         maxHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        padding: '10px 0 0 10px',
+        padding: '10px',
         boxSizing: 'border-box',
       }}>
         <Outlet />
@@ -89,7 +89,7 @@ export default function AppLayout() {
           position: sticky;
           top: 0;
           z-index: 30;
-          margin: 0;
+          margin: 0 0 12px 0;
           flex-shrink: 0;
           padding: 10px 16px;
           display: flex;
@@ -99,9 +99,8 @@ export default function AppLayout() {
           background: var(--surface);
           backdrop-filter: blur(32px);
           -webkit-backdrop-filter: blur(32px);
-          border: none;
-          border-bottom: 1px solid var(--glass-border);
-          border-radius: 0;
+          border: 1px solid var(--glass-border);
+          border-radius: 16px;
           box-shadow: var(--glass-shadow);
           overflow: hidden;
           min-height: 0;
@@ -179,6 +178,29 @@ export default function AppLayout() {
 
           /* Kill all horizontal overflow */
           * { max-width: 100%; box-sizing: border-box; }
+
+          /* Collapse ALL multi-column grids to 1 column on mobile */
+          .dashboard-maxx-row,
+          .dashboard-category-grid,
+          .dashboard-bottom,
+          .training-v2-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          /* Jobb stats: 4-col -> 2-col */
+          .jobb-stats-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+
+          /* Training PR cards: 2-col -> 1-col */
+          .pr-grid-2col {
+            grid-template-columns: 1fr !important;
+          }
+
+          /* Week stats bar: keep 3-col but shrink */
+          .week-stats-bar {
+            gap: 6px !important;
+          }
 
           /* Responsive grids */
           .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
