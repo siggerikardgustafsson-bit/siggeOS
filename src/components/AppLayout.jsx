@@ -36,7 +36,7 @@ export default function AppLayout() {
       boxSizing: 'border-box',
     }}>
 
-      {/* Sidebar — floating glass panel, inset with padding */}
+      {/* Sidebar — floating glass panel */}
       <div className="hidden-mobile app-sidebar-floating" style={{
         flexShrink: 0,
         padding: '10px 0 10px 10px',
@@ -53,7 +53,7 @@ export default function AppLayout() {
         </div>
       </div>
 
-      {/* Main content — flush, no gap, full remaining width */}
+      {/* Main content */}
       <main className="sigge-main-scroll" style={{
         flex: 1,
         overflowY: 'auto',
@@ -87,14 +87,13 @@ export default function AppLayout() {
           min-height: 100%;
         }
 
-        /* Full-bleed header — no radius, no side margin, goes edge to edge of main */
         .page-header {
           position: sticky;
           top: 0;
           z-index: 30;
-          margin: 0 0 16px 0;
+          margin: 0 0 12px 0;
           flex-shrink: 0;
-          padding: 14px 20px;
+          padding: 10px 16px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -102,14 +101,20 @@ export default function AppLayout() {
           background: var(--surface);
           backdrop-filter: blur(32px);
           -webkit-backdrop-filter: blur(32px);
-          border: none;
-          border-bottom: 1px solid var(--glass-border);
-          border-radius: 0;
-          box-shadow: 0 2px 16px rgba(0,0,0,0.20);
+          border: 1px solid var(--glass-border);
+          border-radius: 16px;
+          box-shadow: var(--glass-shadow);
           overflow: hidden;
+          min-height: 0;
         }
 
-        .page-header::before { display: none; }
+        .page-header::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 12%; right: 12%; height: 1px;
+          background: linear-gradient(90deg, transparent, var(--border2), transparent);
+          pointer-events: none;
+        }
 
         .page-header-title {
           font-size: 15px;
@@ -141,18 +146,27 @@ export default function AppLayout() {
 
         @media (max-width: 768px) {
           .hidden-mobile { display: none !important; }
-          .show-mobile   { display: block; }
-
-          .page-header { padding: 10px 14px; margin-bottom: 12px; }
+          .show-mobile { display: block; }
+          main { padding: 8px 8px 0 8px !important; }
+          .page-header {
+            top: 0;
+            margin: 0 0 10px 0;
+            padding: 8px 12px;
+            border-radius: 14px;
+            flex-wrap: wrap;
+            gap: 6px;
+          }
           .page-header-title { font-size: 14px; }
           .page-header-sub   { font-size: 10px; margin-top: 1px; }
           .page-header-actions {
-            gap: 5px; overflow-x: auto; -webkit-overflow-scrolling: touch;
-            scrollbar-width: none; max-width: 100%;
+            gap: 5px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            max-width: 100%;
           }
           .page-header-actions::-webkit-scrollbar { display: none; }
           .page-content-scroll { padding: 0 0 90px 0; }
-
           * { max-width: 100%; box-sizing: border-box; }
           .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
           .grid-2 { grid-template-columns: 1fr !important; }
@@ -162,10 +176,10 @@ export default function AppLayout() {
           .cat-card { min-height: 130px !important; padding: 10px !important; }
           .cat-card .metric-value { font-size: 11px !important; }
           .cat-card .metric-label { font-size: 9px !important; }
-          .insights-stat-grid  { grid-template-columns: repeat(2, 1fr) !important; }
+          .insights-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .insights-chart-grid { grid-template-columns: 1fr !important; }
-          .insights-obs-grid   { grid-template-columns: 1fr !important; }
-          .settings-page   { padding: 12px 12px 100px 12px !important; }
+          .insights-obs-grid { grid-template-columns: 1fr !important; }
+          .settings-page { padding: 12px 12px 100px 12px !important; }
           .settings-layout { grid-template-columns: 1fr !important; }
           .settings-nav {
             position: static !important; display: flex !important;
@@ -193,14 +207,15 @@ export default function AppLayout() {
           .quicklog-fab { bottom: 72px !important; right: 16px !important; width: 48px !important; height: 48px !important; }
           .widget-grid-2 { grid-template-columns: 1fr !important; }
           input, textarea, select { font-size: 16px !important; }
-          .btn      { white-space: nowrap; flex-shrink: 0; font-size: 12px !important; padding: 6px 11px !important; }
+          .btn { white-space: nowrap; flex-shrink: 0; font-size: 12px !important; padding: 6px 11px !important; }
           .btn-full { font-size: 14px !important; padding: 13px !important; }
-          .page-header .btn      { font-size: 11px !important; padding: 5px 9px !important; }
+          .page-header .btn { font-size: 11px !important; padding: 5px 9px !important; }
           .page-header .btn-icon { padding: 5px !important; }
         }
 
         @media (max-width: 400px) {
-          .page-header { padding: 8px 12px; }
+          main { padding: 6px 6px 0 6px !important; }
+          .page-header { padding: 7px 10px; }
         }
       `}</style>
     </div>

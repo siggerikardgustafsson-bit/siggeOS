@@ -94,7 +94,7 @@
    ============================================================ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body, #root { height: 100%; width: 100%; margin: 0; padding: 0; overflow-x: hidden; }
+html, body, #root { height: 100%; }
 
 body {
   background-color: var(--bg);
@@ -3130,34 +3130,5 @@ body,
   }
 }
 
-/* ── LAYOUT FIX ──────────────────────────────────────────────
-   .sigge-main-scroll must have zero padding — the dark edges
-   top/right/bottom are caused by the 10px shell padding on main.
-   Pages handle their own internal padding.
-   .app-sidebar-floating keeps padding left/top/bottom only (no right gap).
-   .page-header is full-bleed: no border-radius, no side borders.
-   ──────────────────────────────────────────────────────────── */
-.sigge-main-scroll {
-  padding: 0 !important;
-}
-
-.app-sidebar-floating {
-  padding-right: 0 !important;
-}
-
-.page-header {
-  border-radius: 0 !important;
-  border-left: none !important;
-  border-right: none !important;
-  border-top: none !important;
-  border-bottom: 1px solid var(--glass-border) !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-  width: 100% !important;
-  max-width: none !important;
-}
-
-.page-header::before,
-.page-header::after {
-  display: none !important;
-}
+/* LAYOUT FIX: main scroll area must have zero padding to avoid dark edges */
+.sigge-main-scroll { padding: 0 !important; }
