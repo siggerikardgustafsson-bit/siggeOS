@@ -739,15 +739,51 @@ export default function TraningPage() {
 
       // Check and update PRs
       for (const ex of exercises) {
+        const isBWex = BW_EXERCISES.has(ex.name.toLowerCase().trim())
         const maxWeight = Math.max(...ex.sets.map(s => parseFloat(s.weight) || 0))
-        if (maxWeight > 0) {
+        const maxReps = Math.max(...ex.sets.map(s => parseInt(s.reps) || 0))
+
+        if (isBWex && maxReps > 0) {
+          // BW exercise: PR = most reps (at any weight), tie-break by added weight
           const existingPR = prs.find(p => p.exercise_name === ex.name)
-          if (!existingPR || maxWeight > existingPR.weight_kg) {
+          const existingReps = existingPR?.reps || 0
+          const existingWeight = existingPR?.weight_kg || 0
+          // Best set by e1RM equivalent
+          let bestSet = null
+          for (const s of ex.sets) {
+            const w = parseFloat(s.weight) || 0
+            const r = parseInt(s.reps) || 0
+            if (!r) continue
+            if (!bestSet || (r * (1 + w/30)) > (bestSet.r * (1 + bestSet.w/30))) {
+              bestSet = { r, w }
+            }
+          }
+          if (bestSet && (!existingPR || (bestSet.r * (1 + bestSet.w/30)) > (existingReps * (1 + existingWeight/30)))) {
             await supabase.from('personal_records').upsert({
               user_id: user.id,
               exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
               exercise_name: ex.name,
-              weight_kg: maxWeight,
+              weight_kg: bestSet.w,
+              reps: bestSet.r,
+              date: sessionDate,
+            }, { onConflict: 'user_id,exercise_name' })
+          }
+        } else if (!isBWex && maxWeight > 0) {
+          const existingPR = prs.find(p => p.exercise_name === ex.name)
+          const bestSet = ex.sets.reduce((best, s) => {
+            const w = parseFloat(s.weight) || 0
+            const r = parseInt(s.reps) || 1
+            return (w * (1 + r/30)) > ((parseFloat(best.weight)||0) * (1 + (parseInt(best.reps)||1)/30)) ? s : best
+          }, ex.sets[0])
+          const bestWeight = parseFloat(bestSet?.weight) || 0
+          const bestReps = parseInt(bestSet?.reps) || 1
+          if (!existingPR || bestWeight > existingPR.weight_kg) {
+            await supabase.from('personal_records').upsert({
+              user_id: user.id,
+              exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
+              exercise_name: ex.name,
+              weight_kg: bestWeight,
+              reps: bestReps,
               date: sessionDate,
             }, { onConflict: 'user_id,exercise_name' })
           }
@@ -1256,27 +1292,19 @@ export default function TraningPage() {
                       onMouseEnter={e => { if (pr) e.currentTarget.style.borderColor = 'var(--accent-border)' }}
                       onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                       <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
-                      {pr ? (() => {
-                          const isBW = BW_EXERCISES.has(String(pr.exercise_name || '').toLowerCase().trim())
-                          return (
-                            <>
-                              <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
-                                {isBW ? (
-                                  <>{pr.reps || '?'}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>reps</span>{' '}
-                                  {pr.weight_kg > 0 ? <span>+{pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span></span> : <span style={{ fontSize: '13px', color: 'var(--muted)' }}>BW</span>}</>
-                                ) : (
-                                  <>{pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span></>
-                                )}
-                              </div>
-                              {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
-                              <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                <TrendingUp size={10} /> Se historik
-                              </div>
-                            </>
-                          )
-                        })() : (
-                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Saknas</div>
-                        )}
+                      {pr ? (
+                        <>
+                          <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
+                            {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
+                          </div>
+                          {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
+                          <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <TrendingUp size={10} /> Se historik
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Saknas</div>
+                      )}
                     </div>
                   ))}
                 </div>
