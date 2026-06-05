@@ -3165,3 +3165,7 @@ body,
 .page-header { margin: 10px 10px 0 0 !important; }
 
 .page-header { margin: 10px 10px 12px 0 !important; border-radius: 16px !important; }
+
+/* Fill iPhone home indicator area */
+body { padding-bottom: env(safe-area-inset-bottom); }
+.bottom-nav { padding-bottom: env(safe-area-inset-bottom); height: calc(60px + env(safe-area-inset-bottom)); }
