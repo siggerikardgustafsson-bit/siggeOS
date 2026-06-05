@@ -3129,3 +3129,26 @@ body,
     padding-right: 8px !important;
   }
 }
+
+/* ── LAYOUT FIX: full-bleed header, no rounded corners, no dark gap ── */
+.page-header {
+  border-radius: 0 !important;
+  border: none !important;
+  border-bottom: 1px solid var(--glass-border) !important;
+  margin: 0 0 16px 0 !important;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.20) !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.page-header::before,
+.page-header::after {
+  display: none !important;
+}
+
+/* Remove right padding from sidebar so no dark seam appears */
+.app-sidebar-floating {
+  padding-right: 0 !important;
+}
