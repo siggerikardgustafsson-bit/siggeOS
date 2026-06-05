@@ -3155,21 +3155,10 @@ body,
 
 /* Header: floating glass card with rounded corners and margins */
 .page-header {
+
+/* Page header — floating glass card */
+.page-header {
   border-radius: 16px !important;
   margin: 10px 10px 12px 0 !important;
   border: 1px solid var(--glass-border) !important;
 }
-
-.page-header { margin-bottom: 0 !important; }
-
-.page-header { margin: 10px 10px 0 0 !important; }
-
-.page-header { margin: 10px 10px 12px 0 !important; border-radius: 16px !important; }
-
-/* Fill iPhone home indicator area */
-body { padding-bottom: env(safe-area-inset-bottom); }
-.bottom-nav { padding-bottom: env(safe-area-inset-bottom); height: calc(60px + env(safe-area-inset-bottom)); }
-
-/* Fill iPhone home indicator area */
-body { padding-bottom: env(safe-area-inset-bottom); }
-.bottom-nav { padding-bottom: env(safe-area-inset-bottom); height: calc(60px + env(safe-area-inset-bottom)); }
