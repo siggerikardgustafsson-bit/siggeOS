@@ -94,7 +94,7 @@
    ============================================================ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body, #root { height: 100%; min-height: 100dvh; }
+html, body, #root { height: 100%; }
 
 body {
   background-color: var(--bg);
@@ -3153,9 +3153,15 @@ body,
   border-bottom-right-radius: 0 !important;
 }
 
-/* Page header — floating glass card */
+/* Header: floating glass card with rounded corners and margins */
 .page-header {
   border-radius: 16px !important;
   margin: 10px 10px 12px 0 !important;
   border: 1px solid var(--glass-border) !important;
 }
+
+.page-header { margin-bottom: 0 !important; }
+
+.page-header { margin: 10px 10px 0 0 !important; }
+
+.page-header { margin: 10px 10px 12px 0 !important; border-radius: 16px !important; }
