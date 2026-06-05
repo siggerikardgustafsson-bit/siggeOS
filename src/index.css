@@ -3161,3 +3161,5 @@ body,
 }
 
 .page-header { margin-bottom: 0 !important; }
+
+.page-header { margin: 10px 10px 0 0 !important; }
