@@ -39,7 +39,7 @@ export default function AppLayout() {
       {/* Sidebar — floating glass panel, inset with padding */}
       <div className="hidden-mobile app-sidebar-floating" style={{
         flexShrink: 0,
-        padding: '10px',
+        padding: '10px 0 10px 10px',
         boxSizing: 'border-box',
         height: '100vh',
       }}>
