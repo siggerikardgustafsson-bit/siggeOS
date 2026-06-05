@@ -750,7 +750,7 @@ html[data-theme="light"] body.has-bg-image .app-sidebar-floating aside {
    ============================================================ */
 
 .page-header {
-  min-height: 76px !important;
+  min-height: 0 !important;
   padding: 14px 20px !important;
   align-items: center !important;
 }
@@ -2205,7 +2205,7 @@ html[data-theme="light"] {
   }
 
   .page-header {
-    min-height: 76px !important;
+    min-height: 0 !important;
     padding: 14px 16px !important;
     border-radius: 19px !important;
     gap: 8px !important;
