@@ -31,17 +31,17 @@ export default function AppLayout() {
       display: 'flex',
       height: '100vh',
       overflow: 'hidden',
-      /* 10px padding all around so sidebar floats with equal spacing */
-      padding: '10px 0 10px 10px',
-      gap: '10px',
+      padding: '0',
+      gap: '0',
       boxSizing: 'border-box',
     }}>
 
-      {/* Sidebar — floating glass panel */}
+      {/* Sidebar — floating glass panel, inset with padding */}
       <div className="hidden-mobile app-sidebar-floating" style={{
         flexShrink: 0,
+        padding: '10px',
         boxSizing: 'border-box',
-        height: '100%',
+        height: '100vh',
       }}>
         <div style={{
           height: '100%',
@@ -53,7 +53,7 @@ export default function AppLayout() {
         </div>
       </div>
 
-      {/* Main content — no padding, pages own their spacing */}
+      {/* Main content — flush, no gap, full remaining width */}
       <main className="sigge-main-scroll" style={{
         flex: 1,
         overflowY: 'auto',
@@ -74,25 +74,20 @@ export default function AppLayout() {
         <BottomNav />
       </div>
 
-      {/* Global quick-log FAB */}
       <QuickLog />
-
-      {/* Onboarding */}
       {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
 
       <style>{`
-        /* ── Visibility helpers ── */
         .hidden-mobile { display: flex; }
         .show-mobile   { display: none; }
 
-        /* ── Page shell ── */
         .page-wrap {
           display: flex;
           flex-direction: column;
           min-height: 100%;
         }
 
-        /* ── Page header — full-bleed within main, no border-radius ── */
+        /* Full-bleed header — no radius, no side margin, goes edge to edge of main */
         .page-header {
           position: sticky;
           top: 0;
@@ -139,101 +134,64 @@ export default function AppLayout() {
           flex-shrink: 0;
         }
 
-        /* ── Content scroll area ── */
         .page-content-scroll {
           flex: 1;
           padding: 0 0 24px 0;
         }
 
-        /* ── Mobile ── */
         @media (max-width: 768px) {
           .hidden-mobile { display: none !important; }
           .show-mobile   { display: block; }
 
-          .sigge-app-shell {
-            padding: 0 !important;
-            gap: 0 !important;
-          }
-
-          .page-header {
-            padding: 10px 14px;
-            margin-bottom: 12px;
-          }
-
+          .page-header { padding: 10px 14px; margin-bottom: 12px; }
           .page-header-title { font-size: 14px; }
           .page-header-sub   { font-size: 10px; margin-top: 1px; }
-
           .page-header-actions {
-            gap: 5px;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
-            max-width: 100%;
+            gap: 5px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+            scrollbar-width: none; max-width: 100%;
           }
           .page-header-actions::-webkit-scrollbar { display: none; }
-
           .page-content-scroll { padding: 0 0 90px 0; }
 
           * { max-width: 100%; box-sizing: border-box; }
-
-          .grid-4         { grid-template-columns: repeat(2, 1fr) !important; }
-          .grid-2         { grid-template-columns: 1fr !important; }
-          .grid-auto      { grid-template-columns: 1fr !important; }
+          .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+          .grid-2 { grid-template-columns: 1fr !important; }
+          .grid-auto { grid-template-columns: 1fr !important; }
           .dashboard-bottom { grid-template-columns: 1fr !important; }
           .dashboard-header-row { flex-wrap: wrap; gap: 4px; }
-
           .cat-card { min-height: 130px !important; padding: 10px !important; }
           .cat-card .metric-value { font-size: 11px !important; }
           .cat-card .metric-label { font-size: 9px !important; }
-
           .insights-stat-grid  { grid-template-columns: repeat(2, 1fr) !important; }
           .insights-chart-grid { grid-template-columns: 1fr !important; }
           .insights-obs-grid   { grid-template-columns: 1fr !important; }
-
           .settings-page   { padding: 12px 12px 100px 12px !important; }
           .settings-layout { grid-template-columns: 1fr !important; }
           .settings-nav {
-            position: static !important;
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            overflow-x: auto !important;
-            gap: 2px !important;
-            padding: 4px !important;
-            scrollbar-width: none !important;
+            position: static !important; display: flex !important;
+            flex-direction: row !important; flex-wrap: nowrap !important;
+            overflow-x: auto !important; gap: 2px !important;
+            padding: 4px !important; scrollbar-width: none !important;
           }
           .settings-nav::-webkit-scrollbar { display: none; }
           .settings-nav-btn {
-            flex-shrink: 0 !important;
-            width: auto !important;
-            padding: 7px 11px !important;
-            border-left: none !important;
+            flex-shrink: 0 !important; width: auto !important;
+            padding: 7px 11px !important; border-left: none !important;
             border-bottom: 2px solid transparent !important;
-            border-radius: 8px !important;
-            white-space: nowrap !important;
-            font-size: 12px !important;
-            text-align: center !important;
+            border-radius: 8px !important; white-space: nowrap !important;
+            font-size: 12px !important; text-align: center !important;
           }
-
           .journal-layout { grid-template-columns: 1fr !important; }
-
           .jarvis-input-area { padding-bottom: 0 !important; }
           .jarvis-container {
-            position: fixed !important;
-            top: 0 !important; left: 0 !important; right: 0 !important;
-            bottom: 60px !important;
-            margin: 0 !important;
-            padding: 8px !important;
-            width: 100% !important;
-            height: auto !important;
+            position: fixed !important; top: 0 !important; left: 0 !important;
+            right: 0 !important; bottom: 60px !important; margin: 0 !important;
+            padding: 8px !important; width: 100% !important; height: auto !important;
           }
-
           .grid-4 > * { min-width: 0 !important; overflow: hidden !important; }
-          .cat-card    { width: 100% !important; overflow: hidden !important; }
-
+          .cat-card { width: 100% !important; overflow: hidden !important; }
           .quicklog-fab { bottom: 72px !important; right: 16px !important; width: 48px !important; height: 48px !important; }
           .widget-grid-2 { grid-template-columns: 1fr !important; }
-
           input, textarea, select { font-size: 16px !important; }
           .btn      { white-space: nowrap; flex-shrink: 0; font-size: 12px !important; padding: 6px 11px !important; }
           .btn-full { font-size: 14px !important; padding: 13px !important; }
