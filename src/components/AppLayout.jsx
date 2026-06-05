@@ -31,17 +31,17 @@ export default function AppLayout() {
       display: 'flex',
       height: '100vh',
       overflow: 'hidden',
-      padding: '0',
-      gap: '0',
+      /* 10px padding all around so sidebar floats with equal spacing */
+      padding: '10px 0 10px 10px',
+      gap: '10px',
       boxSizing: 'border-box',
     }}>
 
       {/* Sidebar — floating glass panel */}
       <div className="hidden-mobile app-sidebar-floating" style={{
         flexShrink: 0,
-        padding: '10px 0 10px 10px',
         boxSizing: 'border-box',
-        height: '100vh',
+        height: '100%',
       }}>
         <div style={{
           height: '100%',
@@ -92,7 +92,7 @@ export default function AppLayout() {
           min-height: 100%;
         }
 
-        /* ── Page header — full-bleed, no border-radius ── */
+        /* ── Page header — full-bleed within main, no border-radius ── */
         .page-header {
           position: sticky;
           top: 0;
@@ -114,7 +114,6 @@ export default function AppLayout() {
           overflow: hidden;
         }
 
-        /* Remove the decorative top-line — was baked in before */
         .page-header::before { display: none; }
 
         .page-header-title {
@@ -140,7 +139,7 @@ export default function AppLayout() {
           flex-shrink: 0;
         }
 
-        /* ── Content scroll area — side padding lives here ── */
+        /* ── Content scroll area ── */
         .page-content-scroll {
           flex: 1;
           padding: 0 0 24px 0;
@@ -151,7 +150,10 @@ export default function AppLayout() {
           .hidden-mobile { display: none !important; }
           .show-mobile   { display: block; }
 
-          main { padding: 0 !important; }
+          .sigge-app-shell {
+            padding: 0 !important;
+            gap: 0 !important;
+          }
 
           .page-header {
             padding: 10px 14px;
