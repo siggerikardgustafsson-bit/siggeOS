@@ -53,7 +53,7 @@ export default function AppLayout() {
         </div>
       </div>
 
-      {/* Main content */}
+      {/* Main content — no padding, pages own their spacing */}
       <main className="sigge-main-scroll" style={{
         flex: 1,
         overflowY: 'auto',
@@ -74,30 +74,32 @@ export default function AppLayout() {
         <BottomNav />
       </div>
 
-      {/* Global quick-log FAB — visible on all pages */}
+      {/* Global quick-log FAB */}
       <QuickLog />
 
-      {/* Onboarding — shown once for new users */}
+      {/* Onboarding */}
       {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
 
       <style>{`
-        /* Full-bleed layout — no padding on main */
-        .sigge-main-scroll { padding: 0 !important; }
+        /* ── Visibility helpers ── */
+        .hidden-mobile { display: flex; }
+        .show-mobile   { display: none; }
 
+        /* ── Page shell ── */
         .page-wrap {
           display: flex;
           flex-direction: column;
           min-height: 100%;
         }
 
-        /* Page header — full width, flush to edges, no border-radius */
+        /* ── Page header — full-bleed, no border-radius ── */
         .page-header {
           position: sticky;
           top: 0;
           z-index: 30;
           margin: 0 0 16px 0;
           flex-shrink: 0;
-          padding: 14px 24px;
+          padding: 14px 20px;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -108,17 +110,12 @@ export default function AppLayout() {
           border: none;
           border-bottom: 1px solid var(--glass-border);
           border-radius: 0;
-          box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+          box-shadow: 0 2px 16px rgba(0,0,0,0.20);
           overflow: hidden;
         }
 
+        /* Remove the decorative top-line — was baked in before */
         .page-header::before { display: none; }
-
-        /* Content area gets side padding instead */
-        .page-content-scroll {
-          flex: 1;
-          padding: 0 20px 24px 20px;
-        }
 
         .page-header-title {
           font-size: 15px;
@@ -143,26 +140,55 @@ export default function AppLayout() {
           flex-shrink: 0;
         }
 
-        /* Mobile */
+        /* ── Content scroll area — side padding lives here ── */
+        .page-content-scroll {
+          flex: 1;
+          padding: 0 0 24px 0;
+        }
+
+        /* ── Mobile ── */
         @media (max-width: 768px) {
           .hidden-mobile { display: none !important; }
-          .show-mobile { display: block; }
-          .sigge-main-scroll { padding: 0 !important; }
-          .page-header { padding: 10px 16px; margin-bottom: 12px; }
-          .page-content-scroll { padding: 0 12px 90px 12px; }
+          .show-mobile   { display: block; }
+
+          main { padding: 0 !important; }
+
+          .page-header {
+            padding: 10px 14px;
+            margin-bottom: 12px;
+          }
+
+          .page-header-title { font-size: 14px; }
+          .page-header-sub   { font-size: 10px; margin-top: 1px; }
+
+          .page-header-actions {
+            gap: 5px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            max-width: 100%;
+          }
+          .page-header-actions::-webkit-scrollbar { display: none; }
+
+          .page-content-scroll { padding: 0 0 90px 0; }
+
           * { max-width: 100%; box-sizing: border-box; }
-          .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
-          .grid-2 { grid-template-columns: 1fr !important; }
-          .grid-auto { grid-template-columns: 1fr !important; }
+
+          .grid-4         { grid-template-columns: repeat(2, 1fr) !important; }
+          .grid-2         { grid-template-columns: 1fr !important; }
+          .grid-auto      { grid-template-columns: 1fr !important; }
           .dashboard-bottom { grid-template-columns: 1fr !important; }
           .dashboard-header-row { flex-wrap: wrap; gap: 4px; }
+
           .cat-card { min-height: 130px !important; padding: 10px !important; }
           .cat-card .metric-value { font-size: 11px !important; }
           .cat-card .metric-label { font-size: 9px !important; }
-          .insights-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+          .insights-stat-grid  { grid-template-columns: repeat(2, 1fr) !important; }
           .insights-chart-grid { grid-template-columns: 1fr !important; }
-          .insights-obs-grid { grid-template-columns: 1fr !important; }
-          .settings-page { padding: 12px 12px 100px 12px !important; }
+          .insights-obs-grid   { grid-template-columns: 1fr !important; }
+
+          .settings-page   { padding: 12px 12px 100px 12px !important; }
           .settings-layout { grid-template-columns: 1fr !important; }
           .settings-nav {
             position: static !important;
@@ -186,27 +212,30 @@ export default function AppLayout() {
             font-size: 12px !important;
             text-align: center !important;
           }
+
           .journal-layout { grid-template-columns: 1fr !important; }
+
           .jarvis-input-area { padding-bottom: 0 !important; }
           .jarvis-container {
             position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
+            top: 0 !important; left: 0 !important; right: 0 !important;
             bottom: 60px !important;
             margin: 0 !important;
             padding: 8px !important;
             width: 100% !important;
             height: auto !important;
           }
+
           .grid-4 > * { min-width: 0 !important; overflow: hidden !important; }
-          .cat-card { width: 100% !important; overflow: hidden !important; }
+          .cat-card    { width: 100% !important; overflow: hidden !important; }
+
           .quicklog-fab { bottom: 72px !important; right: 16px !important; width: 48px !important; height: 48px !important; }
           .widget-grid-2 { grid-template-columns: 1fr !important; }
+
           input, textarea, select { font-size: 16px !important; }
-          .btn { white-space: nowrap; flex-shrink: 0; font-size: 12px !important; padding: 6px 11px !important; }
+          .btn      { white-space: nowrap; flex-shrink: 0; font-size: 12px !important; padding: 6px 11px !important; }
           .btn-full { font-size: 14px !important; padding: 13px !important; }
-          .page-header .btn { font-size: 11px !important; padding: 5px 9px !important; }
+          .page-header .btn      { font-size: 11px !important; padding: 5px 9px !important; }
           .page-header .btn-icon { padding: 5px !important; }
         }
 
