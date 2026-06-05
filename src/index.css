@@ -3144,3 +3144,11 @@ body,
   padding: 12px 20px !important;
 }
 .page-header::before, .page-header::after { display: none !important; }
+
+/* Header: rounded top-right corner + right gap */
+.page-header {
+  border-radius: 0 0 0 0 !important;
+  margin-right: 10px !important;
+  border-top-right-radius: 16px !important;
+  border-bottom-right-radius: 0 !important;
+}
