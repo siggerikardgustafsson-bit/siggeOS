@@ -148,7 +148,7 @@ export default function AppLayout() {
           .show-mobile { display: block; }
 
           main {
-            padding: 8px 8px 0 8px !important;
+            padding: 0 8px 0 8px !important;
           }
 
           .page-header {
