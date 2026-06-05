@@ -57,7 +57,7 @@ export default function AppLayout() {
         maxHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        padding: '10px 0 0 0',
+        padding: '10px 0 0 10px',
         boxSizing: 'border-box',
       }}>
         <Outlet />
@@ -89,7 +89,7 @@ export default function AppLayout() {
           position: sticky;
           top: 0;
           z-index: 30;
-          margin: 0 0 16px 0;
+          margin: 0 0 12px 0;
           flex-shrink: 0;
           padding: 10px 16px;
           display: flex;
