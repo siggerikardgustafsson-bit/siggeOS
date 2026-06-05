@@ -189,7 +189,7 @@ export default function AppLayout() {
 
           /* Jobb stats: 4-col -> 2-col */
           .jobb-stats-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
+            grid-template-columns: 1fr !important;
           }
 
           /* Training PR cards: 2-col -> 1-col */
@@ -203,7 +203,7 @@ export default function AppLayout() {
           }
 
           /* Responsive grids */
-          .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+          .grid-4 { grid-template-columns: 1fr !important; }
           .grid-2 { grid-template-columns: 1fr !important; }
           .grid-auto { grid-template-columns: 1fr !important; }
 
@@ -217,7 +217,7 @@ export default function AppLayout() {
           .cat-card .metric-label { font-size: 9px !important; }
 
           /* Insights */
-          .insights-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .insights-stat-grid { grid-template-columns: 1fr !important; }
           .insights-chart-grid { grid-template-columns: 1fr !important; }
           .insights-obs-grid { grid-template-columns: 1fr !important; }
 
