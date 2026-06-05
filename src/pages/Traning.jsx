@@ -1256,19 +1256,27 @@ export default function TraningPage() {
                       onMouseEnter={e => { if (pr) e.currentTarget.style.borderColor = 'var(--accent-border)' }}
                       onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                       <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
-                      {pr ? (
-                        <>
-                          <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
-                            {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
-                          </div>
-                          {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
-                          <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <TrendingUp size={10} /> Se historik
-                          </div>
-                        </>
-                      ) : (
-                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Saknas</div>
-                      )}
+                      {pr ? (() => {
+                          const isBW = BW_EXERCISES.has(String(pr.exercise_name || '').toLowerCase().trim())
+                          return (
+                            <>
+                              <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
+                                {isBW ? (
+                                  <>{pr.reps || '?'}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>reps</span>{' '}
+                                  {pr.weight_kg > 0 ? <span>+{pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span></span> : <span style={{ fontSize: '13px', color: 'var(--muted)' }}>BW</span>}</>
+                                ) : (
+                                  <>{pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span></>
+                                )}
+                              </div>
+                              {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
+                              <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                <TrendingUp size={10} /> Se historik
+                              </div>
+                            </>
+                          )
+                        })() : (
+                          <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Saknas</div>
+                        )}
                     </div>
                   ))}
                 </div>
