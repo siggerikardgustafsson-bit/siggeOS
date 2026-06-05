@@ -414,7 +414,7 @@ ${upcomingExams}`
   const hour = new Date().getHours()
 
   return (
-    <div className="jarvis-container" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: 'transparent', margin: '0', padding: '0', boxSizing: 'border-box', width: '100%' }}>
+    <div className="page-wrap" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div className="page-header" style={{ marginBottom: '0', flexShrink: 0 }}>
         <div>
           <div className="page-header-title">Jarvis</div>
@@ -429,6 +429,8 @@ ${upcomingExams}`
           <button onClick={() => generateBrief('weekly')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(52,211,153,0.25)', background: 'rgba(52,211,153,0.08)', color: '#34d399', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}><Zap size={12} /> Vecka</button>
         </div>
       </div>
+
+      <div className="jarvis-container" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: 'transparent' }}>
 
       {showInsights && (
         <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', background: 'rgba(139,92,246,0.04)', flexShrink: 0, maxHeight: '220px', overflowY: 'auto' }}>
@@ -513,6 +515,7 @@ ${upcomingExams}`
       </div>
 
       <style>{`@keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }`}</style>
+      </div>
     </div>
   )
 }
