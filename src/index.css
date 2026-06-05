@@ -1393,8 +1393,8 @@ html[data-theme="light"] {
   position: sticky !important;
   top: 0 !important;
   z-index: 30 !important;
-  margin: 0 0 16px 0 !important;
-  min-height: 92px !important;
+  margin: 0 !important;
+  min-height: 0 !important;
   padding: 18px 22px !important;
   display: flex !important;
   justify-content: space-between !important;
@@ -1405,7 +1405,7 @@ html[data-theme="light"] {
 
   background: var(--mx-panel-bg) !important;
   border: 1px solid var(--mx-panel-border) !important;
-  border-radius: 22px !important;
+  border-radius: 0 !important;
   box-shadow: var(--mx-soft-shadow) !important;
   backdrop-filter: blur(28px) saturate(1.14) !important;
   -webkit-backdrop-filter: blur(28px) saturate(1.14) !important;
