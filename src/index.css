@@ -3169,3 +3169,7 @@ body,
 /* Fill iPhone home indicator area */
 body { padding-bottom: env(safe-area-inset-bottom); }
 .bottom-nav { padding-bottom: env(safe-area-inset-bottom); height: calc(60px + env(safe-area-inset-bottom)); }
+
+/* Fill iPhone home indicator area */
+body { padding-bottom: env(safe-area-inset-bottom); }
+.bottom-nav { padding-bottom: env(safe-area-inset-bottom); height: calc(60px + env(safe-area-inset-bottom)); }
