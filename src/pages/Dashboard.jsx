@@ -133,10 +133,59 @@ function buildMaxxProfile(cats) {
   }
 }
 
+
+function EvidenceModal({ evidence, onClose }) {
+  if (!evidence) return null
+  const rows = evidence.rows || []
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:120, background:'rgba(0,0,0,0.58)', backdropFilter:'blur(10px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div onClick={e=>e.stopPropagation()} className="widget" style={{ width:'min(560px, 100%)', maxHeight:'82vh', overflowY:'auto', padding:0, borderRadius:22 }}>
+        <div style={{ padding:'18px 20px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start' }}>
+          <div>
+            <div style={{ fontSize:11, color:'var(--muted)', fontWeight:900, letterSpacing:'0.13em', textTransform:'uppercase' }}>Datakälla</div>
+            <div style={{ fontSize:22, fontWeight:900, color:'var(--text)', marginTop:4 }}>{evidence.title || evidence.metricLabel}</div>
+            <div style={{ fontSize:13, color:'var(--muted2)', marginTop:3 }}>{evidence.subtitle || evidence.categoryName}</div>
+          </div>
+          <button onClick={onClose} className="btn btn-ghost btn-icon" style={{ flexShrink:0 }}>×</button>
+        </div>
+
+        <div style={{ padding:20, display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0,1fr))', gap:10 }}>
+            <div className="card-sm" style={{ padding:12 }}>
+              <div style={{ fontSize:10, color:'var(--muted)', fontWeight:850, letterSpacing:'0.08em', textTransform:'uppercase' }}>Värde</div>
+              <div style={{ fontSize:20, color:'var(--accent)', fontWeight:900, marginTop:4 }}>{evidence.metricValue || evidence.value || '—'}</div>
+            </div>
+            <div className="card-sm" style={{ padding:12 }}>
+              <div style={{ fontSize:10, color:'var(--muted)', fontWeight:850, letterSpacing:'0.08em', textTransform:'uppercase' }}>Datum</div>
+              <div style={{ fontSize:15, color:'var(--text)', fontWeight:800, marginTop:7 }}>{evidence.date || '—'}</div>
+            </div>
+          </div>
+
+          <div className="card-sm" style={{ padding:14 }}>
+            {rows.map((r,i)=>(
+              <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:14, padding:i===0?'0 0 8px 0':'8px 0', borderTop:i===0?'none':'1px solid var(--border)' }}>
+                <span style={{ color:'var(--muted2)', fontSize:12 }}>{r.label}</span>
+                <span style={{ color:'var(--text)', fontSize:12, fontWeight:700, textAlign:'right', overflowWrap:'anywhere' }}>{r.value || '—'}</span>
+              </div>
+            ))}
+          </div>
+
+          {evidence.navTarget && (
+            <button onClick={() => { window.location.href = evidence.navTarget }} className="btn btn-primary" style={{ width:'100%' }}>
+              Öppna i {evidence.navLabel || 'källa'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
 
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
+  const [selectedEvidence, setSelectedEvidence] = useState(null)
   const [categories, setCategories] = useState([])
   const [overallTier, setOverallTier] = useState(null)
   const [maxxProfile, setMaxxProfile] = useState(null)
@@ -172,19 +221,20 @@ export default function Dashboard() {
       const periodEnd = format(new Date(todayDate.getFullYear(), startMonth + 1, salaryDay - 1), 'yyyy-MM-dd')
 
       const [
-        { data: runData }, { data: prData }, { data: healthData },
+        { data: runData }, { data: runPrData }, { data: prData }, { data: healthData },
         { data: studyData }, { data: paData }, { data: skillData }, { data: userSettings },
         { data: exData }, { data: supplementLogs }, { data: snapshots }, { data: incomeData },
       ] = await Promise.all([
         supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
-        supabase.from('personal_records').select('exercise_name,weight_kg,reps,date,updated_at').eq('user_id',userId).order('weight_kg',{ascending:false}),
+        supabase.from('run_personal_records').select('id,distance_key,label,distance_km,time_seconds,pace_per_km,date,strava_activity_id,strava_effort_name,source').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}).then(r => r).catch(() => ({ data: [] })),
+        supabase.from('personal_records').select('id,exercise_name,weight_kg,reps,date,exercise_id').eq('user_id',userId).order('weight_kg',{ascending:false}),
         supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
         supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
         supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',periodStart).lte('date',periodEnd),
         supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since30),
         Promise.resolve({ data: settingsQuick }),
         supabase.from('training_exercises')
-          .select('exercise_name,reps,weight_kg,training_sessions!inner(date,user_id)')
+          .select('id,session_id,set_number,exercise_name,reps,weight_kg,training_sessions!inner(id,date,user_id)')
           .eq('training_sessions.user_id', userId)
           .gte('training_sessions.date', format(subDays(todayDate, 60), 'yyyy-MM-dd'))
           .not('weight_kg','is',null).not('reps','is',null),
@@ -217,49 +267,62 @@ export default function Dashboard() {
       setBodyWeight(bw)
       if (userSettings?.display_name) setDisplayName(userSettings.display_name)
 
-      // Best actual pace-based time for a target distance
-      // A longer run gives your actual pace at that distance — not an estimate
-      function bestActual(targetKm) {
-        // Direct runs within ±10%
-        const tol = Math.max(0.5, targetKm * 0.1)
-        const direct = (runData||[]).filter(r =>
-          r.distance_km >= targetKm - tol &&
-          r.distance_km <= targetKm + tol &&
-          (r.time_seconds || r.pace_per_km)
+      // Strava best efforts per activity.
+      // Important: do NOT estimate 1 km / 5 km / 10 km from whole-run average pace.
+      // Dashboard should represent current fitness from actual Strava "Bästa insatser"
+      // saved in run_personal_records for the last 90 days.
+      function bestActual(distanceKey) {
+        const efforts = (runPrData || []).filter(r =>
+          r.distance_key === distanceKey &&
+          r.time_seconds &&
+          r.date >= since90
         )
-        // Longer runs — if you ran 21km you actually ran 1km, 5km, 10km en route
-        const longer = (runData||[]).filter(r =>
-          r.distance_km > targetKm + tol &&
-          (r.time_seconds || r.pace_per_km)
-        )
-        const all = [...direct, ...longer]
-        if (!all.length) return null
+        if (!efforts.length) return null
 
-        return all.reduce((b, r) => {
-          // Use actual pace × targetKm — this IS your actual performance at that distance
-          const pace = r.pace_per_km || (r.time_seconds / r.distance_km)
-          const t = Math.round(pace * targetKm)
-          const bt = b._t
-          return t < bt ? { ...r, _t: t } : b
-        }, { ...all[0], _t: (() => {
-          const r = all[0]
-          const pace = r.pace_per_km || (r.time_seconds / r.distance_km)
-          return Math.round(pace * targetKm)
-        })() })
+        return efforts.reduce((best, r) => {
+          const t = Number(r.time_seconds)
+          const bt = Number(best.time_seconds)
+          return t < bt ? r : best
+        }, efforts[0])
       }
 
-      function toDecayed(run, targetKm) {
+      function toDecayed(run) {
         if (!run) return null
-        const pace = run.pace_per_km || (run.time_seconds / run.distance_km)
-        const t = run._t || Math.round(pace * targetKm)
-        return getDecayedValue(t, run.date, 90)
+        return getDecayedValue(Number(run.time_seconds), run.date, 90)
       }
 
-      const r1D  = toDecayed(bestActual(1), 1)
-      const r5D  = toDecayed(bestActual(5), 5)
-      const r10D = toDecayed(bestActual(10), 10)
-      const rHD  = toDecayed(bestActual(21.1), 21.1)
-      const rMD  = toDecayed(bestActual(42.2), 42.2)
+      const r1Actual = bestActual('1k')
+      const r5Actual = bestActual('5k')
+      const r10Actual = bestActual('10k')
+      const rHActual = bestActual('half_marathon')
+
+      function runEvidence(row, label) {
+        if (!row) return null
+        return {
+          type: 'run_best_effort',
+          title: label,
+          subtitle: 'Strava best effort från enskilt löppass',
+          value: formatRunTime(Number(row.time_seconds)),
+          date: row.date,
+          navTarget: row.strava_activity_id ? `/traning?stravaActivity=${row.strava_activity_id}` : '/traning',
+          navLabel: 'Träning',
+          rows: [
+            { label: 'Källa', value: 'run_personal_records' },
+            { label: 'Best effort', value: row.strava_effort_name || row.label || label },
+            { label: 'Tid', value: formatRunTime(Number(row.time_seconds)) },
+            { label: 'Pace', value: row.pace_per_km ? formatRunTime(Number(row.pace_per_km)) + '/km' : '—' },
+            { label: 'Distans', value: row.distance_km ? Number(row.distance_km).toFixed(row.distance_km >= 10 ? 1 : 2).replace('.00','') + ' km' : '—' },
+            { label: 'Strava activity', value: row.strava_activity_id || '—' },
+            { label: 'Rad-ID', value: row.id || '—' },
+          ],
+        }
+      }
+
+      const r1D  = toDecayed(r1Actual)
+      const r5D  = toDecayed(r5Actual)
+      const r10D = toDecayed(r10Actual)
+      const rHD  = toDecayed(rHActual)
+      const rMD  = null
 
       const r1T  = r1D  ? getTier(r1D.value,  RUN_5K_THRESHOLDS.map(t=>t*0.195), false) : null
       const r5T  = r5D  ? getTier(r5D.value,  RUN_5K_THRESHOLDS, false) : null
@@ -267,17 +330,13 @@ export default function Dashboard() {
       const rHT  = rHD  ? getTier(rHD.value,  RUN_HALF_THRESHOLDS, false) : null
       const rMT  = rMD  ? getTier(rMD.value,  RUN_MARA_THRESHOLDS, false) : null
 
-      const hasRunData = !!(runData?.length)
+      const hasRunData = !!(runPrData?.length || runData?.length)
 
-      // Coverage check: a run of distance D covers all shorter required distances
-      // (e.g. a halvmara proves you can run 1km, 5km, 10km)
-      const longestRun = hasRunData
-        ? Math.max(...(runData||[]).map(r => r.distance_km || 0))
-        : 0
-      const covered1  = !!(r1D  || longestRun >= 1)
-      const covered5  = !!(r5D  || longestRun >= 5)
-      const covered10 = !!(r10D || longestRun >= 10)
-      const coveredH  = !!(rHD  || longestRun >= 21)
+      // Coverage check uses actual imported Strava best efforts.
+      const covered1  = !!r1D
+      const covered5  = !!r5D
+      const covered10 = !!r10D
+      const coveredH  = !!rHD
 
       const allFourCovered = covered1 && covered5 && covered10 && coveredH
 
@@ -337,31 +396,114 @@ export default function Dashboard() {
         return best > 0 ? best : null
       }
 
-      // Get best raw set for bodyweight exercises: returns { reps, weight_kg }
-      function getBestSet(keywords) {
+      function strengthEvidence(label, keywords, isBW = false) {
         let best = null
-        let bestE1RM = 0
-        const keywords_lower = keywords.map(k => k.toLowerCase())
-        // Check personal_records first
-        const pr = (prData || []).find(p => keywords_lower.some(k => p.exercise_name?.toLowerCase().includes(k)))
-        if (pr && pr.reps) {
-          const e = epleyBW(pr.weight_kg || 0, pr.reps, bw)
-          if (e != null && e > bestE1RM) { bestE1RM = e; best = { reps: pr.reps, weight_kg: pr.weight_kg || 0 } }
+        const consider = (candidate) => {
+          if (!candidate || candidate.e1rm == null) return
+          if (!best || candidate.e1rm > best.e1rm) best = candidate
         }
-        // Check recent exercises
-        const since60 = format(subDays(todayDate, 60), 'yyyy-MM-dd')
-        const sets = (exData || []).filter(e =>
-          keywords_lower.some(k => e.exercise_name?.toLowerCase().includes(k)) &&
-          e.training_sessions?.date >= since60 && e.reps
-        )
-        for (const s of sets) {
-          const e = epleyBW(s.weight_kg || 0, s.reps, bw)
-          if (e != null && e > bestE1RM) { bestE1RM = e; best = { reps: s.reps, weight_kg: s.weight_kg || 0 } }
+
+        for (const p of (prData || [])) {
+          if (!keywords.some(k => p.exercise_name?.toLowerCase().includes(k))) continue
+          const e = isBW ? epleyBW(p.weight_kg || 0, p.reps || 1, bw) : epley(p.weight_kg, p.reps || 1)
+          consider({
+            e1rm: e,
+            date: p.date,
+            source: 'personal_records',
+            rows: [
+              { label: 'Källa', value: 'personal_records' },
+              { label: 'Övning', value: p.exercise_name },
+              { label: 'Set/PR', value: `${p.weight_kg ?? '—'} kg × ${p.reps || 1}` },
+              { label: 'Formel', value: (p.reps || 1) <= 10 ? 'Brzycki' : 'Epley' },
+              { label: 'Rad-ID', value: p.id || '—' },
+            ],
+          })
         }
-        return best
+
+        for (const s of (exData || [])) {
+          if (!keywords.some(k => s.exercise_name?.toLowerCase().includes(k))) continue
+          const e = isBW ? epleyBW(s.weight_kg || 0, s.reps, bw) : epley(s.weight_kg, s.reps)
+          consider({
+            e1rm: e,
+            date: s.training_sessions?.date,
+            source: 'training_exercises',
+            sessionId: s.session_id || s.training_sessions?.id,
+            rows: [
+              { label: 'Källa', value: 'training_exercises' },
+              { label: 'Passdatum', value: s.training_sessions?.date || '—' },
+              { label: 'Övning', value: s.exercise_name },
+              { label: 'Set', value: `${s.weight_kg ?? '—'} kg × ${s.reps ?? '—'}` },
+              { label: 'Setnummer', value: s.set_number != null ? String(s.set_number) : '—' },
+              { label: 'Formel', value: Number(s.reps || 0) <= 10 ? 'Brzycki' : 'Epley' },
+              { label: 'Pass-ID', value: s.session_id || s.training_sessions?.id || '—' },
+              { label: 'Set-ID', value: s.id || '—' },
+            ],
+          })
+        }
+
+        if (!best) return null
+        return {
+          type: 'strength_e1rm',
+          title: label,
+          subtitle: 'Bästa e1RM-källa senaste 60 dagar eller PR-rad',
+          value: Math.round(best.e1rm) + ' kg',
+          date: best.date,
+          navTarget: best.sessionId ? `/traning?session=${best.sessionId}` : '/traning',
+          navLabel: 'Träning',
+          rows: [
+            { label: 'e1RM', value: Math.round(best.e1rm) + ' kg' },
+            ...best.rows,
+          ],
+        }
       }
 
-      const puBestSet = getBestSet(['pull-up','pullup','chins','weighted pull'])
+      function sourceValue(value, evidence) {
+        if (!evidence?.navTarget || !value || value === '—') return value
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              window.location.href = evidence.navTarget
+            }}
+            title="Öppna källpass"
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              padding: '6px 8px',
+              margin: '-6px -8px',
+              borderRadius: 9,
+              border: '1px solid transparent',
+              background: 'transparent',
+              color: 'var(--text)',
+              cursor: 'pointer',
+              font: 'inherit',
+              fontWeight: 850,
+              textAlign: 'left',
+              transition: 'background .14s ease, border-color .14s ease, transform .14s ease, box-shadow .14s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(79,142,247,.08)'
+              e.currentTarget.style.borderColor = 'rgba(79,142,247,.24)'
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(79,142,247,.06)'
+              e.currentTarget.style.transform = 'translateY(-1px)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.borderColor = 'transparent'
+              e.currentTarget.style.boxShadow = 'none'
+              e.currentTarget.style.transform = 'none'
+            }}
+          >
+            <span>{value}</span>
+            <span style={{ fontSize: 11, color: 'var(--accent)', opacity: .9 }}>↗</span>
+          </button>
+        )
+      }
 
       const bE1RM = getE1RM(['bänkpress','bench'])
       const sE1RM = getE1RM(['knäböj','squat'])
@@ -603,10 +745,22 @@ export default function Dashboard() {
         ] }
       }) : null
 
+      const r1Evidence = runEvidence(r1Actual, '1 km PR')
+      const r5Evidence = runEvidence(r5Actual, '5 km PR')
+      const r10Evidence = runEvidence(r10Actual, '10 km PR')
+      const rHEvidence = runEvidence(rHActual, 'Halvmara')
+      const bEvidence = strengthEvidence('Bänk e1RM', ['bänkpress','bench'])
+      const sEvidence = strengthEvidence('Knäböj e1RM', ['knäböj','squat'])
+      const dlEvidence = strengthEvidence('Marklyft e1RM', ['marklyft','deadlift'])
+
       const cats = [
         {id:'kondition',name:'Kondition',icon:'kondition',tier:kTop,hasData:hasRunData,pct:kTop?Math.round((kTop.tier/8)*100):0,decayWarning:[r5D,r10D,rHD,rMD].some(d=>d?.stale),trend:r5D?.daysSince<14?'up':'neutral',
-          metrics:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',highlight:true},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—'},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—'}],
-          details:[{label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',tierInfo:r1T},{label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',tierInfo:r5T},{label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',tierInfo:r10T},{label:'Halvmara',value:rHD?formatRunTime(Math.round(rHD.value)):'—',tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT}],
+          metrics:[
+            {label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',highlight:true,evidence:r1Evidence},
+            {label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',evidence:r5Evidence},
+            {label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',evidence:r10Evidence}
+          ],
+          details:[{label:'1km PR',value:sourceValue(r1D?formatRunTime(Math.round(r1D.value)):'—', r1Evidence),tierInfo:r1T},{label:'5km PR',value:sourceValue(r5D?formatRunTime(Math.round(r5D.value)):'—', r5Evidence),tierInfo:r5T},{label:'10km PR',value:sourceValue(r10D?formatRunTime(Math.round(r10D.value)):'—', r10Evidence),tierInfo:r10T},{label:'Halvmara',value:sourceValue(rHD?formatRunTime(Math.round(rHD.value)):'—', rHEvidence),tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT}],
           chartData:(runData||[]).filter(r=>r.distance_km>=4.5&&r.distance_km<=11).slice(0,20).reverse().map(r=>({date:r.date.slice(5),Pace:r.pace_per_km?Math.round(r.pace_per_km/60*10)/10:null})),
           chartLines:[{key:'Pace',label:'Pace (min/km)',color:'#4f8ef7'}],levelUp:kondLevelUp,navTarget:'/traning',navLabel:'Träning'},
         {id:'styrka',name:'Styrka',icon:'styrka',tier:stTop,hasData:hasStrengthData,pct:strengthLevelUp?.progressPct ?? (stTop?Math.round((stTop.tier/8)*100):0),decayWarning:false,trend:'neutral',
@@ -618,8 +772,12 @@ export default function Dashboard() {
             puT && { label:'Pull-up', tier: puT, value: puE1RM, isBW: true },
             dipT && { label:'Dips', tier: dipT, value: dipE1RM, isBW: true },
           ].filter(Boolean),
-          metrics:[{label:'Bänk e1RM',value:bE1RM?Math.round(bE1RM)+' kg':'—',highlight:true},{label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg':'—'},{label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg':'—'}],
-          details:[{label:'Bänkpress e1RM',value:bE1RM?Math.round(bE1RM)+' kg ('+Math.round(bE1RM/bw*100)/100+'x BW)':'—',tierInfo:bT},{label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg ('+Math.round(sE1RM/bw*100)/100+'x BW)':'—',tierInfo:sT},{label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg ('+Math.round(dlE1RM/bw*100)/100+'x BW)':'—',tierInfo:dlT},{label:'Militärpress e1RM',value:oE1RM?Math.round(oE1RM)+' kg':'—',tierInfo:oT},{label:'Pull-up PB',value:puBestSet?(puBestSet.reps+'×'+(puBestSet.weight_kg>0?'+'+puBestSet.weight_kg+'kg':'BW')):'—',tierInfo:puT}],
+          metrics:[
+            {label:'Bänk e1RM',value:bE1RM?Math.round(bE1RM)+' kg':'—',highlight:true,evidence:bEvidence},
+            {label:'Marklyft e1RM',value:dlE1RM?Math.round(dlE1RM)+' kg':'—',evidence:dlEvidence},
+            {label:'Knäböj e1RM',value:sE1RM?Math.round(sE1RM)+' kg':'—',evidence:sEvidence}
+          ],
+          details:[{label:'Bänkpress e1RM',value:sourceValue(bE1RM?Math.round(bE1RM)+' kg ('+Math.round(bE1RM/bw*100)/100+'x BW)':'—', bEvidence),tierInfo:bT},{label:'Knäböj e1RM',value:sourceValue(sE1RM?Math.round(sE1RM)+' kg ('+Math.round(sE1RM/bw*100)/100+'x BW)':'—', sEvidence),tierInfo:sT},{label:'Marklyft e1RM',value:sourceValue(dlE1RM?Math.round(dlE1RM)+' kg ('+Math.round(dlE1RM/bw*100)/100+'x BW)':'—', dlEvidence),tierInfo:dlT},{label:'Militärpress e1RM',value:oE1RM?Math.round(oE1RM)+' kg':'—',tierInfo:oT},{label:'Weighted pull-up e1RM',value:puE1RM?'+'+Math.round(puE1RM)+' kg':'—',tierInfo:puT}],
           chartData:[],chartLines:[],levelUp:strengthLevelUp,tierGuide:strengthTierGuide,navTarget:'/traning',navLabel:'Träning'},
         {id:'somn',name:'Sömn',icon:'somn',tier:slT,hasData:!!avgSl,pct:slT?Math.round((slT.tier/8)*100):0,decayWarning:false,trend:'neutral',
           metrics:[{label:'Snitt 7 dagar',value:avgSl?avgSl+'h':'—',highlight:true},{label:'Loggar',value:sl7.length+' av 7 dagar'}],
@@ -746,7 +904,7 @@ export default function Dashboard() {
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'14px', maxWidth:'1240px', margin:'0 auto', width:'100%' }}>
+        <div className="mx-content-edge" style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'14px', maxWidth:'none', margin:'0', width:'100%' }}>
 
           {/* MAXX SCORE + BOTTLENECK — premium split layout */}
           {!loading && maxxProfile && (
@@ -807,7 +965,7 @@ export default function Dashboard() {
             <div className="grid-4 dashboard-category-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:'12px' }}>
               {categories.map((cat,i) => (
                 <div key={cat.id} className={'fade-up fade-up-delay-'+Math.min(i+1,7)}>
-                  <CategoryCard category={cat} onClick={setSelectedCategory} />
+                  <CategoryCard category={cat} onClick={setSelectedCategory} onMetricClick={(evidence) => { if (evidence?.navTarget) window.location.href = evidence.navTarget; else setSelectedEvidence(evidence) }} />
                 </div>
               ))}
             </div>
@@ -888,6 +1046,7 @@ export default function Dashboard() {
       </div>
 
       {selectedCategory && <DetailModal category={selectedCategory} onClose={()=>setSelectedCategory(null)} />}
+      {selectedEvidence && <EvidenceModal evidence={selectedEvidence} onClose={()=>setSelectedEvidence(null)} />}
     </div>
   )
 }

@@ -750,7 +750,7 @@ html[data-theme="light"] body.has-bg-image .app-sidebar-floating aside {
    ============================================================ */
 
 .page-header {
-  min-height: 0 !important;
+  min-height: 76px !important;
   padding: 14px 20px !important;
   align-items: center !important;
 }
@@ -1393,8 +1393,8 @@ html[data-theme="light"] {
   position: sticky !important;
   top: 0 !important;
   z-index: 30 !important;
-  margin: 0 !important;
-  min-height: 0 !important;
+  margin: 0 0 16px 0 !important;
+  min-height: 92px !important;
   padding: 18px 22px !important;
   display: flex !important;
   justify-content: space-between !important;
@@ -1405,7 +1405,7 @@ html[data-theme="light"] {
 
   background: var(--mx-panel-bg) !important;
   border: 1px solid var(--mx-panel-border) !important;
-  border-radius: 0 !important;
+  border-radius: 22px !important;
   box-shadow: var(--mx-soft-shadow) !important;
   backdrop-filter: blur(28px) saturate(1.14) !important;
   -webkit-backdrop-filter: blur(28px) saturate(1.14) !important;
@@ -2205,7 +2205,7 @@ html[data-theme="light"] {
   }
 
   .page-header {
-    min-height: 0 !important;
+    min-height: 76px !important;
     padding: 14px 16px !important;
     border-radius: 19px !important;
     gap: 8px !important;
@@ -3129,39 +3129,3 @@ body,
     padding-right: 8px !important;
   }
 }
-
-/* LAYOUT FIX: main scroll area must have zero padding to avoid dark edges */
-.sigge-main-scroll { padding: 0 !important; }
-
-/* FINAL OVERRIDE — full-bleed header, no gap */
-.page-header {
-  margin: 0 !important;
-  min-height: 0 !important;
-  border-radius: 0 !important;
-  border-left: none !important;
-  border-right: none !important;
-  border-top: none !important;
-  padding: 12px 20px !important;
-}
-.page-header::before, .page-header::after { display: none !important; }
-
-/* Header: rounded top-right corner + right gap */
-.page-header {
-  border-radius: 0 0 0 0 !important;
-  margin-right: 10px !important;
-  border-top-right-radius: 16px !important;
-  border-bottom-right-radius: 0 !important;
-}
-
-/* Header: floating glass card with rounded corners and margins */
-.page-header {
-  border-radius: 16px !important;
-  margin: 10px 10px 12px 0 !important;
-  border: 1px solid var(--glass-border) !important;
-}
-
-.page-header { margin-bottom: 0 !important; }
-
-.page-header { margin: 10px 10px 0 0 !important; }
-
-.page-header { margin: 10px 10px 12px 0 !important; border-radius: 16px !important; }

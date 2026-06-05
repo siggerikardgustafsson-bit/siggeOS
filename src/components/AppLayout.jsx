@@ -7,6 +7,12 @@ import Onboarding from './Onboarding'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
+function routeClass(pathname) {
+  if (pathname === '/') return 'route-dashboard'
+  const segment = pathname.split('/').filter(Boolean)[0] || 'dashboard'
+  return `route-${segment}`
+}
+
 export default function AppLayout() {
   const location = useLocation()
   const { user } = useAuth()
@@ -21,7 +27,7 @@ export default function AppLayout() {
   }, [user])
 
   return (
-    <div style={{
+    <div className={`sigge-app-shell maxxit-app-shell ${routeClass(location.pathname)}`} style={{
       display: 'flex',
       height: '100vh',
       overflow: 'hidden',
@@ -31,7 +37,7 @@ export default function AppLayout() {
     }}>
 
       {/* Sidebar — floating glass panel */}
-      <div className="hidden-mobile" style={{
+      <div className="hidden-mobile app-sidebar-floating" style={{
         flexShrink: 0,
         padding: '10px 0 10px 10px',
         boxSizing: 'border-box',
@@ -48,7 +54,7 @@ export default function AppLayout() {
       </div>
 
       {/* Main content */}
-      <main style={{
+      <main className="sigge-main-scroll" style={{
         flex: 1,
         overflowY: 'auto',
         overflowX: 'hidden',
@@ -57,7 +63,7 @@ export default function AppLayout() {
         maxHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        padding: '10px 0 0 10px',
+        padding: '10px',
         boxSizing: 'border-box',
       }}>
         <Outlet />
@@ -73,202 +79,6 @@ export default function AppLayout() {
 
       {/* Onboarding — shown once for new users */}
       {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
-
-      <style>{`
-        .hidden-mobile { display: flex; }
-        .show-mobile { display: none; }
-
-        .page-wrap {
-          display: flex;
-          flex-direction: column;
-          min-height: 100%;
-          gap: 0;
-        }
-
-        .page-header {
-          position: sticky;
-          top: 0;
-          z-index: 30;
-          margin: 0;
-          flex-shrink: 0;
-          padding: 10px 16px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 8px;
-          background: var(--surface);
-          backdrop-filter: blur(32px);
-          -webkit-backdrop-filter: blur(32px);
-          border: none;
-          border-bottom: 1px solid var(--glass-border);
-          border-radius: 0;
-          box-shadow: var(--glass-shadow);
-          overflow: hidden;
-          min-height: 0;
-        }
-
-        .page-header::before {
-          content: '';
-          position: absolute;
-          top: 0; left: 12%; right: 12%; height: 1px;
-          background: linear-gradient(90deg, transparent, var(--border2), transparent);
-          pointer-events: none;
-        }
-
-        .page-header-title {
-          font-size: 15px;
-          font-weight: 500;
-          color: var(--text);
-          letter-spacing: -0.01em;
-          white-space: nowrap;
-        }
-
-        .page-header-sub {
-          font-size: 11px;
-          color: var(--muted);
-          margin-top: 3px;
-          white-space: nowrap;
-        }
-
-        .page-header-actions {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          flex-wrap: nowrap;
-          flex-shrink: 0;
-        }
-
-        .page-content-scroll {
-          flex: 1;
-          padding: 0 0 24px 0;
-        }
-
-        /* Mobile */
-        @media (max-width: 768px) {
-          .hidden-mobile { display: none !important; }
-          .show-mobile { display: block; }
-
-          main {
-            padding: 8px 8px 0 8px !important;
-          }
-
-          .page-header {
-            top: 0;
-            margin: 0 0 10px 0;
-            padding: 8px 12px;
-            border-radius: 14px;
-            flex-wrap: wrap;
-            gap: 6px;
-          }
-
-          .page-header-title { font-size: 14px; }
-          .page-header-sub   { font-size: 10px; margin-top: 1px; }
-
-          .page-header-actions {
-            gap: 5px;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
-            max-width: 100%;
-          }
-          .page-header-actions::-webkit-scrollbar { display: none; }
-
-          .page-content-scroll {
-            padding: 0 0 90px 0;
-          }
-
-          /* Kill all horizontal overflow */
-          * { max-width: 100%; box-sizing: border-box; }
-
-          /* Responsive grids */
-          .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
-          .grid-2 { grid-template-columns: 1fr !important; }
-          .grid-auto { grid-template-columns: 1fr !important; }
-
-          /* Dashboard specific */
-          .dashboard-bottom { grid-template-columns: 1fr !important; }
-          .dashboard-header-row { flex-wrap: wrap; gap: 4px; }
-
-          /* Category cards on mobile — prevent overflow */
-          .cat-card { min-height: 130px !important; padding: 10px !important; }
-          .cat-card .metric-value { font-size: 11px !important; }
-          .cat-card .metric-label { font-size: 9px !important; }
-
-          /* Insights */
-          .insights-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
-          .insights-chart-grid { grid-template-columns: 1fr !important; }
-          .insights-obs-grid { grid-template-columns: 1fr !important; }
-
-          /* Settings — sidebar becomes horizontal tab bar */
-          .settings-page { padding: 12px 12px 100px 12px !important; }
-          .settings-layout { grid-template-columns: 1fr !important; }
-          .settings-nav {
-            position: static !important;
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            overflow-x: auto !important;
-            gap: 2px !important;
-            padding: 4px !important;
-            scrollbar-width: none !important;
-          }
-          .settings-nav::-webkit-scrollbar { display: none; }
-          .settings-nav-btn {
-            flex-shrink: 0 !important;
-            width: auto !important;
-            padding: 7px 11px !important;
-            border-left: none !important;
-            border-bottom: 2px solid transparent !important;
-            border-radius: 8px !important;
-            white-space: nowrap !important;
-            font-size: 12px !important;
-            text-align: center !important;
-          }
-
-          /* Journal — stack calendar above entry */
-          .journal-layout { grid-template-columns: 1fr !important; }
-
-          /* Jarvis — ensure input stays at bottom above nav */
-          .jarvis-input-area { padding-bottom: 0 !important; }
-          .jarvis-container {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 60px !important;
-            margin: 0 !important;
-            padding: 8px !important;
-            width: 100% !important;
-            height: auto !important;
-          }
-
-          /* Dashboard — ensure cards don't overflow right */
-          .grid-4 > * { min-width: 0 !important; overflow: hidden !important; }
-          .cat-card { width: 100% !important; overflow: hidden !important; }
-
-          /* FAB — above bottom nav on mobile */
-          .quicklog-fab { bottom: 72px !important; right: 16px !important; width: 48px !important; height: 48px !important; }
-
-          /* Widgets single col */
-          .widget-grid-2 { grid-template-columns: 1fr !important; }
-
-          /* Input font sizes — prevent iOS zoom */
-          input, textarea, select { font-size: 16px !important; }
-
-          /* Buttons don't overflow */
-          .btn { white-space: nowrap; flex-shrink: 0; font-size: 12px !important; padding: 6px 11px !important; }
-          .btn-full { font-size: 14px !important; padding: 13px !important; }
-
-          /* page-header buttons extra compact */
-          .page-header .btn { font-size: 11px !important; padding: 5px 9px !important; }
-          .page-header .btn-icon { padding: 5px !important; }
-        }
-
-        @media (max-width: 400px) {
-          main { padding: 6px 6px 0 6px !important; }
-          .page-header { padding: 7px 10px; }
-        }
-      `}</style>
     </div>
   )
 }
