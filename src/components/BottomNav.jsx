@@ -14,15 +14,15 @@ const primaryNav = [
 ]
 
 const moreNav = [
-  { to: '/journal',     icon: BookOpen,      label: 'Journal' },
-  { to: '/ekonomi',     icon: DollarSign,    label: 'Ekonomi' },
-  { to: '/plugg',       icon: GraduationCap, label: 'Plugg' },
-  { to: '/jobb',        icon: Briefcase,     label: 'Jobb' },
-  { to: '/upplevelser', icon: Compass,       label: 'Upplevelser' },
-  { to: '/kalender',    icon: CalendarDays,  label: 'Kalender' },
-  { to: '/insights',    icon: BarChart2,     label: 'Insights' },
-  { to: '/export',      icon: Download,      label: 'Exportera' },
-  { to: '/installningar', icon: Settings,    label: 'Inställningar' },
+  { to: '/journal',       icon: BookOpen,      label: 'Journal' },
+  { to: '/ekonomi',       icon: DollarSign,    label: 'Ekonomi' },
+  { to: '/plugg',         icon: GraduationCap, label: 'Plugg' },
+  { to: '/jobb',          icon: Briefcase,     label: 'Jobb' },
+  { to: '/upplevelser',   icon: Compass,       label: 'Upplevelser' },
+  { to: '/kalender',      icon: CalendarDays,  label: 'Kalender' },
+  { to: '/insights',      icon: BarChart2,     label: 'Insights' },
+  { to: '/export',        icon: Download,      label: 'Exportera' },
+  { to: '/installningar', icon: Settings,      label: 'Inställningar' },
 ]
 
 export default function BottomNav() {
@@ -30,7 +30,6 @@ export default function BottomNav() {
 
   return (
     <>
-      {/* More menu overlay */}
       {showMore && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 200,
@@ -74,17 +73,17 @@ export default function BottomNav() {
         </div>
       )}
 
-      {/* Bottom nav bar */}
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
         background: 'var(--surface)',
         backdropFilter: 'blur(32px)',
         WebkitBackdropFilter: 'blur(32px)',
         borderTop: '1px solid var(--glass-border)',
-        display: 'flex', flexDirection: 'column', zIndex: 100,
+        display: 'flex',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+        zIndex: 100,
         boxShadow: '0 -4px 24px rgba(0,0,0,0.25)',
       }}>
-        <div style={{ display: 'flex' }}>
         {primaryNav.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} end={to === '/'} style={({ isActive }) => ({
             flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -97,8 +96,6 @@ export default function BottomNav() {
             {label}
           </NavLink>
         ))}
-
-        {/* Mer-knapp */}
         <button onClick={() => setShowMore(!showMore)} style={{
           flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
           justifyContent: 'center', padding: '10px 4px 8px', background: 'none', border: 'none',
@@ -109,9 +106,6 @@ export default function BottomNav() {
           <Grid size={22} />
           Mer
         </button>
-        </div>
-        {/* Safe area fill — same background as nav */}
-        <div style={{ height: 'env(safe-area-inset-bottom)', background: 'var(--surface)' }} />
       </nav>
     </>
   )
