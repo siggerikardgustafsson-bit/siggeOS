@@ -411,11 +411,26 @@ ${upcomingExams}`
     return Object.entries(copy).filter(([k]) => k !== 'action').slice(0, 6).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`).join(' · ')
   }
 
+  // Lock main scroll when Jarvis mounts so Jarvis owns its own scroll
+  useEffect(() => {
+    const main = document.querySelector('main')
+    if (!main) return
+    const prev = { overflow: main.style.overflowY, display: main.style.display, flexDir: main.style.flexDirection }
+    main.style.overflowY = 'hidden'
+    main.style.display = 'flex'
+    main.style.flexDirection = 'column'
+    return () => {
+      main.style.overflowY = prev.overflow
+      main.style.display = prev.display
+      main.style.flexDirection = prev.flexDir
+    }
+  }, [])
+
   const hour = new Date().getHours()
 
   return (
-    <div className="jarvis-container" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: 'transparent', margin: '0', padding: '0', boxSizing: 'border-box', width: '100%' }}>
-      <div className="page-header" style={{ marginBottom: '0', flexShrink: 0, position: 'relative', zIndex: 30 }}>
+    <div className="jarvis-container" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', background: 'transparent', width: '100%' }}>
+      <div className="page-header" style={{ marginBottom: '0', flexShrink: 0 }}>
         <div>
           <div className="page-header-title">Jarvis</div>
           <div className="page-header-sub">{insights.length > 0 ? `${insights.length} insikter sparade` : 'Personlig AI'}</div>
@@ -505,7 +520,7 @@ ${upcomingExams}`
         <div ref={messagesEndRef} />
       </div>
 
-      <div style={{ padding: '8px 0 0', flexShrink: 0 }} className="jarvis-input-area">
+      <div style={{ padding: '8px 10px 10px 10px', flexShrink: 0 }} className="jarvis-input-area">
         <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '8px 8px 8px 16px', boxShadow: 'var(--glass-shadow)', transition: 'border-color 0.15s' }}>
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey} placeholder="Skriv till Jarvis..." disabled={loading} rows={1} style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text)', fontSize: '14px', lineHeight: '1.5', resize: 'none', maxHeight: '120px', overflow: 'auto', padding: '4px 0', fontFamily: 'Inter, sans-serif' }} />
           <button onClick={sendMessage} disabled={loading || !input.trim()} style={{ width: 36, height: 36, borderRadius: '10px', border: 'none', flexShrink: 0, background: input.trim() ? 'var(--accent)' : 'transparent', color: input.trim() ? 'white' : 'var(--muted)', cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', boxShadow: input.trim() ? '0 2px 10px var(--accent-glow)' : 'none' }}><Send size={15} /></button>
