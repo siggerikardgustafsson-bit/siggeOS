@@ -23,7 +23,7 @@ export default function AppLayout() {
   return (
     <div style={{
       display: 'flex',
-      height: '100dvh',
+      height: '100vh',
       overflow: 'hidden',
       padding: '0',
       gap: '0',
@@ -35,7 +35,7 @@ export default function AppLayout() {
         flexShrink: 0,
         padding: '10px 0 10px 10px',
         boxSizing: 'border-box',
-        height: '100dvh',
+        height: '100vh',
       }}>
         <div style={{
           height: '100%',
@@ -57,7 +57,7 @@ export default function AppLayout() {
         maxHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        padding: '10px',
+        padding: '10px 0 0 10px',
         boxSizing: 'border-box',
       }}>
         <Outlet />
@@ -89,7 +89,7 @@ export default function AppLayout() {
           position: sticky;
           top: 0;
           z-index: 30;
-          margin: 0 0 12px 0;
+          margin: 0;
           flex-shrink: 0;
           padding: 10px 16px;
           display: flex;
@@ -99,8 +99,9 @@ export default function AppLayout() {
           background: var(--surface);
           backdrop-filter: blur(32px);
           -webkit-backdrop-filter: blur(32px);
-          border: 1px solid var(--glass-border);
-          border-radius: 16px;
+          border: none;
+          border-bottom: 1px solid var(--glass-border);
+          border-radius: 0;
           box-shadow: var(--glass-shadow);
           overflow: hidden;
           min-height: 0;
@@ -261,13 +262,6 @@ export default function AppLayout() {
           /* page-header buttons extra compact */
           .page-header .btn { font-size: 11px !important; padding: 5px 9px !important; }
           .page-header .btn-icon { padding: 5px !important; }
-
-          /* Grid collapse on mobile */
-          .dashboard-maxx-row,
-          .dashboard-category-grid,
-          .training-v2-grid { grid-template-columns: 1fr !important; }
-          .pr-grid-2col { grid-template-columns: repeat(2, 1fr) !important; }
-          .jobb-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }
 
         @media (max-width: 400px) {
