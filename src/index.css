@@ -3132,3 +3132,15 @@ body,
 
 /* LAYOUT FIX: main scroll area must have zero padding to avoid dark edges */
 .sigge-main-scroll { padding: 0 !important; }
+
+/* FINAL OVERRIDE — full-bleed header, no gap */
+.page-header {
+  margin: 0 !important;
+  min-height: 0 !important;
+  border-radius: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  padding: 12px 20px !important;
+}
+.page-header::before, .page-header::after { display: none !important; }
