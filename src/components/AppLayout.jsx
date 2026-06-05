@@ -261,6 +261,13 @@ export default function AppLayout() {
           /* page-header buttons extra compact */
           .page-header .btn { font-size: 11px !important; padding: 5px 9px !important; }
           .page-header .btn-icon { padding: 5px !important; }
+
+          /* Grid collapse on mobile */
+          .dashboard-maxx-row,
+          .dashboard-category-grid,
+          .training-v2-grid { grid-template-columns: 1fr !important; }
+          .pr-grid-2col { grid-template-columns: repeat(2, 1fr) !important; }
+          .jobb-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }
 
         @media (max-width: 400px) {
