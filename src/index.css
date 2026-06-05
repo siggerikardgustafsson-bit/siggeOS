@@ -3159,3 +3159,5 @@ body,
   margin: 10px 10px 12px 0 !important;
   border: 1px solid var(--glass-border) !important;
 }
+
+.page-header { margin-bottom: 0 !important; }
