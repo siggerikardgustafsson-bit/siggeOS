@@ -57,7 +57,7 @@ export default function AppLayout() {
         maxHeight: '100%',
         display: 'flex',
         flexDirection: 'column',
-        padding: '0',
+        padding: '10px 0 0 0',
         boxSizing: 'border-box',
       }}>
         <Outlet />
@@ -89,7 +89,7 @@ export default function AppLayout() {
           position: sticky;
           top: 0;
           z-index: 30;
-          margin: 10px 0 16px 0;
+          margin: 0 0 16px 0;
           flex-shrink: 0;
           padding: 10px 16px;
           display: flex;
@@ -99,7 +99,8 @@ export default function AppLayout() {
           background: var(--surface);
           backdrop-filter: blur(32px);
           -webkit-backdrop-filter: blur(32px);
-          border: none; border-bottom: 1px solid var(--glass-border);
+          border: none;
+          border-bottom: 1px solid var(--glass-border);
           border-radius: 0;
           box-shadow: var(--glass-shadow);
           overflow: hidden;
