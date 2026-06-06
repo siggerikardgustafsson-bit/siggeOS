@@ -739,53 +739,70 @@ export default function TraningPage() {
 
       // Check and update PRs
       for (const ex of exercises) {
+        if (!ex.name?.trim()) continue
         const isBWex = BW_EXERCISES.has(ex.name.toLowerCase().trim())
-        const maxWeight = Math.max(...ex.sets.map(s => parseFloat(s.weight) || 0))
         const maxReps = Math.max(...ex.sets.map(s => parseInt(s.reps) || 0))
+        const maxWeight = Math.max(...ex.sets.map(s => parseFloat(s.weight) || 0))
+
+        // Always fetch current PR from DB to avoid stale local state
+        const { data: existingRows } = await supabase
+          .from('personal_records')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('exercise_name', ex.name)
+          .limit(1)
+        const existingPR = existingRows?.[0] || null
 
         if (isBWex && maxReps > 0) {
-          // BW exercise: PR = most reps (at any weight), tie-break by added weight
-          const existingPR = prs.find(p => p.exercise_name === ex.name)
-          const existingReps = existingPR?.reps || 0
-          const existingWeight = existingPR?.weight_kg || 0
-          // Best set by e1RM equivalent
           let bestSet = null
           for (const s of ex.sets) {
             const w = parseFloat(s.weight) || 0
             const r = parseInt(s.reps) || 0
             if (!r) continue
-            if (!bestSet || (r * (1 + w/30)) > (bestSet.r * (1 + bestSet.w/30))) {
+            if (!bestSet || (r * (1 + w / 30)) > (bestSet.r * (1 + bestSet.w / 30))) {
               bestSet = { r, w }
             }
           }
-          if (bestSet && (!existingPR || (bestSet.r * (1 + bestSet.w/30)) > (existingReps * (1 + existingWeight/30)))) {
-            await supabase.from('personal_records').upsert({
+          if (!bestSet) continue
+          const existingReps = existingPR?.reps || 0
+          const existingWeight = existingPR?.weight_kg || 0
+          const isNewPR = !existingPR || (bestSet.r * (1 + bestSet.w / 30)) > (existingReps * (1 + existingWeight / 30))
+          if (isNewPR) {
+            const payload = {
               user_id: user.id,
               exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
               exercise_name: ex.name,
               weight_kg: bestSet.w,
               reps: bestSet.r,
               date: sessionDate,
-            }, { onConflict: 'user_id,exercise_name' })
+            }
+            const { error: prError } = existingPR
+              ? await supabase.from('personal_records').update(payload).eq('user_id', user.id).eq('exercise_name', ex.name)
+              : await supabase.from('personal_records').insert(payload)
+            if (prError) console.error('PR save error (BW):', ex.name, prError)
           }
         } else if (!isBWex && maxWeight > 0) {
-          const existingPR = prs.find(p => p.exercise_name === ex.name)
           const bestSet = ex.sets.reduce((best, s) => {
             const w = parseFloat(s.weight) || 0
             const r = parseInt(s.reps) || 1
-            return (w * (1 + r/30)) > ((parseFloat(best.weight)||0) * (1 + (parseInt(best.reps)||1)/30)) ? s : best
+            return (w * (1 + r / 30)) > ((parseFloat(best.weight) || 0) * (1 + (parseInt(best.reps) || 1) / 30)) ? s : best
           }, ex.sets[0])
           const bestWeight = parseFloat(bestSet?.weight) || 0
           const bestReps = parseInt(bestSet?.reps) || 1
-          if (!existingPR || bestWeight > existingPR.weight_kg) {
-            await supabase.from('personal_records').upsert({
+          const isNewPR = !existingPR || bestWeight > (existingPR.weight_kg || 0)
+          if (isNewPR) {
+            const payload = {
               user_id: user.id,
               exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
               exercise_name: ex.name,
               weight_kg: bestWeight,
               reps: bestReps,
               date: sessionDate,
-            }, { onConflict: 'user_id,exercise_name' })
+            }
+            const { error: prError } = existingPR
+              ? await supabase.from('personal_records').update(payload).eq('user_id', user.id).eq('exercise_name', ex.name)
+              : await supabase.from('personal_records').insert(payload)
+            if (prError) console.error('PR save error (strength):', ex.name, prError)
           }
         }
       }
