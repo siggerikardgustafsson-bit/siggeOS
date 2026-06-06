@@ -118,7 +118,7 @@ export default function Jarvis() {
     const since7 = format(subDays(now, 7), 'yyyy-MM-dd')
     const datetime = format(now, "EEEE d MMMM yyyy, HH:mm", { locale: sv })
 
-    const [scoresRes, healthRes, journalRes, tasksRes, settingsRes, trainingRes, expenseRes, incomeRes, examsRes, insightsRes, projectsRes, tripsRes, allProjectTasksRes] = await Promise.all([
+    const [scoresRes, healthRes, journalRes, tasksRes, settingsRes, trainingRes, expenseRes, incomeRes, examsRes, insightsRes, projectsRes, tripsRes] = await Promise.all([
       supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).maybeSingle(),
       supabase.from('health_logs').select('*').eq('user_id', user.id).gte('date', since7).order('date', { ascending: false }).limit(7),
       supabase.from('journal_entries').select('id,date,content,mood,energy,sleep_hours,social_score,ai_summary,sleep_type,sleep_note').eq('user_id', user.id).order('date', { ascending: false }).limit(7),
@@ -131,7 +131,6 @@ export default function Jarvis() {
       supabase.from('jarvis_insights').select('insight, category, confidence').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(150),
       supabase.from('projects').select('id,name,type,client,color,description,notes').eq('user_id', user.id).order('created_at'),
       supabase.from('trips').select('id,title,countries,city,start_date,end_date,status,planning_doc,budget_items,budget_sek,notes').eq('user_id', user.id).in('status', ['planned','idea']).order('start_date', { ascending: true }),
-      supabase.from('project_tasks').select('id,title,status,priority,deadline,project_id').neq('status', 'klart').order('status'),
     ])
 
     const s = settingsRes.data || {}
@@ -175,22 +174,9 @@ export default function Jarvis() {
 
     // Projects + tasks
     const projectsList = projectsRes.data || []
-    let projectsBlock = 'Inga projekt.'
-    if (projectsList.length) {
-      // Use pre-fetched tasks from initial Promise.all — no extra DB call
-      const tasksByProject = (allProjectTasksRes?.data || []).reduce((acc, t) => {
-        if (!acc[t.project_id]) acc[t.project_id] = []
-        acc[t.project_id].push(t)
-        return acc
-      }, {})
-      projectsBlock = projectsList.map(p => {
-        const tasks = tasksByProject[p.id] || []
-        const taskLines = tasks.length
-          ? tasks.map(t => `  [${t.id}] ${t.title} (${t.status}${t.priority ? '/' + t.priority : ''}${t.deadline ? ' deadline:' + t.deadline : ''})`).join('\n')
-          : '  Inga aktiva tasks.'
-        return `Projekt: ${p.name} [id:${p.id}] (${p.type}${p.client ? ', kund:' + p.client : ''})\n${taskLines}`
-      }).join('\n\n')
-    }
+    const projectsBlock = projectsList.length
+      ? projectsList.map(p => `${p.name} [id:${p.id}] (${p.type}${p.client ? ', kund:' + p.client : ''})`).join('\n')
+      : 'Inga projekt.'
 
     // Planned/idea trips
     const tripsList = tripsRes.data || []
