@@ -21,6 +21,9 @@ ARBETSSÄTT:
 - När användaren ber dig logga, ändra, skapa, komma ihåg eller glömma: föreslå en action. UI visar godkänn-knapp.
 - Radera eller större ändringar ska alltid kräva tydlig bekräftelse via action-knapp.
 - Skriv ALDRIG JSON synligt för användaren.
+- Du kan skapa/uppdatera/radera project_tasks i projekt (använd project_id från kontexten).
+- Du kan skapa/uppdatera resor (trips) — update_trip kräver id från kontexten, fields är de fält som ska uppdateras (t.ex. planning_doc, status, budget_sek, start_date etc).
+- Vid update_trip: skicka bara de fält som faktiskt ska ändras i fields-objektet.
 
 KONTEXT FRÅN APPEN:
 {CONTEXT}
@@ -44,6 +47,11 @@ const ACTION_LABELS = {
   delete_erik_task: 'Radera Erik-uppdrag',
   delete_expense: 'Radera utgift',
   delete_income: 'Radera inkomst',
+  create_project_task: 'Skapa projekt-task',
+  update_project_task: 'Uppdatera projekt-task',
+  delete_project_task: 'Radera projekt-task',
+  create_trip: 'Skapa resa',
+  update_trip: 'Uppdatera resa',
 }
 
 function stripAccidentalActionJson(content = '') {
@@ -110,7 +118,7 @@ export default function Jarvis() {
     const since7 = format(subDays(now, 7), 'yyyy-MM-dd')
     const datetime = format(now, "EEEE d MMMM yyyy, HH:mm", { locale: sv })
 
-    const [scoresRes, healthRes, journalRes, tasksRes, settingsRes, trainingRes, expenseRes, incomeRes, examsRes, insightsRes] = await Promise.all([
+    const [scoresRes, healthRes, journalRes, tasksRes, settingsRes, trainingRes, expenseRes, incomeRes, examsRes, insightsRes, projectsRes, tripsRes] = await Promise.all([
       supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).maybeSingle(),
       supabase.from('health_logs').select('*').eq('user_id', user.id).gte('date', since7).order('date', { ascending: false }).limit(7),
       supabase.from('journal_entries').select('id,date,content,mood,energy,sleep_hours,social_score,ai_summary,sleep_type,sleep_note').eq('user_id', user.id).order('date', { ascending: false }).limit(7),
@@ -121,6 +129,8 @@ export default function Jarvis() {
       supabase.from('income_logs').select('date,amount,source,notes').eq('user_id', user.id).gte('date', since30),
       supabase.from('course_exams').select('exam_date,name,course_id').eq('user_id', user.id).gte('exam_date', today).order('exam_date', { ascending: true }).limit(5),
       supabase.from('jarvis_insights').select('insight, category, confidence').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(150),
+      supabase.from('projects').select('id,name,type,client,color,description,notes').eq('user_id', user.id).order('created_at'),
+      supabase.from('trips').select('id,title,countries,city,start_date,end_date,status,planning_doc,budget_items,budget_sek,notes').eq('user_id', user.id).in('status', ['planned','idea']).order('start_date', { ascending: true }),
     ])
 
     const s = settingsRes.data || {}
@@ -162,6 +172,32 @@ export default function Jarvis() {
       return `${e.exam_date} (${daysLeft}d): ${e.name}`
     }).join('\n') : 'Inga kommande tentor.'
 
+    // Projects + tasks
+    const projectsList = projectsRes.data || []
+    let projectsBlock = 'Inga projekt.'
+    if (projectsList.length) {
+      const taskRows = await Promise.all(projectsList.map(p =>
+        supabase.from('project_tasks').select('id,title,description,status,priority,deadline,notes')
+          .eq('project_id', p.id).neq('status', 'klart').order('status')
+      ))
+      projectsBlock = projectsList.map((p, i) => {
+        const tasks = taskRows[i]?.data || []
+        const taskLines = tasks.length
+          ? tasks.map(t => `  [${t.id}] ${t.title} (${t.status}${t.priority ? '/' + t.priority : ''}${t.deadline ? ' deadline:' + t.deadline : ''})`).join('\n')
+          : '  Inga aktiva tasks.'
+        return `Projekt: ${p.name} [id:${p.id}] (${p.type}${p.client ? ', kund:' + p.client : ''})\n${taskLines}`
+      }).join('\n\n')
+    }
+
+    // Planned/idea trips
+    const tripsList = tripsRes.data || []
+    const tripsBlock = tripsList.length
+      ? tripsList.map(t => {
+          const days = t.start_date && t.end_date ? Math.round((new Date(t.end_date) - new Date(t.start_date)) / 86400000) + 1 : null
+          return `[id:${t.id}] ${t.title} (${t.status}) ${t.countries?.join(',')||''} ${t.start_date||'?'}→${t.end_date||'?'}${days ? ' ' + days + 'd' : ''}${t.budget_sek ? ' budget:' + t.budget_sek + 'kr' : ''}${t.planning_doc ? '\n  Plan: ' + t.planning_doc.slice(0, 300) + (t.planning_doc.length > 300 ? '…' : '') : ''}`
+        }).join('\n')
+      : 'Inga planerade resor eller idéer.'
+
     const ctx = `TIDPUNKT: ${datetime}
 
 PROFIL & MÅL:
@@ -191,7 +227,13 @@ AKTIVA ERIK-UPPDRAG:
 ${(tasksRes.data || []).map(t => `${t.title} [${t.tag}]${t.deadline ? ' deadline:' + t.deadline : ''}${t.status ? ' [' + t.status + ']' : ''}`).join('\n') || 'Inga aktiva uppdrag.'}
 
 KOMMANDE TENTOR:
-${upcomingExams}`
+${upcomingExams}
+
+PROJEKT & TASKS (aktiva):
+${projectsBlock}
+
+PLANERADE RESOR & IDÉER:
+${tripsBlock}`
 
     setContext(ctx)
     contextRef.current = ctx
@@ -331,6 +373,50 @@ ${upcomingExams}`
           break
         case 'delete_income':
           res = d.id ? await supabase.from('income_logs').delete().eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id') }
+          break
+        case 'create_project_task':
+          res = await supabase.from('project_tasks').insert({
+            user_id: user.id,
+            project_id: d.project_id,
+            title: d.title,
+            description: d.description || null,
+            deadline: clean(d.deadline),
+            priority: d.priority || 'medium',
+            notes: d.notes || null,
+            status: d.status || 'ej_påbörjat',
+          })
+          break
+        case 'update_project_task':
+          res = d.id && d.fields
+            ? await supabase.from('project_tasks').update(d.fields).eq('id', d.id).eq('user_id', user.id)
+            : { error: new Error('Saknar id/fields') }
+          break
+        case 'delete_project_task':
+          res = d.id
+            ? await supabase.from('project_tasks').delete().eq('id', d.id).eq('user_id', user.id)
+            : { error: new Error('Saknar id') }
+          break
+        case 'create_trip':
+          res = await supabase.from('trips').insert({
+            user_id: user.id,
+            title: d.title,
+            countries: d.countries || [],
+            country: d.countries?.[0] || '',
+            city: d.city || '',
+            start_date: clean(d.start_date),
+            end_date: clean(d.end_date),
+            status: d.status || 'idea',
+            planning_doc: d.planning_doc || null,
+            budget_items: d.budget_items || null,
+            budget_sek: clean(d.budget_sek),
+            notes: d.planning_doc || d.notes || null,
+            highlights: d.highlights || null,
+          })
+          break
+        case 'update_trip':
+          res = d.id && d.fields
+            ? await supabase.from('trips').update({ ...d.fields, notes: d.fields.planning_doc || d.fields.notes }).eq('id', d.id).eq('user_id', user.id)
+            : { error: new Error('Saknar id/fields') }
           break
         default:
           res = { error: new Error('Okänd action: ' + d.action) }
