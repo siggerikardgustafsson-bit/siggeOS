@@ -5,7 +5,7 @@ import { format, parseISO, differenceInDays } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import {
   Plus, X, Save, Loader, Check, ChevronDown, ChevronUp,
-  Compass, Flame, SkipForward, Edit2
+  Compass, Flame, SkipForward, Edit2, FileText, Sparkles, ExternalLink, Trash2
 } from 'lucide-react'
 
 const COUNTRIES = [
@@ -233,6 +233,255 @@ function CountryPicker({ selected, onChange }) {
   )
 }
 
+
+const BUDGET_CATEGORIES = [
+  { id: 'flyg', label: 'Flyg / Transport', icon: '✈️' },
+  { id: 'boende', label: 'Boende', icon: '🏨' },
+  { id: 'mat', label: 'Mat & leverne', icon: '🍽️' },
+  { id: 'utrustning', label: 'Utrustning', icon: '🎒' },
+  { id: 'ovrigt', label: 'Övrigt', icon: '💡' },
+]
+
+const EMPTY_BUDGET_ITEM = { category: 'flyg', description: '', amount: '', isEstimate: false }
+
+function TripPlannerModal({ trip, onClose, onSave }) {
+  const [planningDoc, setPlanningDoc] = React.useState(trip.planning_doc || trip.notes || '')
+  const [budgetItems, setBudgetItems] = React.useState(
+    trip.budget_items?.length ? trip.budget_items : BUDGET_CATEGORIES.map(c => ({ ...EMPTY_BUDGET_ITEM, category: c.id, description: '', amount: '', isEstimate: false }))
+  )
+  const [jarvisLoading, setJarvisLoading] = React.useState(false)
+  const [jarvisComment, setJarvisComment] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+
+  const totalBudget = budgetItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0)
+  const hasEstimates = budgetItems.some(i => i.isEstimate)
+
+  function updateItem(idx, field, value) {
+    setBudgetItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value, isEstimate: field === 'amount' ? false : item.isEstimate } : item))
+  }
+
+  function addItem() {
+    setBudgetItems(prev => [...prev, { ...EMPTY_BUDGET_ITEM }])
+  }
+
+  function removeItem(idx) {
+    setBudgetItems(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  async function askJarvis() {
+    setJarvisLoading(true)
+    setJarvisComment('')
+    try {
+      const tripCountries = trip.countries?.length ? trip.countries.join(', ') : trip.country || 'okänt'
+      const days = trip.start_date && trip.end_date
+        ? Math.round((new Date(trip.end_date) - new Date(trip.start_date)) / 86400000) + 1
+        : null
+
+      const budgetSummary = budgetItems.map(item => {
+        const cat = BUDGET_CATEGORIES.find(c => c.id === item.category)?.label || item.category
+        const hasAmount = item.amount && parseFloat(item.amount) > 0
+        return `${cat}: ${item.description || 'ingen info'} → ${hasAmount ? item.amount + ' kr' : 'SAKNAS (estimera)'}`
+      }).join('\n')
+
+      const prompt = `Du är Jarvis, Sigges personliga AI-assistent. Analysera denna reseplan och estimera budget.
+
+RESA: ${trip.title}
+LÄNDER: ${tripCountries}
+DATUM: ${trip.start_date || '?'} → ${trip.end_date || '?'}${days ? ` (${days} dagar)` : ''}
+
+PLANERINGSDOKUMENT:
+${planningDoc || 'Inget skrivet ännu'}
+
+NUVARANDE BUDGETPOSTER:
+${budgetSummary}
+
+Uppgift:
+1. För varje budgetpost som saknar belopp: estimera ett realistiskt belopp i SEK baserat på destination, antal dagar och eventuella länkar/beskrivningar
+2. Om en post har en länk (t.ex. till flyg eller boende), försök tolka priset från länken/kontexten
+3. Ge en kort kommentar om totalbudgeten och om något verkar dyrt/billigt
+
+Svara ENBART med JSON (inga backticks):
+{
+  "items": [
+    {"category": "flyg", "description": "...", "amount": 1200, "isEstimate": true, "note": "..."},
+    ...
+  ],
+  "totalComment": "...",
+  "tips": "..."
+}`
+
+      const { data } = await supabase.functions.invoke('jarvis-chat', {
+        body: {
+          messages: [{ role: 'user', content: prompt }],
+          context: '',
+          systemPrompt: 'Du är Jarvis, Sigges AI-assistent. Svara bara med JSON utan backticks.',
+        },
+      })
+
+      if (data?.content) {
+        const cleaned = data.content.replace(/```json|```/g, '').trim()
+        const parsed = JSON.parse(cleaned)
+        if (parsed.items?.length) {
+          setBudgetItems(parsed.items.map(item => ({
+            category: item.category || 'ovrigt',
+            description: item.description || '',
+            amount: String(item.amount || ''),
+            isEstimate: !!item.isEstimate,
+            note: item.note || '',
+          })))
+        }
+        if (parsed.totalComment || parsed.tips) {
+          setJarvisComment([parsed.totalComment, parsed.tips].filter(Boolean).join(' '))
+        }
+      }
+    } catch (err) {
+      console.error('Jarvis budget error:', err)
+      setJarvisComment('Något gick fel. Försök igen.')
+    }
+    setJarvisLoading(false)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    await onSave({
+      ...trip,
+      planning_doc: planningDoc,
+      budget_items: budgetItems,
+      budget_sek: totalBudget > 0 ? Math.round(totalBudget) : trip.budget_sek,
+      notes: planningDoc,
+    })
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--glass-border)', borderRadius: '20px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--glass-shadow)', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Header */}
+        <div style={{ padding: '20px 20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
+          <div>
+            <div style={{ fontSize: '17px', fontWeight: '700', marginBottom: '3px' }}>
+              {trip.countries?.slice(0,3).map(c => FLAGS[c] || '').join('') || '🗺️'} {trip.title}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              Reseplanering & budget
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px' }}><X size={18} /></button>
+        </div>
+
+        <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* Planning doc */}
+          <div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '8px' }}>
+              PLANERINGSDOKUMENT
+            </div>
+            <textarea
+              value={planningDoc}
+              onChange={e => setPlanningDoc(e.target.value)}
+              placeholder={"Skriv din plan här... Klistra in flyglinks, boende, aktiviteter, tankar.\n\nEx:\n✈️ Flyg: https://www.ryanair.com/... (1 200 kr)\n🏨 Boende: Hostel i Sarajevo, 3 nätter\n🍽️ Mat: ~250 kr/dag\n📋 Aktiviteter: Gamla stan, Mostar dagtrip..."}
+              rows={8}
+              className="input"
+              style={{ resize: 'vertical', fontFamily: 'Inter, sans-serif', fontSize: '13px', lineHeight: '1.6' }}
+            />
+          </div>
+
+          {/* Budget */}
+          <div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>BUDGET</span>
+              {totalBudget > 0 && (
+                <span style={{ color: 'var(--text)', fontWeight: '600', fontSize: '13px' }}>
+                  Totalt: {Math.round(totalBudget).toLocaleString('sv-SE')} kr
+                  {hasEstimates && <span style={{ color: 'var(--muted)', fontSize: '11px', marginLeft: '6px' }}>(inkl. estimat)</span>}
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+              {budgetItems.map((item, idx) => {
+                const cat = BUDGET_CATEGORIES.find(c => c.id === item.category)
+                return (
+                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: '8px', alignItems: 'center', padding: '10px 12px', background: 'var(--surface2)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                    <select
+                      value={item.category}
+                      onChange={e => updateItem(idx, 'category', e.target.value)}
+                      className="input"
+                      style={{ padding: '6px 8px', fontSize: '12px', width: 'auto' }}
+                    >
+                      {BUDGET_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.label}</option>)}
+                    </select>
+                    <input
+                      className="input"
+                      placeholder="Länk eller beskrivning..."
+                      value={item.description}
+                      onChange={e => updateItem(idx, 'description', e.target.value)}
+                      style={{ padding: '6px 10px', fontSize: '12px' }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                      <input
+                        className="input"
+                        type="number"
+                        placeholder="kr"
+                        value={item.amount}
+                        onChange={e => updateItem(idx, 'amount', e.target.value)}
+                        style={{ padding: '6px 10px', fontSize: '12px', width: '90px', color: item.isEstimate ? '#f59e0b' : 'var(--text)' }}
+                      />
+                      {item.isEstimate && <span style={{ fontSize: '10px', color: '#f59e0b', whiteSpace: 'nowrap' }}>est.</span>}
+                    </div>
+                    <button onClick={() => removeItem(idx)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.5, padding: '2px' }}>
+                      <Trash2 size={13} />
+                    </button>
+                    {item.note && (
+                      <div style={{ gridColumn: '1 / -1', fontSize: '11px', color: 'var(--muted)', fontStyle: 'italic', marginTop: '2px' }}>
+                        💡 {item.note}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            <button onClick={addItem} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '8px', color: 'var(--muted)', padding: '8px', cursor: 'pointer', fontSize: '12px', width: '100%', fontFamily: 'Inter, sans-serif' }}>
+              + Lägg till post
+            </button>
+
+            {/* Jarvis budget */}
+            <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '12px' }}>
+              <button
+                onClick={askJarvis}
+                disabled={jarvisLoading}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '8px', color: '#a78bfa', padding: '9px 16px', cursor: 'pointer', fontSize: '13px', fontFamily: 'Inter, sans-serif', fontWeight: '600', width: '100%', justifyContent: 'center' }}
+              >
+                {jarvisLoading
+                  ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Jarvis analyserar...</>
+                  : <><Sparkles size={14} /> Låt Jarvis estimera budget</>
+                }
+              </button>
+              {jarvisComment && (
+                <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--muted2)', lineHeight: '1.6' }}>
+                  💬 {jarvisComment}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            <button onClick={onClose} className="btn btn-ghost">Avbryt</button>
+            <button onClick={handleSave} disabled={saving} className="btn btn-primary">
+              {saving ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />} Spara plan
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TripForm({ initial, onSave, onCancel, saving }) {
   const [form, setForm] = useState(initial)
   const f = (key, val) => setForm(prev => ({ ...prev, [key]: val }))
@@ -310,6 +559,7 @@ export default function UpplevelserPage() {
   const [editingTrip, setEditingTrip] = useState(null)
   const [showNewAdventure, setShowNewAdventure] = useState(false)
   const [tripFilter, setTripFilter] = useState('all')
+  const [planningTrip, setPlanningTrip] = useState(null)
 
   const [adventureForm, setAdventureForm] = useState({
     title: '', description: '', date: format(new Date(), 'yyyy-MM-dd'),
@@ -365,6 +615,8 @@ export default function UpplevelserPage() {
       status: form.status,
       budget_sek: form.budget_sek ? parseInt(form.budget_sek) : null,
       notes: form.notes,
+      planning_doc: form.planning_doc || null,
+      budget_items: form.budget_items || null,
     }
     if (form.id) {
       await supabase.from('trips').update(payload).eq('id', form.id)
@@ -547,6 +799,12 @@ Returnera ENBART JSON utan backticks:
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      {(trip.status === 'idea' || trip.status === 'planned') && (
+                        <button onClick={e => { e.stopPropagation(); setPlanningTrip(trip) }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', borderRadius: '6px', border: '1px solid rgba(139,92,246,0.3)', background: 'rgba(139,92,246,0.1)', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif', fontWeight: '600' }}>
+                          <FileText size={12} /> Planera
+                        </button>
+                      )}
                       <button onClick={e => { e.stopPropagation(); setEditingTrip(trip.id); setExpandedTrip(null) }}
                         style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', opacity: 0.6 }}>
                         <Edit2 size={13} />
@@ -559,25 +817,49 @@ Returnera ENBART JSON utan backticks:
                     </div>
                   </div>
 
-                  {isExpanded && (trip.highlights || trip.notes) && (
-                    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                  {isExpanded && (trip.highlights || trip.notes || trip.planning_doc || trip.budget_sek) && (
+                    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {trip.highlights && (
-                        <div style={{ marginBottom: trip.notes ? '10px' : '0' }}>
+                        <div>
                           <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px', fontWeight: '600' }}>HIGHLIGHTS</div>
                           <div style={{ fontSize: '13px', lineHeight: '1.6' }}>{trip.highlights}</div>
                         </div>
                       )}
-                      {trip.notes && (
+                      {(trip.planning_doc || trip.notes) && (
                         <div>
                           <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px', fontWeight: '600' }}>
                             {trip.status === 'planned' || trip.status === 'idea' ? 'PLANERING' : 'ANTECKNINGAR'}
                           </div>
-                          <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6', fontStyle: 'italic' }}>{trip.notes}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{trip.planning_doc || trip.notes}</div>
                         </div>
                       )}
-                      {trip.budget_sek && (
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--muted)' }}>
-                          💰 Budget: <span style={{ color: 'var(--text)' }}>{trip.budget_sek.toLocaleString('sv-SE')} kr</span>
+                      {trip.budget_items?.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>BUDGET</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            {trip.budget_items.map((item, i) => {
+                              const cat = BUDGET_CATEGORIES ? BUDGET_CATEGORIES.find(c => c.id === item.category) : null
+                              return (
+                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+                                  <span style={{ color: 'var(--muted)' }}>{cat?.icon || '•'} {cat?.label || item.category}{item.description ? ` — ${item.description.slice(0, 40)}${item.description.length > 40 ? '...' : ''}` : ''}</span>
+                                  <span style={{ color: item.isEstimate ? '#f59e0b' : 'var(--text)', fontWeight: '600' }}>
+                                    {item.amount ? `${parseFloat(item.amount).toLocaleString('sv-SE')} kr${item.isEstimate ? ' (est.)' : ''}` : '—'}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                            {trip.budget_sek > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', paddingTop: '6px', fontWeight: '700' }}>
+                                <span>Totalt</span>
+                                <span style={{ color: 'var(--accent)' }}>{trip.budget_sek.toLocaleString('sv-SE')} kr</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {trip.budget_sek > 0 && !trip.budget_items?.length && (
+                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+                          💰 Budget: <span style={{ color: 'var(--text)', fontWeight: '600' }}>{trip.budget_sek.toLocaleString('sv-SE')} kr</span>
                         </div>
                       )}
                     </div>
@@ -751,6 +1033,17 @@ Returnera ENBART JSON utan backticks:
             </div>
           )}
         </>
+      )}
+
+      {planningTrip && (
+        <TripPlannerModal
+          trip={planningTrip}
+          onClose={() => setPlanningTrip(null)}
+          onSave={async (updatedTrip) => {
+            await saveTrip(updatedTrip)
+            setPlanningTrip(null)
+          }}
+        />
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
