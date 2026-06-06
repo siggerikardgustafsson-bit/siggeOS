@@ -12,7 +12,7 @@ import StudyModal from '../components/StudyModal'
 
 const GRADES = ['IG', 'G']
 const TERMS = ['Termin 1','Termin 2','Termin 3','Termin 4','Termin 5','Termin 6',
-               'Termin 7','Termin 8','Termin 9','Termin 10','Termin 11']
+               'Termin 7','Termin 8','Termin 9','Termin 10','Termin 11','Extrakurrikulär']
 
 function CountdownBadge({ examDate }) {
   if (!examDate) return null
@@ -553,7 +553,13 @@ export default function PluggPage() {
             </div>
           )}
 
-          {courses.map(course => {
+          {/* Läkarprogrammet */}
+          {courses.filter(c => c.term !== 'Extrakurrikulär').length > 0 && (
+            <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '10px', marginTop: '4px' }}>
+              LÄKARPROGRAMMET
+            </div>
+          )}
+          {courses.filter(c => c.term !== 'Extrakurrikulär').map(course => {
             const isExpanded = expandedCourse === course.id
             const courseExams = exams[course.id] || []
             const doneExams = courseExams.filter(e => e.grade === 'G').length
@@ -1027,6 +1033,95 @@ export default function PluggPage() {
               </div>
             )
           })}
+
+          {/* Extrakurrikulära kurser */}
+          {courses.filter(c => c.term === 'Extrakurrikulär').length > 0 && (
+            <>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '10px', marginTop: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>EXTRAKURRIKULÄRT</span>
+                <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+              </div>
+              {courses.filter(c => c.term === 'Extrakurrikulär').map(course => {
+                const isExpanded = expandedCourse === course.id
+                const courseExams = exams[course.id] || []
+                const isEditing = editingCourse === course.id
+                const courseTasks = studyTasks[course.id] || []
+                return (
+                  <div key={course.id} className="card" style={{ marginBottom: '12px', borderColor: 'rgba(139,92,246,0.2)' }}>
+                    {isEditing ? (
+                      <div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                          <input className="input" value={editForm.name || ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                          <select className="input" value={editForm.term || ''} onChange={e => setEditForm(f => ({ ...f, term: e.target.value }))}>
+                            {TERMS.map(t => <option key={t}>{t}</option>)}
+                          </select>
+                          <input className="input" type="date" value={editForm.exam_date || ''} onChange={e => setEditForm(f => ({ ...f, exam_date: e.target.value }))} />
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={async () => { await supabase.from('courses').update({ name: editForm.name, term: editForm.term, exam_date: editForm.exam_date || null }).eq('id', course.id); setEditingCourse(null); fetchCourses() }} className="btn btn-primary btn-sm"><Save size={12} /> Spara</button>
+                          <button onClick={() => setEditingCourse(null)} className="btn btn-ghost btn-sm">Avbryt</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                        onClick={() => setExpandedCourse(isExpanded ? null : course.id)}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(139,92,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <BookOpen size={15} color="#a78bfa" />
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: '600', fontSize: '14px' }}>{course.name}</div>
+                            <div style={{ fontSize: '11px', color: '#a78bfa' }}>
+                              Extrakurrikulär{course.exam_date ? ` · ${format(parseISO(course.exam_date), 'MMM yyyy', { locale: sv })}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {course.exam_date && <CountdownBadge examDate={course.exam_date} />}
+                          <button onClick={e => { e.stopPropagation(); setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, exam_date: course.exam_date || '' }) }}
+                            style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px' }}><Edit2 size={13} /></button>
+                          {isExpanded ? <ChevronUp size={14} color="var(--muted)" /> : <ChevronDown size={14} color="var(--muted)" />}
+                        </div>
+                      </div>
+                    )}
+                    {isExpanded && !isEditing && (
+                      <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+                        <button onClick={e => { e.stopPropagation(); setStudySession({ courseId: course.id, courseName: course.name }) }}
+                          className="btn btn-primary btn-sm" style={{ marginBottom: '12px' }}>
+                          <Zap size={13} /> Starta studiesession
+                        </button>
+                        {courseExams.length === 0 && (
+                          <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '8px' }}>Inga tentor/delmål tillagda ännu.</div>
+                        )}
+                        {courseExams.map(exam => (
+                          <div key={exam.id} style={{ marginBottom: '8px', padding: '10px 12px', background: 'var(--surface2)', borderRadius: '10px', border: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ fontWeight: '600', fontSize: '13px' }}>{exam.name}</div>
+                              {exam.exam_date && <CountdownBadge examDate={exam.exam_date} />}
+                            </div>
+                          </div>
+                        ))}
+                        {addingExamTo === course.id ? (
+                          <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <input className="input" placeholder="Namn" value={examForm.name} onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))} style={{ flex: 1, minWidth: '140px' }} />
+                            <input className="input" type="date" value={examForm.exam_date} onChange={e => setExamForm(f => ({ ...f, exam_date: e.target.value }))} style={{ width: '150px' }} />
+                            <button onClick={() => saveExam(course.id)} className="btn btn-primary btn-sm"><Save size={12} /> Spara</button>
+                            <button onClick={() => setAddingExamTo(null)} className="btn btn-ghost btn-sm">Avbryt</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setAddingExamTo(course.id); setExamForm({ name: '', exam_date: '', notes: '' }) }}
+                            style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '6px', color: 'var(--muted)', padding: '5px 10px', cursor: 'pointer', fontSize: '12px', width: '100%', marginTop: '4px', fontFamily: 'Inter, sans-serif' }}>
+                            + Lägg till moment/delmål
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    )}
+                  </div>
+                )
+              })}
+            </>
+          )}
 
           <button onClick={() => setShowNewCourse(true)} className="btn btn-primary" style={{ marginTop: '8px' }}>
             <Plus size={14} /> Ny kurs
