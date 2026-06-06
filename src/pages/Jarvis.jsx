@@ -458,6 +458,8 @@ ${tripsBlock}`
       if (error) throw error
       if (data?.error) throw new Error(data.error)
 
+      console.log('[Jarvis] raw data from edge function:', JSON.stringify(data))
+      console.log('[Jarvis] actions received:', JSON.stringify(data?.actions))
       const content = stripAccidentalActionJson(data?.content || '')
       const assistantMsg = { role: 'assistant', content: content || 'Jag fick inget svar från modellen.' }
       setMessages(prev => [...prev, assistantMsg])
