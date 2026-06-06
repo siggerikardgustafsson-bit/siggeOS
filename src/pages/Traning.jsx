@@ -1294,9 +1294,16 @@ export default function TraningPage() {
                       <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
                       {pr ? (
                         <>
-                          <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
-                            {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
-                          </div>
+                          {BW_EXERCISES.has(String(pr.exercise_name || '').toLowerCase().trim()) ? (
+                            <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
+                              {pr.reps ?? '—'}<span style={{ fontSize: '11px', color: 'var(--muted)' }}> reps</span>
+                              {pr.weight_kg > 0 && <span style={{ fontSize: '13px', color: 'var(--muted)' }}> +{pr.weight_kg}kg</span>}
+                            </div>
+                          ) : (
+                            <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
+                              {pr.weight_kg}<span style={{ fontSize: '11px', color: 'var(--muted)' }}>kg</span>
+                            </div>
+                          )}
                           {pr.date && <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>{format(new Date(pr.date), 'd MMM yyyy', { locale: sv })}</div>}
                           <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}>
                             <TrendingUp size={10} /> Se historik
