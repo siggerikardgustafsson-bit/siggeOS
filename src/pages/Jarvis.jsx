@@ -417,9 +417,16 @@ ${tripsBlock}`
           })
           break
         case 'update_trip':
-          res = d.id && d.fields
-            ? await supabase.from('trips').update({ ...d.fields, notes: d.fields.planning_doc || d.fields.notes }).eq('id', d.id).eq('user_id', user.id)
-            : { error: new Error('Saknar id/fields') }
+          console.log('[update_trip] action payload:', JSON.stringify(d))
+          if (d.id && d.fields) {
+            const tripUpdatePayload = { ...d.fields }
+            if (d.fields.planning_doc) tripUpdatePayload.notes = d.fields.planning_doc
+            console.log('[update_trip] writing to trips id:', d.id, 'fields:', JSON.stringify(tripUpdatePayload))
+            res = await supabase.from('trips').update(tripUpdatePayload).eq('id', d.id).eq('user_id', user.id)
+            console.log('[update_trip] result:', JSON.stringify(res))
+          } else {
+            res = { error: new Error('Saknar id/fields') }
+          }
           break
         default:
           res = { error: new Error('Okänd action: ' + d.action) }
