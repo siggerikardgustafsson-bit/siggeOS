@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { format, subDays } from 'date-fns'
+import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp, Plus, Trash2, Check, X } from 'lucide-react'
 import MarkdownMessage from '../components/MarkdownMessage'
@@ -9,28 +9,7 @@ import MarkdownMessage from '../components/MarkdownMessage'
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
 const clean = (value) => value === undefined || value === null || value === '' ? null : value
 
-const JARVIS_SYSTEM_TEMPLATE = `Du är Jarvis – en personlig AI-assistent inbyggd i SiggeOS.
-
-ROLL:
-Du är coach, assistent, analytiker och minne i samma system. Välj själv läge utifrån prompten. Var datadriven, konkret och direkt. Du ska inte vara generisk.
-
-ARBETSSÄTT:
-- Använd kontexten, men anta inte att den är komplett.
-- När frågan kräver data: använd serververktyg proaktivt.
-- Vid kväll/vecka/morgon: hämta relevant data och gör coachande reflektion, inte bara sammanfattning.
-- När användaren ber dig logga, ändra, skapa, komma ihåg eller glömma: föreslå en action. UI visar godkänn-knapp.
-- Radera eller större ändringar ska alltid kräva tydlig bekräftelse via action-knapp.
-- Skriv ALDRIG JSON synligt för användaren.
-- Du kan skapa/uppdatera/radera project_tasks i projekt (använd project_id från kontexten).
-- Du kan skapa/uppdatera resor (trips) — update_trip kräver id från kontexten, fields är de fält som ska ändras.
-- Trip-ID:n finns i kontexten under "PLANERADE RESOR & IDÉER" som [id:UUID]. Använd alltid det ID:t direkt — fråga ALDRIG användaren om ID:t.
-- Om trip-ID saknas i kontexten: anropa fetch_experiences för att hämta det, använd sedan update_trip med rätt id.
-- Vid update_trip: skicka bara de fält som faktiskt ska ändras i fields-objektet.
-
-KONTEXT FRÅN APPEN:
-{CONTEXT}
-
-Svara på samma språk som användaren skriver på. Kort om inget annat behövs.`
+// System prompt built in edge function
 
 const ACTION_LABELS = {
   create_erik_task: 'Skapa Erik-uppdrag',
@@ -110,128 +89,57 @@ export default function Jarvis() {
 
   const refreshContext = useCallback(async (force = false) => {
     if (!user) return ''
-    // Return cached context if fresh and not forced
     if (!force && contextRef.current && (Date.now() - contextCacheTimeRef.current) < CONTEXT_TTL_MS) {
       return contextRef.current
     }
     const now = new Date()
     const today = format(now, 'yyyy-MM-dd')
-    const since30 = format(subDays(now, 30), 'yyyy-MM-dd')
-    const since7 = format(subDays(now, 7), 'yyyy-MM-dd')
     const datetime = format(now, "EEEE d MMMM yyyy, HH:mm", { locale: sv })
 
-    const [scoresRes, healthRes, journalRes, tasksRes, settingsRes, trainingRes, expenseRes, incomeRes, examsRes, insightsRes, projectsRes, tripsRes] = await Promise.all([
-      supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).maybeSingle(),
-      supabase.from('health_logs').select('*').eq('user_id', user.id).gte('date', since7).order('date', { ascending: false }).limit(7),
-      supabase.from('journal_entries').select('id,date,content,mood,energy,sleep_hours,social_score,ai_summary,sleep_type,sleep_note').eq('user_id', user.id).order('date', { ascending: false }).limit(3),
-      supabase.from('erik_tasks').select('*').eq('user_id', user.id).neq('status', 'klart').limit(10),
-      supabase.from('user_settings').select('about_me, goals, jarvis_personality, jarvis_style, jarvis_lang').eq('user_id', user.id).maybeSingle(),
-      supabase.from('training_sessions').select('date,session_type,duration_minutes,distance_km,feeling,notes,pace_per_km').eq('user_id', user.id).order('date', { ascending: false }).limit(5),
-      supabase.from('expense_logs').select('date,amount,category,description').eq('user_id', user.id).gte('date', since30).order('date', { ascending: false }).limit(40),
-      supabase.from('income_logs').select('date,amount,source,notes').eq('user_id', user.id).gte('date', since30),
-      supabase.from('course_exams').select('exam_date,name,course_id').eq('user_id', user.id).gte('exam_date', today).order('exam_date', { ascending: true }).limit(5),
-      supabase.from('jarvis_insights').select('insight, category, confidence').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(30),
-      supabase.from('projects').select('id,name,type,client,color,description,notes').eq('user_id', user.id).order('created_at'),
-      supabase.from('trips').select('id,title,countries,city,start_date,end_date,status,planning_doc,budget_items,budget_sek,notes').eq('user_id', user.id).in('status', ['planned','idea']).order('start_date', { ascending: true }),
+    // Lean context — only immediate snapshot. Everything else fetched via tools on demand.
+    const [scoreRes, examsRes, projectsRes, tripsRes, todayHealthRes] = await Promise.all([
+      supabase.from('daily_scores').select('total_score,score_training,score_health,score_study,score_economy,score_social,peak_mode').eq('user_id', user.id).eq('date', today).maybeSingle(),
+      supabase.from('course_exams').select('exam_date,name').eq('user_id', user.id).gte('exam_date', today).order('exam_date', { ascending: true }).limit(3),
+      supabase.from('projects').select('id,name,type,client').eq('user_id', user.id).order('created_at'),
+      supabase.from('trips').select('id,title,countries,start_date,end_date,status,budget_sek').eq('user_id', user.id).in('status', ['planned', 'idea']).order('start_date', { ascending: true }).limit(5),
+      supabase.from('health_logs').select('weight_kg,sleep_hours,energy,energy_level,mood,steps').eq('user_id', user.id).eq('date', today).maybeSingle(),
     ])
 
-    const s = settingsRes.data || {}
-    const g = s.goals || {}
-    const csnLimit = g.csn_fribelopp || 114500
-    const totalExp = (expenseRes.data || []).reduce((sum, e) => sum + Number(e.amount || 0), 0)
-    const totalInc = (incomeRes.data || []).reduce((sum, i) => sum + Number(i.amount || 0), 0)
-    const topCats = Object.entries((expenseRes.data || []).reduce((acc, e) => {
-      acc[e.category || 'Övrigt'] = (acc[e.category || 'Övrigt'] || 0) + Number(e.amount || 0)
-      return acc
-    }, {})).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([c, a]) => `${c}:${Math.round(a)}kr`).join(', ')
+    const score = scoreRes.data
+    const todayHealth = todayHealthRes.data
+    const energy = todayHealth?.energy_level ?? todayHealth?.energy
 
-    const profileLines = [
-      s.about_me && `Profil: ${s.about_me}`,
-      g.one_year && `1 års mål: ${g.one_year}`,
-      g.three_year && `3 års mål: ${g.three_year}`,
-      g.ten_year && `10 års vision: ${g.ten_year}`,
-      g.future_plan && `Framtidsplan: ${g.future_plan}`,
-      (g.target_weight || g.body_weight_goal) && `Viktmål: ${g.target_weight || g.body_weight_goal} kg${g.body_weight_deadline ? ` till ${g.body_weight_deadline}` : ''}`,
-      g.monthly_income_goal && `Inkomstmål: ${g.monthly_income_goal} kr/mån netto`,
-      s.jarvis_personality && `Instruktion: ${s.jarvis_personality}`,
-    ].filter(Boolean).join('\n')
+    const upcomingExams = (examsRes.data || []).map(e => {
+      const d = Math.ceil((new Date(e.exam_date) - now) / 86400000)
+      return `${e.exam_date} (${d}d): ${e.name}`
+    }).join(', ') || 'Inga'
 
-    const insBlock = (insightsRes.data || []).length
-      ? (insightsRes.data || []).map(i => `[${i.category || 'mönster'}] ${i.insight}`).join('\n')
-      : 'Inga insikter ännu.'
+    const projectsBlock = (projectsRes.data || []).map(p =>
+      `${p.name} [id:${p.id}] (${p.type}${p.client ? ', ' + p.client : ''})`
+    ).join(' | ') || 'Inga projekt'
 
-    const healthBlock = (healthRes.data || []).map(h => {
-      const energy = h.energy_level ?? h.energy
-      return `${h.date}:${h.weight_kg ? ' vikt ' + h.weight_kg + 'kg' : ''}${h.sleep_hours ? ' sömn ' + h.sleep_hours + 'h' : ''}${h.steps ? ' steg ' + h.steps : ''}${energy ? ' energi ' + energy + '/10' : ''}${h.mood ? ' humör ' + h.mood + '/10' : ''}${h.stress_level ? ' stress ' + h.stress_level + '/10' : ''}`
-    }).join('\n') || 'Ingen hälsodata senaste 7 dagarna.'
+    const tripsBlock = (tripsRes.data || []).map(t =>
+      `[id:${t.id}] ${t.title} (${t.status}) ${t.countries?.join(',') || ''} ${t.start_date || '?'}→${t.end_date || '?'}${t.budget_sek ? ' ' + t.budget_sek + 'kr' : ''}`
+    ).join(' | ') || 'Inga planerade resor'
 
-    const journalBlock = (journalRes.data || []).map(j => `${j.date}: humör ${j.mood || '-'}/10 energi ${j.energy || '-'}/10${j.sleep_hours ? ' sömn ' + j.sleep_hours + 'h' : ''}${j.social_score ? ' socialt ' + j.social_score + '/10' : ''}${j.ai_summary ? '\n  AI: ' + j.ai_summary.slice(0, 220) : ''}${j.content ? '\n  "' + j.content.slice(0, 200) + (j.content.length > 200 ? '…' : '') + '"' : ''}`).join('\n') || 'Ingen journaldata.'
+    const healthLine = todayHealth
+      ? [todayHealth.weight_kg && 'vikt ' + todayHealth.weight_kg + 'kg', todayHealth.sleep_hours && 'sömn ' + todayHealth.sleep_hours + 'h', energy && 'energi ' + energy + '/10', todayHealth.mood && 'humör ' + todayHealth.mood + '/10', todayHealth.steps && 'steg ' + todayHealth.steps].filter(Boolean).join(' | ')
+      : 'ej loggat idag'
 
-    const trainBlock = (trainingRes.data || []).map(t => `${t.date}: ${t.session_type || 'pass'}${t.duration_minutes ? ' ' + t.duration_minutes + 'min' : ''}${t.distance_km ? ' ' + t.distance_km + 'km' : ''}${t.feeling ? ' känsla:' + t.feeling + '/10' : ''}${t.notes ? ' – ' + t.notes.slice(0, 160) : ''}`).join('\n') || 'Inga pass loggade.'
-
-    const upcomingExams = (examsRes.data || []).length ? (examsRes.data || []).map(e => {
-      const daysLeft = Math.ceil((new Date(e.exam_date) - now) / 86400000)
-      return `${e.exam_date} (${daysLeft}d): ${e.name}`
-    }).join('\n') : 'Inga kommande tentor.'
-
-    // Projects + tasks
-    const projectsList = projectsRes.data || []
-    const projectsBlock = projectsList.length
-      ? projectsList.map(p => `${p.name} [id:${p.id}] (${p.type}${p.client ? ', kund:' + p.client : ''})`).join('\n')
-      : 'Inga projekt.'
-
-    // Planned/idea trips
-    const tripsList = tripsRes.data || []
-    const tripsBlock = tripsList.length
-      ? tripsList.map(t => {
-          const days = t.start_date && t.end_date ? Math.round((new Date(t.end_date) - new Date(t.start_date)) / 86400000) + 1 : null
-          return `[id:${t.id}] ${t.title} (${t.status}) ${t.countries?.join(',')||''} ${t.start_date||'?'}→${t.end_date||'?'}${days ? ' ' + days + 'd' : ''}${t.budget_sek ? ' budget:' + t.budget_sek + 'kr' : ''}${t.planning_doc ? '\n  Plan: ' + t.planning_doc.slice(0, 300) + (t.planning_doc.length > 300 ? '…' : '') : ''}`
-        }).join('\n')
-      : 'Inga planerade resor eller idéer.'
-
-    const ctx = `TIDPUNKT: ${datetime}
-
-PROFIL & MÅL:
-${profileLines || '(ej konfigurerat)'}
-
-LÅNGTIDSMINNE:
-${insBlock}
-
-DAGENS SCORE (${today}):
-${scoresRes.data ? `Total:${scoresRes.data.total_score || 0} Träning:${scoresRes.data.score_training || 0} Hälsa:${scoresRes.data.score_health || 0} Plugg:${scoresRes.data.score_study || 0} Ekonomi:${scoresRes.data.score_economy || 0}` : 'Inga scores'}
-
-HÄLSODATA SENASTE 7 DAGAR:
-${healthBlock}
-
-JOURNAL SENASTE 7 ENTRIES:
-${journalBlock}
-
-TRÄNING SENASTE 10 PASS:
-${trainBlock}
-
-EKONOMI SENASTE 30 DAGAR:
-Inkomst: ${Math.round(totalInc).toLocaleString('sv-SE')} kr | Utgifter: ${Math.round(totalExp).toLocaleString('sv-SE')} kr | Netto: ${Math.round(totalInc - totalExp).toLocaleString('sv-SE')} kr
-Kategorier: ${topCats || '—'}
-CSN riktvärde: ${csnLimit.toLocaleString('sv-SE')} kr
-
-AKTIVA ERIK-UPPDRAG:
-${(tasksRes.data || []).map(t => `${t.title} [${t.tag}]${t.deadline ? ' deadline:' + t.deadline : ''}${t.status ? ' [' + t.status + ']' : ''}`).join('\n') || 'Inga aktiva uppdrag.'}
-
-KOMMANDE TENTOR:
-${upcomingExams}
-
-PROJEKT & TASKS (aktiva):
-${projectsBlock}
-
-PLANERADE RESOR & IDÉER:
-${tripsBlock}`
+    const ctx = [
+      'TID: ' + datetime,
+      score ? 'SCORE IDAG: total:' + score.total_score + ' tr:' + score.score_training + ' hä:' + score.score_health + ' pl:' + score.score_study + ' ek:' + score.score_economy + ' soc:' + score.score_social + (score.peak_mode ? ' PEAK' : '') : 'SCORE: saknas idag',
+      'HÄLSA IDAG: ' + healthLine,
+      'NÄSTA TENTOR: ' + upcomingExams,
+      'PROJEKT: ' + projectsBlock,
+      'PLANERADE RESOR: ' + tripsBlock,
+    ].join('\n')
 
     setContext(ctx)
     contextRef.current = ctx
     contextCacheTimeRef.current = Date.now()
     return ctx
   }, [user])
-
   async function loadHistory() {
     const { data } = await supabase.from('jarvis_conversations')
       .select('role,content,created_at')
@@ -405,16 +313,7 @@ ${tripsBlock}`
           })
           break
         case 'update_trip':
-          console.log('[update_trip] action payload:', JSON.stringify(d))
-          if (d.id && d.fields) {
-            const tripUpdatePayload = { ...d.fields }
-            if (d.fields.planning_doc) tripUpdatePayload.notes = d.fields.planning_doc
-            console.log('[update_trip] writing to trips id:', d.id, 'fields:', JSON.stringify(tripUpdatePayload))
-            res = await supabase.from('trips').update(tripUpdatePayload).eq('id', d.id).eq('user_id', user.id)
-            console.log('[update_trip] result:', JSON.stringify(res))
-          } else {
-            res = { error: new Error('Saknar id/fields') }
-          }
+          res = d.id && d.fields ? await supabase.from('trips').update({ ...d.fields, notes: d.fields.planning_doc || d.fields.notes }).eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id/fields') }
           break
         default:
           res = { error: new Error('Okänd action: ' + d.action) }
@@ -451,9 +350,8 @@ ${tripsBlock}`
     if (saveUserErr) console.error('Failed to save user message:', saveUserErr)
 
     try {
-      const systemPrompt = JARVIS_SYSTEM_TEMPLATE.replace('{CONTEXT}', freshCtx || contextRef.current)
       const { data, error } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: newMessages, context: freshCtx || contextRef.current, systemPrompt },
+        body: { messages: newMessages, context: freshCtx || contextRef.current },
       })
       if (error) throw error
       if (data?.error) throw new Error(data.error)
