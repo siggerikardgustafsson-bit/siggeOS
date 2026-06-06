@@ -527,14 +527,12 @@ function TripForm({ initial, onSave, onCancel, saving }) {
           <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Betyg</label>
           <StarRating value={form.rating} onChange={v => f('rating', v)} />
         </div>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Highlights</label>
-          <textarea className="input" rows={2} placeholder="Vad var bäst?" value={form.highlights} onChange={e => f('highlights', e.target.value)} style={{ resize: 'vertical' }} />
-        </div>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Anteckningar / Planering</label>
-          <textarea className="input" rows={2} placeholder="Idéer, planering, tankar..." value={form.notes} onChange={e => f('notes', e.target.value)} style={{ resize: 'vertical' }} />
-        </div>
+        {form.status === 'completed' && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Highlights</label>
+            <textarea className="input" rows={2} placeholder="Vad var bäst?" value={form.highlights} onChange={e => f('highlights', e.target.value)} style={{ resize: 'vertical' }} />
+          </div>
+        )}
       </div>
       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
         <button onClick={onCancel} className="btn btn-ghost">Avbryt</button>
