@@ -123,14 +123,14 @@ export default function Jarvis() {
     const [scoresRes, healthRes, journalRes, tasksRes, settingsRes, trainingRes, expenseRes, incomeRes, examsRes, insightsRes, projectsRes, tripsRes] = await Promise.all([
       supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', today).maybeSingle(),
       supabase.from('health_logs').select('*').eq('user_id', user.id).gte('date', since7).order('date', { ascending: false }).limit(7),
-      supabase.from('journal_entries').select('id,date,content,mood,energy,sleep_hours,social_score,ai_summary,sleep_type,sleep_note').eq('user_id', user.id).order('date', { ascending: false }).limit(7),
+      supabase.from('journal_entries').select('id,date,content,mood,energy,sleep_hours,social_score,ai_summary,sleep_type,sleep_note').eq('user_id', user.id).order('date', { ascending: false }).limit(3),
       supabase.from('erik_tasks').select('*').eq('user_id', user.id).neq('status', 'klart').limit(10),
       supabase.from('user_settings').select('about_me, goals, jarvis_personality, jarvis_style, jarvis_lang').eq('user_id', user.id).maybeSingle(),
-      supabase.from('training_sessions').select('date,session_type,duration_minutes,distance_km,feeling,notes,pace_per_km').eq('user_id', user.id).order('date', { ascending: false }).limit(10),
+      supabase.from('training_sessions').select('date,session_type,duration_minutes,distance_km,feeling,notes,pace_per_km').eq('user_id', user.id).order('date', { ascending: false }).limit(5),
       supabase.from('expense_logs').select('date,amount,category,description').eq('user_id', user.id).gte('date', since30).order('date', { ascending: false }).limit(40),
       supabase.from('income_logs').select('date,amount,source,notes').eq('user_id', user.id).gte('date', since30),
       supabase.from('course_exams').select('exam_date,name,course_id').eq('user_id', user.id).gte('exam_date', today).order('exam_date', { ascending: true }).limit(5),
-      supabase.from('jarvis_insights').select('insight, category, confidence').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(150),
+      supabase.from('jarvis_insights').select('insight, category, confidence').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(30),
       supabase.from('projects').select('id,name,type,client,color,description,notes').eq('user_id', user.id).order('created_at'),
       supabase.from('trips').select('id,title,countries,city,start_date,end_date,status,planning_doc,budget_items,budget_sek,notes').eq('user_id', user.id).in('status', ['planned','idea']).order('start_date', { ascending: true }),
     ])
@@ -165,7 +165,7 @@ export default function Jarvis() {
       return `${h.date}:${h.weight_kg ? ' vikt ' + h.weight_kg + 'kg' : ''}${h.sleep_hours ? ' sömn ' + h.sleep_hours + 'h' : ''}${h.steps ? ' steg ' + h.steps : ''}${energy ? ' energi ' + energy + '/10' : ''}${h.mood ? ' humör ' + h.mood + '/10' : ''}${h.stress_level ? ' stress ' + h.stress_level + '/10' : ''}`
     }).join('\n') || 'Ingen hälsodata senaste 7 dagarna.'
 
-    const journalBlock = (journalRes.data || []).map(j => `${j.date}: humör ${j.mood || '-'}/10 energi ${j.energy || '-'}/10${j.sleep_hours ? ' sömn ' + j.sleep_hours + 'h' : ''}${j.social_score ? ' socialt ' + j.social_score + '/10' : ''}${j.ai_summary ? '\n  AI: ' + j.ai_summary.slice(0, 220) : ''}${j.content ? '\n  "' + j.content.slice(0, 450) + (j.content.length > 450 ? '…' : '') + '"' : ''}`).join('\n') || 'Ingen journaldata.'
+    const journalBlock = (journalRes.data || []).map(j => `${j.date}: humör ${j.mood || '-'}/10 energi ${j.energy || '-'}/10${j.sleep_hours ? ' sömn ' + j.sleep_hours + 'h' : ''}${j.social_score ? ' socialt ' + j.social_score + '/10' : ''}${j.ai_summary ? '\n  AI: ' + j.ai_summary.slice(0, 220) : ''}${j.content ? '\n  "' + j.content.slice(0, 200) + (j.content.length > 200 ? '…' : '') + '"' : ''}`).join('\n') || 'Ingen journaldata.'
 
     const trainBlock = (trainingRes.data || []).map(t => `${t.date}: ${t.session_type || 'pass'}${t.duration_minutes ? ' ' + t.duration_minutes + 'min' : ''}${t.distance_km ? ' ' + t.distance_km + 'km' : ''}${t.feeling ? ' känsla:' + t.feeling + '/10' : ''}${t.notes ? ' – ' + t.notes.slice(0, 160) : ''}`).join('\n') || 'Inga pass loggade.'
 
@@ -458,8 +458,6 @@ ${tripsBlock}`
       if (error) throw error
       if (data?.error) throw new Error(data.error)
 
-      console.log('[Jarvis] raw data from edge function:', JSON.stringify(data))
-      console.log('[Jarvis] actions received:', JSON.stringify(data?.actions))
       const content = stripAccidentalActionJson(data?.content || '')
       const assistantMsg = { role: 'assistant', content: content || 'Jag fick inget svar från modellen.' }
       setMessages(prev => [...prev, assistantMsg])
