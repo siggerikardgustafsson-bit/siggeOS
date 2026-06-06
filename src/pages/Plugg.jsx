@@ -1045,7 +1045,6 @@ export default function PluggPage() {
                 const isExpanded = expandedCourse === course.id
                 const courseExams = exams[course.id] || []
                 const isEditing = editingCourse === course.id
-                const courseTasks = studyTasks[course.id] || []
                 return (
                   <div key={course.id} className="card" style={{ marginBottom: '12px', borderColor: 'rgba(139,92,246,0.2)' }}>
                     {isEditing ? (
@@ -1063,35 +1062,30 @@ export default function PluggPage() {
                         </div>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                        onClick={() => setExpandedCourse(isExpanded ? null : course.id)}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setExpandedCourse(isExpanded ? null : course.id)}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
                           <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(139,92,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <BookOpen size={15} color="#a78bfa" />
                           </div>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontWeight: '600', fontSize: '14px' }}>{course.name}</div>
-                            <div style={{ fontSize: '11px', color: '#a78bfa' }}>
-                              Extrakurrikulär{course.exam_date ? ` · ${format(parseISO(course.exam_date), 'MMM yyyy', { locale: sv })}` : ''}
-                            </div>
+                            <div style={{ fontSize: '11px', color: '#a78bfa' }}>Extrakurrikulär{course.exam_date ? ` · ${format(parseISO(course.exam_date), 'MMM yyyy', { locale: sv })}` : ''}</div>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           {course.exam_date && <CountdownBadge examDate={course.exam_date} />}
-                          <button onClick={e => { e.stopPropagation(); setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, exam_date: course.exam_date || '' }) }}
-                            style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px' }}><Edit2 size={13} /></button>
+                          <button onClick={e => { e.stopPropagation(); setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, exam_date: course.exam_date || '' }) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px' }}><Edit2 size={13} /></button>
                           {isExpanded ? <ChevronUp size={14} color="var(--muted)" /> : <ChevronDown size={14} color="var(--muted)" />}
                         </div>
                       </div>
                     )}
                     {isExpanded && !isEditing && (
                       <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
-                        <button onClick={e => { e.stopPropagation(); setStudySession({ courseId: course.id, courseName: course.name }) }}
-                          className="btn btn-primary btn-sm" style={{ marginBottom: '12px' }}>
+                        <button onClick={e => { e.stopPropagation(); setStudySession({ courseId: course.id, courseName: course.name }) }} className="btn btn-primary btn-sm" style={{ marginBottom: '12px' }}>
                           <Zap size={13} /> Starta studiesession
                         </button>
                         {courseExams.length === 0 && (
-                          <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '8px' }}>Inga tentor/delmål tillagda ännu.</div>
+                          <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '8px' }}>Inga delmål tillagda ännu.</div>
                         )}
                         {courseExams.map(exam => (
                           <div key={exam.id} style={{ marginBottom: '8px', padding: '10px 12px', background: 'var(--surface2)', borderRadius: '10px', border: '1px solid var(--border)' }}>
@@ -1109,20 +1103,17 @@ export default function PluggPage() {
                             <button onClick={() => setAddingExamTo(null)} className="btn btn-ghost btn-sm">Avbryt</button>
                           </div>
                         ) : (
-                          <button onClick={() => { setAddingExamTo(course.id); setExamForm({ name: '', exam_date: '', notes: '' }) }}
-                            style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '6px', color: 'var(--muted)', padding: '5px 10px', cursor: 'pointer', fontSize: '12px', width: '100%', marginTop: '4px', fontFamily: 'Inter, sans-serif' }}>
-                            + Lägg till moment/delmål
+                          <button onClick={() => { setAddingExamTo(course.id); setExamForm({ name: '', exam_date: '', notes: '' }) }} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '6px', color: 'var(--muted)', padding: '5px 10px', cursor: 'pointer', fontSize: '12px', width: '100%', marginTop: '4px', fontFamily: 'Inter, sans-serif' }}>
+                            + Lägg till delmål
                           </button>
                         )}
                       </div>
-                    </div>
                     )}
                   </div>
                 )
               })}
             </>
           )}
-
           <button onClick={() => setShowNewCourse(true)} className="btn btn-primary" style={{ marginTop: '8px' }}>
             <Plus size={14} /> Ny kurs
           </button>
