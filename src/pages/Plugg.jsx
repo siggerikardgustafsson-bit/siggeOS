@@ -553,11 +553,14 @@ export default function PluggPage() {
             </div>
           )}
 
-          {/* Läkarprogrammet */}
-          {courses.filter(c => c.term !== 'Extrakurrikulär').length > 0 && courses.filter(c => c.term !== 'Extrakurrikulär').length < courses.length && (
-            <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '10px', marginTop: '4px' }}>LÄKARPROGRAMMET</div>
-          )}
-          {courses.filter(c => c.term !== 'Extrakurrikulär').map(course => {
+          {[...courses].sort((a, b) => {
+            const aExtra = a.term === 'Extrakurrikulär' ? 1 : 0
+            const bExtra = b.term === 'Extrakurrikulär' ? 1 : 0
+            return aExtra - bExtra
+          }).map((course, courseIdx, sortedArr) => {
+            const prevCourse = sortedArr[courseIdx - 1]
+            const showExtraHeader = course.term === 'Extrakurrikulär' && (courseIdx === 0 || prevCourse?.term !== 'Extrakurrikulär')
+            const showLakarHeader = course.term !== 'Extrakurrikulär' && courseIdx === 0 && sortedArr.some(c => c.term === 'Extrakurrikulär')
             const isExpanded = expandedCourse === course.id
             const courseExams = exams[course.id] || []
             const doneExams = courseExams.filter(e => e.grade === 'G').length
@@ -567,7 +570,17 @@ export default function PluggPage() {
             const attendedCount = mandatoryForCourse.filter(m => m.attended).length
 
             return (
-              <div key={course.id} className="card" style={{ marginBottom: '12px' }}>
+              <div key={course.id}>
+                {showLakarHeader && (
+                  <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '10px' }}>LÄKARPROGRAMMET</div>
+                )}
+                {showExtraHeader && (
+                  <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '10px', marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>EXTRAKURRIKULÄRT</span>
+                    <div style={{ flex: 1, height: '1px', background: 'rgba(139,92,246,0.3)' }} />
+                  </div>
+                )}
+              <div className="card" style={{ marginBottom: '12px', borderColor: course.term === 'Extrakurrikulär' ? 'rgba(139,92,246,0.2)' : 'var(--border)' }}>
                 {isEditing ? (
                   <div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
@@ -603,7 +616,7 @@ export default function PluggPage() {
                           )}
                         </div>
                         <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '10px' }}>
-                          <span>{course.term}</span>
+                          <span style={{ color: course.term === 'Extrakurrikulär' ? '#a78bfa' : 'inherit' }}>{course.term}</span>
                           {daysLeft !== null && <span style={{ color: daysLeft < 14 ? '#ef4444' : daysLeft < 30 ? '#f59e0b' : 'var(--muted)' }}>{daysLeft < 0 ? 'Avslutad' : `${daysLeft}d kvar`}</span>}
                         </div>
                       </div>
@@ -1029,116 +1042,7 @@ export default function PluggPage() {
                   </>
                 )}
               </div>
-            )
-          })}
-
-          {/* Extrakurrikulärt - same full card */}
-          {courses.filter(c => c.term === 'Extrakurrikulär').length > 0 && (
-            <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '10px', marginTop: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>EXTRAKURRIKULÄRT</span>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(139,92,246,0.3)' }} />
-            </div>
-          )}
-          {courses.filter(c => c.term === 'Extrakurrikulär').map(course => {
-            const isExpanded = expandedCourse === course.id
-            const courseExams = exams[course.id] || []
-            const doneExams = courseExams.filter(e => e.grade === 'G').length
-            const isEditing = editingCourse === course.id
-            const daysLeft = course.exam_date ? differenceInDays(parseISO(course.exam_date), new Date()) : null
-            const mandatoryForCourse = mandatorySessions[course.id] || []
-            const attendedCount = mandatoryForCourse.filter(m => m.attended).length
-            return (
-              <div key={`extra-${course.id}`} className="card" style={{ marginBottom: '12px', borderColor: 'rgba(139,92,246,0.2)' }}>
-                {isEditing ? (
-                  <div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
-                      <input className="input" value={editForm.name || ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
-                      <select className="input" value={editForm.term || ''} onChange={e => setEditForm(f => ({ ...f, term: e.target.value }))}>
-                        {TERMS.map(t => <option key={t}>{t}</option>)}
-                      </select>
-                      <input className="input" type="date" value={editForm.exam_date || ''} onChange={e => setEditForm(f => ({ ...f, exam_date: e.target.value }))} />
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={async () => { await supabase.from('courses').update({ name: editForm.name, term: editForm.term, exam_date: editForm.exam_date || null }).eq('id', course.id); setEditingCourse(null); fetchCourses() }} className="btn btn-primary btn-sm"><Save size={12} /> Spara</button>
-                      <button onClick={() => setEditingCourse(null)} className="btn btn-ghost btn-sm">Avbryt</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setExpandedCourse(isExpanded ? null : course.id)}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(139,92,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <BookOpen size={16} color="#a78bfa" />
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: '700', fontSize: '15px', marginBottom: '2px' }}>{course.name}</div>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <span style={{ fontSize: '11px', color: '#a78bfa', fontWeight: '600' }}>Extrakurrikulär</span>
-                          {course.exam_date && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{format(parseISO(course.exam_date), 'MMM yyyy', { locale: sv })}</span>}
-                          {doneExams > 0 && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{doneExams}/{courseExams.length} avklarade</span>}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
-                      {course.exam_date && <CountdownBadge examDate={course.exam_date} />}
-                      <button onClick={e => { e.stopPropagation(); setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, exam_date: course.exam_date || '' }) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', opacity: 0.6 }}><Edit2 size={13} /></button>
-                      {isExpanded ? <ChevronUp size={14} color="var(--muted)" /> : <ChevronDown size={14} color="var(--muted)" />}
-                    </div>
-                  </div>
-                )}
-                {isExpanded && !isEditing && (
-                  <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
-                    <button className="btn btn-primary btn-sm" style={{ marginBottom: '12px' }} onClick={e => { e.stopPropagation(); setStudySession({ courseId: course.id, courseName: course.name }) }}><Zap size={13} /> Starta studiesession</button>
-                    {courseExams.map((exam, examIdx) => {
-                      const examGoals = goals[exam.id] || []
-                      const examMaterials = courseMaterials[exam.id] || []
-                      const isExpandedExam = expandedExam === exam.id
-                      const masteredCount = examGoals.filter(g => g.mastery >= 80).length
-                      return (
-                        <div key={exam.id} style={{ marginBottom: '12px', padding: '12px', background: 'var(--surface2)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: isExpandedExam ? '10px' : '0' }} onClick={() => setExpandedExam(isExpandedExam ? null : exam.id)}>
-                            <div style={{ fontWeight: '600', fontSize: '14px' }}>{exam.name}</div>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              {exam.exam_date && <CountdownBadge examDate={exam.exam_date} />}
-                              {isExpandedExam ? <ChevronUp size={13} color="var(--muted)" /> : <ChevronDown size={13} color="var(--muted)" />}
-                            </div>
-                          </div>
-                          {isExpandedExam && (
-                            <div>
-                              {examGoals.length > 0 && (
-                                <div style={{ marginBottom: '10px' }}>
-                                  <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>LÄRANDEMÅL ({masteredCount}/{examGoals.length} behärskade)</div>
-                                  {examGoals.slice(0, 5).map(g => (
-                                    <div key={g.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
-                                      <div style={{ width: '32px', height: '4px', borderRadius: '2px', background: `linear-gradient(90deg, ${g.mastery >= 80 ? '#10b981' : g.mastery >= 40 ? '#f59e0b' : '#ef4444'} ${g.mastery}%, var(--surface) ${g.mastery}%)` }} />
-                                      <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{g.description?.slice(0, 60)}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              <button onClick={() => setStudySession({ courseId: course.id, courseName: course.name, examId: exam.id, examName: exam.name })} className="btn btn-primary btn-sm">
-                                <Zap size={12} /> Studera detta moment
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                    {addingExamTo === course.id ? (
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
-                        <input className="input" placeholder="Namn på moment/tenta" value={examForm.name} onChange={e => setExamForm(f => ({ ...f, name: e.target.value }))} style={{ flex: 1, minWidth: '160px' }} />
-                        <input className="input" type="date" value={examForm.exam_date} onChange={e => setExamForm(f => ({ ...f, exam_date: e.target.value }))} style={{ width: '150px' }} />
-                        <button onClick={() => saveExam(course.id)} className="btn btn-primary btn-sm"><Save size={12} /> Spara</button>
-                        <button onClick={() => setAddingExamTo(null)} className="btn btn-ghost btn-sm">Avbryt</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => { setAddingExamTo(course.id); setExamForm({ name: '', exam_date: '', notes: '' }) }} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: '6px', color: 'var(--muted)', padding: '5px 10px', cursor: 'pointer', fontSize: '12px', width: '100%', marginTop: '4px', fontFamily: 'Inter, sans-serif' }}>
-                        + Lägg till moment / delmål
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
-            </div>
             )
           })}
 
