@@ -3215,8 +3215,16 @@ body,
     padding: 16px 16px 0 !important;
   }
 
-  /* Jarvis input area: clear nav bar (56px) + home indicator */
+  /* Jarvis: container height = screen minus status bar and nav bar */
+  .route-jarvis .sigge-main-scroll {
+    overflow-y: hidden !important;
+  }
+  .jarvis-container {
+    height: calc(100dvh - env(safe-area-inset-top, 0px) - 56px - env(safe-area-inset-bottom, 0px)) !important;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 56px - env(safe-area-inset-bottom, 0px)) !important;
+    margin: -10px -10px 0 -10px !important;
+  }
   .jarvis-input-area {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: 0 !important;
   }
 }
