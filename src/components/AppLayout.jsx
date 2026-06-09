@@ -31,7 +31,7 @@ export default function AppLayout() {
       display: 'flex',
       height: '100dvh',
       overflow: 'hidden',
-      padding: 'env(safe-area-inset-top) 0 0 0',
+      paddingTop: 'env(safe-area-inset-top, 0px)',
       gap: '0',
       boxSizing: 'border-box',
     }}>
