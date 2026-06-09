@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useToast } from '../context/ToastContext'
 import { format, subDays, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Loader, Upload, Apple, X, Plus, Edit2, Check, Scale, Moon, Wine, Syringe, Utensils, Pill } from 'lucide-react'
@@ -47,6 +48,7 @@ function SaveBtn({ onClick, saving, saved }) {
 
 export default function HalsaPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const fileRef = useRef()
   const [logs, setLogs] = useState([])
   const [supplementLogs, setSupplementLogs] = useState([])
@@ -177,7 +179,7 @@ export default function HalsaPage() {
 
     if (error) {
       console.error('Kunde inte spara kosttillskott', error)
-      alert('Kunde inte spara kosttillskott. Se Console för exakt fel.')
+      toast({ message: 'Kunde inte spara kosttillskott', type: 'error' })
     } else {
       await fetchSupplementLogs()
       setSavedWidget(s => ({ ...s, supps: true }))
@@ -239,7 +241,7 @@ export default function HalsaPage() {
 
     if (healthError) {
       console.error('Kunde inte uppdatera health_logs', healthError)
-      alert('Kunde inte spara hälsologgen. Se Console för exakt fel.')
+      toast({ message: 'Kunde inte spara hälsologgen', type: 'error' })
       return
     }
 
@@ -258,7 +260,7 @@ export default function HalsaPage() {
 
     if (suppError) {
       console.error('Kunde inte uppdatera supplement_logs', suppError)
-      alert('Kunde inte spara kosttillskott. Se Console för exakt fel.')
+      toast({ message: 'Kunde inte spara kosttillskott', type: 'error' })
       return
     }
 

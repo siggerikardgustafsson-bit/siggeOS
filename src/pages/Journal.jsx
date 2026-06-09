@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useToast } from '../context/ToastContext'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, subMonths, addMonths, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Plus, Save, Loader, BookOpen, X, Edit2, Calendar, Music, Languages, ChevronDown, ChevronUp, Search } from 'lucide-react'
@@ -76,6 +77,7 @@ function CalendarDay({ date, hasEntry, isSelected, onClick }) {
 
 export default function JournalPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [entries, setEntries] = useState([])
@@ -236,12 +238,21 @@ export default function JournalPage() {
     setSaving(false)
   }
 
-  async function deleteEntry(entryId) {
-    if (!confirm('Ta bort denna entry?')) return
-    await supabase.from('journal_entries').delete().eq('id', entryId)
-    await fetchSelectedEntries()
-    await fetchMonthEntries()
+  function deleteEntry(entryId) {
+    setSelectedEntries(prev => prev.filter(e => e.id !== entryId))
     setViewEntry(null)
+    let undone = false
+    toast({
+      message: 'Journal-entry borttagen',
+      duration: 5000,
+      action: { label: 'Ångra', onClick: () => { undone = true; fetchSelectedEntries() } },
+    })
+    setTimeout(async () => {
+      if (!undone) {
+        await supabase.from('journal_entries').delete().eq('id', entryId)
+        fetchMonthEntries()
+      }
+    }, 5000)
   }
 
   async function updateJournalScore(dateStr, formData) {
@@ -264,8 +275,14 @@ export default function JournalPage() {
       })
       if (data?.content) {
         let analysis
-        try { analysis = JSON.parse(data.content.replace(/```json|```/g, '').trim()) }
-        catch { setAnalyzing(false); return }
+        const raw = data.content.trim()
+        try {
+          analysis = JSON.parse(raw)
+        } catch {
+          const block = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
+          try { analysis = JSON.parse(block ? block[1].trim() : raw.match(/\{[\s\S]*\}/)?.[0] || '{}') }
+          catch { setAnalyzing(false); return }
+        }
         await supabase.from('journal_entries').update({
           ai_extracted_people: analysis.people || [], ai_extracted_activities: analysis.activities || [],
           ai_extracted_keywords: analysis.keywords || [], ai_summary: analysis.jarvis_comment || '',
@@ -280,7 +297,7 @@ export default function JournalPage() {
         }
         await fetchSelectedEntries()
       }
-    } catch (err) { console.error('AI analysis failed:', err) }
+    } catch (err) { console.error('AI analysis failed:', err); toast({ message: 'Jarvis-analys misslyckades', type: 'error' }) }
     setAnalyzing(false)
   }
 

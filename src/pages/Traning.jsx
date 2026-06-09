@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useToast } from '../context/ToastContext'
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, addMonths, subMonths, parseISO, isSameMonth } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight, RefreshCw, Link, Upload, Search, Edit3, Library, Check } from 'lucide-react'
@@ -98,6 +99,7 @@ function WeekBar({ sessions }) {
 
 export default function TraningPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [searchParams, setSearchParams] = useSearchParams()
   const [view, setView] = useState('overview') // overview | log
   const [sessionType, setSessionType] = useState('gym')
@@ -372,7 +374,7 @@ export default function TraningPage() {
       await Promise.all([fetchExerciseLibrary(), fetchSessions(), fetchPRs()])
     } catch (error) {
       console.error(error)
-      alert('Kunde inte spara övningen. Kontrollera att SQL-migrationen är körd och att inga dubletter finns.')
+      toast({ message: 'Kunde inte spara övningen — kontrollera dubletter', type: 'error' })
     }
     setSavingLibraryExercise(false)
   }
@@ -591,8 +593,20 @@ export default function TraningPage() {
     setEditingSession(prev => ({ ...prev, exercises: prev.exercises.map((ex, i) => i !== exIdx ? ex : { ...ex, sets: ex.sets.filter((_, si) => si !== setIdx) }) }))
   }
   function deleteSession(id) {
-    if (!window.confirm('Ta bort detta pass?')) return
-    supabase.from('training_sessions').delete().eq('id', id).then(() => fetchSessions())
+    // Optimistic removal
+    setSessions(prev => prev.filter(s => s.id !== id))
+    let undone = false
+    const tid = toast({
+      message: 'Pass borttaget',
+      duration: 5000,
+      action: {
+        label: 'Ångra',
+        onClick: () => { undone = true; fetchSessions() },
+      },
+    })
+    setTimeout(() => {
+      if (!undone) supabase.from('training_sessions').delete().eq('id', id)
+    }, 5000)
   }
 
   async function fetchSessions() {
@@ -1094,21 +1108,14 @@ export default function TraningPage() {
     setShowRunModal(true)
   }
 
-  const recentSessions = sessions.slice(0, 10)
-  const thisWeekSessions = sessions.filter(s => {
-    const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
-    return s.date >= weekStart
-  })
-  const progressive = getProgressiveOverloadData()
+  const recentSessions = useMemo(() => sessions.slice(0, 10), [sessions])
 
-  const prSearch = allPrSearch.trim().toLowerCase()
-  const filteredStrengthPrs = [...prs]
-    .filter(pr => !prSearch || String(pr.exercise_name || '').toLowerCase().includes(prSearch))
-    .sort((a, b) => {
-      if (allPrSort === 'name') return String(a.exercise_name || '').localeCompare(String(b.exercise_name || ''))
-      if (allPrSort === 'value') return Number(b.weight_kg || 0) - Number(a.weight_kg || 0)
-      return String(b.date || '').localeCompare(String(a.date || ''))
-    })
+  const thisWeekSessions = useMemo(() => {
+    const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+    return sessions.filter(s => s.date >= weekStart)
+  }, [sessions])
+
+  const progressive = useMemo(() => getProgressiveOverloadData(), [sessions, libraryExercises]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const runKeyLabels = {
     '1k': '1 km',
@@ -1117,15 +1124,25 @@ export default function TraningPage() {
     'half_marathon': 'Halvmaraton',
   }
 
-  const featuredStrengthPrs = FEATURED_STRENGTH_PBS.map(feature => ({
+  const prSearch = allPrSearch.trim().toLowerCase()
+
+  const filteredStrengthPrs = useMemo(() => [...prs]
+    .filter(pr => !prSearch || String(pr.exercise_name || '').toLowerCase().includes(prSearch))
+    .sort((a, b) => {
+      if (allPrSort === 'name') return String(a.exercise_name || '').localeCompare(String(b.exercise_name || ''))
+      if (allPrSort === 'value') return Number(b.weight_kg || 0) - Number(a.weight_kg || 0)
+      return String(b.date || '').localeCompare(String(a.date || ''))
+    }), [prs, prSearch, allPrSort])
+
+  const featuredStrengthPrs = useMemo(() => FEATURED_STRENGTH_PBS.map(feature => ({
     ...feature,
     pr: prs.find(pr => {
       const name = String(pr.exercise_name || '').trim().toLowerCase()
       return feature.aliases.some(alias => name === alias || name.includes(alias))
     }) || null,
-  }))
+  })), [prs])
 
-  const filteredRunEfforts = [...runEfforts]
+  const filteredRunEfforts = useMemo(() => [...runEfforts]
     .filter(effort => {
       const label = runKeyLabels[effort.distance_key] || effort.label || effort.distance_key
       return !prSearch || String(label || '').toLowerCase().includes(prSearch) || String(effort.date || '').includes(prSearch)
@@ -1134,7 +1151,7 @@ export default function TraningPage() {
       if (allPrSort === 'name') return String(runKeyLabels[a.distance_key] || a.label || '').localeCompare(String(runKeyLabels[b.distance_key] || b.label || ''))
       if (allPrSort === 'value') return Number(a.time_seconds || 999999999) - Number(b.time_seconds || 999999999)
       return String(b.date || '').localeCompare(String(a.date || ''))
-    })
+    }), [runEfforts, prSearch, allPrSort])
 
   return (
     <div className="page-wrap">

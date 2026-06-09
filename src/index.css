@@ -90,6 +90,19 @@
 [data-accent="cyan"]   { --accent: #22d3ee; --accent-soft: rgba(34,211,238,0.12);  --accent-border: rgba(34,211,238,0.25);  --accent-glow: rgba(34,211,238,0.35);  --accent2: #34d399; }
 
 /* ============================================================
+   TOAST ANIMATION
+   ============================================================ */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ============================================================
    RESET & BASE
    ============================================================ */
 * { box-sizing: border-box; margin: 0; padding: 0; }

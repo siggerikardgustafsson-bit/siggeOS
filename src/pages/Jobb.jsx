@@ -117,25 +117,46 @@ const TAG_COLORS = {
   'Personal':            '#10b981',
 }
 
-function KanbanColumn({ title, color, tasks, onEdit, onMove, onDelete }) {
+function KanbanColumn({ title, color, statusId, tasks, onEdit, onMove, onDelete, onDrop }) {
+  const [dragOver, setDragOver] = useState(false)
+
   return (
-    <div style={{ flex: 1, minWidth: '0' }}>
+    <div
+      style={{ flex: 1, minWidth: '0' }}
+      onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => { e.preventDefault(); setDragOver(false); const id = e.dataTransfer.getData('taskId'); if (id) onDrop(id, statusId) }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: color }} />
         <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--muted)' }}>{title}</div>
         <div style={{ fontSize: '11px', color: 'var(--muted)', marginLeft: 'auto' }}>{tasks.length}</div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '60px' }}>
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: '8px', minHeight: '60px',
+        borderRadius: '10px', padding: dragOver ? '6px' : '0',
+        background: dragOver ? color + '0a' : 'transparent',
+        border: dragOver ? `1px dashed ${color}50` : '1px solid transparent',
+        transition: 'all 0.15s',
+      }}>
         {tasks.map(task => {
           const daysLeft = task.deadline ? Math.ceil((new Date(task.deadline) - new Date()) / 86400000) : null
           const urgent = daysLeft !== null && daysLeft <= 2 && task.status !== 'klart'
           const tagColor = TAG_COLORS[task.tag] || '#6b7280'
           return (
-            <div key={task.id} className="card-sm" style={{
-              cursor: 'pointer',
-              borderColor: urgent ? 'rgba(239,68,68,0.3)' : 'var(--border)',
-              background: urgent ? 'rgba(239,68,68,0.04)' : 'var(--surface2)',
-            }} onClick={() => onEdit(task)}>
+            <div
+              key={task.id}
+              className="card-sm"
+              draggable
+              onDragStart={e => { e.dataTransfer.setData('taskId', task.id); e.currentTarget.style.opacity = '0.5' }}
+              onDragEnd={e => { e.currentTarget.style.opacity = '1' }}
+              style={{
+                cursor: 'grab',
+                borderColor: urgent ? 'rgba(239,68,68,0.3)' : 'var(--border)',
+                background: urgent ? 'rgba(239,68,68,0.04)' : 'var(--surface2)',
+              }}
+              onClick={() => onEdit(task)}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                 <div style={{ fontSize: '13px', fontWeight: '500', lineHeight: '1.4', flex: 1, marginRight: '8px' }}>{task.title}</div>
                 <button onClick={e => { e.stopPropagation(); onDelete(task.id) }}
@@ -156,21 +177,80 @@ function KanbanColumn({ title, color, tasks, onEdit, onMove, onDelete }) {
                     {daysLeft < 0 ? 'Försenad' : daysLeft === 0 ? 'Idag' : `${daysLeft}d`}
                   </span>
                 )}
-                <div style={{ display: 'flex', gap: '4px', marginLeft: 'auto' }}>
-                  {TASK_STATUSES.filter(s => s.id !== task.status).map(s => (
-                    <button key={s.id} onClick={e => { e.stopPropagation(); onMove(task.id, s.id) }}
-                      style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px',
-                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                        color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}>
-                      → {s.label}
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function ProjectKanban({ tasks, onEdit, onMove, onDelete }) {
+  const [dragOver, setDragOver] = useState(null)
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      {TASK_STATUSES.map(col => {
+        const colTasks = tasks.filter(t => t.status === col.id)
+        const isOver = dragOver === col.id
+        return (
+          <div
+            key={col.id}
+            onDragOver={e => { e.preventDefault(); setDragOver(col.id) }}
+            onDragLeave={() => setDragOver(null)}
+            onDrop={e => { e.preventDefault(); setDragOver(null); const id = e.dataTransfer.getData('taskId'); if (id) onMove(id, col.id) }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>{col.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>{colTasks.length}</div>
+            </div>
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 8, minHeight: 60,
+              borderRadius: 10, padding: isOver ? 6 : 0,
+              background: isOver ? col.color + '0a' : 'transparent',
+              border: isOver ? `1px dashed ${col.color}50` : '1px solid transparent',
+              transition: 'all 0.15s',
+            }}>
+              {colTasks.map(task => {
+                const daysLeft = task.deadline ? Math.ceil((new Date(task.deadline) - new Date()) / 86400000) : null
+                const urgent = daysLeft !== null && daysLeft <= 2 && task.status !== 'klart'
+                const prioColor = task.priority === 'high' ? '#ef4444' : task.priority === 'medium' ? '#f59e0b' : '#6b7280'
+                return (
+                  <div
+                    key={task.id}
+                    className="card-sm"
+                    draggable
+                    onDragStart={e => { e.dataTransfer.setData('taskId', task.id); e.currentTarget.style.opacity = '0.5' }}
+                    onDragEnd={e => { e.currentTarget.style.opacity = '1' }}
+                    style={{ cursor: 'grab', borderColor: urgent ? 'rgba(239,68,68,0.3)' : 'var(--border)', background: urgent ? 'rgba(239,68,68,0.04)' : 'var(--surface2)' }}
+                    onClick={() => onEdit(task)}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.4, flex: 1, marginRight: 6 }}>{task.title}</div>
+                      <button onClick={e => { e.stopPropagation(); onDelete(task.id) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: 0, flexShrink: 0 }}>
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: prioColor }} />
+                        {daysLeft !== null && (
+                          <span style={{ fontSize: 11, color: urgent ? '#ef4444' : daysLeft <= 7 ? '#f59e0b' : 'var(--muted)' }}>
+                            {daysLeft < 0 ? 'Försenad' : daysLeft === 0 ? 'Idag' : `${daysLeft}d`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {task.description && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5, lineHeight: 1.4 }}>{task.description.slice(0, 80)}{task.description.length > 80 ? '…' : ''}</div>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -900,61 +980,12 @@ export default function JobbPage() {
                   </button>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                  {TASK_STATUSES.map(col => {
-                    const colTasks = projectTasks.filter(t => t.status === col.id)
-                    return (
-                      <div key={col.id}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.color }} />
-                          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)' }}>{col.label}</div>
-                          <div style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>{colTasks.length}</div>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 60 }}>
-                          {colTasks.map(task => {
-                            const daysLeft = task.deadline ? Math.ceil((new Date(task.deadline) - new Date()) / 86400000) : null
-                            const urgent = daysLeft !== null && daysLeft <= 2 && task.status !== 'klart'
-                            const prioColor = task.priority === 'high' ? '#ef4444' : task.priority === 'medium' ? '#f59e0b' : '#6b7280'
-                            return (
-                              <div key={task.id} className="card-sm" style={{
-                                cursor: 'pointer',
-                                borderColor: urgent ? 'rgba(239,68,68,0.3)' : 'var(--border)',
-                                background: urgent ? 'rgba(239,68,68,0.04)' : 'var(--surface2)',
-                              }} onClick={() => { setEditingProjectTask(task); setProjectTaskForm({ title: task.title, description: task.description || '', deadline: task.deadline || '', priority: task.priority || 'medium', notes: task.notes || '' }); setShowNewProjectTask(false) }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
-                                  <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.4, flex: 1, marginRight: 6 }}>{task.title}</div>
-                                  <button onClick={e => { e.stopPropagation(); deleteProjectTask(task.id) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: 0, flexShrink: 0 }}>
-                                    <X size={12} />
-                                  </button>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: prioColor }} />
-                                    {daysLeft !== null && (
-                                      <span style={{ fontSize: 11, color: urgent ? '#ef4444' : daysLeft <= 7 ? '#f59e0b' : 'var(--muted)' }}>
-                                        {daysLeft < 0 ? 'Försenad' : daysLeft === 0 ? 'Idag' : `${daysLeft}d`}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 3 }}>
-                                    {TASK_STATUSES.filter(s => s.id !== task.status).map(s => (
-                                      <button key={s.id} onClick={e => { e.stopPropagation(); moveProjectTask(task.id, s.id) }} style={{
-                                        fontSize: 10, padding: '2px 5px', borderRadius: 4,
-                                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                                        color: 'var(--muted)', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                                      }}>→ {s.label}</button>
-                                    ))}
-                                  </div>
-                                </div>
-                                {task.description && <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 5, lineHeight: 1.4 }}>{task.description.slice(0, 80)}{task.description.length > 80 ? '…' : ''}</div>}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                <ProjectKanban
+                  tasks={projectTasks}
+                  onEdit={task => { setEditingProjectTask(task); setProjectTaskForm({ title: task.title, description: task.description || '', deadline: task.deadline || '', priority: task.priority || 'medium', notes: task.notes || '' }); setShowNewProjectTask(false) }}
+                  onMove={moveProjectTask}
+                  onDelete={deleteProjectTask}
+                />
               )}
             </>
           )}

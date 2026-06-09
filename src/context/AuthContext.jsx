@@ -3,11 +3,16 @@ import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
 
+const DEV_USER = import.meta.env.VITE_DEV_USER
+  ? { id: import.meta.env.VITE_DEV_USER, email: 'dev@local', role: 'authenticated' }
+  : null
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(DEV_USER)
+  const [loading, setLoading] = useState(!DEV_USER)
 
   useEffect(() => {
+    if (DEV_USER) return
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       setLoading(false)

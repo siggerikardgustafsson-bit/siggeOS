@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { subDays, format } from 'date-fns'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
 import { supabase } from '../lib/supabase'
@@ -194,7 +194,7 @@ export default function Dashboard() {
   const [userId, setUserId] = useState(null)
   const [graphPeriod, setGraphPeriod] = useState('30d')
   const [activeGraphCats, setActiveGraphCats] = useState(['somn','valmående','plugg'])
-  const [tierHistory, setTierHistory] = useState([])
+  const [rawGraphData, setRawGraphData] = useState({ healthData: [], snapshots: [] })
   const [refreshKey, setRefreshKey] = useState(0)
 
   const todayDate = new Date()
@@ -831,54 +831,41 @@ export default function Dashboard() {
       supabase.from('tier_snapshots').upsert(todaySnap, { onConflict: 'user_id,date' })
         .then(() => {}).catch(() => {}) // fire-and-forget, table may not exist yet
 
-      // ── Build graph history ────────────────────────────────────────────
-      // For sömn + välmående: compute retroactively from health_logs (accurate)
-      // For kondition/styrka/plugg/ekonomi: use snapshots table
-      const snapshotMap = {}
-      for (const s of (snapshots || [])) {
-        snapshotMap[s.date] = s
-      }
-
-      const days = graphPeriod==='7d'?7:graphPeriod==='30d'?30:graphPeriod==='90d'?90:180
-
-      // Build day-by-day array for the graph period
-      const hist = []
-      for (let i = days - 1; i >= 0; i--) {
-        const d = format(subDays(todayDate, i), 'yyyy-MM-dd')
-        const pt = { date: d.slice(5) } // MM-DD
-
-        // Sömn + välmående from health_logs (retroactive)
-        const hl = (healthData||[]).find(h => h.date === d)
-        if (hl?.sleep_hours) {
-          const t = getTier(hl.sleep_hours, SLEEP_DURATION_THRESHOLDS, true)
-          if (t) pt['somn'] = t.tier
-        }
-        if (hl?.energy_level ?? hl?.energy) {
-          const t = getTier(hl.energy_level ?? hl.energy, ENERGY_THRESHOLDS, true)
-          if (t) pt['valmående'] = t.tier
-        }
-
-        // kondition/styrka/plugg/ekonomi from snapshots
-        const snap = snapshotMap[d]
-        if (snap) {
-          if (snap.kondition) pt['kondition'] = snap.kondition
-          if (snap.styrka)    pt['styrka']    = snap.styrka
-          if (snap.plugg)     pt['plugg']     = snap.plugg
-          if (snap.ekonomi)   pt['ekonomi']   = snap.ekonomi
-        }
-
-        // Only include days that have at least one value
-        if (Object.keys(pt).length > 1) hist.push(pt)
-      }
-      setTierHistory(hist)
+      // Store raw data for graph — computed reactively via useMemo when graphPeriod changes
+      setRawGraphData({ healthData: healthData || [], snapshots: snapshots || [] })
       const maxx = buildMaxxProfile(cats)
       setMaxxProfile(maxx)
       setOverallTier(maxx?.tier?.tier || calcOverallTier(cats.filter(c=>c.tier&&c.hasData).map(c=>({tier:c.tier.tier}))))
     } catch(e){ console.error('Dashboard error:',e) }
     finally { setLoading(false) }
-  }, [userId, refreshKey, graphPeriod])
+  }, [userId, refreshKey])
 
   useEffect(() => { fetchAllData() }, [fetchAllData])
+
+  // Graph history computed from cached raw data — no refetch needed on period change
+  const tierHistory = useMemo(() => {
+    const { healthData, snapshots } = rawGraphData
+    const snapshotMap = {}
+    for (const s of snapshots) snapshotMap[s.date] = s
+    const days = graphPeriod==='7d'?7:graphPeriod==='30d'?30:graphPeriod==='90d'?90:180
+    const hist = []
+    for (let i = days - 1; i >= 0; i--) {
+      const d = format(subDays(new Date(), i), 'yyyy-MM-dd')
+      const pt = { date: d.slice(5) }
+      const hl = healthData.find(h => h.date === d)
+      if (hl?.sleep_hours) { const t = getTier(hl.sleep_hours, SLEEP_DURATION_THRESHOLDS, true); if (t) pt['somn'] = t.tier }
+      if (hl?.energy_level ?? hl?.energy) { const t = getTier(hl.energy_level ?? hl.energy, ENERGY_THRESHOLDS, true); if (t) pt['valmående'] = t.tier }
+      const snap = snapshotMap[d]
+      if (snap) {
+        if (snap.kondition) pt['kondition'] = snap.kondition
+        if (snap.styrka)    pt['styrka']    = snap.styrka
+        if (snap.plugg)     pt['plugg']     = snap.plugg
+        if (snap.ekonomi)   pt['ekonomi']   = snap.ekonomi
+      }
+      if (Object.keys(pt).length > 1) hist.push(pt)
+    }
+    return hist
+  }, [rawGraphData, graphPeriod])
 
   const oColor = overallTier ? (TIER_COLORS[overallTier]||'#6b7280') : '#6b7280'
   const oLabel = overallTier ? TIER_NAMES[overallTier] : '—'
@@ -960,7 +947,15 @@ export default function Dashboard() {
 
           {/* CATEGORY CARDS */}
           {loading ? (
-            <div style={{ color:'var(--muted)', fontSize:'14px', padding:'60px 0', textAlign:'center' }}>Laddar...</div>
+            <div className="grid-4 dashboard-category-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:'12px' }}>
+              {[...Array(6)].map((_,i) => (
+                <div key={i} className="widget" style={{ padding:'18px', minHeight:'120px', animation:`skeleton-pulse 1.4s ${i*0.12}s ease-in-out infinite` }}>
+                  <div style={{ height:10, width:'40%', borderRadius:6, background:'rgba(255,255,255,0.06)', marginBottom:10 }} />
+                  <div style={{ height:28, width:'55%', borderRadius:6, background:'rgba(255,255,255,0.06)', marginBottom:12 }} />
+                  <div style={{ height:8, width:'80%', borderRadius:6, background:'rgba(255,255,255,0.04)' }} />
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="grid-4 dashboard-category-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:'12px' }}>
               {categories.map((cat,i) => (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useToast } from '../context/ToastContext'
 import { format, differenceInDays, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import {
@@ -26,8 +27,23 @@ function CountdownBadge({ examDate }) {
   )
 }
 
+function extractJsonFromText(text) {
+  if (!text) return null
+  const clean = text.trim()
+  // Try direct parse first
+  try { return JSON.parse(clean) } catch {}
+  // Extract from code block
+  const block = clean.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (block) { try { return JSON.parse(block[1].trim()) } catch {} }
+  // Extract first {...} object
+  const obj = clean.match(/\{[\s\S]*\}/)
+  if (obj) { try { return JSON.parse(obj[0]) } catch {} }
+  return null
+}
+
 export default function PluggPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('aktiva')
   const [courses, setCourses] = useState([])
   const [archivedCourses, setArchivedCourses] = useState([])
@@ -390,13 +406,18 @@ export default function PluggPage() {
         body: { messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }, { type: 'text', text: 'Extrahera alla lärandemål. Returnera JSON: {"goals": ["mål 1", ...]}. Bara JSON.' }] }], context: '', systemPrompt: 'Extrahera lärandemål. Returnera bara JSON.' }
       })
       if (data?.content) {
-        try {
-          const parsed = JSON.parse(data.content.replace(/```json|```/g, '').trim())
-          if (parsed.goals?.length > 0) {
-            for (const goal of parsed.goals) await supabase.from('learning_goals').insert({ user_id: user.id, course_id: courseId, exam_id: examId, description: goal, source_file: file.name })
-            await fetchCourses()
+        const parsed = extractJsonFromText(data.content)
+        if (parsed?.goals?.length > 0) {
+          for (const goal of parsed.goals) {
+            await supabase.from('learning_goals').insert({ user_id: user.id, course_id: courseId, exam_id: examId, description: goal, source_file: file.name })
           }
-        } catch(err) {}
+          await fetchCourses()
+          toast({ message: `${parsed.goals.length} lärandemål extraherade`, type: 'success' })
+        } else {
+          toast({ message: 'Kunde inte hitta lärandemål i PDF:en', type: 'error' })
+        }
+      } else {
+        toast({ message: 'Jarvis svarade inte — försök igen', type: 'error' })
       }
       setUploadingGoalsPdf(null)
     }
