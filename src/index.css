@@ -101,6 +101,7 @@ body, #root { height: 100%; }
 .sigge-app-shell {
   padding-top: env(safe-area-inset-top, 0px) !important;
   height: 100dvh !important;
+  overflow: clip !important;
   box-sizing: border-box !important;
 }
 
@@ -3211,14 +3212,17 @@ body,
     padding: 16px 16px 0 !important;
   }
 
-  /* Jarvis: container height = screen minus status bar and nav bar */
+  /* Jarvis: fill exact space between safe-area-top and nav */
   .route-jarvis .sigge-main-scroll {
-    overflow-y: hidden !important;
+    overflow: hidden !important;
+    padding: 0 !important;
   }
   .jarvis-container {
     height: calc(100dvh - env(safe-area-inset-top, 0px) - 56px - env(safe-area-inset-bottom, 0px)) !important;
     max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 56px - env(safe-area-inset-bottom, 0px)) !important;
-    margin: -10px -10px 0 -10px !important;
+    margin: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
   .jarvis-input-area {
     padding-bottom: 0 !important;
