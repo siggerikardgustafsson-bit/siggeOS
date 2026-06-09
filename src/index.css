@@ -94,7 +94,8 @@
    ============================================================ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body, #root { height: 100%; }
+html { height: 100dvh; background-color: var(--bg); }
+body, #root { height: 100%; }
 
 body {
   background-color: var(--bg);
@@ -3205,5 +3206,10 @@ body,
   /* Modal header padding */
   .modal-header-mobile {
     padding: 16px 16px 0 !important;
+  }
+
+  /* Jarvis input area: pad above home indicator */
+  .jarvis-input-area {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 4px) !important;
   }
 }

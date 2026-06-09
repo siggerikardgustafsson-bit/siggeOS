@@ -29,9 +29,9 @@ export default function AppLayout() {
   return (
     <div className={`sigge-app-shell maxxit-app-shell ${routeClass(location.pathname)}`} style={{
       display: 'flex',
-      height: '100vh',
+      height: '100dvh',
       overflow: 'hidden',
-      padding: '0',
+      padding: 'env(safe-area-inset-top) 0 0 0',
       gap: '0',
       boxSizing: 'border-box',
     }}>
