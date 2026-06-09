@@ -1606,8 +1606,6 @@ small {
   .show-mobile { display: block !important; }
 
   .sigge-main-scroll {
-    height: 100dvh !important;
-    max-height: 100dvh !important;
     padding: 8px 8px calc(96px + env(safe-area-inset-bottom)) 8px !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
@@ -2645,8 +2643,6 @@ small {
   .show-mobile { display: block !important; }
 
   .sigge-main-scroll {
-    height: 100dvh !important;
-    max-height: 100dvh !important;
     padding: 8px 8px calc(96px + env(safe-area-inset-bottom)) 8px !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
