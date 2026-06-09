@@ -1754,7 +1754,7 @@ export default function TraningPage() {
       {view === 'log' && (
         <div className="card">
           {/* Session type selector */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '24px' }}>
+          <div className="traning-log-type-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '24px' }}>
             {SESSION_TYPES.map(type => {
               const Icon = type.icon
               return (

@@ -467,7 +467,7 @@ export default function HalsaPage() {
                   <label htmlFor="fasting" style={{ fontSize:'13px', cursor:'pointer', color:'var(--text)' }}> Fastedag</label>
                 </div>
                 {!nutritionForm.fasting && (
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
+                  <div className="halsa-nutrient-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'8px' }}>
                     {[['Kalorier', 'calories', 'kcal'], ['Protein (g)', 'protein_g', 'g'], ['Vatten (l)', 'water_liters', 'l']].map(([label, key, unit]) => (
                       <div key={key}>
                         <div style={{ fontSize:'10px', color:'var(--muted)', marginBottom:'4px' }}>{label}</div>

@@ -3129,3 +3129,81 @@ body,
     padding-right: 8px !important;
   }
 }
+
+/* ============================================================
+   MOBILE RESPONSIVE FIXES — additional grid & modal fixes
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Dashboard: Maxx Score row stacks vertically */
+  .dashboard-maxx-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Dashboard: category cards → 2 columns on mobile */
+  .dashboard-category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  /* Jobb: stat boxes → 2 columns */
+  .jobb-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Träning: analysis layout stacks */
+  .training-v2-grid,
+  .mob-1col {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Träning: session type selector → 2 columns */
+  .traning-log-type-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Plugg: stats row → 2 columns */
+  .plugg-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Plugg: deadline row → name + date stacked, button inline */
+  .plugg-deadline-row {
+    grid-template-columns: 1fr auto !important;
+    grid-template-rows: auto auto !important;
+  }
+  .plugg-deadline-row input[type="date"] {
+    grid-column: 1 / 2 !important;
+  }
+  .plugg-deadline-row .btn-icon {
+    grid-row: 1 / 2 !important;
+    grid-column: 2 / 3 !important;
+    align-self: center !important;
+  }
+
+  /* Hälsa: nutrition inputs → 1 column */
+  .halsa-nutrient-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Tables: horizontal scroll */
+  .table-scroll-wrap {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modals: reduce overlay padding on mobile */
+  .modal-overlay-mobile {
+    padding: 8px !important;
+    align-items: flex-end !important;
+  }
+
+  /* Modal panels: full width, larger height, rounded top only */
+  .modal-panel-mobile {
+    max-height: calc(96dvh - env(safe-area-inset-bottom)) !important;
+    border-radius: 20px 20px 12px 12px !important;
+  }
+
+  /* Modal header padding */
+  .modal-header-mobile {
+    padding: 16px 16px 0 !important;
+  }
+}

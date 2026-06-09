@@ -982,7 +982,8 @@ export default function JobbPage() {
             </div>
           ) : (
             <div className="card">
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <div className="table-scroll-wrap">
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '420px' }}>
                 <thead>
                   <tr style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
                     {['Datum', 'Start', 'Slut', 'Timmar', 'Typ', 'Est. lön'].map(h => (
@@ -1014,6 +1015,7 @@ export default function JobbPage() {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>

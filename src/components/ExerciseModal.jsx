@@ -115,7 +115,7 @@ export default function ExerciseModal({ exerciseName, onClose }) {
       background: 'rgba(0,0,0,0.65)',
       backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '24px',
+      padding: 'clamp(8px, 3vw, 24px)',
     }} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{
         background: 'var(--surface)',
@@ -123,14 +123,14 @@ export default function ExerciseModal({ exerciseName, onClose }) {
         border: '1px solid var(--border)',
         borderRadius: '20px',
         width: '100%', maxWidth: '700px',
-        maxHeight: '88vh',
+        maxHeight: 'min(88vh, calc(100dvh - 16px))',
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
         overflow: 'hidden',
       }}>
 
         {/* Header */}
-        <div style={{ padding: '20px 24px 0', flexShrink: 0 }}>
+        <div style={{ padding: 'clamp(14px, 3vw, 20px) clamp(14px, 3vw, 24px) 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: '20px', fontWeight: '700', letterSpacing: '-0.3px' }}>{exerciseName}</div>

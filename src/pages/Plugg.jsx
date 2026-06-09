@@ -707,7 +707,7 @@ export default function PluggPage() {
                               <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '6px' }}>DEADLINES / MILESTONES</div>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
                                 {taskForm.deadlines.map((deadline, index) => (
-                                  <div key={index} style={{ display: 'grid', gridTemplateColumns: '1fr 170px auto', gap: '8px', alignItems: 'center' }}>
+                                  <div key={index} className="plugg-deadline-row" style={{ display: 'grid', gridTemplateColumns: '1fr 170px auto', gap: '8px', alignItems: 'center' }}>
                                     <input className="input" placeholder="Namn, t.ex. Läs kapitel 4" value={deadline.name} onChange={e => updateTaskDeadlineField(index, 'name', e.target.value)} />
                                     <input className="input" type="date" value={deadline.due_date} onChange={e => updateTaskDeadlineField(index, 'due_date', e.target.value)} />
                                     <button onClick={() => removeTaskDeadlineField(index)} className="btn btn-ghost btn-icon" type="button"><X size={13} /></button>
@@ -1202,7 +1202,7 @@ export default function PluggPage() {
       {/* ===== STUDIELOGG ===== */}
       {activeTab === 'session' && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+          <div className="plugg-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
             {[
               { label: 'Denna vecka', value: `${thisWeekHours.toFixed(1)}h`, color: '#f59e0b' },
               { label: 'Totalt loggat', value: `${totalStudyHours.toFixed(1)}h`, color: '#3b82f6' },
