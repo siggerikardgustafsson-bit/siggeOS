@@ -833,14 +833,14 @@ export default function PluggPage() {
 
                                 {/* File manager panel */}
                                 {showFiles && (
-                                  <div style={{ padding: '12px', borderTop: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                                  <div style={{ padding: '12px', borderTop: '1px solid var(--border)', background: 'var(--surface2)' }} onClick={e => e.stopPropagation()}>
                                     <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px' }}>BIFOGADE FILER</div>
 
                                     {/* Lärandemål PDF */}
-                                    {examGoalList.filter(g => g.source_file && g.source_file !== 'manual').length > 0 && (
-                                      <div style={{ marginBottom: '10px' }}>
-                                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginBottom: '5px' }}> Lärandemål (importerade från PDF)</div>
-                                        {[...new Set(examGoalList.filter(g => g.source_file && g.source_file !== 'manual').map(g => g.source_file))].map(fname => (
+                                    <div style={{ marginBottom: '10px' }}>
+                                      <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginBottom: '5px' }}>LÄRANDEMÅL</div>
+                                      {examGoalList.filter(g => g.source_file && g.source_file !== 'manual').length > 0
+                                        ? [...new Set(examGoalList.filter(g => g.source_file && g.source_file !== 'manual').map(g => g.source_file))].map(fname => (
                                           <div key={fname} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)', marginBottom: '4px' }}>
                                             <FileText size={11} color="#3b82f6" />
                                             <span style={{ fontSize: '12px', flex: 1, color: '#3b82f6' }}>{fname}</span>
@@ -854,15 +854,20 @@ export default function PluggPage() {
                                               <Trash2 size={11} />
                                             </button>
                                           </div>
-                                        ))}
-                                      </div>
-                                    )}
+                                        ))
+                                        : <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>Inga lärandemål importerade</div>
+                                      }
+                                      <input type="file" accept=".pdf" style={{ display: 'none' }} id={`goals-panel-${exam.id}`} onChange={e => handleGoalsPdfUpload(e, exam.id, course.id)} />
+                                      <label htmlFor={`goals-panel-${exam.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 10px', borderRadius: '6px', border: '1px solid rgba(59,130,246,0.3)', color: '#3b82f6', cursor: 'pointer', fontSize: '11px', background: 'rgba(59,130,246,0.06)', marginTop: '4px' }}>
+                                        {uploadingGoalsPdf === exam.id ? <><Loader size={10} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : <><Upload size={10} /> Ladda upp PDF</>}
+                                      </label>
+                                    </div>
 
                                     {/* Gamla tentor */}
-                                    {examFilesForExam.length > 0 && (
-                                      <div style={{ marginBottom: '10px' }}>
-                                        <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '600', marginBottom: '5px' }}> Gamla tentor</div>
-                                        {examFilesForExam.map(f => (
+                                    <div style={{ marginBottom: '10px' }}>
+                                      <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '600', marginBottom: '5px' }}>GAMLA TENTOR</div>
+                                      {examFilesForExam.length > 0
+                                        ? examFilesForExam.map(f => (
                                           <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', marginBottom: '4px' }}>
                                             <FileText size={11} color="#f59e0b" />
                                             <span style={{ fontSize: '12px', flex: 1 }}>{f.file_name}</span>
@@ -870,15 +875,20 @@ export default function PluggPage() {
                                               <Trash2 size={11} />
                                             </button>
                                           </div>
-                                        ))}
-                                      </div>
-                                    )}
+                                        ))
+                                        : <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>Inga gamla tentor uppladdade</div>
+                                      }
+                                      <input type="file" accept=".pdf" style={{ display: 'none' }} id={`oldexam-panel-${exam.id}`} onChange={e => handleOldExamUpload(e, exam.id, course.id)} />
+                                      <label htmlFor={`oldexam-panel-${exam.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 10px', borderRadius: '6px', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b', cursor: 'pointer', fontSize: '11px', background: 'rgba(245,158,11,0.06)', marginTop: '4px' }}>
+                                        {uploadingOldExam === exam.id ? <><Loader size={10} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</> : <><Upload size={10} /> Ladda upp PDF</>}
+                                      </label>
+                                    </div>
 
                                     {/* Kursmaterial */}
-                                    {examMaterials.length > 0 && (
-                                      <div style={{ marginBottom: '10px' }}>
-                                        <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600', marginBottom: '5px' }}> Kursmaterial</div>
-                                        {examMaterials.map(m => (
+                                    <div style={{ marginBottom: '4px' }}>
+                                      <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600', marginBottom: '5px' }}>KURSMATERIAL</div>
+                                      {examMaterials.length > 0
+                                        ? examMaterials.map(m => (
                                           <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '6px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)', marginBottom: '4px' }}>
                                             <FileText size={11} color="#10b981" />
                                             <span style={{ fontSize: '12px', flex: 1 }}>{m.file_name}</span>
@@ -886,13 +896,14 @@ export default function PluggPage() {
                                               <Trash2 size={11} />
                                             </button>
                                           </div>
-                                        ))}
-                                      </div>
-                                    )}
-
-                                    {totalFiles === 0 && (
-                                      <div style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center', padding: '12px' }}>Inga filer bifogade ännu</div>
-                                    )}
+                                        ))
+                                        : <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '6px' }}>Inget kursmaterial uppladdat</div>
+                                      }
+                                      <input type="file" accept=".pdf" style={{ display: 'none' }} id={`material-panel-${exam.id}`} onChange={e => handleCourseMaterialUpload(e, exam.id, course.id)} />
+                                      <label htmlFor={`material-panel-${exam.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 10px', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', cursor: 'pointer', fontSize: '11px', background: 'rgba(16,185,129,0.06)', marginTop: '4px' }}>
+                                        {uploadingCourseMaterial === exam.id ? <><Loader size={10} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</> : <><Upload size={10} /> Ladda upp PDF</>}
+                                      </label>
+                                    </div>
                                   </div>
                                 )}
 

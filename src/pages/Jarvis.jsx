@@ -33,6 +33,9 @@ const ACTION_LABELS = {
   delete_project_task: 'Radera projekt-task',
   create_trip: 'Skapa resa',
   update_trip: 'Uppdatera resa',
+  update_friend: 'Uppdatera vän',
+  save_preference: 'Spara preferens',
+  update_memory_context: 'Uppdatera kontext',
 }
 
 function stripAccidentalActionJson(content = '') {
@@ -82,10 +85,6 @@ export default function Jarvis() {
 
   useEffect(() => { window.__jarvisMessages = messages }, [messages])
 
-  useEffect(() => {
-    const count = messages.filter(m => m.role === 'assistant' && !m.isHistoryMarker && !m.isSeparator).length
-    if (count > 0 && count % 4 === 0) extractInsights(messages)
-  }, [messages])
 
   const refreshContext = useCallback(async (force = false) => {
     if (!user) return ''
@@ -181,34 +180,6 @@ export default function Jarvis() {
   async function deleteInsight(id) {
     await supabase.from('jarvis_insights').delete().eq('id', id).eq('user_id', user.id)
     setInsights(prev => prev.filter(i => i.id !== id))
-  }
-
-  async function extractInsights(msgs) {
-    if (!user || msgs.length < 4) return
-    try {
-      const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: {
-          messages: [{ role: 'user', content: `Extrahera nya långsiktiga insikter om användaren. Max 20 ord per insikt. Returnera bara JSON-array utan markdown: [{"insight":"...","category":"hälsa|träning|plugg|ekonomi|socialt|mönster|mål|personlighet"}]` }],
-          context: msgs.filter(m => !m.isHistoryMarker && !m.isSeparator).slice(-20).map(m => `${m.role}: ${m.content?.slice(0, 400)}`).join('\n'),
-          systemPrompt: 'Du extraherar minnesinsikter. Returnera endast giltig JSON-array, ingen annan text.',
-        },
-      })
-      if (!data?.content) return
-      const arr = JSON.parse(data.content.replace(/```json|```/g, '').trim())
-      if (!Array.isArray(arr)) return
-      for (const ins of arr) {
-        if (!ins.insight || ins.insight.length < 8) continue
-        const { data: existing } = await supabase.from('jarvis_insights')
-          .select('id,insight').eq('user_id', user.id).ilike('insight', `%${ins.insight.slice(0, 20)}%`).maybeSingle()
-        if (existing) {
-          if (existing.insight !== ins.insight) await supabase.from('jarvis_insights').update({ insight: ins.insight, updated_at: new Date().toISOString() }).eq('id', existing.id)
-        } else {
-          await supabase.from('jarvis_insights').insert({ user_id: user.id, insight: ins.insight, category: ins.category || 'mönster', confidence: 80 })
-        }
-      }
-      await loadInsights()
-      await refreshContext(true)
-    } catch (_) {}
   }
 
   async function executeAction(action) {
@@ -362,6 +333,7 @@ export default function Jarvis() {
       const { error: saveAsstErr } = await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: assistantMsg.content })
       if (saveAsstErr) console.error('Failed to save assistant message:', saveAsstErr)
       addPendingActions(data?.actions || [])
+      if (data?.savedMemory) loadInsights()
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Något gick fel: ${err?.message || 'Okänt fel'}.` }])
     } finally {

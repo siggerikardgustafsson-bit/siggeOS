@@ -19,117 +19,100 @@ const clean = (value: any) => value == null || value === '' ? null : value
 const TOOLS = [
   {
     name: 'fetch_workouts',
-    description: `Hämtar träningspass och övningsdata från databasen.
-ANVÄND NÄR: frågor om specifika pass, PR, styrketrend, löpstatistik, träningshistorik, volym, progression, Strava-data.
-ANVÄND INTE NÄR: användaren bara nämner träning i förbifarten eller du redan har tillräcklig data i kontexten.
-Tips: för PRs, hämta gärna 90+ dagar. För senaste passet: limit 1.`,
+    description: 'Pass, PR, styrka/löptrend, Strava-historik. PR→90d, senaste→limit 1.',
     input_schema: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['löpning', 'gym', 'cykling', 'simning', 'promenad', 'övrigt', 'all'], description: 'Typ av pass. Utelämna för alla.' },
+        type: { type: 'string', enum: ['löpning', 'gym', 'cykling', 'simning', 'promenad', 'övrigt', 'all'] },
         date_from: { type: 'string', description: 'YYYY-MM-DD' },
         date_to: { type: 'string', description: 'YYYY-MM-DD' },
-        limit: { type: 'number', description: 'Max antal pass (default 20)' },
+        limit: { type: 'number', description: 'default 20' },
+        include_prs: { type: 'boolean', description: 'true = beräkna PR (maxvikt per övning) för perioden, kompakt format' },
       },
       required: [],
     },
   },
   {
     name: 'fetch_health',
-    description: `Hämtar hälsologgar: vikt, sömn, steg, energi, humör, stress, alkohol, nikotin, koffein, puls.
-ANVÄND NÄR: frågor om vikt/kropp, sömnmönster, energinivåer, välmående-trend, hälsostatistik.
-ANVÄND INTE NÄR: du redan har hälsodata för perioden i kontexten.
-Tips: för trender, hämta 30-90 dagar. För idag: date_from=idag.`,
+    description: 'Vikt, sömn, steg, energi, humör, stress, alkohol, puls. Trender→30-90d.',
     input_schema: {
       type: 'object',
       properties: {
         date_from: { type: 'string', description: 'YYYY-MM-DD' },
         date_to: { type: 'string', description: 'YYYY-MM-DD' },
-        limit: { type: 'number', description: 'Max antal dagar (default 30)' },
+        limit: { type: 'number', description: 'default 30' },
       },
       required: [],
     },
   },
   {
     name: 'fetch_journal',
-    description: `Hämtar journalanteckningar med fullständigt innehåll, AI-sammanfattning och extraherade mönster.
-ANVÄND NÄR: reflektion, mående, känslor, relationer, mönster, kvällssummering, morning brief, "hur mår jag", historiska jämförelser, senaste journalen.
-ANVÄND INTE NÄR: frågan är rent praktisk (schema, ekonomi, träning) utan emotionellt innehåll.
-Tips: för djup analys date_from 2020-01-01. För senaste: limit 1. För vecka: limit 7.`,
+    description: 'Journalanteckningar, AI-summering, mönster. Mående/känslor/reflektion/brief. Hela historiken→date_from 2020-01-01. Sök specifikt ämne→search_keyword.',
     input_schema: {
       type: 'object',
       properties: {
-        date_from: { type: 'string', description: 'YYYY-MM-DD. Använd 2020-01-01 för hela historiken.' },
+        date_from: { type: 'string', description: 'YYYY-MM-DD' },
         date_to: { type: 'string', description: 'YYYY-MM-DD' },
-        limit: { type: 'number', description: 'Max antal entries (default 10)' },
+        limit: { type: 'number', description: 'default 10' },
+        search_keyword: { type: 'string', description: 'Sök i journaltext efter nyckelord/ämne' },
+        summaries_only: { type: 'boolean', description: 'true = bara ai_summary (låg token-kostnad), bra för trendanalys över lång tid' },
       },
       required: [],
     },
   },
   {
     name: 'fetch_economy',
-    description: `Hämtar ekonomidata: inkomster, utgifter per kategori, fasta kostnader, PA-betalningar, CSN.
-ANVÄND NÄR: budget, sparande, pengar, utgifter, inkomst, CSN-koll, specifika kategorier, ekonomisk trend.
-ANVÄND INTE NÄR: du redan har ekonomiöversikten i kontexten och frågan är generell.
-Tips: för kategoriserad analys, hämta 30-90 dagar och type=both.`,
+    description: 'Inkomster, utgifter/kategori, fasta kostnader, CSN. Budget/sparande/trend→30-90d, type=both.',
     input_schema: {
       type: 'object',
       properties: {
         date_from: { type: 'string', description: 'YYYY-MM-DD' },
         date_to: { type: 'string', description: 'YYYY-MM-DD' },
-        type: { type: 'string', enum: ['income', 'expense', 'both'], description: 'Typ av data (default: both)' },
+        type: { type: 'string', enum: ['income', 'expense', 'both'], description: 'default both' },
       },
       required: [],
     },
   },
   {
     name: 'fetch_study',
-    description: `Hämtar pluggdata: kurser, tentor, studiesessioner, lärandemål med mastery, kursمaterial.
-ANVÄND NÄR: plugg, tentor, kurser, KI, studieplan, lärandemål, tentaförberedelse, studietimmar.
-ANVÄND INTE NÄR: kommande tentor redan syns i kontexten och frågan inte kräver djupare detaljer.`,
+    description: 'Kurser, tentor, studiesessioner, lärandemål/mastery. Plugg/tenta/studieplan/KI.',
     input_schema: {
       type: 'object',
       properties: {
         date_from: { type: 'string', description: 'YYYY-MM-DD' },
         date_to: { type: 'string', description: 'YYYY-MM-DD' },
-        limit: { type: 'number', description: 'Max antal sessioner' },
+        limit: { type: 'number' },
       },
       required: [],
     },
   },
   {
     name: 'fetch_calendar',
-    description: `Hämtar kalender och schema: Google Calendar-events, obligatoriska KI-moment, PA-pass med tider.
-ANVÄND NÄR: "vad händer", schema, denna vecka, nästa vecka, specifika datum, obligatoriska moment, PA-pass.
-ANVÄND INTE NÄR: frågan inte handlar om tid/schema.`,
+    description: 'Google Calendar, obligatoriska KI-moment, PA-pass. Schema/vad händer/denna vecka.',
     input_schema: {
       type: 'object',
       properties: {
-        date_from: { type: 'string', description: 'YYYY-MM-DD (default: idag)' },
-        date_to: { type: 'string', description: 'YYYY-MM-DD (default: +14 dagar)' },
+        date_from: { type: 'string', description: 'YYYY-MM-DD, default idag' },
+        date_to: { type: 'string', description: 'YYYY-MM-DD, default +14d' },
       },
       required: [],
     },
   },
   {
     name: 'fetch_experiences',
-    description: `Hämtar resor (trips), äventyr, side quests och sociala interaktioner. Inkluderar planning_doc och budget.
-ANVÄND NÄR: resor, äventyr, upplevelser, side quests, socialt liv, reseplaner, trip-IDs för uppdatering.
-Tips: för att hitta trip-ID inför update_trip, fetcha type=trips.`,
+    description: 'Resor (med planning_doc/budget), äventyr, side quests, sociala interaktioner. trip-ID→type=trips.',
     input_schema: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['trips', 'adventures', 'quests', 'social', 'all'], description: 'Kategori' },
-        limit: { type: 'number', description: 'Max antal' },
+        type: { type: 'string', enum: ['trips', 'adventures', 'quests', 'social', 'all'] },
+        limit: { type: 'number' },
       },
       required: [],
     },
   },
   {
     name: 'fetch_scores',
-    description: `Hämtar daily_scores och tier_snapshots (Kondition, Styrka, Plugg, Ekonomi, Sömn, Välmående).
-ANVÄND NÄR: "hur går det", trender, tier-nivåer, progress över tid, scores, peak mode, jämförelser.
-ANVÄND INTE NÄR: dagens score redan finns i kontexten och frågan inte kräver historik.`,
+    description: 'daily_scores + tier_snapshots (Kondition/Styrka/Plugg/Ekonomi/Sömn/Välmående). Trend/progress/peak mode.',
     input_schema: {
       type: 'object',
       properties: {
@@ -141,38 +124,49 @@ ANVÄND INTE NÄR: dagens score redan finns i kontexten och frågan inte kräver
   },
   {
     name: 'fetch_tasks',
-    description: `Hämtar Erik-uppdrag (erik_tasks) OCH projekt-tasks (project_tasks).
-ANVÄND NÄR: jobb, uppdrag, projekt, tasks, deadlines, att-göra-lista, projektboard, Jarvis ska skapa task och behöver project_id.
-Tips: ange project_id för specifikt projekt. include_projects=true för alla projekt-tasks.`,
+    description: 'Erik-uppdrag + projekt-tasks. Jobb/deadlines/projektboard. project_id om specifikt projekt. include_projects=true för alla.',
     input_schema: {
       type: 'object',
       properties: {
-        status: { type: 'string', enum: ['ej_påbörjat', 'pågående', 'klart', 'all'], description: 'Statusfilter' },
-        limit: { type: 'number', description: 'Max antal' },
-        project_id: { type: 'string', description: 'UUID: hämta tasks för specifikt projekt' },
-        include_projects: { type: 'boolean', description: 'true = hämta alla projekt-tasks' },
+        status: { type: 'string', enum: ['ej_påbörjat', 'pågående', 'klart', 'all'] },
+        limit: { type: 'number' },
+        project_id: { type: 'string' },
+        include_projects: { type: 'boolean' },
       },
       required: [],
     },
   },
   {
     name: 'fetch_memory_goals',
-    description: `Hämtar Jarvis långtidsminnen, profil, mål, preferenser och vänner/relationer.
-ANVÄND NÄR: "vad vet du om mig", mål, drömmar, relationer, vänner, minne, preferenser, personlighet.
-Tips: include_friends=true för sociala frågor om specifika personer.`,
+    description: 'Fullständiga mål, alla insikter, djupare vänprofiler. Använd om auto-laddat minne inte räcker, eller sök specifikt minne med search_keyword.',
     input_schema: {
       type: 'object',
       properties: {
-        include_friends: { type: 'boolean', description: 'Inkludera vänner och relationer' },
-        limit: { type: 'number', description: 'Max antal minnen (default 100)' },
+        include_friends: { type: 'boolean', description: 'true = vänner med fullständiga notes' },
+        limit: { type: 'number', description: 'default 100' },
+        search_keyword: { type: 'string', description: 'Sök i insikter/mål efter nyckelord' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'fetch_chat_history',
+    description: 'Sök i tidigare Jarvis-konversationer. Använd för: "vad sa vi om X?", mönster över tid, fakta Sigge nämnt i gamla chattar, kontinuitet mellan sessioner.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        date_from: { type: 'string', description: 'YYYY-MM-DD, default 30 dagar sedan' },
+        date_to: { type: 'string', description: 'YYYY-MM-DD, default idag' },
+        search_keyword: { type: 'string', description: 'Filtrera meddelanden som innehåller detta ord/fras (ej känsliga)' },
+        role: { type: 'string', enum: ['user', 'assistant', 'all'], description: 'default all' },
+        limit: { type: 'number', description: 'default 40, max 150' },
       },
       required: [],
     },
   },
   {
     name: 'fetch_nutrition',
-    description: `Hämtar nutrition och måltidsloggar: kalorier, protein, vatten, måltider med AI-analys.
-ANVÄND NÄR: mat, kalorier, protein, vatten, kostmönster, måltider, nutrition.`,
+    description: 'Kalorier, protein, vatten, måltider med AI-analys.',
     input_schema: {
       type: 'object',
       properties: {
@@ -184,10 +178,7 @@ ANVÄND NÄR: mat, kalorier, protein, vatten, kostmönster, måltider, nutrition
   },
   {
     name: 'execute_action',
-    description: `Utför en databasoperation: skapa, uppdatera eller radera data i SiggeOS.
-ANVÄND NÄR: användaren ber dig logga, skapa, ändra, ta bort, uppdatera något.
-Kör DIREKT utan att fråga om bekräftelse — presentera sedan vad du gjort.
-För update_trip/update_project_task: hämta ID med fetch_experiences/fetch_tasks först om du inte har det.`,
+    description: 'Skriv till DB. Kör direkt, ingen bekräftelse. Saknar ID → hämta det först.',
     input_schema: {
       type: 'object',
       properties: {
@@ -201,31 +192,15 @@ För update_trip/update_project_task: hämta ID med fetch_experiences/fetch_task
             'log_health', 'update_health', 'delete_health',
             'log_expense', 'update_expense', 'delete_expense',
             'log_income', 'delete_income',
-            'create_adventure', 'save_insight',
+            'create_adventure', 'save_insight', 'update_insight', 'delete_insight',
+            'update_friend', 'save_preference', 'update_memory_context',
           ],
-          description: 'Operation att utföra',
         },
         data: {
           type: 'object',
-          description: `Data för operationen:
-- create_project_task: {project_id, title, description?, priority?, deadline?, status?}
-- update_project_task: {id, fields: {status?, title?, priority?, deadline?}}
-- delete_project_task: {id}
-- create_trip: {title, countries[], status?, start_date?, end_date?, planning_doc?, budget_sek?}
-- update_trip: {id, fields: {planning_doc?, status?, budget_sek?, start_date?, end_date?, countries?}}
-- create_erik_task: {title, description?, deadline?, tag?, priority?}
-- update_erik_task: {id, fields: {...}}
-- log_training: {date?, session_type, duration_minutes?, distance_km?, feeling?, notes?}
-- log_health: {date?, weight_kg?, sleep_hours?, energy?, steps?, mood?, stress_level?, alcohol_units?}
-- log_expense: {date?, amount, category, description?}
-- log_income: {date?, amount, source, notes?}
-- create_adventure: {title, description?, date?, location?, category?, rating?}
-- save_insight: {insight, category?, confidence?}`,
+          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type,duration_minutes?,distance_km?,feeling?,notes?} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,notes?} | create_adventure:{title,description?,date?,location?,category?,rating?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
         },
-        confirm_message: {
-          type: 'string',
-          description: 'Kort beskrivning av vad som görs',
-        },
+        confirm_message: { type: 'string' },
       },
       required: ['action', 'data', 'confirm_message'],
     },
@@ -293,7 +268,22 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         return parts.join(' | ') + '\n' + exerciseText
       }).join('\n\n')
 
-      return `Träning (${sessions.length} pass):\n\n${rows}`
+      let prSection = ''
+      if (input.include_prs) {
+        // Compute PR (max weight per exercise) from all fetched sessions
+        const prMap: Record<string, { weight: number; date: string; reps: number }> = {}
+        for (const ex of exercises || []) {
+          if (!ex.weight_kg) continue
+          const prev = prMap[ex.exercise_name]
+          if (!prev || ex.weight_kg > prev.weight) {
+            const sess = sessions.find((s: any) => s.id === ex.session_id)
+            prMap[ex.exercise_name] = { weight: ex.weight_kg, date: sess?.date || '?', reps: ex.reps || 0 }
+          }
+        }
+        const prLines = Object.entries(prMap).sort((a, b) => a[0].localeCompare(b[0])).map(([name, v]) => `${name}: ${v.weight}kg × ${v.reps}r (${v.date})`).join('\n')
+        if (prLines) prSection = `\n\nPR DENNA PERIOD:\n${prLines}`
+      }
+      return `Träning (${sessions.length} pass):\n\n${rows}${prSection}`
     }
 
     if (toolName === 'fetch_health') {
@@ -329,15 +319,20 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
     }
 
     if (toolName === 'fetch_journal') {
-      const { data, error } = await supabase.from('journal_entries')
-        .select('id,date,content,mood,sleep_hours,energy,social_score,is_travel_entry,ai_extracted_people,ai_extracted_activities,ai_extracted_keywords,ai_summary,sleep_type,sleep_note')
+      const selectFields = input.summaries_only
+        ? 'id,date,mood,energy,sleep_hours,social_score,ai_summary,ai_extracted_keywords'
+        : 'id,date,content,mood,sleep_hours,energy,social_score,is_travel_entry,ai_extracted_people,ai_extracted_activities,ai_extracted_keywords,ai_summary,sleep_type,sleep_note'
+      let q = supabase.from('journal_entries')
+        .select(selectFields)
         .eq('user_id', userId)
         .gte('date', input.date_from || ninetyDaysAgo)
         .lte('date', input.date_to || today)
         .order('date', { ascending: false })
-        .limit(asLimit(input.limit, 10, 200))
+        .limit(asLimit(input.limit, input.summaries_only ? 60 : 10, 200))
+      if (input.search_keyword) q = q.or(`content.ilike.%${input.search_keyword}%,ai_summary.ilike.%${input.search_keyword}%`)
+      const { data, error } = await q
       if (error) throw error
-      if (!data?.length) return 'Inga journalanteckningar hittades.'
+      if (!data?.length) return `Inga journalanteckningar hittades${input.search_keyword ? ` med "${input.search_keyword}"` : ''}.`
       const rows = data.map((r: any) => {
         const meta = [`📅 ${r.date}`]
         if (r.mood) meta.push(`humör ${r.mood}/10`)
@@ -346,12 +341,17 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         if (r.social_score) meta.push(`socialt ${r.social_score}/10`)
         if (r.is_travel_entry) meta.push('reseentry')
         meta.push(`[id:${r.id}]`)
+        if (input.summaries_only) {
+          const summary = r.ai_summary ? `${r.ai_summary}` : '(ingen sammanfattning)'
+          const kw = r.ai_extracted_keywords?.length ? ` [${r.ai_extracted_keywords.slice(0,5).join(',')}]` : ''
+          return `${meta.join(' | ')}\n${summary}${kw}`
+        }
         const summary = r.ai_summary ? `Sammanfattning: ${r.ai_summary}\n` : ''
         const people = r.ai_extracted_people?.length ? `Personer: ${r.ai_extracted_people.join(', ')}\n` : ''
         const content = r.content ? `Entry:\n"${r.content.slice(0, 1000)}${r.content.length > 1000 ? '…' : ''}"` : ''
         return [meta.join(' | '), summary + people + content].filter(Boolean).join('\n')
       }).join('\n\n')
-      return `Journal (${data.length} entries):\n\n${rows}`
+      return `Journal (${data.length} entries${input.search_keyword ? `, sök:"${input.search_keyword}"` : ''}):\n\n${rows}`
     }
 
     if (toolName === 'fetch_economy') {
@@ -492,14 +492,46 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
       const limit = asLimit(input.limit, 100, 300)
       const [settingsRes, insightsRes, friendsRes] = await Promise.all([
         supabase.from('user_settings').select('about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', userId).single(),
-        supabase.from('jarvis_insights').select('id,insight,category,confidence,updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit),
+        (() => {
+          let q = supabase.from('jarvis_insights').select('id,insight,category,confidence,updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit)
+          if (input.search_keyword) q = q.ilike('insight', `%${input.search_keyword}%`)
+          return q
+        })(),
         input.include_friends ? supabase.from('friends').select('id,name,nickname,relationship,location,notes,last_contact_date').eq('user_id', userId).order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: [], error: null }),
       ])
       const s = settingsRes.data || {}
       const goals = s.goals ? JSON.stringify(s.goals, null, 2) : '{}'
       const insights = (insightsRes.data || []).map((i: any) => `[${i.category} ${i.confidence}%] ${i.insight} [id:${i.id}]`).join('\n')
       const friends = (friendsRes.data || []).map((f: any) => `${f.name}${f.nickname ? '/'+f.nickname : ''} | ${f.relationship || ''}${f.location ? ' | '+f.location : ''}${f.last_contact_date ? ' | senast:'+f.last_contact_date : ''}${f.notes ? ' | '+f.notes.slice(0,120) : ''} [id:${f.id}]`).join('\n')
-      return `PROFIL:\n${s.about_me || '—'}\n\nMÅL:\n${goals}\n\nMINNEN (${insightsRes.data?.length || 0}):\n${insights || '—'}\n\nVÄNNER:\n${friends || '—'}`
+      return `PROFIL:\n${s.about_me || '—'}\n\nMÅL:\n${goals}\n\nMINNEN (${insightsRes.data?.length || 0}${input.search_keyword ? `, sök:"${input.search_keyword}"` : ''}):\n${insights || '—'}\n\nVÄNNER:\n${friends || '—'}`
+    }
+
+    if (toolName === 'fetch_chat_history') {
+      const from = input.date_from || thirtyDaysAgo
+      const to = input.date_to || today
+      const limit = asLimit(input.limit, 40, 150)
+      let q = supabase.from('jarvis_conversations')
+        .select('role,content,created_at')
+        .eq('user_id', userId)
+        .gte('created_at', from)
+        .lte('created_at', to + 'T23:59:59')
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      if (input.role && input.role !== 'all') q = q.eq('role', input.role)
+      if (input.search_keyword) q = q.ilike('content', `%${input.search_keyword}%`)
+      const { data, error } = await q
+      if (error) throw error
+      if (!data?.length) return `Inga tidigare konversationer hittades${input.search_keyword ? ` med "${input.search_keyword}"` : ''}.`
+      // Return in chronological order with date markers
+      const reversed = [...data].reverse()
+      const rows = reversed.map((r: any) => {
+        const date = r.created_at.slice(0, 10)
+        const time = r.created_at.slice(11, 16)
+        const label = r.role === 'user' ? 'Sigge' : 'Jarvis'
+        const text = String(r.content || '').slice(0, 400)
+        return `[${date} ${time}] ${label}: ${text}${r.content?.length > 400 ? '…' : ''}`
+      }).join('\n')
+      return `Chatthistorik ${from}→${to} (${data.length} meddelanden${input.search_keyword ? `, sök:"${input.search_keyword}"` : ''}):\n\n${rows}`
     }
 
     if (toolName === 'fetch_nutrition') {
@@ -605,9 +637,70 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           break
         }
         case 'save_insight': {
-          const { error } = await supabase.from('jarvis_insights').insert({ user_id: userId, insight: d.insight, category: d.category || 'mönster', confidence: d.confidence || 80 })
+          const insightText = d.insight_text || d.insight
+          if (!insightText) throw new Error('Saknar insight_text')
+          // Check for near-duplicate (exact text match) before inserting
+          const { data: existing } = await supabase.from('jarvis_insights').select('id').eq('user_id', userId).ilike('insight', insightText).limit(1)
+          if (existing?.length) { result = 'Insikt finns redan (dubblett undviken).'; break }
+          const { error } = await supabase.from('jarvis_insights').insert({ user_id: userId, insight: insightText, category: d.category || 'pattern', confidence: d.confidence || 80 })
           if (error) throw error
           result = 'Insikt sparad.'
+          break
+        }
+        case 'update_insight': {
+          if (!d.id) throw new Error('Saknar id')
+          const fields: any = {}
+          if (d.insight_text) fields.insight = d.insight_text
+          if (d.category) fields.category = d.category
+          if (d.confidence != null) fields.confidence = d.confidence
+          const { error } = await supabase.from('jarvis_insights').update(fields).eq('id', d.id).eq('user_id', userId)
+          if (error) throw error
+          result = 'Insikt uppdaterad.'
+          break
+        }
+        case 'delete_insight': {
+          if (!d.id) throw new Error('Saknar id')
+          const { error } = await supabase.from('jarvis_insights').delete().eq('id', d.id).eq('user_id', userId)
+          if (error) throw error
+          result = 'Insikt raderad.'
+          break
+        }
+        case 'update_friend': {
+          if (!d.friend_name || !d.new_info) throw new Error('Saknar friend_name/new_info')
+          const { data: existing, error: fetchErr } = await supabase.from('friends').select('id,notes').eq('user_id', userId).ilike('name', d.friend_name).maybeSingle()
+          if (fetchErr) throw fetchErr
+          if (existing) {
+            const updatedNotes = existing.notes ? `${existing.notes}\n${d.new_info}` : d.new_info
+            const { error } = await supabase.from('friends').update({ notes: updatedNotes, last_contact_date: todayISO() }).eq('id', existing.id)
+            if (error) throw error
+            result = `Vän "${d.friend_name}" uppdaterad.`
+          } else {
+            const { error } = await supabase.from('friends').insert({ user_id: userId, name: d.friend_name, notes: d.new_info })
+            if (error) throw error
+            result = `Vän "${d.friend_name}" skapad med info.`
+          }
+          break
+        }
+        case 'save_preference': {
+          if (!d.preference_text) throw new Error('Saknar preference_text')
+          const { error } = await supabase.from('jarvis_insights').insert({ user_id: userId, insight: d.preference_text, category: `preferens${d.category ? ':' + d.category : ''}`, confidence: 90 })
+          if (error) throw error
+          result = 'Preferens sparad.'
+          break
+        }
+        case 'update_memory_context': {
+          if (!d.context_area || !d.update_text) throw new Error('Saknar context_area/update_text')
+          // Find existing insight in same context area and overwrite it
+          const { data: existing } = await supabase.from('jarvis_insights').select('id').eq('user_id', userId).ilike('category', `kontext:${d.context_area}`).limit(1).maybeSingle()
+          if (existing?.id) {
+            const { error } = await supabase.from('jarvis_insights').update({ insight: d.update_text, confidence: 95, updated_at: new Date().toISOString() }).eq('id', existing.id)
+            if (error) throw error
+            result = `Kontext för "${d.context_area}" uppdaterad (ersatte gammal).`
+          } else {
+            const { error } = await supabase.from('jarvis_insights').insert({ user_id: userId, insight: d.update_text, category: `kontext:${d.context_area}`, confidence: 95 })
+            if (error) throw error
+            result = `Kontext för "${d.context_area}" sparad (ny).`
+          }
           break
         }
         case 'update_training': {
@@ -675,7 +768,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
 // ─────────────────────────────────────────────
 // SYSTEM PROMPT — built entirely server-side
 // ─────────────────────────────────────────────
-function buildSystemPrompt(context: string, settings: any, contentBlock: string): string {
+function buildSystemPrompt(context: string, settings: any, contentBlock: string, insights: any[] = [], friends: any[] = []): string {
   const s = settings || {}
   const g = s.goals || {}
 
@@ -693,48 +786,28 @@ function buildSystemPrompt(context: string, settings: any, contentBlock: string)
     ? (s.jarvis_style < 30 ? 'diplomatisk' : s.jarvis_style < 60 ? 'balanserad' : s.jarvis_style < 85 ? 'direkt' : 'brutalt ärlig')
     : 'direkt'
 
-  return `Du är Jarvis – Sigges personliga AI-coach och assistent inbyggd i SiggeOS.
+  const insightLines = insights.map((i: any) => `${i.category}: ${i.insight.slice(0, 80)}`).join('\n')
+  const friendLines = friends.map((f: any) => `${f.name}${f.relationship ? ' ('+f.relationship+')' : ''}`).join(', ')
 
-IDENTITET:
-Du är coach, analytiker, minne och assistent i ett. Var datadriven, konkret och direkt. Aldrig generisk. Välj läge utifrån frågan — coach, analytiker, praktisk assistent eller samtalsperson.
-Kommunikationsstil: ${style}${s.jarvis_lang && s.jarvis_lang !== 'auto' ? `\nSpråk: ${s.jarvis_lang}` : ''}
+  return `Du är Jarvis – Sigges AI-coach/assistent i SiggeOS. Stil: ${style}. Datadriven, konkret, aldrig generisk.${s.jarvis_lang && s.jarvis_lang !== 'auto' ? ' Språk: '+s.jarvis_lang+'.' : ''}
 
-PROFIL & MÅL:
-${profileLines || '(ej konfigurerat)'}
+PROFIL: ${profileLines || '–'}
 
-FRONTEND-KONTEXT (färsk snapshot, inte komplett):
-${context || 'Ingen kontext.'}
-${contentBlock ? '\n' + contentBlock : ''}
+MINNE (senaste 20): ${insightLines || '–'}
 
-VERKTYG — BESLUTSSTRATEGI:
-Du har tillgång till alla Sigges data via verktyg. Använd dem proaktivt och intelligent:
+VÄNNER: ${friendLines || '–'}
 
-HÄMTA DATA när:
-- Frågan kräver specifik data du inte har (historik, detaljer, IDs)
-- Brief/kväll/vecka: hämta alltid journal + health + workouts + scores
-- Frågan om mående/känslor: fetch_journal
-- Frågor om specifika pass/PR: fetch_workouts
-- Schema/vad händer: fetch_calendar
-- Ekonomisk analys: fetch_economy
-- Resor/upplevelser eller du behöver trip-ID: fetch_experiences
-- Projekt-tasks eller du behöver project_id: fetch_tasks
-- Mål/relationer/minnen: fetch_memory_goals
+NU: ${context || '–'}${contentBlock ? '\n'+contentBlock : ''}
 
-HÄMTA INTE när:
-- Frontendkontexten redan har tillräcklig data för ett bra svar
-- Frågan är praktisk och konversationell utan databehov
-- Du just hämtat samma data i detta samtal
+VERKTYG – hämta NÄR data saknas, INTE om svaret ryms ovan. Hämta parallellt vid flera domäner. Ej samma data 2x.
+Brief/kväll/vecka → journal+health+workouts+scores. Mående → fetch_journal(summaries_only=true för trend, full för djup). Pass/PR → fetch_workouts. Schema → fetch_calendar. Ekonomi → fetch_economy. Resor → fetch_experiences. Tasks → fetch_tasks. Djupare minne/sök minne → fetch_memory_goals(search_keyword). Gammal chatt/"vad sa vi om X" → fetch_chat_history(search_keyword). Journal-sök → fetch_journal(search_keyword).
 
-KOMBINERA verktyg smart: om frågan berör flera domäner, hämta parallellt i en iteration.
+SPARA TYST (execute_action, nämn ej): faktum om Sigge → save_insight | uppdatera fel insikt → update_insight(id,insight_text) | ta bort inaktuell insikt → delete_insight(id) | väninfo → update_friend | korrigering/ny sanning → update_memory_context(context_area,update_text) | preferens → save_preference. Spara 1-2 insikter/konversation om något viktigt framkommit. Kolla MINNE ovan innan du sparar – spara inte om det redan framgår. Rätta aktivt felaktiga minnen när Sigge korrigerar dig.
+Pass/PR → fetch_workouts(include_prs=true, date_from för önskad period).
 
-ÅTGÄRDER:
-Använd execute_action direkt när användaren ber dig logga/skapa/ändra/ta bort.
-- Kör utan att fråga om bekräftelse — berätta sedan vad du gjort.
-- För create_project_task: hämta project_id via fetch_tasks om det saknas i kontexten.
-- För update_trip: hämta trip-ID via fetch_experiences om det saknas.
-- delete-actions: bekräfta alltid vad som raderas i textsvar.
+ÅTGÄRDER: execute_action direkt utan bekräftelse. Saknas ID → hämta först. delete → bekräfta vad raderas.
 
-Svara på samma språk som användaren. Kort om inget annat behövs.`
+Svar på användarens språk. Kort.`
 }
 
 // ─────────────────────────────────────────────
@@ -753,9 +826,11 @@ serve(async (req) => {
     const anonClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', { global: { headers: { Authorization: authHeader } } })
     const { data: { user } } = await anonClient.auth.getUser()
 
-    // Fetch settings and optional content in parallel
-    const [settingsResult, contentResult] = await Promise.all([
+    // Fetch settings, insights, friends, and optional content in parallel
+    const [settingsResult, insightsResult, friendsResult, contentResult] = await Promise.all([
       user ? supabase.from('user_settings').select('about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', user.id).single() : Promise.resolve({ data: null }),
+      user ? supabase.from('jarvis_insights').select('insight,category').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(20) : Promise.resolve({ data: [] }),
+      user ? supabase.from('friends').select('name,relationship').eq('user_id', user.id).order('created_at', { ascending: false }).limit(15) : Promise.resolve({ data: [] }),
       (async () => {
         let block = ''
         if (materialIds?.length) {
@@ -770,17 +845,23 @@ serve(async (req) => {
       })(),
     ])
 
-    const system = buildSystemPrompt(context, settingsResult.data, contentResult)
+    const system = buildSystemPrompt(context, settingsResult.data, contentResult, insightsResult.data || [], friendsResult.data || [])
 
-    const formattedMessages = (messages || [])
-      .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant'))
-      .slice(-16)
-      .map((m: any) => ({ role: m.role, content: String(m.content || '').slice(0, 1500) }))
+    // Tiered history: recent 6 messages at 2000 chars, older 8 at 600 chars
+    const allMsgs = (messages || []).filter((m: any) => m && (m.role === 'user' || m.role === 'assistant'))
+    const recent = allMsgs.slice(-6)
+    const older = allMsgs.slice(-14, -6)
+    const formattedMessages = [
+      ...older.map((m: any) => ({ role: m.role, content: String(m.content || '').slice(0, 600) })),
+      ...recent.map((m: any) => ({ role: m.role, content: String(m.content || '').slice(0, 2000) })),
+    ]
 
     let currentMessages = [...formattedMessages]
     let finalText = ''
+    let savedMemory = false
+    const calledTools = new Set<string>()
 
-    for (let iterations = 0; iterations < 5; iterations++) {
+    for (let iterations = 0; iterations < 8; iterations++) {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -790,8 +871,8 @@ serve(async (req) => {
           'anthropic-beta': 'pdfs-2024-09-25',
         },
         body: JSON.stringify({
-          model: Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-5',
-          max_tokens: 1500,
+          model: Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-6',
+          max_tokens: 2500,
           system,
           tools: TOOLS,
           messages: currentMessages,
@@ -807,13 +888,19 @@ serve(async (req) => {
 
       if (data.stop_reason === 'tool_use') {
         currentMessages.push({ role: 'assistant', content: data.content })
-        const toolResults = []
-        for (const block of data.content || []) {
-          if (block.type === 'tool_use') {
-            const result = user ? await executeTool(block.name, block.input || {}, supabase, user.id) : 'Ingen användare inloggad.'
-            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result })
+        const toolBlocks = (data.content || []).filter((b: any) => b.type === 'tool_use')
+        const toolResults = await Promise.all(toolBlocks.map(async (block: any) => {
+          // Deduplicate fetch tools: same tool+same inputs shouldn't run twice per session
+          const isFetch = block.name !== 'execute_action'
+          const dedupeKey = isFetch ? `${block.name}:${JSON.stringify(block.input || {})}` : null
+          if (dedupeKey && calledTools.has(dedupeKey)) {
+            return { type: 'tool_result', tool_use_id: block.id, content: '(redan hämtat denna session, se tidigare svar)' }
           }
-        }
+          if (dedupeKey) calledTools.add(dedupeKey)
+          const result = user ? await executeTool(block.name, block.input || {}, supabase, user.id) : 'Ingen användare inloggad.'
+          if (block.name === 'execute_action' && ['save_insight','update_insight','delete_insight','save_preference','update_memory_context','update_friend'].includes(block.input?.action)) savedMemory = true
+          return { type: 'tool_result', tool_use_id: block.id, content: result }
+        }))
         currentMessages.push({ role: 'user', content: toolResults })
         continue
       }
@@ -828,7 +915,7 @@ serve(async (req) => {
       .replace(/<jarvis_actions>[\s\S]*?<\/jarvis_actions>/gi, '')
       .trim()
 
-    return new Response(JSON.stringify({ content: cleaned || 'Inget svar.', actions: [] }), {
+    return new Response(JSON.stringify({ content: cleaned || 'Inget svar.', actions: [], savedMemory }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
