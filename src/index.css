@@ -199,11 +199,21 @@ body {
 /* ============================================================
    SCROLLBAR
    ============================================================ */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 7px; height: 7px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
-[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.08));
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.2s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 55%, rgba(255,255,255,0.2)), color-mix(in srgb, var(--accent) 30%, rgba(255,255,255,0.1)));
+  background-clip: padding-box;
+}
+* { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) transparent; }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.14); background-clip: padding-box; }
 
 /* ============================================================
    TYPOGRAPHY
@@ -1887,10 +1897,14 @@ aside,
 /* Buttons and inputs should sit on the same glass system. */
 .btn-ghost,
 .input,
+.tab-btn { transition: background 0.22s cubic-bezier(0.22,1,0.36,1), color 0.22s, border-color 0.22s, box-shadow 0.22s, transform 0.18s !important; }
 .tab-btn.active {
-  background: rgba(15,18,30,0.24) !important;
-  border-color: rgba(255,255,255,0.10) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 26%, transparent), color-mix(in srgb, var(--accent) 14%, transparent)) !important;
+  border-color: var(--accent-border) !important;
+  color: var(--text) !important;
+  box-shadow: 0 4px 14px -4px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.12) !important;
 }
+.tab-btn:not(.active):hover { transform: translateY(-1px); }
 .input:focus {
   background: rgba(79,142,247,0.10) !important;
 }
@@ -2930,10 +2944,14 @@ aside,
 /* Buttons and inputs should sit on the same glass system. */
 .btn-ghost,
 .input,
+.tab-btn { transition: background 0.22s cubic-bezier(0.22,1,0.36,1), color 0.22s, border-color 0.22s, box-shadow 0.22s, transform 0.18s !important; }
 .tab-btn.active {
-  background: rgba(15,18,30,0.24) !important;
-  border-color: rgba(255,255,255,0.10) !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 26%, transparent), color-mix(in srgb, var(--accent) 14%, transparent)) !important;
+  border-color: var(--accent-border) !important;
+  color: var(--text) !important;
+  box-shadow: 0 4px 14px -4px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.12) !important;
 }
+.tab-btn:not(.active):hover { transform: translateY(-1px); }
 .input:focus {
   background: rgba(79,142,247,0.10) !important;
 }
@@ -3804,12 +3822,14 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   background: var(--surface3);
   color: var(--text);
 }
+.maxx-rail-ico { transition: color 0.18s ease, transform 0.22s cubic-bezier(0.34,1.4,0.5,1), filter 0.22s ease; }
+.maxx-rail-item:hover .maxx-rail-ico { transform: scale(1.12); }
 .maxx-rail-item.active {
-  background: var(--accent-soft);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 20%, transparent), var(--accent-soft));
   border-color: var(--accent-border);
   color: var(--text);
 }
-.maxx-rail-item.active .maxx-rail-ico { color: var(--accent); }
+.maxx-rail-item.active .maxx-rail-ico { color: var(--accent); filter: drop-shadow(0 0 6px var(--accent-glow)); }
 .maxx-rail-item.active::before {
   content: '';
   position: absolute;
