@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CategoryCard from './CategoryCard'
 
@@ -110,6 +110,18 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   const isMobile = useIsMobile()
   const [hoverId, setHoverId] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
+  // Live pixel size of the constellation container, so repulsion offsets can be
+  // clamped — bubbles must never slide off the sides or up into the header.
+  const wrapRef = useRef(null)
+  const [box, setBox] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => setBox({ w: el.clientWidth, h: el.clientHeight }))
+    ro.observe(el)
+    setBox({ w: el.clientWidth, h: el.clientHeight })
+    return () => ro.disconnect()
+  }, [])
 
   // Esc closes the expanded bubble.
   useEffect(() => {
@@ -168,10 +180,10 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   const cornerMap = {}
   corners.forEach(c => { cornerMap[c.id] = { x: c.center.x, y: c.center.y, r: c.r || 64, mag: c.mag || 90 } })
   const hoverCenter = hoverId === 'core'
-    ? { x: 50, y: 50, r: 62, mag: 82 }
+    ? { x: 50, y: 50, r: 64, mag: 100 }
     : cornerMap[hoverId]
       ? cornerMap[hoverId]
-      : (hoverId ? ((n) => n ? { x: n.x, y: n.y, r: 62, mag: 82 } : null)(nodes.find(n => n.c.id === hoverId)) : null)
+      : (hoverId ? ((n) => n ? { x: n.x, y: n.y, r: 66, mag: 112 } : null)(nodes.find(n => n.c.id === hoverId)) : null)
   function pushFor(x, y) {
     if (!hoverCenter || isExpanded) return { px: 0, py: 0 }
     const R = hoverCenter.r || 62, M = hoverCenter.mag || 82
@@ -181,6 +193,20 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
     const f = 1 - d / R            // closer ⇒ stronger
     const mag = M * Math.pow(f, 1.05)  // px, gentle falloff — neighbours clear out decisively
     return { px: (dx / d) * mag, py: (dy / d) * mag }
+  }
+  // Keep a bubble fully inside the container after the push is applied: clamp
+  // its centre so centre ± radius never crosses the edge (incl. the top, which
+  // borders the page header). Falls back to the raw push until the box is known.
+  function clampPush(xPct, yPct, px, py, sizePx) {
+    const { w, h } = box
+    if (!w || !h) return { px, py }
+    // M leaves headroom for the gentle float animation (~7px) layered on top.
+    const r = sizePx / 2, M = 22
+    const baseX = (xPct / 100) * w, baseY = (yPct / 100) * h
+    let cx = baseX + px, cy = baseY + py
+    cx = Math.max(r + M, Math.min(w - r - M, cx))
+    cy = Math.max(r + M, Math.min(h - r - M, cy))
+    return { px: cx - baseX, py: cy - baseY }
   }
 
   // Orbiting mini-bubbles that point straight at a single data source / stat.
@@ -296,7 +322,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   }
 
   return (
-    <div className="cmap" style={{ position:'relative', width:'100%', minHeight: isExpanded ? '82vh' : 680, padding:'44px 0', transition:'min-height .5s cubic-bezier(.22,1,.36,1)' }}>
+    <div ref={wrapRef} className="cmap" style={{ position:'relative', width:'100%', minHeight: isExpanded ? '82vh' : 680, padding:'44px 0', transition:'min-height .5s cubic-bezier(.22,1,.36,1)' }}>
       <style>{`
         .cmap-edge { stroke-dasharray: 5 7; animation: cmapFlow 1.4s linear infinite; }
         @keyframes cmapFlow { to { stroke-dashoffset: -24; } }
@@ -404,8 +430,8 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           box-shadow:0 14px 34px -12px color-mix(in srgb, var(--cbc, #4f8ef7) 55%, transparent),
             inset 0 1px 0 rgba(255,255,255,.1);
           backdrop-filter:blur(14px) saturate(1.05); -webkit-backdrop-filter:blur(14px) saturate(1.05);
-          transition: width .92s cubic-bezier(.22,1,.36,1), height .92s cubic-bezier(.22,1,.36,1),
-            border-radius .92s cubic-bezier(.22,1,.36,1), box-shadow .72s ease, transform .8s ease; }
+          transition: width .6s cubic-bezier(.22,1,.36,1), height .6s cubic-bezier(.22,1,.36,1),
+            border-radius .6s cubic-bezier(.22,1,.36,1), box-shadow .5s ease, transform .55s ease; }
         /* Collapsed bubble gently breathes / floats like the main bubbles */
         .ccorner-shell.closed { animation: cmapFloat 6.5s ease-in-out infinite; }
         /* Open panel: deeper shadow + colour rim; no spinning sheen */
@@ -425,7 +451,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           pointer-events:none; animation:cglint 9s ease-in-out infinite; }
         .ccorner-cap { position:absolute; inset:0; z-index:5; display:flex; flex-direction:column;
           align-items:center; justify-content:center; gap:3px; text-align:center; pointer-events:none;
-          transition:opacity .34s ease; }
+          transition:opacity .22s ease; }
         .ccorner-ico { display:flex; }
         .ccorner-lab { font-size:12px; font-weight:900; color:#fff; letter-spacing:-.01em; }
         .ccorner-sub { font-size:17px; font-weight:950; line-height:1; letter-spacing:-.03em; text-shadow:0 0 14px currentColor; }
@@ -434,7 +460,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
            is small it's simply clipped, then fades in as the panel finishes
            growing — and fades back out smoothly on close. */
         .ccorner-body { position:absolute; left:0; top:0; z-index:4; overflow-y:auto;
-          padding:2px; scrollbar-width:none; transition:opacity .5s ease .3s; }
+          padding:2px; scrollbar-width:none; transition:opacity .34s ease .2s; }
         .ccorner-body::-webkit-scrollbar { display:none; }
         @media (prefers-reduced-motion: reduce) { .cmap-edge,.cfloat,.catmos-rings,.catmos-glow { animation:none } }
       `}</style>
@@ -540,7 +566,9 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         const progressPct = cat.levelUp?.progressPct
         const nextC = TIER_COLORS[cat.levelUp?.nextTier] || col
         const outwardAngle = Math.atan2(n.uy, n.ux)
-        const push = exp ? { px:0, py:0 } : pushFor(n.x, n.y)
+        const sizePx = hov ? HOVER : BASE
+        const raw = pushFor(n.x, n.y)
+        const push = exp ? { px:0, py:0 } : clampPush(n.x, n.y, raw.px, raw.py, sizePx)
         return (
           <div key={id} className="cnode" style={{ left, top, zIndex: exp ? 60 : (hov ? 40 : 3),
             transition:`opacity .55s cubic-bezier(.22,1,.36,1) ${dimOther?n.i*0.04:0}s, filter .55s ease, transform .68s cubic-bezier(.34,1.32,.5,1) ${dimOther?n.i*0.04:0}s, left .66s cubic-bezier(.22,1,.36,1), top .66s cubic-bezier(.22,1,.36,1)`,
