@@ -43,7 +43,7 @@ export default function Sidebar() {
         {/* Logo / brand */}
         <div className="maxx-rail-brand">
           <div className="maxx-rail-mark">
-            <MaxxMark3D size={40} />
+            <MaxxMark3D size={48} />
             <i className="maxx-rail-mark-ring" />
           </div>
           <div className="maxx-rail-label maxx-rail-wordmark">

@@ -23,19 +23,19 @@ export default function MaxxMark3D({ size = 40 }) {
     const outline = [
       [-0.80, -0.72], // 0  top-left outer (peak)
       [-0.45, -0.72], // 1  top-left inner
-      [ 0.00, -0.05], // 2  top-center notch
+      [ 0.00, -0.20], // 2  top-center notch (shallower → thicker bridge)
       [ 0.45, -0.72], // 3  top-right inner
       [ 0.80, -0.72], // 4  top-right outer (peak)
       [ 0.80,  0.72], // 5  bottom-right outer
       [ 0.45,  0.72], // 6  bottom-right inner
-      [ 0.45, -0.18], // 7  right diagonal underside
-      [ 0.00,  0.05], // 8  V tip
-      [-0.45, -0.18], // 9  left diagonal underside
+      [ 0.45, -0.04], // 7  right diagonal underside (thicker strokes)
+      [ 0.00,  0.24], // 8  V tip (lower → chunky bridge between legs)
+      [-0.45, -0.04], // 9  left diagonal underside
       [-0.45,  0.72], // 10 bottom-left inner
       [-0.80,  0.72], // 11 bottom-left outer
     ]
     const N = outline.length
-    const hd = 0.40           // half depth (tip distance)
+    const hd = 0.30           // half depth (tip distance) — shallower = blunter
     let cgx = 0, cgy = 0
     for (const [x, y] of outline) { cgx += x; cgy += y }
     cgx /= N; cgy /= N
@@ -56,11 +56,11 @@ export default function MaxxMark3D({ size = 40 }) {
 
     // 5 rings: shared mid equator + 2-step crown front + 2-step crown back.
     // Gem-cut layering (mid -> shoulder -> tip) gives many irregular facets.
-    const r0 = ring(1.00, 0.00, 0.03, 0.07)            // 0..N-1  mid equator (keeps M silhouette)
-    const rF1 = ring(0.64, hd * 0.52, 0.08, 0.05)      // N..2N-1 front shoulder
-    const rF2 = ring(0.30, hd, 0.06, 0.05)             // 2N..    front tip
-    const rB1 = ring(0.64, -hd * 0.52, 0.08, 0.05)     // 3N..    back shoulder
-    const rB2 = ring(0.30, -hd, 0.06, 0.05)            // 4N..    back tip
+    const r0 = ring(1.00, 0.00, 0.02, 0.04)            // 0..N-1  mid equator (keeps M silhouette)
+    const rF1 = ring(0.82, hd * 0.55, 0.04, 0.03)      // N..2N-1 front shoulder (blunt)
+    const rF2 = ring(0.56, hd, 0.03, 0.03)             // 2N..    front tip (broad, not pointy)
+    const rB1 = ring(0.82, -hd * 0.55, 0.04, 0.03)     // 3N..    back shoulder
+    const rB2 = ring(0.56, -hd, 0.03, 0.03)            // 4N..    back tip
     const V = [...r0, ...rF1, ...rF2, ...rB1, ...rB2]
 
     // cap triangulation (3 convex chunks of the M: two bars + the V)
@@ -149,29 +149,28 @@ export default function MaxxMark3D({ size = 40 }) {
       })
       polys.sort((p, q) => p.depth - q.depth) // back to front (painter's order)
 
-      // additive-ish translucency so overlapping facets build up like glass
-      ctx.globalCompositeOperation = 'lighter'
+      // solid-but-glassy: painter-sorted facets with high opacity (a hint of
+      // translucency where edge-on) so it reads as a chunky frosted crystal.
       for (const poly of polys) {
         const lit = poly.bright
-        const k = 0.09 + 0.48 * lit                  // dim base so layers can stack
-        const mix = lit * 0.5                         // brighter facets lean to accent2
-        const spec = lit > 0.80 ? (lit - 0.80) * 3.2 : 0 // crystal highlight
+        const k = 0.18 + 0.72 * lit                  // solid shading range
+        const mix = lit * 0.45                        // brighter facets lean to accent2
+        const spec = lit > 0.82 ? (lit - 0.82) * 3.4 : 0 // crystal highlight
         const col = accent.map((c, i) => Math.min(255, Math.round(
-          c * k + accent2[i] * mix + 255 * spec * 0.4
+          c * k + accent2[i] * mix + 255 * spec * 0.5
         )))
-        // edge-on facets read most transparent (glass), flat-on more solid
-        const alpha = 0.16 + 0.30 * Math.abs(poly.facing)
+        // mostly opaque; only the most edge-on facets let a little through
+        const alpha = 0.78 + 0.22 * Math.abs(poly.facing)
         const [a, b, c] = poly.f.map(i => proj[i])
         ctx.beginPath()
         ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.closePath()
         ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${alpha})`
         ctx.fill()
-        // faint same-hue facet seams for crystal definition (not an outline)
-        ctx.lineWidth = 0.5
-        ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${alpha * 0.9})`
+        // same-hue seams to seal facets (not a contrasting outline)
+        ctx.lineWidth = 0.6
+        ctx.strokeStyle = ctx.fillStyle
         ctx.stroke()
       }
-      ctx.globalCompositeOperation = 'source-over'
 
       if (!reduce) {
         ay += 0.020
