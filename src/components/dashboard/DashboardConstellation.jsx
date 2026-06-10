@@ -57,11 +57,12 @@ function bubbleSkin(color, active, intensity = 1) {
 }
 
 // Crisp conic progress ring hugging the bubble rim — scales perfectly, no blur.
+// Fills from 0 → pct on mount via the animated --cp custom property.
 function RingProgress({ pct, nextColor, thickness = 4, inset = -7, glow = true }) {
   const p = Math.max(0, Math.min(100, pct || 0))
   return (
-    <div style={{ position:'absolute', inset, borderRadius:'50%', pointerEvents:'none', zIndex:1,
-      background:`conic-gradient(from -90deg, ${nextColor} ${p}%, rgba(255,255,255,.06) ${p}% 100%)`,
+    <div className="cring" style={{ position:'absolute', inset, borderRadius:'50%', pointerEvents:'none', zIndex:1, '--target': p + '%',
+      background:`conic-gradient(from -90deg, ${nextColor} var(--cp,0%), rgba(255,255,255,.06) var(--cp,0%) 100%)`,
       WebkitMask:`radial-gradient(farthest-side, transparent calc(100% - ${thickness}px), #000 calc(100% - ${thickness}px))`,
       mask:`radial-gradient(farthest-side, transparent calc(100% - ${thickness}px), #000 calc(100% - ${thickness}px))`,
       filter: glow ? `drop-shadow(0 0 5px ${nextColor}cc)` : 'none' }} />
@@ -244,11 +245,16 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         @keyframes cmapFloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
         .cnode { position:absolute; transform:translate(-50%,-50%); }
         .cstack { position:relative; transition: width .6s cubic-bezier(.22,1,.36,1), height .6s cubic-bezier(.22,1,.36,1); }
+        @property --cp { syntax:'<percentage>'; initial-value:0%; inherits:false; }
+        .cring { animation: cringFill 1.2s cubic-bezier(.22,1,.36,1) .2s both; }
+        @keyframes cringFill { from { --cp:0% } to { --cp:var(--target) } }
         .cdisc {
           position:absolute; inset:0; border-radius:50%; display:flex; align-items:center; justify-content:center;
           cursor:pointer; overflow:hidden; z-index:2; transform:translateZ(0); backface-visibility:hidden;
           transition: box-shadow .4s ease, background .4s ease;
+          animation: cdiscIn .7s cubic-bezier(.34,1.3,.5,1) both;
         }
+        @keyframes cdiscIn { from { opacity:0; transform:translateZ(0) scale(.55) } to { opacity:1; transform:translateZ(0) scale(1) } }
         .cdisc::after { content:''; position:absolute; top:7%; left:15%; width:26%; height:17%; border-radius:50%;
           transform:rotate(-18deg); opacity:.8;
           background:radial-gradient(closest-side, rgba(255,255,255,.92), rgba(255,255,255,.18) 46%, rgba(255,255,255,0) 74%);
@@ -307,6 +313,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
             <line key={n.c.id} x1="50" y1="50" x2={n.x} y2={n.y}
               stroke={active ? col : 'var(--border)'} strokeOpacity={active ? 0.55 : 0.25}
               strokeWidth="0.4" vectorEffect="non-scaling-stroke"
+              style={active ? { filter:`drop-shadow(0 0 2px ${col})` } : undefined}
               className={active ? 'cmap-edge' : undefined} strokeLinecap="round" />
           )
         })}
@@ -387,7 +394,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
               {!exp && active && progressPct != null && <RingProgress pct={progressPct} nextColor={nextC} />}
               <div className="cdisc"
                 onClick={() => exp ? null : setExpandedId(id)}
-                style={{ ...bubbleSkin(col, active, exp ? 2.2 : (hov ? 1.6 : 1)) }}>
+                style={{ ...bubbleSkin(col, active, exp ? 2.2 : (hov ? 1.6 : 1)), animationDelay:(0.12 + n.i*0.07)+'s' }}>
                 {exp && active && progressPct != null && <RingProgress pct={progressPct} nextColor={nextC} thickness={7} inset={14} />}
                 {exp ? <ExpandedContent id={id} /> : hov ? (
                   <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, padding:'0 18px', width:'100%' }}>
