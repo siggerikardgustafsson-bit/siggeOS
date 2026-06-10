@@ -924,17 +924,19 @@ export default function Dashboard() {
             {/* GRAPH */}
             <div className="widget" style={{ padding:'18px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-                <span style={{ fontSize:'11px', fontWeight:600, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.1em' }}>
+                <span style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'11px', fontWeight:700, color:'var(--muted2)', textTransform:'uppercase', letterSpacing:'0.12em' }}>
+                  <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', boxShadow:'0 0 8px var(--accent-glow)' }} />
                   Tier-utveckling
                 </span>
-                <div style={{ display:'flex', gap:'4px' }}>
+                <div style={{ display:'flex', gap:'2px', padding:'2px', borderRadius:'10px', background:'rgba(255,255,255,0.04)', border:'1px solid var(--border)' }}>
                   {['7d','30d','90d','1år'].map(p=>(
                     <button key={p} onClick={()=>setGraphPeriod(p)} style={{
-                      padding:'3px 8px', fontSize:'10px', borderRadius:'6px',
-                      background:graphPeriod===p?'var(--accent-soft)':'transparent',
-                      border:'1px solid '+(graphPeriod===p?'var(--accent-border)':'var(--border)'),
-                      color:graphPeriod===p?'var(--accent)':'var(--muted)',
-                      cursor:'pointer', fontWeight:graphPeriod===p?600:400, transition:'all 0.15s',
+                      padding:'4px 10px', fontSize:'10px', borderRadius:'8px',
+                      background:graphPeriod===p?'linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 78%, #060914))':'transparent',
+                      border:'1px solid '+(graphPeriod===p?'var(--accent-border)':'transparent'),
+                      color:graphPeriod===p?'#fff':'var(--muted)',
+                      boxShadow:graphPeriod===p?'0 4px 12px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.25)':'none',
+                      cursor:'pointer', fontWeight:graphPeriod===p?700:500, transition:'all 0.2s cubic-bezier(0.22,1,0.36,1)',
                     }}>{p}</button>
                   ))}
                 </div>
@@ -944,14 +946,15 @@ export default function Dashboard() {
                   const active=activeGraphCats.includes(c.id)
                   return (
                     <button key={c.id} onClick={()=>setActiveGraphCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])} style={{
-                      display:'flex', alignItems:'center', gap:'4px',
-                      padding:'2px 8px', fontSize:'10px', borderRadius:'20px',
-                      background:active?c.color+'15':'transparent',
-                      border:'1px solid '+(active?c.color+'40':'var(--border)'),
+                      display:'flex', alignItems:'center', gap:'5px',
+                      padding:'3px 10px', fontSize:'10px', borderRadius:'20px',
+                      background:active?c.color+'1f':'transparent',
+                      border:'1px solid '+(active?c.color+'55':'var(--border)'),
                       color:active?c.color:'var(--muted)',
-                      cursor:'pointer', transition:'all 0.15s', fontWeight:active?600:400,
+                      boxShadow:active?`0 2px 10px -2px ${c.color}55`:'none',
+                      cursor:'pointer', transition:'all 0.2s cubic-bezier(0.22,1,0.36,1)', fontWeight:active?700:500,
                     }}>
-                      <div style={{ width:5,height:5,borderRadius:'50%',background:active?c.color:'var(--border)' }} />
+                      <div style={{ width:5,height:5,borderRadius:'50%',background:active?c.color:'var(--border)', boxShadow:active?`0 0 6px ${c.color}`:'none' }} />
                       {c.label}
                     </button>
                   )

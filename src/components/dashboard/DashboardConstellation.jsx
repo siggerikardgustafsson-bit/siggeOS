@@ -121,7 +121,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   const coreColor = TIER_COLORS[coreTier] || '#4f8ef7'
   const nextColor = TIER_COLORS[maxxProfile?.levelUp?.nextTier] || '#a78bfa'
 
-  const BASE = 132, CORE = 198, COREHOVER = 240, HOVER = 236
+  const BASE = 142, CORE = 216, COREHOVER = 258, HOVER = 248
 
   const isExpanded = expandedId != null
 
@@ -294,8 +294,38 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         .ccore-glow { position:absolute; inset:-20%; border-radius:50%; pointer-events:none; z-index:0;
           filter:blur(16px); animation:cbreath 4.6s ease-in-out infinite; }
         @keyframes cbreath { 0%,100% { transform:scale(.9); opacity:.45 } 50% { transform:scale(1.06); opacity:.8 } }
-        @media (prefers-reduced-motion: reduce) { .cmap-edge,.cfloat { animation:none } }
+        /* Ambient command-center depth */
+        .catmos { position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden;
+          transition:opacity .5s ease; }
+        .catmos-glow { position:absolute; left:50%; top:50%; width:74%; height:124%;
+          transform:translate(-50%,-50%); filter:blur(26px); border-radius:50%;
+          animation:catmosBreath 7.5s ease-in-out infinite; }
+        @keyframes catmosBreath { 0%,100% { opacity:.55; transform:translate(-50%,-50%) scale(.94) } 50% { opacity:.9; transform:translate(-50%,-50%) scale(1.04) } }
+        .catmos-rings { position:absolute; left:50%; top:50%; width:680px; height:680px;
+          transform:translate(-50%,-50%); will-change:transform; animation:cmapSpin 90s linear infinite; }
+        .catmos-rings-2 { animation:cmapSpin 130s linear infinite reverse; opacity:.6; }
+        @keyframes cmapSpin { to { transform:translate(-50%,-50%) rotate(360deg) } }
+        .catmos-rings circle { fill:none; stroke:rgba(255,255,255,.055); stroke-width:1; vector-effect:non-scaling-stroke; }
+        .catmos-rings .dash { stroke:rgba(255,255,255,.07); stroke-dasharray:2 6; }
+        .catmos-tick { fill:rgba(255,255,255,.18); }
+        @media (prefers-reduced-motion: reduce) { .cmap-edge,.cfloat,.catmos-rings,.catmos-glow { animation:none } }
       `}</style>
+
+      {/* Ambient command-center depth — orbit rings + breathing core halo */}
+      <div className="catmos" style={{ opacity:isExpanded?0:1 }}>
+        <div className="catmos-glow" style={{ background:`radial-gradient(circle, ${coreColor}26 0%, ${coreColor}10 34%, transparent 64%)` }} />
+        <svg className="catmos-rings" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+          <circle cx="50" cy="50" r="46" className="dash" />
+          <circle cx="50" cy="50" r="33" />
+          {Array.from({ length: 12 }).map((_, i) => {
+            const a = (i * 30) * Math.PI / 180
+            return <circle key={i} className="catmos-tick" cx={50 + 46 * Math.cos(a)} cy={50 + 46 * Math.sin(a)} r="0.55" />
+          })}
+        </svg>
+        <svg className="catmos-rings catmos-rings-2" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+          <circle cx="50" cy="50" r="40" className="dash" />
+        </svg>
+      </div>
 
       {/* Edges */}
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position:'absolute', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:1, overflow:'visible', opacity:isExpanded?0:1, transition:'opacity .4s ease' }}>
