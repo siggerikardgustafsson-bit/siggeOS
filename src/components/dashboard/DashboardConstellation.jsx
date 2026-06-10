@@ -161,24 +161,24 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           opacity: isExpanded ? 0 : 1, pointerEvents: isExpanded ? 'none' : 'auto',
           transition: 'opacity .4s ease' }}
         onMouseEnter={() => setHoverId(cfg.id)} onMouseLeave={() => setHoverId(null)}>
-        <div className={`ccorner-shell cbub ${open ? 'open' : 'cfloat'}`}
+        <div className={`ccorner-shell cbub ${open ? 'open' : 'closed'}`}
           style={{ width: open ? cfg.width : 112, height: open ? cfg.height : 112,
+            borderRadius: open ? 24 : '50%',
             transformOrigin: `${originX} ${originY}`,
             cursor: open ? 'default' : 'pointer',
-            ['--cbc']: cfg.color,
-            ...(open ? {} : bubbleSkin(cfg.color, true, 1.3)) }}>
-          {open ? (
-            <div className="ccorner-body" style={{ position: 'relative', zIndex: 4, width: cfg.width, height: cfg.height, overflowY: 'auto' }}>
-              {cfg.render()}
-            </div>
-          ) : (
-            <div className="ccorner-cap">
-              <span className="ccorner-ico" style={{ color: cfg.color, filter: `drop-shadow(0 0 8px ${cfg.color}88)` }}>{cfg.icon}</span>
-              <span className="ccorner-lab">{cfg.label}</span>
-              {cfg.sub != null && <span className="ccorner-sub" style={{ color: cfg.color }}>{cfg.sub}</span>}
-              <span className="ccorner-hint">Hovra</span>
-            </div>
-          )}
+            ['--cbc']: cfg.color }}>
+          {/* Both layers stay mounted and cross-fade, so the morph is smooth
+              opening AND closing — content never pops in or vanishes. */}
+          <div className="ccorner-cap" style={{ opacity: open ? 0 : 1 }}>
+            <span className="ccorner-ico" style={{ color: cfg.color, filter: `drop-shadow(0 0 8px ${cfg.color}88)` }}>{cfg.icon}</span>
+            <span className="ccorner-lab">{cfg.label}</span>
+            {cfg.sub != null && <span className="ccorner-sub" style={{ color: cfg.color }}>{cfg.sub}</span>}
+            <span className="ccorner-hint">Hovra</span>
+          </div>
+          <div className="ccorner-body" style={{ width: cfg.width, height: cfg.height,
+            opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none' }}>
+            {cfg.render()}
+          </div>
         </div>
       </div>
     )
@@ -394,45 +394,49 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         .catmos-rings .dash { stroke:rgba(255,255,255,.07); stroke-dasharray:2 6; }
         .catmos-tick { fill:rgba(255,255,255,.18); }
         /* Corner info bubbles — collapse to a glassy disc, expand to a panel */
-        .ccorner-shell { position:relative; overflow:hidden; backface-visibility:hidden; transform:translateZ(0);
-          transition: width .6s cubic-bezier(.22,1,.36,1), height .6s cubic-bezier(.22,1,.36,1),
-            border-radius .6s cubic-bezier(.22,1,.36,1), box-shadow .5s ease, background .5s ease; }
-        /* Collapsed = a living bubble, same surface treatment as the main bubbles */
-        .ccorner-shell.cfloat { animation: cmapFloat 6.5s ease-in-out infinite, cbubbleMorph 11s ease-in-out infinite; }
-        /* Open = the bubble has swelled into a clean glass panel. The morph
-           animation is delayed until the size/radius transition has finished,
-           so the corners glide instead of snapping. */
-        .ccorner-shell.open { border-radius:24px;
-          background:linear-gradient(170deg, rgba(20,26,42,.94), rgba(10,14,24,.96));
-          border:1px solid var(--glass-border, rgba(255,255,255,.1));
-          box-shadow:0 30px 70px -24px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.07),
-            0 0 0 1px color-mix(in srgb, var(--cbc, #4f8ef7) 22%, transparent);
-          backdrop-filter:blur(16px) saturate(1.05); -webkit-backdrop-filter:blur(16px) saturate(1.05);
-          animation: cpanelMorph 13s ease-in-out infinite .62s; }
-        @keyframes cpanelMorph {
-          0%,100% { border-radius:24px 24px 24px 24px }
-          50%     { border-radius:27px 22px 25px 23px }
-        }
+        /* One shared background for both states so growing the bubble into a
+           panel is a single continuous transform — nothing snaps or cross-cuts.
+           Only size, border-radius, box-shadow and a colour tint change. */
+        .ccorner-shell { position:relative; overflow:hidden; backface-visibility:hidden;
+          background:
+            radial-gradient(125% 120% at 30% 22%, color-mix(in srgb, var(--cbc, #4f8ef7) 46%, transparent), color-mix(in srgb, var(--cbc, #4f8ef7) 10%, transparent) 46%, transparent 72%),
+            linear-gradient(170deg, rgba(22,28,46,.93), rgba(10,14,24,.96));
+          border:1px solid rgba(255,255,255,.12);
+          box-shadow:0 14px 34px -12px color-mix(in srgb, var(--cbc, #4f8ef7) 55%, transparent),
+            inset 0 1px 0 rgba(255,255,255,.1);
+          backdrop-filter:blur(14px) saturate(1.05); -webkit-backdrop-filter:blur(14px) saturate(1.05);
+          transition: width .68s cubic-bezier(.22,1,.36,1), height .68s cubic-bezier(.22,1,.36,1),
+            border-radius .68s cubic-bezier(.22,1,.36,1), box-shadow .55s ease, transform .6s ease; }
+        /* Collapsed bubble gently breathes / floats like the main bubbles */
+        .ccorner-shell.closed { animation: cmapFloat 6.5s ease-in-out infinite; }
+        /* Open panel: deeper shadow + colour rim; no spinning sheen */
+        .ccorner-shell.open {
+          box-shadow:0 34px 80px -24px rgba(0,0,0,.88), inset 0 1px 0 rgba(255,255,255,.08),
+            0 0 0 1px color-mix(in srgb, var(--cbc, #4f8ef7) 26%, transparent); }
         /* Soap-film iridescence + drifting glint — only on the COLLAPSED bubble */
-        .ccorner-shell.cfloat.cbub::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
+        .ccorner-shell.closed.cbub::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
           mix-blend-mode:screen; opacity:.5;
           -webkit-mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
           mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
           background:conic-gradient(from 200deg, rgba(120,180,255,.5), rgba(190,130,255,.42), rgba(120,255,225,.4), rgba(255,210,130,.42), rgba(255,140,190,.4), rgba(120,180,255,.5));
           animation:cirid 16s linear infinite; }
-        .ccorner-shell.cfloat.cbub::after { content:''; position:absolute; top:7%; left:14%; width:26%; height:17%; border-radius:50%; z-index:3;
+        .ccorner-shell.closed.cbub::after { content:''; position:absolute; top:7%; left:14%; width:26%; height:17%; border-radius:50%; z-index:3;
           transform:rotate(-18deg); opacity:.85;
           background:radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,.2) 46%, rgba(255,255,255,0) 74%);
           pointer-events:none; animation:cglint 9s ease-in-out infinite; }
-        .ccorner-cap { position:absolute; inset:0; z-index:4; display:flex; flex-direction:column;
-          align-items:center; justify-content:center; gap:3px; text-align:center; pointer-events:none; }
+        .ccorner-cap { position:absolute; inset:0; z-index:5; display:flex; flex-direction:column;
+          align-items:center; justify-content:center; gap:3px; text-align:center; pointer-events:none;
+          transition:opacity .26s ease; }
         .ccorner-ico { display:flex; }
         .ccorner-lab { font-size:12px; font-weight:900; color:#fff; letter-spacing:-.01em; }
         .ccorner-sub { font-size:17px; font-weight:950; line-height:1; letter-spacing:-.03em; text-shadow:0 0 14px currentColor; }
         .ccorner-hint { font-size:8px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); opacity:.7; margin-top:2px; }
-        .ccorner-body { animation:ccornBody .4s cubic-bezier(.22,1,.36,1) .26s both; padding:2px; scrollbar-width:none; }
+        /* Body is anchored top-left and sized to the OPEN panel; while the shell
+           is small it's simply clipped, then fades in as the panel finishes
+           growing — and fades back out smoothly on close. */
+        .ccorner-body { position:absolute; left:0; top:0; z-index:4; overflow-y:auto;
+          padding:2px; scrollbar-width:none; transition:opacity .42s ease .18s; }
         .ccorner-body::-webkit-scrollbar { display:none; }
-        @keyframes ccornBody { from { opacity:0; transform:scale(.965) } to { opacity:1; transform:scale(1) } }
         @media (prefers-reduced-motion: reduce) { .cmap-edge,.cfloat,.catmos-rings,.catmos-glow { animation:none } }
       `}</style>
 
