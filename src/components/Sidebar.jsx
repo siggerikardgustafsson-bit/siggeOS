@@ -31,6 +31,10 @@ export default function Sidebar() {
     navigate('/login')
   }
 
+  // Drop DOM focus after a nav click so the rail's :focus-within doesn't keep
+  // it stuck open after changing page (it collapses once the cursor leaves).
+  const blurAfterNav = (e) => e.currentTarget.blur()
+
   return (
     <div className="maxx-rail">
       <aside className="maxx-rail-panel">
@@ -42,7 +46,7 @@ export default function Sidebar() {
             <i className="maxx-rail-mark-ring" />
           </div>
           <div className="maxx-rail-label maxx-rail-wordmark">
-            <span className="brand-logo-main">Maxx</span><span className="brand-logo-os">It</span>
+            Maxx<span>It</span>
           </div>
         </div>
 
@@ -53,6 +57,7 @@ export default function Sidebar() {
               key={to}
               to={to}
               end={to === '/'}
+              onClick={blurAfterNav}
               className={({ isActive }) => `maxx-rail-item ${isActive ? 'active' : ''}`}
             >
               <span className="maxx-rail-ico"><Icon size={18} /></span>
@@ -65,6 +70,7 @@ export default function Sidebar() {
         <div className="maxx-rail-foot">
           <NavLink
             to="/installningar"
+            onClick={blurAfterNav}
             className={({ isActive }) => `maxx-rail-item ${isActive ? 'active' : ''}`}
           >
             <span className="maxx-rail-ico"><Settings size={18} /></span>

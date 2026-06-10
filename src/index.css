@@ -3777,7 +3777,20 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 }
 .maxx-rail:hover .maxx-rail-mark-ring { opacity: 0.55; }
 @keyframes railSpin { to { transform: rotate(360deg); } }
-.maxx-rail-wordmark { font-size: 19px; font-weight: 800; }
+.maxx-rail-wordmark {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  line-height: 1;
+}
+.maxx-rail-wordmark span {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 
 /* Nav */
 .maxx-rail-nav {
