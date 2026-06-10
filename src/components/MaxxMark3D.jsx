@@ -18,21 +18,43 @@ export default function MaxxMark3D({ size = 40 }) {
     canvas.height = size * dpr
     ctx.scale(dpr, dpr)
 
-    // --- icosahedron geometry ---
-    const t = (1 + Math.sqrt(5)) / 2
-    const raw = [
-      [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0],
-      [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t],
-      [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1],
+    // --- chunky extruded "M" geometry ---
+    // 2D outline of a thick M (y-up), traced around the boundary.
+    const outline = [
+      [-0.80,  0.72], // 0  top-left outer
+      [-0.45,  0.72], // 1  top-left inner
+      [ 0.00,  0.05], // 2  top-center notch
+      [ 0.45,  0.72], // 3  top-right inner
+      [ 0.80,  0.72], // 4  top-right outer
+      [ 0.80, -0.72], // 5  bottom-right outer
+      [ 0.45, -0.72], // 6  bottom-right inner
+      [ 0.45,  0.18], // 7  right diagonal underside
+      [ 0.00, -0.05], // 8  V tip
+      [-0.45,  0.18], // 9  left diagonal underside
+      [-0.45, -0.72], // 10 bottom-left inner
+      [-0.80, -0.72], // 11 bottom-left outer
     ]
-    const norm = Math.hypot(1, t)
-    const V = raw.map(p => p.map(c => c / norm))
-    const F = [
-      [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
-      [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
-      [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
-      [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+    const N = outline.length
+    const hd = 0.28 // half extrusion depth
+    const V = []
+    for (const [x, y] of outline) V.push([x, y, hd])   // front  0..N-1
+    for (const [x, y] of outline) V.push([x, y, -hd])  // back   N..2N-1
+
+    // front-face triangulation (3 convex chunks: two bars + the V)
+    const front = [
+      [11, 0, 1], [11, 1, 10],   // left bar
+      [6, 3, 4], [6, 4, 5],      // right bar
+      [1, 2, 8], [1, 8, 9],      // left diagonal
+      [2, 3, 7], [2, 7, 8],      // right diagonal
     ]
+    const F = []
+    for (const tri of front) F.push(tri)                       // front
+    for (const tri of front) F.push([tri[0] + N, tri[2] + N, tri[1] + N]) // back
+    for (let i = 0; i < N; i++) {                              // side walls
+      const j = (i + 1) % N
+      F.push([i, j, j + N])
+      F.push([i, j + N, i + N])
+    }
 
     const hexToRgb = (h) => {
       const m = (h || '').trim().replace('#', '')
@@ -52,12 +74,12 @@ export default function MaxxMark3D({ size = 40 }) {
     const L = (() => { const v = [0.32, 0.42, 0.85]; const m = Math.hypot(...v); return v.map(c => c / m) })()
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    const R = size * 0.36
+    const R = size * 0.42
     const cx = size / 2
     const cy = size / 2
     const persp = size * 2.4
-    let ax = -0.4
-    let ay = 0.6
+    const ax = -0.22          // gentle fixed tilt so the M stays readable
+    let ay = 0.4              // spins around the vertical axis
     let raf = 0
 
     const rotate = (p, ax, ay) => {
@@ -111,14 +133,15 @@ export default function MaxxMark3D({ size = 40 }) {
         ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.closePath()
         ctx.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`
         ctx.fill()
-        ctx.lineWidth = 0.7
-        ctx.strokeStyle = `rgba(${accent2[0]},${accent2[1]},${accent2[2]},0.5)`
+        // stroke each facet in its own fill colour to seal hairline seams,
+        // so edges read as the same colour as the walls (no outline).
+        ctx.lineWidth = 0.6
+        ctx.strokeStyle = ctx.fillStyle
         ctx.stroke()
       }
 
       if (!reduce) {
-        ax += 0.010
-        ay += 0.016
+        ay += 0.020
         raf = requestAnimationFrame(frame)
       }
     }

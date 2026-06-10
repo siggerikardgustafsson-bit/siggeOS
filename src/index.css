@@ -3763,7 +3763,8 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 }
 /* Real-time 3D faceted crystal rendered on a <canvas> (see MaxxMark3D.jsx). */
 .maxx-rail-mark-canvas {
-  filter: drop-shadow(0 4px 14px var(--accent-glow));
+  filter: drop-shadow(0 0 9px var(--accent-glow))
+          drop-shadow(0 5px 18px var(--accent-glow));
 }
 .maxx-rail-mark-ring {
   position: absolute; inset: -4px;
