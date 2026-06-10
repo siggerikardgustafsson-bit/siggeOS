@@ -3761,35 +3761,9 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   display: flex; align-items: center; justify-content: center;
   perspective: 320px;
 }
-/* Real 3D faceted crystal (octahedron) — 8 triangular faces assembled in
-   space, semi-transparent so overlapping facets glow like a cut gem. */
-.maxx-rail-mark-3d {
-  position: relative;
-  width: 100%; height: 100%;
-  transform-style: preserve-3d;
-  animation: railMark3d 9s linear infinite;
-  will-change: transform;
+/* Real-time 3D faceted crystal rendered on a <canvas> (see MaxxMark3D.jsx). */
+.maxx-rail-mark-canvas {
   filter: drop-shadow(0 4px 14px var(--accent-glow));
-}
-.gem-face {
-  position: absolute;
-  left: 50%; top: 50%;
-  transform-style: preserve-3d;
-  backface-visibility: visible;
-  transform-origin: 50% 100%;
-  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
-  /* per-face shading keyed off --b (0..7) so each facet reads distinctly */
-  background:
-    linear-gradient(160deg,
-      color-mix(in srgb, var(--accent2) calc(78% - var(--b) * 7%), #fff) 0%,
-      color-mix(in srgb, var(--accent)  calc(70% - var(--b) * 6%), #060a18) 100%);
-  opacity: 0.82;
-  box-shadow: inset 0 0 6px color-mix(in srgb, var(--accent2) 60%, #fff);
-}
-@keyframes railMark3d {
-  0%   { transform: rotateX(-14deg) rotateY(0deg)   rotateZ(6deg); }
-  50%  { transform: rotateX(14deg)  rotateY(180deg) rotateZ(-6deg); }
-  100% { transform: rotateX(-14deg) rotateY(360deg) rotateZ(6deg); }
 }
 .maxx-rail-mark-ring {
   position: absolute; inset: -4px;
@@ -3941,7 +3915,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .maxx-rail-mark-ring, .maxx-rail-hint, .maxx-rail-mark-3d { animation: none !important; transform: rotateX(-14deg) rotateY(35deg) !important; }
+  .maxx-rail-mark-ring, .maxx-rail-hint { animation: none !important; }
 }
 
 /* Rail slot: shrink reserved footprint to the collapsed rail width.

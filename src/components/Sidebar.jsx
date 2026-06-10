@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import MaxxMark3D from './MaxxMark3D'
 import {
   LayoutDashboard, BookOpen, Dumbbell, Heart,
   DollarSign, GraduationCap, Briefcase,
@@ -42,38 +43,7 @@ export default function Sidebar() {
         {/* Logo / brand */}
         <div className="maxx-rail-brand">
           <div className="maxx-rail-mark">
-            <div className="maxx-rail-mark-3d">
-              {(() => {
-                const S = 26                 // edge length (px)
-                const H = S * 0.8660254       // equilateral-triangle height
-                const Z = S / 2               // base-edge distance from axis
-                const T = 35.264              // half-vertex tilt of an octahedron
-                const faces = []
-                for (let i = 0; i < 4; i++) {
-                  // top pyramid
-                  faces.push({
-                    key: `t${i}`, b: i,
-                    tf: `rotateY(${i * 90}deg) translateZ(${Z}px) rotateX(${-T}deg)`,
-                  })
-                  // bottom pyramid (mirrored)
-                  faces.push({
-                    key: `b${i}`, b: i + 4,
-                    tf: `rotateY(${i * 90}deg) translateZ(${Z}px) rotateX(${180 + T}deg)`,
-                  })
-                }
-                return faces.map(f => (
-                  <span
-                    key={f.key}
-                    className="gem-face"
-                    style={{
-                      width: `${S}px`, height: `${H}px`,
-                      marginLeft: `${-S / 2}px`, marginTop: `${-H}px`,
-                      transform: f.tf, '--b': f.b,
-                    }}
-                  />
-                ))
-              })()}
-            </div>
+            <MaxxMark3D size={40} />
             <i className="maxx-rail-mark-ring" />
           </div>
           <div className="maxx-rail-label maxx-rail-wordmark">
