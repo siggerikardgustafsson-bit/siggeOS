@@ -26,9 +26,9 @@
   --border2:  rgba(255,255,255,0.14);
 
   /* Text */
-  --text:   rgba(255,255,255,0.92);
-  --muted:  rgba(255,255,255,0.38);
-  --muted2: rgba(255,255,255,0.56);
+  --text:   rgba(255,255,255,0.94);
+  --muted:  rgba(255,255,255,0.46);
+  --muted2: rgba(255,255,255,0.64);
 
   /* Glass */
   --glass-blur:   blur(22px);
@@ -1597,6 +1597,8 @@ small {
 .score-value,
 .maxx-score-value {
   letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "ss01" 1, "cv01" 1;
 }
 
 /* A clean hover affordance for clickable evidence/data rows. */
@@ -2638,6 +2640,8 @@ small {
 .score-value,
 .maxx-score-value {
   letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "ss01" 1, "cv01" 1;
 }
 
 /* A clean hover affordance for clickable evidence/data rows. */
@@ -3600,13 +3604,15 @@ body,
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* --- Per-route page entrance: content rises + fades as you navigate --- */
+/* --- Per-route page entrance: content focuses in (rise + scale + de-blur) --- */
 .sigge-main-scroll > * {
-  animation: pageRise 0.5s cubic-bezier(0.22,1,0.36,1) both;
+  animation: pageRise 0.58s cubic-bezier(0.22,1,0.36,1) both;
+  transform-origin: 50% 0;
 }
 @keyframes pageRise {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(20px) scale(0.985); filter: blur(7px); }
+  60%  { filter: blur(0); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
 }
 
 /* Stagger immediate children of a page grid so cards cascade in */
