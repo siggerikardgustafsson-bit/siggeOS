@@ -121,9 +121,24 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   const coreColor = TIER_COLORS[coreTier] || '#4f8ef7'
   const nextColor = TIER_COLORS[maxxProfile?.levelUp?.nextTier] || '#a78bfa'
 
-  const BASE = 142, CORE = 216, COREHOVER = 258, HOVER = 248
+  const BASE = 158, CORE = 232, COREHOVER = 286, HOVER = 274
 
   const isExpanded = expandedId != null
+
+  // Soft repulsion — neighbours of the hovered bubble drift a little out of the
+  // way, like real bubbles nudging each other in a fluid. Returns a px offset.
+  const hoverCenter = hoverId === 'core'
+    ? { x: 50, y: 50 }
+    : (hoverId ? (nodes.find(n => n.c.id === hoverId) || null) : null)
+  function pushFor(x, y) {
+    if (!hoverCenter || isExpanded) return { px: 0, py: 0 }
+    const dx = x - hoverCenter.x, dy = y - hoverCenter.y
+    const d = Math.hypot(dx, dy)
+    if (d < 0.6 || d > 58) return { px: 0, py: 0 }
+    const f = 1 - d / 58           // closer ⇒ stronger
+    const mag = 66 * Math.pow(f, 1.4)   // px, eased falloff
+    return { px: (dx / d) * mag, py: (dy / d) * mag }
+  }
 
   // Orbiting mini-bubbles that point straight at a single data source / stat.
   function Satellites({ items = [], size, outwardAngle, color, catId, catName, navTarget }) {
@@ -252,13 +267,32 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           position:absolute; inset:0; border-radius:50%; display:flex; align-items:center; justify-content:center;
           cursor:pointer; overflow:hidden; z-index:2; transform:translateZ(0); backface-visibility:hidden;
           transition: box-shadow .4s ease, background .4s ease;
-          animation: cdiscIn .7s cubic-bezier(.34,1.3,.5,1) both;
+          animation: cdiscIn .7s cubic-bezier(.34,1.3,.5,1) both, cbubbleMorph 11s ease-in-out infinite;
         }
         @keyframes cdiscIn { from { opacity:0; transform:translateZ(0) scale(.55) } to { opacity:1; transform:translateZ(0) scale(1) } }
-        .cdisc::after { content:''; position:absolute; top:7%; left:15%; width:26%; height:17%; border-radius:50%;
-          transform:rotate(-18deg); opacity:.8;
-          background:radial-gradient(closest-side, rgba(255,255,255,.92), rgba(255,255,255,.18) 46%, rgba(255,255,255,0) 74%);
-          pointer-events:none; }
+        /* Living surface — the rim breathes between perfect circle and gentle ovoid, like a bubble under surface tension */
+        @keyframes cbubbleMorph {
+          0%,100% { border-radius:50% 50% 50% 50% / 50% 50% 50% 50% }
+          30%     { border-radius:53% 47% 49% 51% / 52% 48% 52% 48% }
+          60%     { border-radius:47% 53% 52% 48% / 48% 53% 47% 52% }
+        }
+        /* Iridescent soap-film that slowly rotates around the rim */
+        .cdisc::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
+          mix-blend-mode:screen; opacity:.55;
+          -webkit-mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
+          mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
+          background:conic-gradient(from 200deg, rgba(120,180,255,.5), rgba(190,130,255,.42), rgba(120,255,225,.4), rgba(255,210,130,.42), rgba(255,140,190,.4), rgba(120,180,255,.5));
+          animation:cirid 16s linear infinite; }
+        @keyframes cirid { to { transform:rotate(360deg) } }
+        /* Specular glint that drifts as the surface wobbles */
+        .cdisc::after { content:''; position:absolute; top:7%; left:15%; width:26%; height:17%; border-radius:50%; z-index:3;
+          transform:rotate(-18deg); opacity:.85;
+          background:radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,.2) 46%, rgba(255,255,255,0) 74%);
+          pointer-events:none; animation:cglint 9s ease-in-out infinite; }
+        @keyframes cglint {
+          0%,100% { transform:rotate(-18deg) translate(0,0); opacity:.85 }
+          50%     { transform:rotate(-11deg) translate(10%,7%); opacity:1 }
+        }
         .cfloat { animation: cmapFloat 6.5s ease-in-out infinite; will-change:transform; }
         .cexp { scrollbar-width:none; animation:cexpIn .5s cubic-bezier(.22,1,.36,1) both; }
         .cexp::-webkit-scrollbar { display:none; }
@@ -360,12 +394,13 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         const dim = exp ? 'min(78vh, 760px)' : (hov ? COREHOVER : CORE)
         const dimOther = isExpanded && !exp
         const corePct = maxxProfile?.levelUp?.progressPct
+        const push = pushFor(50, 50)
         return (
           <div className="cnode" style={{ left:'50%', top:'50%', zIndex: exp ? 60 : (hov?40:4),
             transition:'opacity .55s cubic-bezier(.22,1,.36,1), filter .55s ease, transform .66s cubic-bezier(.34,1.32,.5,1)',
             opacity: dimOther ? 0 : 1, pointerEvents: dimOther ? 'none' : 'auto',
             filter: dimOther ? 'blur(3px)' : 'none',
-            transform: dimOther ? 'translate(-50%,-50%) scale(.3)' : 'translate(-50%,-50%)' }}
+            transform: dimOther ? 'translate(-50%,-50%) scale(.3)' : `translate(calc(-50% + ${push.px}px), calc(-50% + ${push.py}px))` }}
             onMouseEnter={() => setHoverId(id)} onMouseLeave={() => setHoverId(null)}>
             <div className={exp ? 'cstack' : 'cstack cfloat'} style={{ width:dim, height:dim }}>
               {!exp && <div className="ccore-glow" style={{ background:`radial-gradient(circle, ${coreColor}55 0%, ${coreColor}22 42%, transparent 70%)` }} />}
@@ -411,6 +446,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         const progressPct = cat.levelUp?.progressPct
         const nextC = TIER_COLORS[cat.levelUp?.nextTier] || col
         const outwardAngle = Math.atan2(n.uy, n.ux)
+        const push = exp ? { px:0, py:0 } : pushFor(n.x, n.y)
         return (
           <div key={id} className="cnode" style={{ left, top, zIndex: exp ? 60 : (hov ? 40 : 3),
             transition:`opacity .55s cubic-bezier(.22,1,.36,1) ${dimOther?n.i*0.04:0}s, filter .55s ease, transform .68s cubic-bezier(.34,1.32,.5,1) ${dimOther?n.i*0.04:0}s, left .66s cubic-bezier(.22,1,.36,1), top .66s cubic-bezier(.22,1,.36,1)`,
@@ -418,7 +454,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
             filter: dimOther ? 'blur(3px)' : 'none',
             transform: dimOther
               ? `translate(calc(-50% + ${n.ux*168}px), calc(-50% + ${n.uy*168}px)) scale(.32)`
-              : 'translate(-50%,-50%)' }}
+              : `translate(calc(-50% + ${push.px}px), calc(-50% + ${push.py}px))` }}
             onMouseEnter={() => setHoverId(id)} onMouseLeave={() => setHoverId(null)}>
             <div className={exp ? 'cstack' : 'cstack cfloat'} style={{ width:size, height:size, animationDelay:(n.i*0.5)+'s' }}>
               {!exp && active && progressPct != null && <RingProgress pct={progressPct} nextColor={nextC} />}
