@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../context/ToastContext'
+import { useTilt } from '../hooks/useTilt'
+import CountUp from '../components/CountUp'
 import { format, subDays, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Loader, Upload, Apple, X, Plus, Edit2, Check, Scale, Moon, Wine, Syringe, Utensils, Pill } from 'lucide-react'
+import { Loader, Upload, Apple, X, Plus, Edit2, Check, Scale, Moon, Wine, Syringe, Utensils, Pill, Footprints, Target } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 const DEFAULT_SUPPLEMENTS = ['Kreatin', 'D-vitamin', 'Omega-3', 'Multivitamin', 'Magnesium']
@@ -14,26 +16,33 @@ const NICOTINE_TYPES = [
   { id: 'cigaretter', label: 'Cigaretter' },
 ]
 
-function Widget({ title, icon, color = 'var(--accent)', children, action }) {
+function Widget({ title, icon, color = 'var(--accent)', children, action, delay = 0 }) {
+  const tilt = useTilt({ max: 4, scale: 1.008 })
   return (
-    <div style={{
-      background: 'var(--surface)', backdropFilter: 'var(--glass-blur)',
-      WebkitBackdropFilter: 'var(--glass-blur)',
-      border: '1px solid var(--glass-border)', borderRadius: '16px',
-      padding: '18px', boxShadow: 'var(--glass-shadow)',
-      position: 'relative', overflow: 'hidden',
-    }}>
-      <div style={{ position: 'absolute', top: 0, left: '15%', right: '15%', height: '1px', background: 'linear-gradient(90deg, transparent, var(--border2), transparent)' }} />
+    <div ref={tilt} className="mx-card" style={{ '--mx-card-color': color, animationDelay: `${delay}ms` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: 28, height: 28, borderRadius: '8px', background: color + '18', border: '1px solid ' + color + '33', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {icon}
-          </div>
-          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text)' }}>{title}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+          <div className="mx-card-icon">{icon}</div>
+          <span style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--text)' }}>{title}</span>
         </div>
         {action}
       </div>
       {children}
+    </div>
+  )
+}
+
+function HeroStat({ label, color, value, decimals = 0, unit, suffix, sub, delay = 0, fallback }) {
+  const has = value != null && Number.isFinite(Number(value))
+  return (
+    <div className="mx-stat" style={{ '--mx-stat-color': color, animationDelay: `${delay}ms` }}>
+      <div className="mx-stat-label"><span className="mx-stat-dot" />{label}</div>
+      <div className="mx-stat-value">
+        {has ? <CountUp value={Number(value)} decimals={decimals} /> : (fallback ?? '—')}
+        {has && unit && <span className="unit">{unit}</span>}
+        {has && suffix}
+      </div>
+      {sub && <div className="mx-stat-sub">{sub}</div>}
     </div>
   )
 }
@@ -329,13 +338,7 @@ export default function HalsaPage() {
       <div className="page-header">
         <div>
           <div className="page-header-title">Hälsa</div>
-          <div className="page-header-sub" style={{ display:'flex', gap:'10px' }}>
-            {latestWeight && <span style={{ color:'#10b981' }}>⚖ {latestWeight} kg</span>}
-            {targetWeight && <span style={{ color:'#f59e0b' }}>mål {targetWeight} kg</span>}
-            {avgSleep > 0 && <span style={{ color:'#06b6d4' }}> {avgSleep.toFixed(1)}h</span>}
-            {avgSteps > 0 && <span style={{ color:'#f59e0b' }}>{Math.round(avgSteps).toLocaleString('sv-SE')} steg</span>}
-            {supplementCompliance7 != null && <span style={{ color:'#06b6d4' }}>💊 {supplementCompliance7}%</span>}
-          </div>
+          <div className="page-header-sub">Logga dagligen — vikt, sömn, kost och tillskott</div>
         </div>
         <div className="page-header-actions">
           <input ref={fileRef} type="file" accept=".xml" onChange={handleFileImport} style={{ display:'none' }} />
@@ -348,6 +351,18 @@ export default function HalsaPage() {
       <div className="page-content-scroll">
         <div style={{ padding:'12px 12px 0', maxWidth:'960px', margin:'0 auto' }}>
 
+          {/* Hero stat band */}
+          <div className="mx-statband">
+            <HeroStat label="Vikt" color="#10b981" value={latestWeight} decimals={1} unit="kg" delay={0}
+              sub={targetWeight ? (latestWeight ? `${Math.abs(Math.round((latestWeight - targetWeight) * 10) / 10)} kg ${latestWeight > targetWeight ? 'kvar' : 'under'} mål` : `mål ${targetWeight} kg`) : 'inget mål satt'} />
+            <HeroStat label="Sömn 7d" color="#8b5cf6" value={avgSleep > 0 ? avgSleep : null} decimals={1} unit="h" delay={70}
+              sub="snitt senaste veckan" />
+            <HeroStat label="Steg 7d" color="#f59e0b" value={avgSteps > 0 ? Math.round(avgSteps) : null} delay={140}
+              sub="snitt per dag" />
+            <HeroStat label="Tillskott 7d" color="#06b6d4" value={supplementCompliance7} unit="%" delay={210}
+              fallback="—" sub="compliance" />
+          </div>
+
           {/* Import feedback */}
           {(importResult || importing) && (
             <div style={{ padding:'10px 14px', background:'rgba(16,185,129,0.1)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:'10px', marginBottom:'12px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
@@ -359,14 +374,10 @@ export default function HalsaPage() {
           )}
 
           {/* Tabs */}
-          <div style={{ display:'flex', gap:'4px', marginBottom:'14px', background:'var(--surface)', borderRadius:'10px', padding:'4px', backdropFilter:'var(--glass-blur)' }}>
+          <div className="mx-segment" style={{ marginBottom:'16px' }}>
             {tabs.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-                flex:1, padding:'8px', borderRadius:'7px', border:'none', cursor:'pointer',
-                background: activeTab===tab.id ? 'var(--surface3)' : 'transparent',
-                color: activeTab===tab.id ? 'var(--text)' : 'var(--muted)',
-                fontSize:'13px', fontWeight:'500', fontFamily:'DM Sans, sans-serif', transition:'all 0.15s',
-              }}>{tab.label}</button>
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={`mx-segment-btn ${activeTab===tab.id ? 'active' : ''}`}>{tab.label}</button>
             ))}
           </div>
 
@@ -375,7 +386,7 @@ export default function HalsaPage() {
             <div className="widget-grid-2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
 
               {/* VIKT */}
-              <Widget title="Vikt" icon={<Scale size={14} color="#10b981" />} color="#10b981"
+              <Widget title="Vikt" icon={<Scale size={15} color="#10b981" />} color="#10b981" delay={0}
                 action={<SaveBtn onClick={() => saveWidget('weight', { date: weightForm.date, weight_kg: weightForm.weight_kg ? parseFloat(weightForm.weight_kg) : null })} saving={savingWidget.weight} saved={savedWidget.weight} />}>
                 <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
                   <input type="date" className="input" value={weightForm.date} onChange={e => setWeightForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
@@ -393,7 +404,7 @@ export default function HalsaPage() {
               </Widget>
 
               {/* SÖMN */}
-              <Widget title="Sömn" icon={<Moon size={14} color="#8b5cf6" />} color="#8b5cf6"
+              <Widget title="Sömn" icon={<Moon size={15} color="#8b5cf6" />} color="#8b5cf6" delay={70}
                 action={<SaveBtn onClick={() => saveWidget('sleep', { date: sleepForm.date, sleep_hours: sleepForm.sleep_hours ? parseFloat(sleepForm.sleep_hours) : null, sleep_quality: sleepForm.sleep_quality })} saving={savingWidget.sleep} saved={savedWidget.sleep} />}>
                 {todayLog?.source === 'journal' && (
                   <div style={{ padding:'6px 10px', background:'rgba(6,182,212,0.08)', border:'1px solid rgba(6,182,212,0.2)', borderRadius:'7px', marginBottom:'10px', fontSize:'11px', color:'#06b6d4' }}>
@@ -412,7 +423,7 @@ export default function HalsaPage() {
               </Widget>
 
               {/* SUBSTANSER */}
-              <Widget title="Alkohol & Nikotin" icon={<Wine size={14} color="#f59e0b" />} color="#f59e0b"
+              <Widget title="Alkohol & Nikotin" icon={<Wine size={15} color="#f59e0b" />} color="#f59e0b" delay={140}
                 action={<SaveBtn onClick={() => saveWidget('substance', { date: substanceForm.date, alcohol_units: substanceForm.alcohol_units ? parseFloat(substanceForm.alcohol_units) : null, nicotine: substanceForm.nicotine.length > 0, marijuana: substanceForm.marijuana || false })} saving={savingWidget.substance} saved={savedWidget.substance} />}>
                 <div style={{ display:'flex', gap:'8px', marginBottom:'12px', alignItems:'center' }}>
                   <input type="date" className="input" value={substanceForm.date} onChange={e => setSubstanceForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
@@ -441,7 +452,7 @@ export default function HalsaPage() {
               </Widget>
 
               {/* RETATRUTIDE */}
-              <Widget title="Retatrutide " icon={<Syringe size={14} color="#a78bfa" />} color="#a78bfa"
+              <Widget title="Retatrutide " icon={<Syringe size={15} color="#a78bfa" />} color="#a78bfa" delay={210}
                 action={<SaveBtn onClick={() => saveWidget('ret', { date: retForm.date, retatrutide_dose_mg: retForm.retatrutide_injected ? parseFloat(retForm.retatrutide_dose_mg)||2.5 : null })} saving={savingWidget.ret} saved={savedWidget.ret} />}>
                 <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
                   <input type="date" className="input" value={retForm.date} onChange={e => setRetForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
@@ -459,7 +470,7 @@ export default function HalsaPage() {
               </Widget>
 
               {/* KOST */}
-              <Widget title="Kost" icon={<Utensils size={14} color="#34d399" />} color="#34d399"
+              <Widget title="Kost" icon={<Utensils size={15} color="#34d399" />} color="#34d399" delay={280}
                 action={<SaveBtn onClick={() => saveNutrition({ date: nutritionForm.date, total_calories: nutritionForm.fasting ? 0 : (nutritionForm.calories ? parseInt(nutritionForm.calories) : null), protein_g: nutritionForm.protein_g ? parseInt(nutritionForm.protein_g) : null, water_liters: nutritionForm.water_liters ? parseFloat(nutritionForm.water_liters) : null })} saving={savingWidget.nutrition} saved={savedWidget.nutrition} />}>
                 <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
                   <input type="date" className="input" value={nutritionForm.date} onChange={e => setNutritionForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
@@ -481,7 +492,7 @@ export default function HalsaPage() {
               </Widget>
 
               {/* KOSTTILLSKOTT */}
-              <Widget title="Kosttillskott" icon={<Pill size={14} color="#06b6d4" />} color="#06b6d4"
+              <Widget title="Kosttillskott" icon={<Pill size={15} color="#06b6d4" />} color="#06b6d4" delay={350}
                 action={<SaveBtn onClick={saveSupplements} saving={savingWidget.supps} saved={savedWidget.supps} />}>
                 <div style={{ display:'flex', gap:'8px', marginBottom:'12px' }}>
                   <input type="date" className="input" value={suppForm.date} onChange={e => setSuppForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />

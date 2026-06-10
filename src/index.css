@@ -4115,3 +4115,137 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 @media (prefers-reduced-motion: reduce) {
   .mx-modal-overlay, .mx-modal-panel { animation: none !important; }
 }
+
+/* ============================================================
+   HÄLSA — premium lift (hero stats, segmented tabs, glow cards)
+   Reusable .mx-* primitives so other pages can adopt the same look.
+   ============================================================ */
+
+/* Hero stat band */
+.mx-statband {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.mx-stat {
+  position: relative;
+  overflow: hidden;
+  padding: 15px 16px;
+  border-radius: 16px;
+  background: var(--surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, border-color .3s ease;
+  animation: mxStatRise .55s cubic-bezier(.22,1,.36,1) both;
+}
+.mx-stat::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 80% at 90% -10%, var(--mx-stat-color, var(--accent)) 0%, transparent 55%);
+  opacity: .14;
+  pointer-events: none;
+}
+.mx-stat::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 14%; right: 14%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--mx-stat-color, var(--accent)), transparent);
+  opacity: .5;
+  pointer-events: none;
+}
+.mx-stat:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--mx-stat-color, var(--accent)) 40%, var(--glass-border));
+  box-shadow: 0 14px 38px -16px var(--mx-stat-color, var(--accent)), var(--glass-shadow);
+}
+.mx-stat-label {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+.mx-stat-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--mx-stat-color, var(--accent));
+  box-shadow: 0 0 9px var(--mx-stat-color, var(--accent));
+}
+.mx-stat-value {
+  font-size: 26px; font-weight: 900; line-height: 1;
+  color: var(--text); font-variant-numeric: tabular-nums;
+}
+.mx-stat-value .unit { font-size: 14px; font-weight: 700; color: var(--muted2); margin-left: 3px; }
+.mx-stat-sub { margin-top: 6px; font-size: 11.5px; font-weight: 600; color: var(--muted2); }
+@keyframes mxStatRise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Segmented tab control */
+.mx-segment {
+  display: inline-flex;
+  gap: 3px; padding: 4px;
+  border-radius: 13px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+.mx-segment-btn {
+  appearance: none; border: 1px solid transparent;
+  padding: 7px 18px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; font-family: 'DM Sans', sans-serif;
+  color: var(--muted); cursor: pointer;
+  transition: all .22s cubic-bezier(.22,1,.36,1);
+}
+.mx-segment-btn:hover { color: var(--muted2); }
+.mx-segment-btn.active {
+  color: #fff;
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 76%, #060914));
+  border-color: var(--accent-border);
+  box-shadow: 0 5px 16px -4px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.25);
+}
+
+/* Premium glass widget shell (tilt-aware) */
+.mx-card {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  transition: transform .32s cubic-bezier(.22,1,.36,1), box-shadow .32s ease, border-color .32s ease;
+  transform-style: preserve-3d;
+  animation: mxStatRise .55s cubic-bezier(.22,1,.36,1) both;
+}
+.mx-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 15%; right: 15%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--mx-card-color, var(--accent)), transparent);
+  opacity: .55; pointer-events: none;
+}
+.mx-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 50% at var(--mx, 50%) var(--my, 0%), var(--mx-card-color, var(--accent)) 0%, transparent 60%);
+  opacity: 0; transition: opacity .3s ease; pointer-events: none;
+}
+.mx-card:hover {
+  border-color: color-mix(in srgb, var(--mx-card-color, var(--accent)) 35%, var(--glass-border));
+  box-shadow: 0 18px 44px -20px var(--mx-card-color, var(--accent)), var(--glass-shadow);
+}
+.mx-card:hover::after { opacity: .08; }
+.mx-card-icon {
+  width: 30px; height: 30px; border-radius: 9px;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--mx-card-color, var(--accent)) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mx-card-color, var(--accent)) 34%, transparent);
+  box-shadow: 0 0 16px -4px var(--mx-card-color, var(--accent));
+}
