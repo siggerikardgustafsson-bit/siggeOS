@@ -161,13 +161,14 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           opacity: isExpanded ? 0 : 1, pointerEvents: isExpanded ? 'none' : 'auto',
           transition: 'opacity .4s ease' }}
         onMouseEnter={() => setHoverId(cfg.id)} onMouseLeave={() => setHoverId(null)}>
-        <div className={open ? 'ccorner-shell open' : 'ccorner-shell cfloat'}
+        <div className={`ccorner-shell cbub ${open ? 'open' : 'cfloat'}`}
           style={{ width: open ? cfg.width : 112, height: open ? cfg.height : 112,
-            borderRadius: open ? 24 : '50%', transformOrigin: `${originX} ${originY}`,
+            transformOrigin: `${originX} ${originY}`,
             cursor: open ? 'default' : 'pointer',
+            ['--cbc']: cfg.color,
             ...(open ? {} : bubbleSkin(cfg.color, true, 1.3)) }}>
           {open ? (
-            <div className="ccorner-body" style={{ width: cfg.width, height: cfg.height, overflowY: 'auto' }}>
+            <div className="ccorner-body" style={{ position: 'relative', zIndex: 4, width: cfg.width, height: cfg.height, overflowY: 'auto' }}>
               {cfg.render()}
             </div>
           ) : (
@@ -393,15 +394,39 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         .catmos-rings .dash { stroke:rgba(255,255,255,.07); stroke-dasharray:2 6; }
         .catmos-tick { fill:rgba(255,255,255,.18); }
         /* Corner info bubbles — collapse to a glassy disc, expand to a panel */
-        .ccorner-shell { position:relative; overflow:hidden; backface-visibility:hidden;
-          transition: width .58s cubic-bezier(.22,1,.36,1), height .58s cubic-bezier(.22,1,.36,1),
-            border-radius .5s cubic-bezier(.22,1,.36,1), box-shadow .4s ease; }
-        .ccorner-shell.open { overflow:visible;
-          background:linear-gradient(170deg, rgba(20,26,42,.9), rgba(10,14,24,.94));
+        .ccorner-shell { position:relative; backface-visibility:hidden; transform:translateZ(0);
+          transition: width .62s cubic-bezier(.34,1.18,.4,1), height .62s cubic-bezier(.34,1.18,.4,1),
+            border-radius .55s cubic-bezier(.22,1,.36,1), box-shadow .45s ease, background .45s ease; }
+        /* Collapsed = a living bubble, same surface treatment as the main bubbles */
+        .ccorner-shell.cfloat { overflow:hidden;
+          animation: cmapFloat 6.5s ease-in-out infinite, cbubbleMorph 11s ease-in-out infinite; }
+        /* Open = the bubble has swelled into a glass panel; rim keeps breathing */
+        .ccorner-shell.open { overflow:visible; border-radius:26px;
+          background:linear-gradient(170deg, rgba(20,26,42,.92), rgba(10,14,24,.95));
           border:1px solid var(--glass-border, rgba(255,255,255,.1));
-          box-shadow:0 30px 70px -24px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.06);
-          backdrop-filter:blur(16px) saturate(1.05); -webkit-backdrop-filter:blur(16px) saturate(1.05); }
-        .ccorner-cap { position:absolute; inset:0; display:flex; flex-direction:column;
+          box-shadow:0 30px 70px -24px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.07),
+            0 0 0 1px color-mix(in srgb, var(--cbc, #4f8ef7) 22%, transparent);
+          backdrop-filter:blur(16px) saturate(1.05); -webkit-backdrop-filter:blur(16px) saturate(1.05);
+          animation: cpanelMorph 13s ease-in-out infinite; }
+        @keyframes cpanelMorph {
+          0%,100% { border-radius:26px 26px 26px 26px }
+          50%     { border-radius:30px 23px 28px 24px }
+        }
+        /* Soap-film iridescence + drifting glint — shared bubble material */
+        .cbub::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
+          mix-blend-mode:screen; opacity:.5;
+          -webkit-mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
+          mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
+          background:conic-gradient(from 200deg, rgba(120,180,255,.5), rgba(190,130,255,.42), rgba(120,255,225,.4), rgba(255,210,130,.42), rgba(255,140,190,.4), rgba(120,180,255,.5));
+          animation:cirid 16s linear infinite; transition:opacity .45s ease; }
+        .cbub::after { content:''; position:absolute; top:7%; left:14%; width:26%; height:17%; border-radius:50%; z-index:3;
+          transform:rotate(-18deg); opacity:.85;
+          background:radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,.2) 46%, rgba(255,255,255,0) 74%);
+          pointer-events:none; animation:cglint 9s ease-in-out infinite; transition:all .45s ease; }
+        /* On the open panel the film stretches into a faint full sheen + corner glint */
+        .ccorner-shell.open.cbub::before { -webkit-mask:none; mask:none; opacity:.14; }
+        .ccorner-shell.open.cbub::after { top:3%; left:5%; width:24%; height:13%; opacity:.55; }
+        .ccorner-cap { position:absolute; inset:0; z-index:4; display:flex; flex-direction:column;
           align-items:center; justify-content:center; gap:3px; text-align:center; pointer-events:none; }
         .ccorner-ico { display:flex; }
         .ccorner-lab { font-size:12px; font-weight:900; color:#fff; letter-spacing:-.01em; }

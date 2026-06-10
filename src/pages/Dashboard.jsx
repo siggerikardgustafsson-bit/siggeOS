@@ -954,14 +954,14 @@ export default function Dashboard() {
 
   const dashCorners = [
     {
-      id: 'today', anchor: { left: 6, bottom: 6 }, center: { x: 8, y: 90 },
-      r: 60, mag: 84, color: '#34d399', label: 'Idag',
+      id: 'today', anchor: { right: 6, bottom: 6 }, center: { x: 92, y: 90 },
+      r: 66, mag: 98, color: '#34d399', label: 'Idag',
       icon: <CalendarDays size={22} />, width: 300, height: 380,
       render: () => <TodayWidget userId={userId} />,
     },
     {
-      id: 'stats', anchor: { right: 6, bottom: 6 }, center: { x: 92, y: 90 },
-      r: 66, mag: 92, color: '#4f8ef7', label: 'Tier', sub: overallTier ? 'T' + overallTier : '—',
+      id: 'stats', anchor: { left: 6, bottom: 6 }, center: { x: 8, y: 90 },
+      r: 76, mag: 108, color: '#4f8ef7', label: 'Grafer', sub: overallTier ? 'T' + overallTier : '—',
       icon: <BarChart2 size={22} />, width: 560, height: 360,
       render: () => graphPanel,
     },
