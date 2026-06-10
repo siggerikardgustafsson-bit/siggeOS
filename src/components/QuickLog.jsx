@@ -498,7 +498,7 @@ export default function QuickLog() {
                 .select('weight_kg')
                 .eq('user_id', user.id)
                 .eq('exercise_name', ex.name)
-                .single()
+                .maybeSingle()
               if (!existingPR || maxWeight > existingPR.weight_kg) {
                 await supabase.from('personal_records').upsert({
                   user_id: user.id,

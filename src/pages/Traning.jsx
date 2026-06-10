@@ -180,7 +180,7 @@ export default function TraningPage() {
 
   async function loadCustomExercises() {
     const [settingsRes, historyRes] = await Promise.all([
-      supabase.from('user_settings').select('goals').eq('user_id', user.id).single(),
+      supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle(),
       supabase.from('training_exercises')
         .select('exercise_name, training_sessions!inner(user_id)')
         .eq('training_sessions.user_id', user.id),
@@ -380,7 +380,7 @@ export default function TraningPage() {
   }
 
   async function saveCustomExercise(name) {
-    const { data } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).single()
+    const { data } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle()
     const existing = data?.goals?.custom_exercises || []
     if (existing.includes(name)) return
     const updated = [...existing, name]
@@ -892,7 +892,7 @@ export default function TraningPage() {
   async function updateTrainingScore(dateStr, feeling) {
     const score = Math.min(50 + (feeling / 10) * 50, 100)
     const { data: existing } = await supabase
-      .from('daily_scores').select('*').eq('user_id', user.id).eq('date', dateStr).single()
+      .from('daily_scores').select('*').eq('user_id', user.id).eq('date', dateStr).maybeSingle()
 
     if (existing) {
       await supabase.from('daily_scores').update({ score_training: score }).eq('id', existing.id)

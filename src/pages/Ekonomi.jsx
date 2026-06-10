@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useToast } from '../context/ToastContext'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
@@ -76,14 +77,19 @@ async function fetchPricesViaEdge(assets) {
     const res = await supabase.functions.invoke('price-fetch', {
       body: { assets: assets.map(a => ({ id: a.id, ticker: a.ticker, type: a.type })) }
     })
-    return res.data || { prices: {}, usdSek: 10.5 }
+    if (res.error || !res.data) {
+      console.warn('price-fetch edge function returned no data', res.error)
+      return { prices: {}, usdSek: null, ok: false }
+    }
+    return { ...res.data, ok: true }
   } catch(e) {
     console.warn('price-fetch edge function failed', e)
-    return { prices: {}, usdSek: 10.5 }
+    return { prices: {}, usdSek: null, ok: false }
   }
 }
 
 function NetWorthTab({ user }) {
+  const { toast } = useToast()
   const [assets, setAssets] = useState([])
   const [prices, setPrices] = useState({})
   const [usdSek, setUsdSek] = useState(10.5)
@@ -105,7 +111,7 @@ function NetWorthTab({ user }) {
     setLoading(true)
     const [{ data: assetData }, { data: goalData }, { data: histData }] = await Promise.all([
       supabase.from('assets').select('*').eq('user_id', user.id).order('created_at'),
-      supabase.from('user_settings').select('goals').eq('user_id', user.id).single(),
+      supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle(),
       supabase.from('net_worth_history').select('date,total_sek').eq('user_id', user.id).order('date', { ascending: true }).limit(90),
     ])
     const loadedAssets = assetData || []
@@ -115,10 +121,15 @@ function NetWorthTab({ user }) {
     setGoal({ target: nwGoal.target || '', deadline: nwGoal.deadline || '' })
 
     if (loadedAssets.filter(a => a.type !== 'cash').length > 0) {
-      const { prices: livePrices, usdSek: fx } = await fetchPricesViaEdge(loadedAssets)
+      const { prices: livePrices, usdSek: fx, ok } = await fetchPricesViaEdge(loadedAssets)
       setPrices(livePrices)
-      setUsdSek(fx || 10.5)
-      // Save daily snapshot
+      if (fx) setUsdSek(fx)
+      if (!ok) {
+        toast({ message: 'Kunde inte hämta aktuella priser – visar senast kända värden. Ingen ny snapshot sparas.', type: 'error' })
+        setLoading(false)
+        return
+      }
+      // Save daily snapshot (endast när prishämtning lyckades)
       const total = loadedAssets.reduce((sum, a) => {
         if (a.type === 'cash') return sum + (a.manual_price_sek || 0)
         return sum + (livePrices[a.id]?.price || 0) * a.quantity
@@ -150,9 +161,13 @@ function NetWorthTab({ user }) {
 
   async function refreshPrices() {
     setRefreshing(true)
-    const { prices: livePrices, usdSek: fx } = await fetchPricesViaEdge(assets)
-    setPrices(livePrices)
-    setUsdSek(fx || 10.5)
+    const { prices: livePrices, usdSek: fx, ok } = await fetchPricesViaEdge(assets)
+    if (ok) {
+      setPrices(livePrices)
+      if (fx) setUsdSek(fx)
+    } else {
+      toast({ message: 'Kunde inte uppdatera priser just nu. Försök igen senare.', type: 'error' })
+    }
     setRefreshing(false)
   }
 
@@ -179,15 +194,24 @@ function NetWorthTab({ user }) {
   }
 
   async function deleteAsset(id) {
-    if (!window.confirm('Ta bort denna tillgång?')) return
-    await supabase.from('assets').delete().eq('id', id)
+    const removed = assets.find(a => a.id === id)
     setAssets(prev => prev.filter(a => a.id !== id))
-    setPrices(prev => { const n = {...prev}; delete n[id]; return n })
+    let undone = false
+    toast({
+      message: 'Tillgång borttagen.',
+      action: { label: 'Ångra', onClick: () => { undone = true; if (removed) setAssets(prev => [...prev, removed]) } },
+      duration: 5000,
+    })
+    setTimeout(async () => {
+      if (undone) return
+      await supabase.from('assets').delete().eq('id', id)
+      setPrices(prev => { const n = {...prev}; delete n[id]; return n })
+    }, 5000)
   }
 
   async function saveGoal() {
     setSavingGoal(true)
-    const { data } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).single()
+    const { data } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle()
     await supabase.from('user_settings').upsert({
       user_id: user.id,
       goals: { ...(data?.goals || {}), net_worth_goal: { target: parseFloat(goal.target), deadline: goal.deadline } }
@@ -460,6 +484,7 @@ function NetWorthTab({ user }) {
 
 export default function EkonomiPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('overview')
   const [logType, setLogType] = useState('expense')
   const [selectedMonth, setSelectedMonth] = useState(new Date())
@@ -538,7 +563,7 @@ export default function EkonomiPage() {
       supabase.from('fixed_costs').select('*').eq('user_id', user.id).eq('active', true),
       supabase.from('trips').select('*').eq('user_id', user.id).in('status', ['planerad', 'pågående']).order('start_date'),
       supabase.from('income_logs').select('amount').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', halfEnd),
-      supabase.from('user_settings').select('goals').eq('user_id', user.id).single(),
+      supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle(),
     ])
 
     const totalCsn = (csnRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0)
@@ -555,29 +580,41 @@ export default function EkonomiPage() {
   }
 
   async function saveExpense() {
+    const amount = parseFloat(expenseForm.amount)
+    if (!isFinite(amount) || amount <= 0) {
+      toast({ message: 'Ange ett giltigt belopp större än 0.', type: 'error' })
+      return
+    }
     setSaving(true)
-    await supabase.from('expense_logs').insert({
+    const { error } = await supabase.from('expense_logs').insert({
       user_id: user.id,
-      amount: parseFloat(expenseForm.amount),
+      amount,
       category: expenseForm.category,
       description: expenseForm.description,
       date: expenseForm.date,
     })
+    if (error) { toast({ message: 'Kunde inte spara utgiften.', type: 'error' }); setSaving(false); return }
     await fetchAll()
     setExpenseForm({ amount: '', category: 'mat', description: '', date: format(new Date(), 'yyyy-MM-dd') })
     setSaving(false)
   }
 
   async function saveIncome() {
+    const amount = parseFloat(incomeForm.amount)
+    if (!isFinite(amount) || amount <= 0) {
+      toast({ message: 'Ange ett giltigt belopp större än 0.', type: 'error' })
+      return
+    }
     setSaving(true)
-    await supabase.from('income_logs').insert({
+    const { error } = await supabase.from('income_logs').insert({
       user_id: user.id,
-      amount: parseFloat(incomeForm.amount),
+      amount,
       source: incomeForm.source,
       counts_toward_csn: incomeForm.counts_toward_csn,
       notes: incomeForm.notes,
       date: incomeForm.date,
     })
+    if (error) { toast({ message: 'Kunde inte spara inkomsten.', type: 'error' }); setSaving(false); return }
     await fetchAll()
     setIncomeForm({ amount: '', source: 'PA-jobb', counts_toward_csn: true, notes: '', date: format(new Date(), 'yyyy-MM-dd') })
     setSaving(false)

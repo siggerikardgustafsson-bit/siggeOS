@@ -387,7 +387,7 @@ export default function InsightsPage() {
 
       {/* ===== HÄLSA ===== */}
       <SectionHeader title="Hälsa & kropp" color={COLORS.blue} />
-      <div className="insights-chart-grid" className="insights-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
+      <div className="insights-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
         {/* Weight */}
         <div className="card">
           <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>VIKTUTVECKLING (kg)</div>

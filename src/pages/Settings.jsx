@@ -166,7 +166,7 @@ export default function SettingsPage() {
   }, [user])
 
   async function loadProfile() {
-    const { data } = await supabase.from('user_settings').select('*').eq('user_id', user.id).single()
+    const { data } = await supabase.from('user_settings').select('*').eq('user_id', user.id).maybeSingle()
     if (data) {
       setDisplayName(data.display_name || '')
       setAboutMe(data.about_me || '')

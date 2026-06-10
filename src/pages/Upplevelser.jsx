@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { sv } from 'date-fns/locale'
@@ -546,6 +547,7 @@ function TripForm({ initial, onSave, onCancel, saving }) {
 
 export default function UpplevelserPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('resor')
   const [trips, setTrips] = useState([])
   const [adventures, setAdventures] = useState([])
@@ -647,9 +649,18 @@ export default function UpplevelserPage() {
   }
 
   async function deleteTrip(id) {
-    if (!window.confirm('Ta bort denna resa?')) return
-    await supabase.from('trips').delete().eq('id', id)
-    await fetchAll()
+    const removed = trips.find(t => t.id === id)
+    setTrips(prev => prev.filter(t => t.id !== id))
+    let undone = false
+    toast({
+      message: 'Resa borttagen.',
+      action: { label: 'Ångra', onClick: () => { undone = true; if (removed) setTrips(prev => [...prev, removed]) } },
+      duration: 5000,
+    })
+    setTimeout(async () => {
+      if (undone) return
+      await supabase.from('trips').delete().eq('id', id)
+    }, 5000)
   }
 
   async function generateSideQuests() {

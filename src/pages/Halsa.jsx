@@ -111,7 +111,7 @@ export default function HalsaPage() {
   }
 
   async function fetchTodayLog() {
-    const { data } = await supabase.from('health_logs').select('*').eq('user_id', user.id).eq('date', today).single()
+    const { data } = await supabase.from('health_logs').select('*').eq('user_id', user.id).eq('date', today).maybeSingle()
     if (data) {
       setTodayLog(data)
       setWeightForm(f => ({ ...f, weight_kg: data.weight_kg || '' }))
@@ -135,7 +135,7 @@ export default function HalsaPage() {
       .from('user_settings')
       .select('goals')
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
     setUserSettings(data || null)
     const active = data?.goals?.active_supplements || data?.goals?.supplements
     if (Array.isArray(active) && active.length) {

@@ -861,6 +861,18 @@ serve(async (req) => {
     let savedMemory = false
     const calledTools = new Set<string>()
 
+    // Prompt caching: the static TOOLS array and the per-request system prompt are
+    // identical across all iterations of the agentic loop below. Marking a cache
+    // breakpoint on the last tool definition caches the whole tools block, and
+    // wrapping the system prompt in a cache-marked text block caches it too.
+    // Render order is tools -> system -> messages, so iterations 2-8 (and repeat
+    // requests within the 5-min TTL) read this prefix from cache (~0.1x cost)
+    // instead of re-billing the full system+tools tokens every time.
+    const cachedTools = TOOLS.map((t: any, i: number) =>
+      i === TOOLS.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t
+    )
+    const cachedSystem = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
+
     for (let iterations = 0; iterations < 8; iterations++) {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -873,8 +885,8 @@ serve(async (req) => {
         body: JSON.stringify({
           model: Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-6',
           max_tokens: 2500,
-          system,
-          tools: TOOLS,
+          system: cachedSystem,
+          tools: cachedTools,
           messages: currentMessages,
         }),
       })

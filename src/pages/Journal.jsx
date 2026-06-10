@@ -258,7 +258,7 @@ export default function JournalPage() {
   async function updateJournalScore(dateStr, formData) {
     const contentScore = Math.min(formData.content.length / 5, 25)
     const journalScore = Math.min(75 + contentScore, 100)
-    const { data: existing } = await supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', dateStr).single()
+    const { data: existing } = await supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', dateStr).maybeSingle()
     if (existing) {
       await supabase.from('daily_scores').update({ score_journal: journalScore, score_health: Math.max(existing.score_health, (formData.energy / 10) * 100) }).eq('id', existing.id)
     } else {

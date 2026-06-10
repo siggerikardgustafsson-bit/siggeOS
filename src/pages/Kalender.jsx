@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import {
   format, parseISO, startOfMonth, endOfMonth, startOfWeek,
@@ -59,6 +60,7 @@ function EventDot({ type }) {
 
 export default function KalenderPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [month, setMonth] = useState(new Date())
   const [events, setEvents] = useState({}) // date -> events[]
   const [loading, setLoading] = useState(true)
@@ -184,9 +186,9 @@ export default function KalenderPage() {
         }
       })
       const data = await res.json()
-      alert(`✓ Synkade ${data.synced || 0} obligatoriska moment`)
+      toast({ message: `Synkade ${data.synced || 0} obligatoriska moment.`, type: 'success' })
       await fetchAll()
-    } catch(e) { alert('Sync misslyckades: ' + e.message) }
+    } catch(e) { toast({ message: 'Sync misslyckades: ' + e.message, type: 'error' }) }
     setSyncing(false)
   }
 

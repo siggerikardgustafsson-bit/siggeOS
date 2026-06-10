@@ -213,7 +213,7 @@ export default function Dashboard() {
       const since30 = format(subDays(todayDate, 30), 'yyyy-MM-dd')
 
       // Fetch salary_day first to build correct period
-      const { data: settingsQuick } = await supabase.from('user_settings').select('goals,display_name').eq('user_id',userId).single()
+      const { data: settingsQuick } = await supabase.from('user_settings').select('goals,display_name').eq('user_id',userId).maybeSingle()
       const salaryDay = settingsQuick?.goals?.salary_day || 25
       const todayNum = todayDate.getDate()
       const startMonth = todayNum < salaryDay ? todayDate.getMonth() - 1 : todayDate.getMonth()

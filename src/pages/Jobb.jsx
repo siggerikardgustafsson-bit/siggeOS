@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { sv } from 'date-fns/locale'
@@ -29,16 +30,73 @@ const PAY = {
   jour:          41.08,  // sovpass 22:00–06:00
 }
 
-// Storhelger (röda dagar + dagar som räknas som storhelg)
-const STORHELGER = [
-  '01-01','01-06','12-24','12-25','12-26','12-31',
-  '04-18','04-19','04-20','04-21', // Påsk 2025 (uppdatera varje år)
-  '05-01','05-29','06-06','06-21', // Valborg, Kristi, Nationaldagen, Midsommarafton
+// Fasta storhelger (samma datum varje år)
+const FASTA_STORHELGER = [
+  '01-01', // Nyårsdagen
+  '01-06', // Trettondedag jul
+  '05-01', // Första maj
+  '06-06', // Nationaldagen
+  '12-24', // Julafton
+  '12-25', // Juldagen
+  '12-26', // Annandag jul
+  '12-31', // Nyårsafton
 ]
+
+// Beräkna påskdagen (Computus, Meeus/Jones/Butcher-algoritmen) → Date
+function getEasterSunday(year) {
+  const a = year % 19
+  const b = Math.floor(year / 100)
+  const c = year % 100
+  const d = Math.floor(b / 4)
+  const e = b % 4
+  const f = Math.floor((b + 8) / 25)
+  const g = Math.floor((b - f + 1) / 3)
+  const h = (19 * a + b - d - g + 15) % 30
+  const i = Math.floor(c / 4)
+  const k = c % 4
+  const l = (32 + 2 * e + 2 * i - h - k) % 7
+  const m = Math.floor((a + 11 * h + 22 * l) / 451)
+  const month = Math.floor((h + l - 7 * m + 114) / 31) // 3 = mars, 4 = april
+  const day = ((h + l - 7 * m + 114) % 31) + 1
+  return new Date(year, month - 1, day)
+}
+
+function addDays(date, days) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
+// Beräkna alla rörliga storhelger för ett givet år → Set av 'MM-dd'
+function getRorligaStorhelger(year) {
+  const easter = getEasterSunday(year)
+  const dates = [
+    addDays(easter, -2), // Långfredag
+    addDays(easter, -1), // Påskafton
+    easter,              // Påskdagen
+    addDays(easter, 1),  // Annandag påsk
+    addDays(easter, 39), // Kristi himmelsfärdsdag
+  ]
+  // Midsommarafton = fredag mellan 19–25 juni
+  for (let day = 19; day <= 25; day++) {
+    const d = new Date(year, 5, day)
+    if (d.getDay() === 5) { dates.push(d); break }
+  }
+  return new Set(dates.map(d => format(d, 'MM-dd')))
+}
+
+// Cache per år så vi inte räknar om för varje pass
+const _storhelgCache = {}
+function getStorhelgerForYear(year) {
+  if (!_storhelgCache[year]) {
+    _storhelgCache[year] = new Set([...FASTA_STORHELGER, ...getRorligaStorhelger(year)])
+  }
+  return _storhelgCache[year]
+}
 
 function isStorhelg(date) {
   const mmdd = format(date, 'MM-dd')
-  return STORHELGER.includes(mmdd)
+  return getStorhelgerForYear(date.getFullYear()).has(mmdd)
 }
 
 function isHelg(date) {
@@ -257,6 +315,7 @@ function ProjectKanban({ tasks, onEdit, onMove, onDelete }) {
 
 export default function JobbPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState('pa') // pa | erik | tidrapport
   const [selectedMonth, setSelectedMonth] = useState(new Date())
 
@@ -366,23 +425,23 @@ export default function JobbPage() {
     setLoadingCalendar(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { alert('Inte inloggad'); setLoadingCalendar(false); return }
+      if (!session) { toast({ message: 'Inte inloggad.', type: 'error' }); setLoadingCalendar(false); return }
       const { data, error } = await supabase.functions.invoke('google-calendar-sync', {
         body: { action: 'sync' },
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       if (error) throw error
       if (data?.error === 'not_connected') {
-        alert('Koppla Google Calendar först')
+        toast({ message: 'Koppla Google Calendar först.', type: 'error' })
       } else if (data?.success) {
         await fetchAll()
-        alert(`✓ Synkade ${data.synced} PA-pass från Google Kalender (av ${data.pa_events} hittade)`)
+        toast({ message: `Synkade ${data.synced} PA-pass från Google Kalender (av ${data.pa_events} hittade).`, type: 'success' })
       } else {
-        alert('Något gick fel: ' + (data?.error || 'okänt'))
+        toast({ message: 'Något gick fel: ' + (data?.error || 'okänt'), type: 'error' })
       }
     } catch (err) {
       console.error(err)
-      alert('Fel: ' + err.message)
+      toast({ message: 'Fel: ' + err.message, type: 'error' })
     }
     setLoadingCalendar(false)
   }
@@ -420,9 +479,18 @@ export default function JobbPage() {
   }
 
   async function deleteShift(id) {
-    if (!window.confirm('Ta bort detta pass?')) return
-    await supabase.from('pa_shifts').delete().eq('id', id)
-    await fetchAll()
+    const removed = paShifts.find(s => s.id === id)
+    setPaShifts(prev => prev.filter(s => s.id !== id))
+    let undone = false
+    toast({
+      message: 'Pass borttaget.',
+      action: { label: 'Ångra', onClick: () => { undone = true; if (removed) setPaShifts(prev => [...prev, removed]) } },
+      duration: 5000,
+    })
+    setTimeout(async () => {
+      if (undone) return
+      await supabase.from('pa_shifts').delete().eq('id', id)
+    }, 5000)
   }
 
   async function saveTask() {
@@ -454,22 +522,36 @@ export default function JobbPage() {
   }
 
   async function deleteTask(id) {
-    if (!window.confirm('Ta bort uppdraget?')) return
-    await supabase.from('erik_tasks').delete().eq('id', id)
-    await fetchAll()
+    const removed = erikTasks.find(t => t.id === id)
+    setErikTasks(prev => prev.filter(t => t.id !== id))
+    let undone = false
+    toast({
+      message: 'Uppdrag borttaget.',
+      action: { label: 'Ångra', onClick: () => { undone = true; if (removed) setErikTasks(prev => [...prev, removed]) } },
+      duration: 5000,
+    })
+    setTimeout(async () => {
+      if (undone) return
+      await supabase.from('erik_tasks').delete().eq('id', id)
+    }, 5000)
   }
 
   async function savePayment() {
+    const amount = parseFloat(paymentForm.amount)
+    if (!isFinite(amount) || amount <= 0) {
+      toast({ message: 'Ange ett giltigt belopp större än 0.', type: 'error' })
+      return
+    }
     setSaving(true)
     await supabase.from('erik_payments').insert({
       user_id: user.id, date: paymentForm.date,
-      amount: parseFloat(paymentForm.amount),
+      amount,
       description: paymentForm.description,
     })
     // Also log to income (not counting toward CSN)
     await supabase.from('income_logs').insert({
       user_id: user.id, date: paymentForm.date,
-      amount: parseFloat(paymentForm.amount),
+      amount,
       source: 'Erik Norling',
       counts_toward_csn: false,
       notes: paymentForm.description,
@@ -518,7 +600,7 @@ export default function JobbPage() {
       .eq('project_id', projectId).order('status').order('deadline', { nullsFirst: false })
     setProjectTasks(data || [])
     // Load notes for this project
-    const { data: proj } = await supabase.from('projects').select('notes').eq('id', projectId).single()
+    const { data: proj } = await supabase.from('projects').select('notes').eq('id', projectId).maybeSingle()
     setProjectNotes(proj?.notes || '')
     setProjectNotesSaved(false)
   }
