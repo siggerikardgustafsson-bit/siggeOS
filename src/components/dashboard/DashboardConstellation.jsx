@@ -69,6 +69,42 @@ function RingProgress({ pct, nextColor, thickness = 4, inset = -7, glow = true }
   )
 }
 
+// Corner bubble — collapsed glassy disc that expands on hover into a full info
+// panel (Dagens uppgifter / Grafer). Defined at MODULE scope so its component
+// identity is stable across parent re-renders — otherwise every hover would
+// remount the node and the size/border-radius CSS transition could never run.
+function CornerBubble({ cfg, open, isExpanded, onEnter, onLeave }) {
+  const originX = cfg.anchor.right != null ? 'right' : 'left'
+  const originY = cfg.anchor.bottom != null ? 'bottom' : 'top'
+  return (
+    <div className="ccorner"
+      style={{ position: 'absolute', ...cfg.anchor, zIndex: open ? 70 : 6,
+        opacity: isExpanded ? 0 : 1, pointerEvents: isExpanded ? 'none' : 'auto',
+        transition: 'opacity .4s ease' }}
+      onMouseEnter={onEnter} onMouseLeave={onLeave}>
+      <div className={`ccorner-shell cbub ${open ? 'open' : 'closed'}`}
+        style={{ width: open ? cfg.width : 112, height: open ? cfg.height : 112,
+          borderRadius: open ? 24 : '50%',
+          transformOrigin: `${originX} ${originY}`,
+          cursor: open ? 'default' : 'pointer',
+          ['--cbc']: cfg.color }}>
+        {/* Both layers stay mounted and cross-fade, so the morph is smooth
+            opening AND closing — content never pops in or vanishes. */}
+        <div className="ccorner-cap" style={{ opacity: open ? 0 : 1 }}>
+          <span className="ccorner-ico" style={{ color: cfg.color, filter: `drop-shadow(0 0 8px ${cfg.color}88)` }}>{cfg.icon}</span>
+          <span className="ccorner-lab">{cfg.label}</span>
+          {cfg.sub != null && <span className="ccorner-sub" style={{ color: cfg.color }}>{cfg.sub}</span>}
+          <span className="ccorner-hint">Hovra</span>
+        </div>
+        <div className="ccorner-body" style={{ width: cfg.width, height: cfg.height,
+          opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none' }}>
+          {cfg.render()}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardConstellation({ categories = [], maxxProfile, overallTier, onSelect, onMetricClick, corners = [] }) {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
@@ -145,43 +181,6 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
     const f = 1 - d / R            // closer ⇒ stronger
     const mag = M * Math.pow(f, 1.05)  // px, gentle falloff — neighbours clear out decisively
     return { px: (dx / d) * mag, py: (dy / d) * mag }
-  }
-
-  // Corner bubble — collapsed glassy disc that expands on hover into a full
-  // info panel (Dagens uppgifter / Tier-statistik), pushing neighbours aside.
-  function CornerBubble({ cfg }) {
-    const open = hoverId === cfg.id && !isExpanded
-    const anchorRight = cfg.anchor.right != null
-    const anchorBottom = cfg.anchor.bottom != null
-    const originX = anchorRight ? 'right' : 'left'
-    const originY = anchorBottom ? 'bottom' : 'top'
-    return (
-      <div className="ccorner"
-        style={{ position: 'absolute', ...cfg.anchor, zIndex: open ? 70 : 6,
-          opacity: isExpanded ? 0 : 1, pointerEvents: isExpanded ? 'none' : 'auto',
-          transition: 'opacity .4s ease' }}
-        onMouseEnter={() => setHoverId(cfg.id)} onMouseLeave={() => setHoverId(null)}>
-        <div className={`ccorner-shell cbub ${open ? 'open' : 'closed'}`}
-          style={{ width: open ? cfg.width : 112, height: open ? cfg.height : 112,
-            borderRadius: open ? 24 : '50%',
-            transformOrigin: `${originX} ${originY}`,
-            cursor: open ? 'default' : 'pointer',
-            ['--cbc']: cfg.color }}>
-          {/* Both layers stay mounted and cross-fade, so the morph is smooth
-              opening AND closing — content never pops in or vanishes. */}
-          <div className="ccorner-cap" style={{ opacity: open ? 0 : 1 }}>
-            <span className="ccorner-ico" style={{ color: cfg.color, filter: `drop-shadow(0 0 8px ${cfg.color}88)` }}>{cfg.icon}</span>
-            <span className="ccorner-lab">{cfg.label}</span>
-            {cfg.sub != null && <span className="ccorner-sub" style={{ color: cfg.color }}>{cfg.sub}</span>}
-            <span className="ccorner-hint">Hovra</span>
-          </div>
-          <div className="ccorner-body" style={{ width: cfg.width, height: cfg.height,
-            opacity: open ? 1 : 0, pointerEvents: open ? 'auto' : 'none' }}>
-            {cfg.render()}
-          </div>
-        </div>
-      </div>
-    )
   }
 
   // Orbiting mini-bubbles that point straight at a single data source / stat.
@@ -585,7 +584,9 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
       })}
 
       {/* Corner info bubbles — Dagens uppgifter + Tier-statistik */}
-      {corners.map(cfg => <CornerBubble key={cfg.id} cfg={cfg} />)}
+      {corners.map(cfg => <CornerBubble key={cfg.id} cfg={cfg}
+        open={hoverId === cfg.id && !isExpanded} isExpanded={isExpanded}
+        onEnter={() => setHoverId(cfg.id)} onLeave={() => setHoverId(null)} />)}
     </div>
   )
 }
