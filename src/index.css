@@ -4060,3 +4060,42 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 @media (prefers-reduced-motion: reduce) {
   .quicklog-fab::before { animation: none !important; }
 }
+
+/* ── Premium modal entrance + refined panel ─────────────────────── */
+.mx-modal-overlay {
+  animation: mxModalFade 0.3s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes mxModalFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.mx-modal-panel {
+  position: relative;
+  animation: mxModalRise 0.46s cubic-bezier(0.22,1,0.36,1) both;
+  transform-origin: 50% 100%;
+  box-shadow:
+    0 32px 90px -20px rgba(0,0,0,0.72),
+    0 8px 28px -12px rgba(0,0,0,0.6),
+    0 1px 0 rgba(255,255,255,0.12) inset,
+    0 -40px 80px -60px rgba(0,0,0,0.7) inset !important;
+}
+.mx-modal-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 12%; right: 12%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.32), transparent);
+  pointer-events: none;
+  z-index: 5;
+}
+.mx-modal-rise {
+  animation: mxModalRise 0.46s cubic-bezier(0.22,1,0.36,1) both;
+  transform-origin: 50% 100%;
+}
+@keyframes mxModalRise {
+  from { opacity: 0; transform: translateY(26px) scale(0.955); filter: blur(7px); }
+  60%  { filter: blur(0); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mx-modal-overlay, .mx-modal-panel { animation: none !important; }
+}

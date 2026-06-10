@@ -109,12 +109,12 @@ export default function RunModal({ onClose }) {
   const longestRun = runs.length ? Math.max(...runs.map(r => r.distance_km || 0)) : 0
 
   return (
-    <div style={{
+    <div className="mx-modal-overlay" style={{
       position: 'fixed', inset: 0, zIndex: 1000,
       background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(8px, 3vw, 24px)',
     }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{
+      <div className="mx-modal-panel" style={{
         background: 'var(--surface)', backdropFilter: 'blur(20px)',
         border: '1px solid var(--border)', borderRadius: '20px',
         width: '100%', maxWidth: '700px', maxHeight: 'min(88vh, calc(100dvh - 16px))',

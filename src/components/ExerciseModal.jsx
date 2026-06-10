@@ -110,14 +110,14 @@ export default function ExerciseModal({ exerciseName, onClose }) {
   })
 
   return (
-    <div style={{
+    <div className="mx-modal-overlay" style={{
       position: 'fixed', inset: 0, zIndex: 1000,
       background: 'rgba(0,0,0,0.65)',
       backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 'clamp(8px, 3vw, 24px)',
     }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{
+      <div className="mx-modal-panel" style={{
         background: 'var(--surface)',
         backdropFilter: 'blur(20px)',
         border: '1px solid var(--border)',

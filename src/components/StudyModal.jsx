@@ -458,12 +458,13 @@ Mål-IDs (kopiera exakt):
     }}>
       {/* Overlay as sibling — plain dim, NO backdrop-filter so panel can blur through */}
       <div
+        className="mx-modal-overlay"
         style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.52)' }}
         onClick={() => step === 'chat' ? endSession() : onClose()}
       />
 
       {/* Panel — same glass treatment as page-header and dashboard cards */}
-      <div style={{
+      <div className="mx-modal-rise" style={{
         position: 'relative', zIndex: 1,
         background: 'var(--surface)',
         backdropFilter: 'var(--glass-blur)',

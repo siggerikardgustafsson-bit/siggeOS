@@ -135,7 +135,7 @@ export default function DetailModal({ category, onClose }) {
   }
 
   return (
-    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+    <div onClick={onClose} className="mx-modal-overlay" style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
       <style>{`
         .detail-metric-source-card {
           position: relative;
@@ -167,7 +167,7 @@ export default function DetailModal({ category, onClose }) {
           transform: translateY(0);
         }
       `}</style>
-      <div onClick={e => e.stopPropagation()} style={{ background:'rgba(12,15,26,0.94)', backdropFilter:'blur(42px)', WebkitBackdropFilter:'blur(42px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:22, width:'100%', maxWidth:620, maxHeight:'88vh', overflowY:'auto', boxShadow:'0 32px 80px rgba(0,0,0,0.72), 0 1px 0 rgba(255,255,255,0.08) inset', scrollbarWidth:'none', position:'relative' }}>
+      <div onClick={e => e.stopPropagation()} className="mx-modal-rise" style={{ background:'rgba(12,15,26,0.94)', backdropFilter:'blur(42px)', WebkitBackdropFilter:'blur(42px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:22, width:'100%', maxWidth:620, maxHeight:'88vh', overflowY:'auto', boxShadow:'0 32px 80px rgba(0,0,0,0.72), 0 1px 0 rgba(255,255,255,0.08) inset', scrollbarWidth:'none', position:'relative' }}>
         <div style={{ position:'absolute', top:0, left:'22%', right:'22%', height:1, background:'linear-gradient(90deg, transparent, rgba(255,255,255,0.24), transparent)' }} />
         <div style={{ position:'absolute', top:-55, right:-45, width:180, height:180, borderRadius:'50%', background:nextColor + '16', filter:'blur(45px)', pointerEvents:'none' }} />
 
