@@ -3,6 +3,7 @@ import { subDays, format } from 'date-fns'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
 import { supabase } from '../lib/supabase'
 import CategoryCard from '../components/dashboard/CategoryCard'
+import { useTilt } from '../hooks/useTilt'
 import DetailModal from '../components/dashboard/DetailModal'
 import TodayWidget from '../components/dashboard/TodayWidget'
 import {
@@ -183,6 +184,7 @@ function EvidenceModal({ evidence, onClose }) {
 
 export default function Dashboard() {
 
+  const heroTilt = useTilt({ max: 5 })
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedEvidence, setSelectedEvidence] = useState(null)
@@ -896,7 +898,7 @@ export default function Dashboard() {
           {/* MAXX SCORE + BOTTLENECK — premium split layout */}
           {!loading && maxxProfile && (
             <div style={{ display:'grid', gridTemplateColumns:'minmax(0, 1.7fr) minmax(280px, .85fr)', gap:'12px', alignItems:'stretch' }} className="dashboard-maxx-row">
-              <button onClick={() => setSelectedCategory(maxxProfile)} className="widget" style={{ textAlign:'left', cursor:'pointer', padding:'18px 20px', border:'1px solid rgba(255,255,255,0.25)', background:'linear-gradient(135deg, rgba(79,142,247,0.14), rgba(167,139,250,0.08) 45%, var(--surface) 100%)', overflow:'hidden' }}>
+              <button ref={heroTilt} onClick={() => setSelectedCategory(maxxProfile)} className="widget tilt-card" style={{ textAlign:'left', cursor:'pointer', padding:'18px 20px', border:'1px solid rgba(255,255,255,0.25)', background:'linear-gradient(135deg, rgba(79,142,247,0.14), rgba(167,139,250,0.08) 45%, var(--surface) 100%)', overflow:'hidden' }}>
                 <div style={{ position:'absolute', inset:'-40% auto auto 62%', width:260, height:260, borderRadius:'999px', background:(TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#a78bfa') + '18', filter:'blur(38px)', pointerEvents:'none' }} />
                 <div style={{ position:'relative', display:'grid', gridTemplateColumns:'auto minmax(0, 1fr)', gap:'18px', alignItems:'center' }}>
                   <div style={{ width:86, height:86, borderRadius:26, background: (TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + '30', border:'2px solid rgba(255,255,255,0.85)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 40px ' + (TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + '88, 0 0 80px ' + (TIER_COLORS[maxxProfile.tier?.tier] || '#4f8ef7') + '33, 0 0 0 1px rgba(255,255,255,0.15), inset 0 1px 0 rgba(255,255,255,0.2)' }}>
@@ -905,7 +907,7 @@ export default function Dashboard() {
                   <div style={{ minWidth:0 }}>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:8 }}>
                       <div>
-                        <div style={{ fontSize:11, fontWeight:950, color:'#ffffff', letterSpacing:'0.16em', textTransform:'uppercase' }}>Maxx Score</div>
+                        <div style={{ fontSize:11, fontWeight:950, color:'#ffffff', letterSpacing:'0.16em', textTransform:'uppercase', display:'flex', alignItems:'center', gap:7 }}><span className="pulse-dot" style={{ width:7, height:7, borderRadius:999, background:'#4ade80', display:'inline-block' }} />Maxx Score</div>
                         <div style={{ fontSize:13, color:'rgba(255,255,255,0.65)', marginTop:2 }}>Overall rank · {maxxProfile.tier?.label}</div>
                       </div>
                       <div style={{ color:'var(--muted)', fontSize:23, lineHeight:1 }}>→</div>

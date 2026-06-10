@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
 import QuickLog from './QuickLog'
+import CommandPalette from './CommandPalette'
 import Onboarding from './Onboarding'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -76,6 +77,9 @@ export default function AppLayout() {
 
       {/* Global quick-log FAB — visible on all pages */}
       <QuickLog />
+
+      {/* Global command palette — open with ⌘K / Ctrl+K */}
+      <CommandPalette />
 
       {/* Onboarding — shown once for new users */}
       {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}

@@ -3241,3 +3241,413 @@ body,
     padding-bottom: 0 !important;
   }
 }
+
+/* ============================================================
+   PREMIUM LAYER — cohesive high-tech polish (all pages)
+   Appended last so it wins same-specificity cascade.
+   ============================================================ */
+
+/* Respect reduced-motion globally for the premium layer */
+@media (prefers-reduced-motion: reduce) {
+  .pulse-glow, .sparkline-draw, .count-up, .shimmer-text,
+  .reveal-stagger > * { animation: none !important; }
+  .tilt-card { transform: none !important; }
+}
+
+/* ---- 1. Refined glass card: lift + specular sweep on hover ---- */
+.card, .card-sm {
+  position: relative;
+  transition: border-color 0.25s ease, box-shadow 0.3s ease,
+              background 0.25s ease, transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  will-change: transform;
+}
+.card::after, .card-sm::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    color-mix(in srgb, var(--accent) 12%, transparent) 48%,
+    transparent 66%
+  );
+  background-size: 220% 100%;
+  background-position: 120% 0;
+}
+.card:hover { transform: translateY(-3px); }
+.card:hover::after, .card-sm:hover::after {
+  opacity: 1;
+  animation: specularSweep 0.9s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+@keyframes specularSweep {
+  from { background-position: 120% 0; }
+  to   { background-position: -40% 0; }
+}
+
+/* ---- 3D tilt (JS-driven; CSS provides the transform surface) ---- */
+.tilt-card {
+  transform-style: preserve-3d;
+  transition: transform 0.18s cubic-bezier(0.22,1,0.36,1);
+}
+.tilt-card .tilt-inner { transform: translateZ(28px); }
+
+/* ---- 2. Hover-reveal: content that appears on hover to free space ---- */
+.hover-reveal { position: relative; }
+.hover-reveal .reveal-on-hover {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-4px);
+  transition: max-height 0.4s cubic-bezier(0.22,1,0.36,1),
+              opacity 0.3s ease, transform 0.35s ease, margin 0.35s ease;
+}
+.hover-reveal:hover .reveal-on-hover,
+.hover-reveal:focus-within .reveal-on-hover {
+  max-height: 240px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Peek panel — slides in from an edge handle on hover */
+.peek { position: relative; overflow: hidden; }
+.peek .peek-panel {
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.22,1,0.36,1);
+}
+.peek:hover .peek-panel { opacity: 1; transform: translateX(0); }
+
+/* ---- 3. Magnetic / poppy buttons ---- */
+.btn:not(:disabled) { transition: all 0.18s cubic-bezier(0.34,1.56,0.64,1); }
+.btn-primary:not(:disabled):hover { transform: translateY(-2px) scale(1.02); }
+.btn-ghost:not(:disabled):hover  { transform: translateY(-1px); }
+.btn-icon:not(:disabled):hover   { transform: translateY(-1px) scale(1.06); }
+
+/* ---- 9. Mono metric labels + hairlines (instrument look) ---- */
+.metric-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.hairline {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--border2), transparent);
+  margin: 12px 0;
+}
+.hairline-v {
+  width: 1px;
+  align-self: stretch;
+  background: linear-gradient(180deg, transparent, var(--border2), transparent);
+}
+
+/* ---- 11. Directional status chips ---- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.6;
+  border: 1px solid transparent;
+}
+.chip-up   { color: var(--green); background: rgba(52,211,153,0.10);  border-color: rgba(52,211,153,0.22); }
+.chip-down { color: var(--red);   background: rgba(248,113,113,0.10); border-color: rgba(248,113,113,0.22); }
+.chip-flat { color: var(--muted2); background: var(--surface2);       border-color: var(--border); }
+.chip-up::before   { content: '\2191'; }
+.chip-down::before { content: '\2193'; }
+.chip-flat::before { content: '\2192'; }
+
+/* ---- 8. Glow pulse (subtle breathing accent) ---- */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); opacity: 0.92; }
+  50%      { box-shadow: 0 0 16px 2px var(--accent-glow); opacity: 1; }
+}
+.pulse-glow { animation: glowPulse 3.2s ease-in-out infinite; }
+.pulse-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent);
+  animation: glowPulse 2.4s ease-in-out infinite;
+}
+
+/* ---- 7. Sparkline self-draw ---- */
+.sparkline-draw {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: sparkDraw 1.4s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+@keyframes sparkDraw { to { stroke-dashoffset: 0; } }
+
+/* ---- 6. Count-up number polish ---- */
+.count-up { font-variant-numeric: tabular-nums; }
+
+/* ---- 10. Tech grid / scanline texture (very subtle) ---- */
+.tech-grid { position: relative; }
+.tech-grid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.4;
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 0%, transparent 75%);
+          mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 0%, transparent 75%);
+}
+
+/* ---- 13. Refined staggered reveal container ---- */
+.reveal-stagger > * {
+  animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) both;
+}
+.reveal-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+.reveal-stagger > *:nth-child(2) { animation-delay: 0.10s; }
+.reveal-stagger > *:nth-child(3) { animation-delay: 0.16s; }
+.reveal-stagger > *:nth-child(4) { animation-delay: 0.22s; }
+.reveal-stagger > *:nth-child(5) { animation-delay: 0.28s; }
+.reveal-stagger > *:nth-child(6) { animation-delay: 0.34s; }
+.reveal-stagger > *:nth-child(7) { animation-delay: 0.40s; }
+.reveal-stagger > *:nth-child(8) { animation-delay: 0.46s; }
+.reveal-stagger > *:nth-child(n+9) { animation-delay: 0.52s; }
+
+/* ---- Shimmer text (premium headings, opt-in) ---- */
+.shimmer-text {
+  background: linear-gradient(100deg, var(--text) 30%, var(--accent) 50%, var(--text) 70%);
+  background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmerMove 6s linear infinite;
+}
+@keyframes shimmerMove { to { background-position: 200% center; } }
+
+/* ============================================================
+   COMMAND PALETTE (⌘K) — global
+   ============================================================ */
+.cmdk-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 14vh;
+  background: rgba(0,0,0,0.42);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: cmdkFade 0.18s ease both;
+}
+@keyframes cmdkFade { from { opacity: 0; } to { opacity: 1; } }
+.cmdk-panel {
+  width: min(560px, 92vw);
+  background: var(--modal-bg);
+  backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--modal-border);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.08) inset;
+  overflow: hidden;
+  animation: cmdkPop 0.22s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes cmdkPop { from { opacity: 0; transform: translateY(-12px) scale(0.98); } to { opacity: 1; transform: none; } }
+.cmdk-input {
+  width: 100%; border: 0; outline: 0; background: transparent;
+  color: var(--text); font-family: 'Inter', sans-serif; font-size: 16px;
+  padding: 18px 20px; border-bottom: 1px solid var(--border);
+}
+.cmdk-input::placeholder { color: var(--muted); }
+.cmdk-list { max-height: 50vh; overflow-y: auto; padding: 6px; }
+.cmdk-item {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 14px; border-radius: 10px; cursor: pointer;
+  color: var(--muted2); font-size: 14px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.cmdk-item .cmdk-ico { width: 18px; display: inline-flex; justify-content: center; color: var(--muted); }
+.cmdk-item.active, .cmdk-item:hover { background: var(--surface3); color: var(--text); }
+.cmdk-item.active .cmdk-ico { color: var(--accent); }
+.cmdk-empty { padding: 22px; text-align: center; color: var(--muted); font-size: 13px; }
+.cmdk-hint {
+  display: flex; gap: 12px; justify-content: flex-end;
+  padding: 8px 14px; border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--muted);
+}
+.cmdk-kbd {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  padding: 2px 6px; border-radius: 5px;
+  background: var(--surface2); border: 1px solid var(--border); color: var(--muted2);
+}
+
+/* ---- Extend premium hover to .widget (dashboard cards) ---- */
+.widget {
+  transition: border-color 0.25s ease, box-shadow 0.3s ease,
+              transform 0.3s cubic-bezier(0.22,1,0.36,1) !important;
+  will-change: transform;
+}
+.widget::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  background: linear-gradient(105deg, transparent 30%,
+    color-mix(in srgb, var(--accent) 12%, transparent) 48%, transparent 66%);
+  background-size: 220% 100%;
+  background-position: 120% 0;
+  z-index: 1;
+}
+.widget:hover { transform: translateY(-3px); }
+.widget:hover::after {
+  opacity: 1;
+  animation: specularSweep 0.9s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+/* keep interactive content above the sweep overlay */
+.widget > * { position: relative; z-index: 2; }
+
+/* ============================================================
+   LIVING LAYER — ambient motion that makes every page feel alive
+   Appended last so it wins same-specificity cascade.
+   ============================================================ */
+
+/* --- Animated aurora: drifting color fields behind all content --- */
+#bg-gradient::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse 42% 38% at 22% 18%, color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 60%),
+    radial-gradient(ellipse 38% 34% at 80% 30%, color-mix(in srgb, var(--accent2) 18%, transparent) 0%, transparent 62%),
+    radial-gradient(ellipse 46% 40% at 60% 88%, color-mix(in srgb, var(--accent) 12%, transparent) 0%, transparent 64%);
+  filter: blur(40px);
+  opacity: 0.7;
+  animation: auroraDrift 26s ease-in-out infinite alternate;
+}
+#bg-gradient::after {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background-image:
+    radial-gradient(ellipse 34% 30% at 70% 12%, color-mix(in srgb, var(--accent2) 16%, transparent) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 36% at 18% 78%, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 62%);
+  filter: blur(48px);
+  opacity: 0.55;
+  animation: auroraDrift2 34s ease-in-out infinite alternate;
+}
+@keyframes auroraDrift {
+  0%   { transform: translate3d(0,0,0) scale(1)   rotate(0deg); }
+  50%  { transform: translate3d(3%,-2%,0) scale(1.08) rotate(4deg); }
+  100% { transform: translate3d(-2%,3%,0) scale(1.04) rotate(-3deg); }
+}
+@keyframes auroraDrift2 {
+  0%   { transform: translate3d(0,0,0) scale(1.05) rotate(0deg); }
+  50%  { transform: translate3d(-4%,2%,0) scale(1)    rotate(-5deg); }
+  100% { transform: translate3d(2%,-3%,0) scale(1.09) rotate(4deg); }
+}
+
+/* Fine grain noise overlay — kills banding, adds tactile depth */
+.sigge-app-shell::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* --- Per-route page entrance: content rises + fades as you navigate --- */
+.sigge-main-scroll > * {
+  animation: pageRise 0.5s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes pageRise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Stagger immediate children of a page grid so cards cascade in */
+.sigge-main-scroll > * > .widget,
+.sigge-main-scroll > * > * > .widget,
+.sigge-main-scroll > * > .card,
+.sigge-main-scroll > * > * > .card {
+  animation: pageRise 0.55s cubic-bezier(0.22,1,0.36,1) both;
+}
+.sigge-main-scroll .widget:nth-child(1),
+.sigge-main-scroll .card:nth-child(1) { animation-delay: 0.02s; }
+.sigge-main-scroll .widget:nth-child(2),
+.sigge-main-scroll .card:nth-child(2) { animation-delay: 0.06s; }
+.sigge-main-scroll .widget:nth-child(3),
+.sigge-main-scroll .card:nth-child(3) { animation-delay: 0.10s; }
+.sigge-main-scroll .widget:nth-child(4),
+.sigge-main-scroll .card:nth-child(4) { animation-delay: 0.14s; }
+.sigge-main-scroll .widget:nth-child(5),
+.sigge-main-scroll .card:nth-child(5) { animation-delay: 0.18s; }
+.sigge-main-scroll .widget:nth-child(6),
+.sigge-main-scroll .card:nth-child(6) { animation-delay: 0.22s; }
+.sigge-main-scroll .widget:nth-child(7),
+.sigge-main-scroll .card:nth-child(7) { animation-delay: 0.26s; }
+.sigge-main-scroll .widget:nth-child(8),
+.sigge-main-scroll .card:nth-child(8) { animation-delay: 0.30s; }
+
+/* --- Section headings: subtle living accent underline on hover --- */
+.section-title, h2.page-title, .page-heading {
+  position: relative;
+}
+
+/* --- Icon micro-life: gentle breathe on accent icons --- */
+.live-icon {
+  animation: iconBreathe 4s ease-in-out infinite;
+  transform-origin: center;
+}
+@keyframes iconBreathe {
+  0%, 100% { transform: scale(1); opacity: 0.92; }
+  50%      { transform: scale(1.08); opacity: 1; }
+}
+
+/* --- Interactive lift for any clickable surface inside pages --- */
+button:not(.cmdk-item):not(:disabled).interactive-lift,
+a.interactive-lift {
+  transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s ease;
+}
+button.interactive-lift:hover, a.interactive-lift:hover { transform: translateY(-2px); }
+button.interactive-lift:active, a.interactive-lift:active { transform: translateY(0) scale(0.98); }
+
+/* --- Glow ring that follows focus for keyboard users --- */
+.sigge-main-scroll :focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-glow);
+  border-radius: 8px;
+}
+
+/* --- Scrollbar refinement: thin, accent-tinted --- */
+.sigge-main-scroll::-webkit-scrollbar { width: 10px; }
+.sigge-main-scroll::-webkit-scrollbar-track { background: transparent; }
+.sigge-main-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 99px;
+}
+.sigge-main-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+  background-clip: padding-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #bg-gradient::before, #bg-gradient::after,
+  .sigge-main-scroll > *,
+  .sigge-main-scroll .widget, .sigge-main-scroll .card,
+  .live-icon {
+    animation: none !important;
+  }
+}
