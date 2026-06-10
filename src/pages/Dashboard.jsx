@@ -982,8 +982,12 @@ export default function Dashboard() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div style={{ color:'var(--muted)', fontSize:'12px', textAlign:'center', padding:'30px 0', fontStyle:'italic' }}>
-                  Logga data i Hälsa för att se tier-utveckling
+                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'10px', padding:'34px 0', textAlign:'center' }}>
+                  <div style={{ width:'44px', height:'44px', borderRadius:'14px', display:'grid', placeItems:'center', background:'var(--accent-soft)', border:'1px solid var(--accent-border)', boxShadow:'0 0 20px -6px var(--accent-glow)' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18M7 14l4-4 3 3 5-6"/></svg>
+                  </div>
+                  <div style={{ fontSize:'12.5px', fontWeight:600, color:'var(--muted2)' }}>Ingen tier-historik ännu</div>
+                  <div style={{ fontSize:'11px', color:'var(--muted)', maxWidth:'220px', lineHeight:1.45 }}>Logga data i Hälsa så börjar din utvecklingskurva byggas upp här.</div>
                 </div>
               )}
             </div>

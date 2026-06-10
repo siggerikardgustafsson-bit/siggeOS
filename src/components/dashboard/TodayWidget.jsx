@@ -116,8 +116,12 @@ export default function TodayWidget({ userId }) {
       {loading ? (
         <div style={{ color: 'var(--muted)', fontSize: '12px', padding: '12px 0', textAlign: 'center' }}>Laddar...</div>
       ) : events.length === 0 ? (
-        <div style={{ color: 'var(--muted)', fontSize: '12px', padding: '12px 0', textAlign: 'center', fontStyle: 'italic' }}>
-          Inga schemalagda händelser idag
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '20px 0', textAlign: 'center' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '12px', display: 'grid', placeItems: 'center', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.28)' }}>
+            <CheckSquare size={18} color="#34d399" />
+          </div>
+          <div style={{ color: 'var(--muted2)', fontSize: '12px', fontWeight: 600 }}>Allt klart idag</div>
+          <div style={{ color: 'var(--muted)', fontSize: '10.5px' }}>Inga schemalagda händelser</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
