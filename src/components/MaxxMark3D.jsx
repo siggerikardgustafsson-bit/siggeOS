@@ -35,18 +35,33 @@ export default function MaxxMark3D({ size = 40 }) {
       [-0.80,  0.72], // 11 bottom-left outer
     ]
     const N = outline.length
-    const hd = 0.36           // half depth (apex distance)
-    const taper = 0.46        // how much the front/back caps shrink toward centre
-    // taper centroid
+    const hd = 0.40           // half depth (tip distance)
     let cgx = 0, cgy = 0
     for (const [x, y] of outline) { cgx += x; cgy += y }
     cgx /= N; cgy /= N
-    const apex = ([x, y]) => [cgx + (x - cgx) * taper, cgy + (y - cgy) * taper]
 
-    const V = []
-    for (const p of outline) V.push([p[0], p[1], 0])            // mid rim  0..N-1
-    for (const p of outline) { const a = apex(p); V.push([a[0], a[1], hd]) }  // front N..2N-1
-    for (const p of outline) { const a = apex(p); V.push([a[0], a[1], -hd]) } // back  2N..3N-1
+    // deterministic pseudo-random jitter so the crystal is irregular &
+    // asymmetric (computed once — the shape is fixed, only the view spins).
+    let seed = 1337
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff }
+    const jit = (a) => (rnd() * 2 - 1) * a
+
+    // build a faceted ring: outline scaled toward the centroid (taper), lifted
+    // to depth z, with per-vertex jitter that knocks it off the regular shape.
+    const ring = (taper, z, jx, jz) => outline.map(([x, y]) => [
+      cgx + (x - cgx) * taper + jit(jx),
+      cgy + (y - cgy) * taper + jit(jx),
+      z + jit(jz),
+    ])
+
+    // 5 rings: shared mid equator + 2-step crown front + 2-step crown back.
+    // Gem-cut layering (mid -> shoulder -> tip) gives many irregular facets.
+    const r0 = ring(1.00, 0.00, 0.03, 0.07)            // 0..N-1  mid equator (keeps M silhouette)
+    const rF1 = ring(0.64, hd * 0.52, 0.08, 0.05)      // N..2N-1 front shoulder
+    const rF2 = ring(0.30, hd, 0.06, 0.05)             // 2N..    front tip
+    const rB1 = ring(0.64, -hd * 0.52, 0.08, 0.05)     // 3N..    back shoulder
+    const rB2 = ring(0.30, -hd, 0.06, 0.05)            // 4N..    back tip
+    const V = [...r0, ...rF1, ...rF2, ...rB1, ...rB2]
 
     // cap triangulation (3 convex chunks of the M: two bars + the V)
     const cap = [
@@ -56,15 +71,19 @@ export default function MaxxMark3D({ size = 40 }) {
       [2, 3, 7], [2, 7, 8],      // right diagonal
     ]
     const F = []
-    for (const t of cap) F.push([t[0] + N, t[1] + N, t[2] + N])          // front cap
-    for (const t of cap) F.push([t[0] + 2 * N, t[2] + 2 * N, t[1] + 2 * N]) // back cap
-    for (let i = 0; i < N; i++) {                  // beveled walls: rim -> apex
-      const j = (i + 1) % N
-      // front bevel
-      F.push([i, j, j + N]); F.push([i, j + N, i + N])
-      // back bevel
-      F.push([i, j, j + 2 * N]); F.push([i, j + 2 * N, i + 2 * N])
+    for (const t of cap) F.push([t[0] + 2 * N, t[1] + 2 * N, t[2] + 2 * N]) // front tip cap
+    for (const t of cap) F.push([t[0] + 4 * N, t[2] + 4 * N, t[1] + 4 * N]) // back tip cap
+    // bevel strips between consecutive rings → lots of crystal facets
+    const strip = (a, b) => {
+      for (let i = 0; i < N; i++) {
+        const j = (i + 1) % N
+        F.push([a + i, a + j, b + j]); F.push([a + i, b + j, b + i])
+      }
     }
+    strip(0, N)        // mid -> front shoulder
+    strip(N, 2 * N)    // front shoulder -> front tip
+    strip(0, 3 * N)    // mid -> back shoulder
+    strip(3 * N, 4 * N)// back shoulder -> back tip
 
     const hexToRgb = (h) => {
       const m = (h || '').trim().replace('#', '')
@@ -124,31 +143,35 @@ export default function MaxxMark3D({ size = 40 }) {
         const ctr = [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]
         if (n[0] * ctr[0] + n[1] * ctr[1] + n[2] * ctr[2] < 0) n = n.map(c => -c)
         const depth = ctr[2]
-        const bright = Math.max(0, n[0] * L[0] + n[1] * L[1] + n[2] * L[2])
-        return { f, depth, facing: n[2], bright }
+        // glass: both sides catch light (no solid body), so use |n·L|
+        const bright = Math.abs(n[0] * L[0] + n[1] * L[1] + n[2] * L[2])
+        return { f, depth, bright, facing: n[2] }
       })
-      polys.sort((p, q) => p.depth - q.depth) // back to front
+      polys.sort((p, q) => p.depth - q.depth) // back to front (painter's order)
 
+      // additive-ish translucency so overlapping facets build up like glass
+      ctx.globalCompositeOperation = 'lighter'
       for (const poly of polys) {
-        if (poly.facing <= 0.02) continue // cull back faces (solid body)
         const lit = poly.bright
-        const k = 0.14 + 0.86 * lit                 // stronger light/shadow contrast
-        const mix = lit * 0.45                       // brighter facets lean toward accent2
-        const spec = lit > 0.82 ? (lit - 0.82) * 3.6 : 0 // crisp crystal highlight
+        const k = 0.09 + 0.48 * lit                  // dim base so layers can stack
+        const mix = lit * 0.5                         // brighter facets lean to accent2
+        const spec = lit > 0.80 ? (lit - 0.80) * 3.2 : 0 // crystal highlight
         const col = accent.map((c, i) => Math.min(255, Math.round(
-          c * k + accent2[i] * mix + 255 * spec * 0.5
+          c * k + accent2[i] * mix + 255 * spec * 0.4
         )))
+        // edge-on facets read most transparent (glass), flat-on more solid
+        const alpha = 0.16 + 0.30 * Math.abs(poly.facing)
         const [a, b, c] = poly.f.map(i => proj[i])
         ctx.beginPath()
         ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.closePath()
-        ctx.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`
+        ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${alpha})`
         ctx.fill()
-        // stroke each facet in its own fill colour to seal hairline seams,
-        // so edges read as the same colour as the walls (no outline).
-        ctx.lineWidth = 0.6
-        ctx.strokeStyle = ctx.fillStyle
+        // faint same-hue facet seams for crystal definition (not an outline)
+        ctx.lineWidth = 0.5
+        ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${alpha * 0.9})`
         ctx.stroke()
       }
+      ctx.globalCompositeOperation = 'source-over'
 
       if (!reduce) {
         ay += 0.020
