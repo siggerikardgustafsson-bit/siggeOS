@@ -6,6 +6,7 @@ import CategoryCard from '../components/dashboard/CategoryCard'
 import { useTilt } from '../hooks/useTilt'
 import DetailModal from '../components/dashboard/DetailModal'
 import TodayWidget from '../components/dashboard/TodayWidget'
+import CountUp from '../components/CountUp'
 import {
   getTier, getStudyTier, getSkillTier, getDecayedValue, calcOverallTier,
   estimateVO2max, formatRunTime,
@@ -897,7 +898,7 @@ export default function Dashboard() {
 
           {/* MAXX SCORE + BOTTLENECK — premium split layout */}
           {!loading && maxxProfile && (
-            <div style={{ display:'grid', gridTemplateColumns:'minmax(0, 1.7fr) minmax(280px, .85fr)', gap:'12px', alignItems:'stretch' }} className="dashboard-maxx-row">
+            <div style={{ display:'grid', gridTemplateColumns:'minmax(0, 1.55fr) minmax(240px, .95fr) minmax(210px, .8fr)', gap:'12px', alignItems:'stretch' }} className="dashboard-maxx-row">
               <button ref={heroTilt} onClick={() => setSelectedCategory(maxxProfile)} className="widget tilt-card" style={{ textAlign:'left', cursor:'pointer', padding:'18px 20px', border:'1px solid rgba(255,255,255,0.25)', background:'linear-gradient(135deg, rgba(79,142,247,0.14), rgba(167,139,250,0.08) 45%, var(--surface) 100%)', overflow:'hidden' }}>
                 <div style={{ position:'absolute', inset:'-40% auto auto 62%', width:260, height:260, borderRadius:'999px', background:(TIER_COLORS[maxxProfile.levelUp?.nextTier] || '#a78bfa') + '18', filter:'blur(38px)', pointerEvents:'none' }} />
                 <div style={{ position:'relative', display:'grid', gridTemplateColumns:'auto minmax(0, 1fr)', gap:'18px', alignItems:'center' }}>
@@ -922,7 +923,7 @@ export default function Dashboard() {
                       </div>
                       <div style={{ padding:'8px 10px', borderRadius:12, background:'rgba(0,0,0,0.12)', border:'1px solid var(--border)' }}>
                         <div style={{ fontSize:9, color:'var(--muted)', fontWeight:850, letterSpacing:'0.10em', textTransform:'uppercase' }}>Progress</div>
-                        <div style={{ fontSize:12, color:'var(--text)', fontWeight:800 }}>{maxxProfile.levelUp.progressPct}% till nästa</div>
+                        <div style={{ fontSize:12, color:'var(--text)', fontWeight:800 }}><CountUp value={maxxProfile.levelUp.progressPct} suffix="% till nästa" /></div>
                       </div>
                       <div style={{ padding:'8px 10px', borderRadius:12, background:'rgba(0,0,0,0.12)', border:'1px solid var(--border)' }}>
                         <div style={{ fontSize:9, color:'var(--muted)', fontWeight:850, letterSpacing:'0.10em', textTransform:'uppercase' }}>Krav kvar</div>
@@ -944,6 +945,35 @@ export default function Dashboard() {
                 </div>
                 <div style={{ marginTop:16, fontSize:11, color:'var(--muted)', fontWeight:700 }}>Visa rank-up plan →</div>
               </button>
+
+              {/* BALANS — live tier equalizer across categories */}
+              {(() => {
+                const eqCats = categories.filter(c => c?.tier?.tier && c.hasData && !['kropp','fardigheter'].includes(c.id))
+                if (!eqCats.length) return <div className="widget" style={{ padding:'18px' }} />
+                const tiers = eqCats.map(c => c.tier.tier)
+                const avg = tiers.reduce((s,t)=>s+t,0) / tiers.length
+                const spread = Math.max(...tiers) - Math.min(...tiers)
+                return (
+                  <div className="widget" style={{ padding:'18px', display:'flex', flexDirection:'column', justifyContent:'space-between', minHeight:134, background:'linear-gradient(135deg, rgba(0,0,0,0.16), var(--surface))', overflow:'hidden' }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10 }}>
+                      <div style={{ fontSize:10, color:'var(--muted)', fontWeight:950, letterSpacing:'0.14em', textTransform:'uppercase' }}>Balans</div>
+                      <div style={{ fontSize:11, fontWeight:800, color:'var(--accent)' }}>Snitt T<CountUp value={avg} decimals={1} /></div>
+                    </div>
+                    <div style={{ display:'flex', alignItems:'flex-end', gap:6, height:54, margin:'14px 0 10px' }}>
+                      {eqCats.map((c,i) => {
+                        const col = TIER_COLORS[c.tier.tier] || '#4f8ef7'
+                        return (
+                          <div key={c.id} title={`${c.name}: T${c.tier.tier}`} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4, minWidth:0 }}>
+                            <div style={{ width:'100%', height:Math.max(8, (c.tier.tier/8)*44), borderRadius:5, background:`linear-gradient(180deg, ${col}, ${col}66)`, boxShadow:`0 0 10px ${col}55`, animation:`growBar 0.7s ${i*0.07}s cubic-bezier(.22,1,.36,1) both`, transformOrigin:'bottom' }} />
+                            <span style={{ fontSize:8, color:'var(--muted)', fontWeight:700, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:'100%' }}>{(c.name||'').slice(0,3)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <div style={{ fontSize:11, color:'var(--muted2)', fontWeight:700 }}>{spread <= 1 ? 'Stabil balans' : `Balansgap ${spread} tiers`}</div>
+                  </div>
+                )
+              })()}
             </div>
           )}
 

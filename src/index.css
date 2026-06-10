@@ -3965,3 +3965,12 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   .page-header-title, .page-header h1, .page-header h2,
   .page-header::before { animation: none !important; }
 }
+
+/* Dashboard Balans equalizer bar grow-in */
+@keyframes growBar {
+  from { transform: scaleY(0); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="growBar"] { animation: none !important; }
+}
