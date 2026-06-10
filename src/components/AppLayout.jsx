@@ -37,21 +37,16 @@ export default function AppLayout() {
       boxSizing: 'border-box',
     }}>
 
-      {/* Sidebar — floating glass panel */}
+      {/* Sidebar — hover-expand glass rail */}
       <div className="hidden-mobile app-sidebar-floating" style={{
         flexShrink: 0,
         padding: '10px 0 10px 10px',
         boxSizing: 'border-box',
         height: '100vh',
+        position: 'relative',
+        zIndex: 40,
       }}>
-        <div style={{
-          height: '100%',
-          borderRadius: '18px',
-          overflow: 'hidden',
-          boxShadow: 'var(--glass-shadow)',
-        }}>
-          <Sidebar />
-        </div>
+        <Sidebar />
       </div>
 
       {/* Main content */}
