@@ -20,19 +20,21 @@ export default function MaxxMark3D({ size = 40 }) {
 
     // --- beveled crystalline "M" geometry ---
     // 2D outline of a thick M (screen-Y is down, so peaks sit at -y = top).
+    // Intentionally a touch lopsided (left peak taller, right leg wider, notch
+    // off-centre) so it reads as a hand-cut crystal rather than a "correct" M.
     const outline = [
-      [-0.80, -0.72], // 0  top-left outer (peak)
-      [-0.45, -0.72], // 1  top-left inner
-      [ 0.00, -0.20], // 2  top-center notch (shallower → thicker bridge)
-      [ 0.45, -0.72], // 3  top-right inner
-      [ 0.80, -0.72], // 4  top-right outer (peak)
-      [ 0.80,  0.72], // 5  bottom-right outer
-      [ 0.45,  0.72], // 6  bottom-right inner
-      [ 0.45, -0.04], // 7  right diagonal underside (thicker strokes)
-      [ 0.00,  0.24], // 8  V tip (lower → chunky bridge between legs)
-      [-0.45, -0.04], // 9  left diagonal underside
-      [-0.45,  0.72], // 10 bottom-left inner
-      [-0.80,  0.72], // 11 bottom-left outer
+      [-0.82, -0.74], // 0  top-left outer (peak — slightly taller)
+      [-0.44, -0.70], // 1  top-left inner
+      [-0.04, -0.06], // 2  top-center notch (higher + off-centre → fat bridge)
+      [ 0.47, -0.72], // 3  top-right inner
+      [ 0.81, -0.70], // 4  top-right outer (peak)
+      [ 0.83,  0.71], // 5  bottom-right outer
+      [ 0.41,  0.73], // 6  bottom-right inner
+      [ 0.46,  0.06], // 7  right diagonal underside (thick stroke)
+      [ 0.03,  0.40], // 8  V tip (lower → very chunky bridge between legs)
+      [-0.47,  0.02], // 9  left diagonal underside
+      [-0.43,  0.72], // 10 bottom-left inner
+      [-0.81,  0.74], // 11 bottom-left outer
     ]
     const N = outline.length
     const hd = 0.30           // half depth (tip distance) — shallower = blunter
@@ -42,7 +44,7 @@ export default function MaxxMark3D({ size = 40 }) {
 
     // deterministic pseudo-random jitter so the crystal is irregular &
     // asymmetric (computed once — the shape is fixed, only the view spins).
-    let seed = 1337
+    let seed = 20260611
     const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff }
     const jit = (a) => (rnd() * 2 - 1) * a
 
@@ -56,11 +58,11 @@ export default function MaxxMark3D({ size = 40 }) {
 
     // 5 rings: shared mid equator + 2-step crown front + 2-step crown back.
     // Gem-cut layering (mid -> shoulder -> tip) gives many irregular facets.
-    const r0 = ring(1.00, 0.00, 0.02, 0.04)            // 0..N-1  mid equator (keeps M silhouette)
-    const rF1 = ring(0.82, hd * 0.55, 0.04, 0.03)      // N..2N-1 front shoulder (blunt)
-    const rF2 = ring(0.56, hd, 0.03, 0.03)             // 2N..    front tip (broad, not pointy)
-    const rB1 = ring(0.82, -hd * 0.55, 0.04, 0.03)     // 3N..    back shoulder
-    const rB2 = ring(0.56, -hd, 0.03, 0.03)            // 4N..    back tip
+    const r0 = ring(1.00, 0.00, 0.05, 0.05)            // 0..N-1  mid equator (keeps M silhouette)
+    const rF1 = ring(0.80, hd * 0.55, 0.08, 0.05)      // N..2N-1 front shoulder (blunt, irregular)
+    const rF2 = ring(0.52, hd, 0.07, 0.05)             // 2N..    front tip (broad, not pointy)
+    const rB1 = ring(0.84, -hd * 0.50, 0.08, 0.05)     // 3N..    back shoulder (asymmetric vs front)
+    const rB2 = ring(0.50, -hd, 0.07, 0.05)            // 4N..    back tip
     const V = [...r0, ...rF1, ...rF2, ...rB1, ...rB2]
 
     // cap triangulation (3 convex chunks of the M: two bars + the V)
@@ -107,26 +109,40 @@ export default function MaxxMark3D({ size = 40 }) {
     const cx = size / 2
     const cy = size / 2
     const persp = size * 2.4
-    const ax = -0.22          // gentle fixed tilt so the M stays readable
-    let ay = 0.4              // spins around the vertical axis
     let raf = 0
+    const t0 = performance.now()
 
-    const rotate = (p, ax, ay) => {
+    // Full 3-axis rotation so we can let it drift/tumble, not just spin on Y.
+    const rotate = (p, ax, ay, az) => {
       let [x, y, z] = p
-      const cy_ = Math.cos(ay), sy = Math.sin(ay)
-      const x1 = x * cy_ + z * sy
-      const z1 = -x * sy + z * cy_
-      const cx_ = Math.cos(ax), sx = Math.sin(ax)
-      const y1 = y * cx_ - z1 * sx
-      const z2 = y * sx + z1 * cx_
-      return [x1, y1, z2]
+      // yaw (around Y)
+      const cyA = Math.cos(ay), syA = Math.sin(ay)
+      let x1 = x * cyA + z * syA
+      let z1 = -x * syA + z * cyA
+      // pitch (around X)
+      const cxA = Math.cos(ax), sxA = Math.sin(ax)
+      let y1 = y * cxA - z1 * sxA
+      let z2 = y * sxA + z1 * cxA
+      // roll (around Z) — gentle in-plane tilt for the "floating" feel
+      const czA = Math.cos(az), szA = Math.sin(az)
+      const x2 = x1 * czA - y1 * szA
+      const y2 = x1 * szA + y1 * czA
+      return [x2, y2, z2]
     }
 
     const frame = () => {
       const [accent, accent2] = themeColors()
       ctx.clearRect(0, 0, size, size)
 
-      const pts = V.map(p => rotate(p, ax, ay))
+      // Time-driven, multi-axis drift: a slow primary yaw with layered sine
+      // wobble on all three axes so it looks like a crystal suspended in fluid,
+      // lazily turning, never quite repeating, rather than a flat turntable.
+      const t = (performance.now() - t0) / 1000
+      const ay = t * 0.34 + 0.18 * Math.sin(t * 0.47)        // slow turn, eases in/out
+      const ax = -0.20 + 0.16 * Math.sin(t * 0.31 + 0.7)     // gentle nod
+      const az = 0.10 * Math.sin(t * 0.23 + 1.9)             // soft roll / sway
+
+      const pts = V.map(p => rotate(p, ax, ay, az))
       const proj = pts.map(([x, y, z]) => {
         const sc = persp / (persp - z * R)
         return [cx + x * R * sc, cy + y * R * sc]
@@ -173,7 +189,6 @@ export default function MaxxMark3D({ size = 40 }) {
       }
 
       if (!reduce) {
-        ay += 0.020
         raf = requestAnimationFrame(frame)
       }
     }
