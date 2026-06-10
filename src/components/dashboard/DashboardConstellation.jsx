@@ -43,35 +43,28 @@ function useIsMobile(bp = 880) {
   return m
 }
 
-// Glassy specular + rim that makes a disc read as a real 3-D bubble.
+// Crisp glassy sphere — tight specular, defined rim light, colored under-glow.
 function bubbleSkin(color, active, intensity = 1) {
   return {
     background: active
-      ? `radial-gradient(circle at 36% 26%, rgba(255,255,255,.32), rgba(255,255,255,.06) 20%, ${color}3a 44%, rgba(9,13,24,.94) 80%)`
-      : `radial-gradient(circle at 36% 26%, rgba(255,255,255,.18), rgba(255,255,255,.03) 22%, rgba(20,27,44,.88) 74%)`,
-    border: `1.5px solid ${active ? color : 'var(--border)'}`,
+      ? `radial-gradient(125% 125% at 30% 22%, rgba(255,255,255,.95) 0%, rgba(255,255,255,.14) 7%, ${color}26 24%, rgba(13,17,30,.97) 58%, rgba(7,10,18,1) 100%)`
+      : `radial-gradient(125% 125% at 30% 22%, rgba(255,255,255,.55) 0%, rgba(255,255,255,.07) 9%, rgba(34,42,64,.92) 38%, rgba(12,16,28,1) 100%)`,
+    border: `1px solid ${active ? color : 'rgba(255,255,255,.16)'}`,
     boxShadow: active
-      ? `0 0 ${34 * intensity}px ${color}5c, 0 18px 48px rgba(0,0,0,.5), inset 0 3px 8px rgba(255,255,255,.26), inset 0 -14px 30px ${color}26`
-      : `0 12px 34px rgba(0,0,0,.42), inset 0 3px 8px rgba(255,255,255,.13), inset 0 -10px 24px rgba(0,0,0,.34)`,
+      ? `0 0 0 1px ${color}30, 0 20px 50px -14px ${color}55, 0 36px 70px -26px rgba(0,0,0,.8), inset 0 1.5px 1px rgba(255,255,255,.55), inset 0 -26px 46px -20px ${color}40, inset 0 0 ${22*intensity}px ${color}18`
+      : `0 20px 50px -18px rgba(0,0,0,.7), inset 0 1.5px 1px rgba(255,255,255,.32), inset 0 -26px 46px -22px rgba(0,0,0,.65)`,
   }
 }
 
-// Circular progress arc around a bubble — shows how far to the next rank.
-function RingProgress({ size, pct, color, nextColor }) {
-  const s = size + 14
-  const sw = 3.5
-  const r = (s - sw) / 2
-  const c = 2 * Math.PI * r
-  const off = c * (1 - Math.max(0, Math.min(100, pct || 0)) / 100)
+// Crisp conic progress ring hugging the bubble rim — scales perfectly, no blur.
+function RingProgress({ pct, nextColor, thickness = 4, inset = -7, glow = true }) {
+  const p = Math.max(0, Math.min(100, pct || 0))
   return (
-    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`}
-      style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', pointerEvents:'none', zIndex:1, filter:`drop-shadow(0 0 5px ${nextColor})` }}>
-      <circle cx={s/2} cy={s/2} r={r} fill="none" stroke="rgba(255,255,255,.07)" strokeWidth={sw} />
-      <circle cx={s/2} cy={s/2} r={r} fill="none" stroke={nextColor} strokeWidth={sw}
-        strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
-        transform={`rotate(-90 ${s/2} ${s/2})`}
-        style={{ transition:'stroke-dashoffset .7s cubic-bezier(.22,1,.36,1)' }} />
-    </svg>
+    <div style={{ position:'absolute', inset, borderRadius:'50%', pointerEvents:'none', zIndex:1,
+      background:`conic-gradient(from -90deg, ${nextColor} ${p}%, rgba(255,255,255,.06) ${p}% 100%)`,
+      WebkitMask:`radial-gradient(farthest-side, transparent calc(100% - ${thickness}px), #000 calc(100% - ${thickness}px))`,
+      mask:`radial-gradient(farthest-side, transparent calc(100% - ${thickness}px), #000 calc(100% - ${thickness}px))`,
+      filter: glow ? `drop-shadow(0 0 5px ${nextColor}cc)` : 'none' }} />
   )
 }
 
@@ -103,19 +96,31 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   }
 
   const N = categories.length || 1
-  const RX = 37, RY = 39
+  // Curated layout: 2 top · 1 left · 1 right · 2 bottom — keeps vertical lanes
+  // clear so bubbles never collide with the header/footer rows.
+  const PRESET = {
+    6: [ {x:31,y:21}, {x:69,y:21}, {x:88,y:50}, {x:69,y:79}, {x:31,y:79}, {x:12,y:50} ],
+    5: [ {x:31,y:22}, {x:69,y:22}, {x:88,y:55}, {x:50,y:84}, {x:12,y:55} ],
+    4: [ {x:30,y:24}, {x:70,y:24}, {x:70,y:76}, {x:30,y:76} ],
+  }
   const nodes = categories.map((c, i) => {
-    const ang = (-90 + i * (360 / N)) * Math.PI / 180
-    const x = 50 + RX * Math.cos(ang)
-    const y = 50 + RY * Math.sin(ang)
-    return { c, x, y, i, ux: Math.cos(ang), uy: Math.sin(ang) }
+    let x, y
+    const preset = PRESET[N]
+    if (preset) { x = preset[i].x; y = preset[i].y }
+    else {
+      const ang = (-90 + i * (360 / N)) * Math.PI / 180
+      x = 50 + 38 * Math.cos(ang); y = 50 + 40 * Math.sin(ang)
+    }
+    const dx = x - 50, dy = y - 50
+    const len = Math.hypot(dx, dy) || 1
+    return { c, x, y, i, ux: dx / len, uy: dy / len }
   })
 
   const coreTier = maxxProfile?.tier?.tier ?? overallTier ?? 0
   const coreColor = TIER_COLORS[coreTier] || '#4f8ef7'
   const nextColor = TIER_COLORS[maxxProfile?.levelUp?.nextTier] || '#a78bfa'
 
-  const BASE = 134, CORE = 196, COREHOVER = 248, HOVER = 248
+  const BASE = 132, CORE = 198, COREHOVER = 240, HOVER = 236
 
   const isExpanded = expandedId != null
 
@@ -124,8 +129,8 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
     const list = items.slice(0, 4)
     const k = list.length
     if (!k) return null
-    const R = size / 2 + 30
-    const gap = 44 * Math.PI / 180
+    const R = size / 2 + 26
+    const gap = 42 * Math.PI / 180
     return list.map((m, j) => {
       const ang = outwardAngle == null
         ? (-90 + j * (360 / k)) * Math.PI / 180
@@ -160,64 +165,67 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
     const metrics = isCore ? (maxxProfile?.details || []) : (cat.metrics || [])
     const navTarget = isCore ? null : NAV_TARGET[cat.id]
     const nextC = TIER_COLORS[levelUp?.nextTier] || nextColor
+    // Content lives inside the square inscribed in the circle so nothing
+    // ever touches the curved rim.
     return (
-      <div style={{ width:'100%', height:'100%', display:'flex', flexDirection:'column', alignItems:'center',
-        padding:'clamp(20px,4vw,46px)', overflowY:'auto', textAlign:'center' }}
-        onClick={(e) => e.stopPropagation()}>
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:6 }}>
-          {!isCore && <Icon id={cat.id} color={col} size={30} />}
-          <span style={{ fontSize:'clamp(20px,3vw,30px)', fontWeight:950, color:'#fff', letterSpacing:'-0.02em' }}>{name}</span>
+      <div className="cexp" onClick={(e) => e.stopPropagation()}
+        style={{ width:'min(70.7%, 560px)', maxHeight:'70.7%', overflowY:'auto', display:'flex',
+          flexDirection:'column', alignItems:'center', textAlign:'center', padding:'4px 6px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:11, marginBottom:2 }}>
+          {!isCore && (
+            <span style={{ width:34, height:34, borderRadius:'50%', display:'grid', placeItems:'center',
+              background:`radial-gradient(circle at 38% 32%, ${col}40, rgba(255,255,255,.04))`, border:`1px solid ${col}66` }}>
+              <Icon id={cat.id} color={col} size={19} />
+            </span>
+          )}
+          <span style={{ fontSize:'clamp(19px,2.6vw,27px)', fontWeight:950, color:'#fff', letterSpacing:'-0.02em' }}>{name}</span>
         </div>
-        {tierLabel && <span style={{ fontSize:12, fontWeight:800, letterSpacing:'0.16em', textTransform:'uppercase', color:col }}>{tierLabel}</span>}
-        <div style={{ fontSize:'clamp(64px,11vw,128px)', lineHeight:.95, fontWeight:950, letterSpacing:'-0.06em', color:'#fff', textShadow:`0 0 40px ${col}`, margin:'6px 0' }}>
+        {tierLabel && <span style={{ fontSize:11, fontWeight:800, letterSpacing:'0.2em', textTransform:'uppercase', color:col }}>{tierLabel}</span>}
+        <div style={{ position:'relative', fontSize:'clamp(58px,9.5vw,116px)', lineHeight:.95, fontWeight:950, letterSpacing:'-0.06em', color:'#fff', textShadow:`0 2px 30px ${col}aa`, margin:'2px 0 4px' }}>
           {tierNum > 0 ? 'T' + tierNum : '—'}
         </div>
         {levelUp && (
-          <div style={{ width:'min(420px,80%)', marginBottom:18 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontWeight:800, color:'var(--muted)', marginBottom:5, textTransform:'uppercase', letterSpacing:'0.08em' }}>
-              <span>{levelUp.progressPct}% mot T{levelUp.nextTier}</span>
+          <div style={{ width:'92%', maxWidth:380, marginBottom:14 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10.5, fontWeight:800, color:'var(--muted)', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.1em' }}>
+              <span>{levelUp.progressPct}% → T{levelUp.nextTier}</span>
               {levelUp.title && <span style={{ color:nextC }}>{levelUp.title}</span>}
             </div>
-            <div style={{ height:8, borderRadius:99, background:'rgba(255,255,255,.08)', overflow:'hidden' }}>
-              <div style={{ width:(levelUp.progressPct||0)+'%', height:'100%', borderRadius:99, background:`linear-gradient(90deg, ${col}, ${nextC})`, boxShadow:`0 0 14px ${nextC}` }} />
+            <div style={{ height:7, borderRadius:99, background:'rgba(255,255,255,.07)', overflow:'hidden', boxShadow:'inset 0 1px 2px rgba(0,0,0,.5)' }}>
+              <div style={{ width:(levelUp.progressPct||0)+'%', height:'100%', borderRadius:99, background:`linear-gradient(90deg, ${col}, ${nextC})`, boxShadow:`0 0 12px ${nextC}` }} />
             </div>
             {levelUp.primaryBottleneck && (
-              <div style={{ fontSize:12, color:'var(--muted2)', marginTop:9 }}>
+              <div style={{ fontSize:11.5, color:'var(--muted2)', marginTop:9 }}>
                 Flaskhals: <span style={{ color:nextC, fontWeight:800 }}>{levelUp.primaryBottleneck}</span>
               </div>
             )}
           </div>
         )}
         {metrics.length > 0 && (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(150px,1fr))', gap:10, width:'min(640px,92%)', marginBottom:18 }}>
+          <div style={{ display:'flex', flexWrap:'wrap', justifyContent:'center', gap:7, width:'100%', marginBottom:14 }}>
             {metrics.map((m, i) => (
-              <div key={i}
+              <button key={i} className="cexp-pill"
                 onClick={m.evidence ? () => onMetricClick?.({ ...m.evidence, categoryId:id, categoryName:name, metricLabel:m.label, metricValue:m.value }) : undefined}
-                style={{ padding:'12px 14px', borderRadius:14, textAlign:'left',
-                  background:'rgba(255,255,255,.04)', border:'1px solid var(--border)',
-                  cursor:m.evidence?'pointer':'default', transition:'border-color .15s, background .15s' }}
-                onMouseEnter={m.evidence ? (e) => { e.currentTarget.style.borderColor = col; e.currentTarget.style.background = 'rgba(255,255,255,.07)' } : undefined}
-                onMouseLeave={m.evidence ? (e) => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'rgba(255,255,255,.04)' } : undefined}>
-                <div style={{ fontSize:10.5, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.label}</div>
-                <div style={{ fontSize:19, fontWeight:900, color: m.highlight ? col : '#fff' }}>{m.value}</div>
-                {m.evidence && <div style={{ fontSize:10, color:'var(--accent)', marginTop:3, fontWeight:700 }}>Visa bevis →</div>}
-              </div>
+                style={{ '--pc': col, cursor:m.evidence?'pointer':'default' }}>
+                <span style={{ color:'var(--muted)', fontSize:10.5, fontWeight:700 }}>{m.label}</span>
+                <span style={{ color: m.highlight ? col : '#fff', fontWeight:900, fontSize:13 }}>{m.value}</span>
+                {m.evidence && <span style={{ color:'var(--accent)', fontSize:11, marginLeft:1 }}>→</span>}
+              </button>
             ))}
           </div>
         )}
         {Array.isArray(levelUp?.blockers) && levelUp.blockers.length > 0 && (
-          <div style={{ width:'min(560px,92%)', marginBottom:18, textAlign:'left' }}>
-            <div style={{ fontSize:11, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em', color:'var(--muted)', marginBottom:8 }}>Att låsa upp nästa tier</div>
+          <div style={{ width:'94%', marginBottom:14, textAlign:'left' }}>
+            <div style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', color:'var(--muted)', marginBottom:7, textAlign:'center' }}>Lås upp nästa tier</div>
             {levelUp.blockers.map((b, i) => (
-              <div key={i} style={{ display:'flex', gap:9, alignItems:'flex-start', fontSize:12.5, color:'var(--muted2)', padding:'5px 0', lineHeight:1.4 }}>
+              <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', fontSize:12, color:'var(--muted2)', padding:'4px 0', lineHeight:1.4 }}>
                 <span style={{ color:nextC, fontWeight:900 }}>›</span>
                 <span>{typeof b === 'string' ? b : (b?.label || b?.text || '')}</span>
               </div>
             ))}
           </div>
         )}
-        <div style={{ display:'flex', gap:10, flexWrap:'wrap', justifyContent:'center', marginTop:'auto' }}>
-          <button className="cbig-act" onClick={() => { setExpandedId(null); onSelect?.(isCore ? maxxProfile : cat) }}>Öppna full detalj →</button>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', justifyContent:'center' }}>
+          <button className="cbig-act" onClick={() => { setExpandedId(null); onSelect?.(isCore ? maxxProfile : cat) }}>Full detalj →</button>
           {navTarget && <button className="cbig-act ghost" onClick={() => navigate(navTarget)}>Till {name} ↗</button>}
           <button className="cbig-act ghost" onClick={() => setExpandedId(null)}>Stäng</button>
         </div>
@@ -232,15 +240,23 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         @keyframes cmapFlow { to { stroke-dashoffset: -24; } }
         @keyframes cmapFloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
         .cnode { position:absolute; transform:translate(-50%,-50%); }
-        .cstack { position:relative; transition: width .42s cubic-bezier(.22,1,.36,1), height .42s cubic-bezier(.22,1,.36,1); }
+        .cstack { position:relative; transition: width .6s cubic-bezier(.22,1,.36,1), height .6s cubic-bezier(.22,1,.36,1); }
         .cdisc {
           position:absolute; inset:0; border-radius:50%; display:flex; align-items:center; justify-content:center;
-          cursor:pointer; overflow:hidden; z-index:2;
-          transition: box-shadow .35s ease;
+          cursor:pointer; overflow:hidden; z-index:2; transform:translateZ(0); backface-visibility:hidden;
+          transition: box-shadow .4s ease, background .4s ease;
         }
-        .cdisc::after { content:''; position:absolute; top:7%; left:14%; width:42%; height:30%; border-radius:50%;
-          background:radial-gradient(circle at 40% 40%, rgba(255,255,255,.55), rgba(255,255,255,0) 70%); pointer-events:none; }
-        .cfloat { animation: cmapFloat 6s ease-in-out infinite; }
+        .cdisc::after { content:''; position:absolute; top:7%; left:15%; width:26%; height:17%; border-radius:50%;
+          transform:rotate(-18deg); opacity:.8;
+          background:radial-gradient(closest-side, rgba(255,255,255,.92), rgba(255,255,255,.18) 46%, rgba(255,255,255,0) 74%);
+          pointer-events:none; }
+        .cfloat { animation: cmapFloat 6.5s ease-in-out infinite; will-change:transform; }
+        .cexp { scrollbar-width:none; animation:cexpIn .5s cubic-bezier(.22,1,.36,1) both; }
+        .cexp::-webkit-scrollbar { display:none; }
+        @keyframes cexpIn { from { opacity:0; transform:scale(.94) } to { opacity:1; transform:scale(1) } }
+        .cexp-pill { appearance:none; display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:999px;
+          background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.1); transition:border-color .15s, background .15s, transform .15s; }
+        .cexp-pill:hover { border-color:var(--pc); background:rgba(255,255,255,.09); transform:translateY(-1px); }
         .csat { position:absolute; transform:translate(-50%,-50%); z-index:55; display:flex; flex-direction:column;
           align-items:center; gap:5px; appearance:none; background:none; border:none; padding:0; cursor:pointer;
           animation:csatIn .34s cubic-bezier(.22,1,.36,1) both; }
@@ -261,7 +277,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         .cbig-act:hover { transform:translateY(-2px); box-shadow:0 12px 30px rgba(79,142,247,.55); }
         .cbig-act.ghost { background:rgba(255,255,255,.05); color:var(--text); border:1px solid var(--border); box-shadow:none; }
         .cbig-act.ghost:hover { background:rgba(255,255,255,.1); }
-        .cbackdrop { position:absolute; inset:-40px; z-index:30; background:radial-gradient(circle at 50% 45%, rgba(6,10,20,.55), rgba(4,7,14,.86)); backdrop-filter:blur(7px); animation:cbackIn .4s ease; }
+        .cbackdrop { position:absolute; inset:-60px; z-index:30; background:radial-gradient(circle at 50% 45%, rgba(8,12,24,.45), rgba(3,5,11,.9)); backdrop-filter:blur(10px) saturate(1.1); -webkit-backdrop-filter:blur(10px) saturate(1.1); animation:cbackIn .45s ease; }
         @keyframes cbackIn { from { opacity:0 } to { opacity:1 } }
         @media (prefers-reduced-motion: reduce) { .cmap-edge,.cfloat { animation:none } }
       `}</style>
@@ -300,15 +316,17 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         const corePct = maxxProfile?.levelUp?.progressPct
         return (
           <div className="cnode" style={{ left:'50%', top:'50%', zIndex: exp ? 60 : (hov?40:4),
-            transition:'opacity .45s ease, transform .55s cubic-bezier(.22,1,.36,1)',
+            transition:'opacity .5s ease, filter .5s ease, transform .6s cubic-bezier(.34,1.4,.5,1)',
             opacity: dimOther ? 0 : 1, pointerEvents: dimOther ? 'none' : 'auto',
-            transform: dimOther ? 'translate(-50%,-50%) scale(.4)' : 'translate(-50%,-50%)' }}
+            filter: dimOther ? 'blur(6px)' : 'none',
+            transform: dimOther ? 'translate(-50%,-50%) scale(.28)' : 'translate(-50%,-50%)' }}
             onMouseEnter={() => setHoverId(id)} onMouseLeave={() => setHoverId(null)}>
             <div className={exp ? 'cstack' : 'cstack cfloat'} style={{ width:dim, height:dim }}>
-              {!exp && corePct != null && <RingProgress size={hov?COREHOVER:CORE} pct={corePct} color={coreColor} nextColor={nextColor} />}
+              {!exp && corePct != null && <RingProgress pct={corePct} nextColor={nextColor} />}
               <div className="cdisc"
                 onClick={() => exp ? null : setExpandedId(id)}
                 style={{ ...bubbleSkin(coreColor, true, exp ? 2.2 : (hov ? 1.9 : 1.6)) }}>
+                {exp && corePct != null && <RingProgress pct={corePct} nextColor={nextColor} thickness={7} inset={14} />}
                 {exp ? <ExpandedContent id={id} /> : (
                   <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'0 14px' }}>
                     <span style={{ fontSize:10, letterSpacing:'0.18em', fontWeight:900, color:'rgba(255,255,255,.62)', textTransform:'uppercase' }}>Maxx</span>
@@ -348,17 +366,19 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         const outwardAngle = Math.atan2(n.uy, n.ux)
         return (
           <div key={id} className="cnode" style={{ left, top, zIndex: exp ? 60 : (hov ? 40 : 3),
-            transition:'opacity .45s ease, transform .55s cubic-bezier(.22,1,.36,1)',
+            transition:`opacity .5s ease ${dimOther?n.i*0.03:0}s, filter .5s ease, transform .62s cubic-bezier(.34,1.4,.5,1) ${dimOther?n.i*0.03:0}s, left .62s cubic-bezier(.22,1,.36,1), top .62s cubic-bezier(.22,1,.36,1)`,
             opacity: dimOther ? 0 : 1, pointerEvents: dimOther ? 'none' : 'auto',
+            filter: dimOther ? 'blur(6px)' : 'none',
             transform: dimOther
-              ? `translate(calc(-50% + ${n.ux*70}px), calc(-50% + ${n.uy*70}px)) scale(.4)`
+              ? `translate(calc(-50% + ${n.ux*150}px), calc(-50% + ${n.uy*150}px)) scale(.3)`
               : 'translate(-50%,-50%)' }}
             onMouseEnter={() => setHoverId(id)} onMouseLeave={() => setHoverId(null)}>
             <div className={exp ? 'cstack' : 'cstack cfloat'} style={{ width:size, height:size, animationDelay:(n.i*0.5)+'s' }}>
-              {!exp && active && progressPct != null && <RingProgress size={hov?HOVER:BASE} pct={progressPct} color={col} nextColor={nextC} />}
+              {!exp && active && progressPct != null && <RingProgress pct={progressPct} nextColor={nextC} />}
               <div className="cdisc"
                 onClick={() => exp ? null : setExpandedId(id)}
                 style={{ ...bubbleSkin(col, active, exp ? 2.2 : (hov ? 1.6 : 1)) }}>
+                {exp && active && progressPct != null && <RingProgress pct={progressPct} nextColor={nextC} thickness={7} inset={14} />}
                 {exp ? <ExpandedContent id={id} /> : hov ? (
                   <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, padding:'0 18px', width:'100%' }}>
                     <Icon id={id} color={active ? col : 'var(--muted)'} size={26} />
