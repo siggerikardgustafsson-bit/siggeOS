@@ -18,42 +18,52 @@ export default function MaxxMark3D({ size = 40 }) {
     canvas.height = size * dpr
     ctx.scale(dpr, dpr)
 
-    // --- chunky extruded "M" geometry ---
-    // 2D outline of a thick M (y-up), traced around the boundary.
+    // --- beveled crystalline "M" geometry ---
+    // 2D outline of a thick M (screen-Y is down, so peaks sit at -y = top).
     const outline = [
-      [-0.80,  0.72], // 0  top-left outer
-      [-0.45,  0.72], // 1  top-left inner
-      [ 0.00,  0.05], // 2  top-center notch
-      [ 0.45,  0.72], // 3  top-right inner
-      [ 0.80,  0.72], // 4  top-right outer
-      [ 0.80, -0.72], // 5  bottom-right outer
-      [ 0.45, -0.72], // 6  bottom-right inner
-      [ 0.45,  0.18], // 7  right diagonal underside
-      [ 0.00, -0.05], // 8  V tip
-      [-0.45,  0.18], // 9  left diagonal underside
-      [-0.45, -0.72], // 10 bottom-left inner
-      [-0.80, -0.72], // 11 bottom-left outer
+      [-0.80, -0.72], // 0  top-left outer (peak)
+      [-0.45, -0.72], // 1  top-left inner
+      [ 0.00, -0.05], // 2  top-center notch
+      [ 0.45, -0.72], // 3  top-right inner
+      [ 0.80, -0.72], // 4  top-right outer (peak)
+      [ 0.80,  0.72], // 5  bottom-right outer
+      [ 0.45,  0.72], // 6  bottom-right inner
+      [ 0.45, -0.18], // 7  right diagonal underside
+      [ 0.00,  0.05], // 8  V tip
+      [-0.45, -0.18], // 9  left diagonal underside
+      [-0.45,  0.72], // 10 bottom-left inner
+      [-0.80,  0.72], // 11 bottom-left outer
     ]
     const N = outline.length
-    const hd = 0.28 // half extrusion depth
-    const V = []
-    for (const [x, y] of outline) V.push([x, y, hd])   // front  0..N-1
-    for (const [x, y] of outline) V.push([x, y, -hd])  // back   N..2N-1
+    const hd = 0.36           // half depth (apex distance)
+    const taper = 0.46        // how much the front/back caps shrink toward centre
+    // taper centroid
+    let cgx = 0, cgy = 0
+    for (const [x, y] of outline) { cgx += x; cgy += y }
+    cgx /= N; cgy /= N
+    const apex = ([x, y]) => [cgx + (x - cgx) * taper, cgy + (y - cgy) * taper]
 
-    // front-face triangulation (3 convex chunks: two bars + the V)
-    const front = [
+    const V = []
+    for (const p of outline) V.push([p[0], p[1], 0])            // mid rim  0..N-1
+    for (const p of outline) { const a = apex(p); V.push([a[0], a[1], hd]) }  // front N..2N-1
+    for (const p of outline) { const a = apex(p); V.push([a[0], a[1], -hd]) } // back  2N..3N-1
+
+    // cap triangulation (3 convex chunks of the M: two bars + the V)
+    const cap = [
       [11, 0, 1], [11, 1, 10],   // left bar
       [6, 3, 4], [6, 4, 5],      // right bar
       [1, 2, 8], [1, 8, 9],      // left diagonal
       [2, 3, 7], [2, 7, 8],      // right diagonal
     ]
     const F = []
-    for (const tri of front) F.push(tri)                       // front
-    for (const tri of front) F.push([tri[0] + N, tri[2] + N, tri[1] + N]) // back
-    for (let i = 0; i < N; i++) {                              // side walls
+    for (const t of cap) F.push([t[0] + N, t[1] + N, t[2] + N])          // front cap
+    for (const t of cap) F.push([t[0] + 2 * N, t[2] + 2 * N, t[1] + 2 * N]) // back cap
+    for (let i = 0; i < N; i++) {                  // beveled walls: rim -> apex
       const j = (i + 1) % N
-      F.push([i, j, j + N])
-      F.push([i, j + N, i + N])
+      // front bevel
+      F.push([i, j, j + N]); F.push([i, j + N, i + N])
+      // back bevel
+      F.push([i, j, j + 2 * N]); F.push([i, j + 2 * N, i + 2 * N])
     }
 
     const hexToRgb = (h) => {
