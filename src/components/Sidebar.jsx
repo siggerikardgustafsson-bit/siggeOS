@@ -42,7 +42,10 @@ export default function Sidebar() {
         {/* Logo / brand */}
         <div className="maxx-rail-brand">
           <div className="maxx-rail-mark">
-            <span>M</span>
+            <div className="maxx-rail-mark-3d">
+              <span className="maxx-rail-mark-face front">M</span>
+              <span className="maxx-rail-mark-face back">M</span>
+            </div>
             <i className="maxx-rail-mark-ring" />
           </div>
           <div className="maxx-rail-label maxx-rail-wordmark">

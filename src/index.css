@@ -3758,12 +3758,43 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   position: relative;
   width: 40px; height: 40px;
   min-width: 40px;
-  border-radius: 13px;
   display: flex; align-items: center; justify-content: center;
+  perspective: 320px;
+}
+.maxx-rail-mark-3d {
+  position: relative;
+  width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  animation: railMark3d 5.5s linear infinite;
+  will-change: transform;
+}
+.maxx-rail-mark-face {
+  position: absolute;
+  inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 950; font-size: 22px;
+  letter-spacing: -0.05em;
+  border-radius: 13px;
   background: linear-gradient(135deg, var(--accent), var(--accent2));
-  color: #fff; font-weight: 950; font-size: 20px;
-  letter-spacing: -0.04em;
-  box-shadow: 0 6px 20px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.3);
+  color: #fff;
+  backface-visibility: hidden;
+  /* extruded depth in the theme colour */
+  text-shadow:
+    1px 0 0 color-mix(in srgb, var(--accent) 70%, #000),
+    2px 0 0 color-mix(in srgb, var(--accent) 60%, #000),
+    3px 0 0 color-mix(in srgb, var(--accent) 50%, #000),
+    0 3px 6px rgba(0,0,0,0.35);
+  box-shadow:
+    0 6px 20px var(--accent-glow),
+    inset 0 1px 0 rgba(255,255,255,0.32),
+    inset 0 -3px 8px color-mix(in srgb, var(--accent) 50%, #000);
+}
+.maxx-rail-mark-face.back {
+  transform: rotateY(180deg);
+}
+@keyframes railMark3d {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(360deg); }
 }
 .maxx-rail-mark-ring {
   position: absolute; inset: -4px;
@@ -3915,7 +3946,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .maxx-rail-mark-ring, .maxx-rail-hint { animation: none !important; }
+  .maxx-rail-mark-ring, .maxx-rail-hint, .maxx-rail-mark-3d { animation: none !important; }
 }
 
 /* Rail slot: shrink reserved footprint to the collapsed rail width.
