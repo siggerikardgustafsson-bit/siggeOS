@@ -47,13 +47,32 @@ function useIsMobile(bp = 880) {
 function bubbleSkin(color, active, intensity = 1) {
   return {
     background: active
-      ? `radial-gradient(circle at 38% 28%, rgba(255,255,255,.28), rgba(255,255,255,.05) 22%, ${color}33 46%, rgba(10,14,26,.92) 78%)`
-      : `radial-gradient(circle at 38% 28%, rgba(255,255,255,.16), rgba(255,255,255,.02) 24%, rgba(20,27,44,.86) 72%)`,
+      ? `radial-gradient(circle at 36% 26%, rgba(255,255,255,.32), rgba(255,255,255,.06) 20%, ${color}3a 44%, rgba(9,13,24,.94) 80%)`
+      : `radial-gradient(circle at 36% 26%, rgba(255,255,255,.18), rgba(255,255,255,.03) 22%, rgba(20,27,44,.88) 74%)`,
     border: `1.5px solid ${active ? color : 'var(--border)'}`,
     boxShadow: active
-      ? `0 0 ${30 * intensity}px ${color}55, 0 14px 40px rgba(0,0,0,.45), inset 0 2px 6px rgba(255,255,255,.22), inset 0 -10px 24px ${color}22`
-      : `0 10px 30px rgba(0,0,0,.4), inset 0 2px 6px rgba(255,255,255,.12), inset 0 -8px 20px rgba(0,0,0,.3)`,
+      ? `0 0 ${34 * intensity}px ${color}5c, 0 18px 48px rgba(0,0,0,.5), inset 0 3px 8px rgba(255,255,255,.26), inset 0 -14px 30px ${color}26`
+      : `0 12px 34px rgba(0,0,0,.42), inset 0 3px 8px rgba(255,255,255,.13), inset 0 -10px 24px rgba(0,0,0,.34)`,
   }
+}
+
+// Circular progress arc around a bubble — shows how far to the next rank.
+function RingProgress({ size, pct, color, nextColor }) {
+  const s = size + 14
+  const sw = 3.5
+  const r = (s - sw) / 2
+  const c = 2 * Math.PI * r
+  const off = c * (1 - Math.max(0, Math.min(100, pct || 0)) / 100)
+  return (
+    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`}
+      style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', pointerEvents:'none', zIndex:1, filter:`drop-shadow(0 0 5px ${nextColor})` }}>
+      <circle cx={s/2} cy={s/2} r={r} fill="none" stroke="rgba(255,255,255,.07)" strokeWidth={sw} />
+      <circle cx={s/2} cy={s/2} r={r} fill="none" stroke={nextColor} strokeWidth={sw}
+        strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off}
+        transform={`rotate(-90 ${s/2} ${s/2})`}
+        style={{ transition:'stroke-dashoffset .7s cubic-bezier(.22,1,.36,1)' }} />
+    </svg>
+  )
 }
 
 export default function DashboardConstellation({ categories = [], maxxProfile, overallTier, onSelect, onMetricClick }) {
@@ -96,9 +115,37 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   const coreColor = TIER_COLORS[coreTier] || '#4f8ef7'
   const nextColor = TIER_COLORS[maxxProfile?.levelUp?.nextTier] || '#a78bfa'
 
-  const BASE = 116, CORE = 168, HOVER = 232
+  const BASE = 134, CORE = 196, COREHOVER = 248, HOVER = 248
 
   const isExpanded = expandedId != null
+
+  // Orbiting mini-bubbles that point straight at a single data source / stat.
+  function Satellites({ items = [], size, outwardAngle, color, catId, catName, navTarget }) {
+    const list = items.slice(0, 4)
+    const k = list.length
+    if (!k) return null
+    const R = size / 2 + 30
+    const gap = 44 * Math.PI / 180
+    return list.map((m, j) => {
+      const ang = outwardAngle == null
+        ? (-90 + j * (360 / k)) * Math.PI / 180
+        : outwardAngle + (j - (k - 1) / 2) * gap
+      const dx = R * Math.cos(ang), dy = R * Math.sin(ang)
+      const go = () => m.evidence
+        ? onMetricClick?.({ ...m.evidence, categoryId:catId, categoryName:catName, metricLabel:m.label, metricValue:m.value })
+        : (navTarget && navigate(navTarget))
+      return (
+        <button key={j} className="csat"
+          style={{ left:`calc(50% + ${dx}px)`, top:`calc(50% + ${dy}px)`, animationDelay:(0.03 + j*0.045)+'s' }}
+          onClick={(e) => { e.stopPropagation(); go() }}>
+          <span className="csat-disc" style={{ border:`1.5px solid ${color}`, boxShadow:`0 0 16px ${color}66, 0 8px 20px rgba(0,0,0,.5), inset 0 2px 5px rgba(255,255,255,.22)` }}>
+            <span style={{ fontSize:12.5, fontWeight:900, color:'#fff', lineHeight:1.05 }}>{m.value}</span>
+          </span>
+          <span className="csat-l">{m.label}</span>
+        </button>
+      )
+    })
+  }
 
   // Rich content rendered inside an expanded (full-screen) bubble.
   function ExpandedContent({ id }) {
@@ -179,21 +226,31 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   }
 
   return (
-    <div className="cmap" style={{ position:'relative', width:'100%', minHeight: isExpanded ? '82vh' : 600, padding:'8px 0', transition:'min-height .5s cubic-bezier(.22,1,.36,1)' }}>
+    <div className="cmap" style={{ position:'relative', width:'100%', minHeight: isExpanded ? '82vh' : 680, padding:'44px 0', transition:'min-height .5s cubic-bezier(.22,1,.36,1)' }}>
       <style>{`
         .cmap-edge { stroke-dasharray: 5 7; animation: cmapFlow 1.4s linear infinite; }
         @keyframes cmapFlow { to { stroke-dashoffset: -24; } }
         @keyframes cmapFloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
         .cnode { position:absolute; transform:translate(-50%,-50%); }
+        .cstack { position:relative; transition: width .42s cubic-bezier(.22,1,.36,1), height .42s cubic-bezier(.22,1,.36,1); }
         .cdisc {
-          position:relative; border-radius:50%; display:flex; align-items:center; justify-content:center;
-          cursor:pointer; overflow:hidden;
-          transition: width .42s cubic-bezier(.22,1,.36,1), height .42s cubic-bezier(.22,1,.36,1),
-                      box-shadow .35s ease, left .55s cubic-bezier(.22,1,.36,1), top .55s cubic-bezier(.22,1,.36,1);
+          position:absolute; inset:0; border-radius:50%; display:flex; align-items:center; justify-content:center;
+          cursor:pointer; overflow:hidden; z-index:2;
+          transition: box-shadow .35s ease;
         }
         .cdisc::after { content:''; position:absolute; top:7%; left:14%; width:42%; height:30%; border-radius:50%;
           background:radial-gradient(circle at 40% 40%, rgba(255,255,255,.55), rgba(255,255,255,0) 70%); pointer-events:none; }
         .cfloat { animation: cmapFloat 6s ease-in-out infinite; }
+        .csat { position:absolute; transform:translate(-50%,-50%); z-index:55; display:flex; flex-direction:column;
+          align-items:center; gap:5px; appearance:none; background:none; border:none; padding:0; cursor:pointer;
+          animation:csatIn .34s cubic-bezier(.22,1,.36,1) both; }
+        .csat-disc { width:62px; height:62px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+          text-align:center; padding:5px; background:radial-gradient(circle at 38% 30%, rgba(255,255,255,.22), rgba(15,21,36,.96) 70%);
+          transition:transform .15s ease; }
+        .csat:hover .csat-disc { transform:scale(1.13); }
+        .csat-l { font-size:9.5px; font-weight:800; color:var(--muted2); max-width:94px; text-align:center; line-height:1.15;
+          text-transform:uppercase; letter-spacing:.03em; }
+        @keyframes csatIn { from { opacity:0; transform:translate(-50%,-50%) scale(.4) } to { opacity:1; transform:translate(-50%,-50%) scale(1) } }
         .clabel { font-size:11px; font-weight:800; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-top:9px; text-align:center; transition:opacity .3s; }
         .cmetric-in { display:flex; justify-content:space-between; gap:10px; width:100%; font-size:11.5px; padding:3px 0; }
         .cbig-act {
@@ -237,27 +294,36 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
       {(() => {
         const id = 'core'
         const exp = expandedId === id
-        const dim = exp ? 'min(78vh, 760px)' : CORE
+        const hov = hoverId === id && !isExpanded
+        const dim = exp ? 'min(78vh, 760px)' : (hov ? COREHOVER : CORE)
         const dimOther = isExpanded && !exp
+        const corePct = maxxProfile?.levelUp?.progressPct
         return (
-          <div className="cnode" style={{ left:'50%', top:'50%', zIndex: exp ? 60 : (hoverId===id?40:4),
+          <div className="cnode" style={{ left:'50%', top:'50%', zIndex: exp ? 60 : (hov?40:4),
             transition:'opacity .45s ease, transform .55s cubic-bezier(.22,1,.36,1)',
             opacity: dimOther ? 0 : 1, pointerEvents: dimOther ? 'none' : 'auto',
-            transform: dimOther ? 'translate(-50%,-50%) scale(.4)' : 'translate(-50%,-50%)' }}>
-            <div className={exp ? 'cdisc' : 'cdisc cfloat'}
-              onClick={() => exp ? null : setExpandedId(id)}
-              onMouseEnter={() => setHoverId(id)} onMouseLeave={() => setHoverId(null)}
-              style={{ width: typeof dim==='string'?dim:dim, height: typeof dim==='string'?dim:dim,
-                ...bubbleSkin(coreColor, true, exp ? 2.2 : 1.6) }}>
-              {exp ? <ExpandedContent id={id} /> : (
-                <div style={{ display:'flex', flexDirection:'column', alignItems:'center' }}>
-                  <span style={{ fontSize:10, letterSpacing:'0.18em', fontWeight:900, color:'rgba(255,255,255,.62)', textTransform:'uppercase' }}>Maxx</span>
-                  <span style={{ fontSize:56, lineHeight:1, fontWeight:950, letterSpacing:'-0.06em', color:'#fff', textShadow:`0 0 26px ${coreColor}` }}>T{coreTier || '—'}</span>
-                  {maxxProfile?.levelUp && (
-                    <span style={{ fontSize:11, fontWeight:800, color:nextColor, marginTop:3 }}>{maxxProfile.levelUp.progressPct}% → T{maxxProfile.levelUp.nextTier}</span>
-                  )}
-                </div>
-              )}
+            transform: dimOther ? 'translate(-50%,-50%) scale(.4)' : 'translate(-50%,-50%)' }}
+            onMouseEnter={() => setHoverId(id)} onMouseLeave={() => setHoverId(null)}>
+            <div className={exp ? 'cstack' : 'cstack cfloat'} style={{ width:dim, height:dim }}>
+              {!exp && corePct != null && <RingProgress size={hov?COREHOVER:CORE} pct={corePct} color={coreColor} nextColor={nextColor} />}
+              <div className="cdisc"
+                onClick={() => exp ? null : setExpandedId(id)}
+                style={{ ...bubbleSkin(coreColor, true, exp ? 2.2 : (hov ? 1.9 : 1.6)) }}>
+                {exp ? <ExpandedContent id={id} /> : (
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'0 14px' }}>
+                    <span style={{ fontSize:10, letterSpacing:'0.18em', fontWeight:900, color:'rgba(255,255,255,.62)', textTransform:'uppercase' }}>Maxx</span>
+                    <span style={{ fontSize:hov?64:56, lineHeight:1, fontWeight:950, letterSpacing:'-0.06em', color:'#fff', textShadow:`0 0 28px ${coreColor}`, transition:'font-size .3s' }}>T{coreTier || '—'}</span>
+                    {maxxProfile?.levelUp && (
+                      <span style={{ fontSize:11.5, fontWeight:800, color:nextColor, marginTop:4 }}>{maxxProfile.levelUp.progressPct}% → T{maxxProfile.levelUp.nextTier}</span>
+                    )}
+                    {hov && maxxProfile?.levelUp?.primaryBottleneck && (
+                      <span style={{ fontSize:10.5, color:'var(--muted2)', marginTop:5, maxWidth:150, lineHeight:1.3 }}>Flaskhals: <b style={{ color:nextColor }}>{maxxProfile.levelUp.primaryBottleneck}</b></span>
+                    )}
+                    {hov && <span style={{ fontSize:9.5, fontWeight:800, color:'var(--accent)', marginTop:7, letterSpacing:'0.05em' }}>KLICKA FÖR ALLT</span>}
+                  </div>
+                )}
+              </div>
+              {hov && <Satellites items={maxxProfile?.details || []} size={COREHOVER} outwardAngle={null} color={coreColor} catId="core" catName="Maxx Score" navTarget={null} />}
             </div>
             {!exp && <div className="clabel" style={{ opacity:isExpanded?0:1 }}>Overall</div>}
           </div>
@@ -277,41 +343,43 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         const size = exp ? 'min(78vh, 760px)' : (hov ? HOVER : BASE)
         const left = exp ? '50%' : n.x + '%'
         const top = exp ? '50%' : n.y + '%'
+        const progressPct = cat.levelUp?.progressPct
+        const nextC = TIER_COLORS[cat.levelUp?.nextTier] || col
+        const outwardAngle = Math.atan2(n.uy, n.ux)
         return (
           <div key={id} className="cnode" style={{ left, top, zIndex: exp ? 60 : (hov ? 40 : 3),
             transition:'opacity .45s ease, transform .55s cubic-bezier(.22,1,.36,1)',
             opacity: dimOther ? 0 : 1, pointerEvents: dimOther ? 'none' : 'auto',
             transform: dimOther
               ? `translate(calc(-50% + ${n.ux*70}px), calc(-50% + ${n.uy*70}px)) scale(.4)`
-              : 'translate(-50%,-50%)' }}>
-            <div className={exp ? 'cdisc' : 'cdisc cfloat'}
-              onClick={() => exp ? null : setExpandedId(id)}
-              onMouseEnter={() => setHoverId(id)} onMouseLeave={() => setHoverId(null)}
-              style={{ width:size, height:size, animationDelay:(n.i*0.5)+'s', ...bubbleSkin(col, active, exp ? 2.2 : (hov ? 1.5 : 1)) }}>
-              {exp ? <ExpandedContent id={id} /> : hov ? (
-                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6, padding:'0 18px', width:'100%' }}>
-                  <Icon id={id} color={active ? col : 'var(--muted)'} size={24} />
-                  <span style={{ fontSize:13, fontWeight:900, color:'#fff' }}>{cat.name}</span>
-                  <span style={{ fontSize:30, fontWeight:950, lineHeight:1, color:active?'#fff':'var(--muted)', textShadow:active?`0 0 18px ${col}`:'none' }}>{tierNum>0?'T'+tierNum:'—'}</span>
-                  <div style={{ width:'100%', marginTop:4, maxWidth:170 }}>
-                    {active && (cat.metrics || []).slice(0,3).map((m,i) => (
-                      <div key={i} className="cmetric-in"
-                        onClick={m.evidence ? (e) => { e.stopPropagation(); onMetricClick?.({ ...m.evidence, categoryId:id, categoryName:cat.name, metricLabel:m.label, metricValue:m.value }) } : undefined}
-                        style={{ cursor:m.evidence?'pointer':'default' }}>
-                        <span style={{ color:'rgba(255,255,255,.62)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.label}</span>
-                        <span style={{ color: m.highlight ? col : '#fff', fontWeight:700, whiteSpace:'nowrap' }}>{m.value}</span>
-                      </div>
-                    ))}
-                    {!active && <div style={{ fontSize:11, color:'var(--muted)', fontStyle:'italic', textAlign:'center' }}>Ingen data ännu</div>}
+              : 'translate(-50%,-50%)' }}
+            onMouseEnter={() => setHoverId(id)} onMouseLeave={() => setHoverId(null)}>
+            <div className={exp ? 'cstack' : 'cstack cfloat'} style={{ width:size, height:size, animationDelay:(n.i*0.5)+'s' }}>
+              {!exp && active && progressPct != null && <RingProgress size={hov?HOVER:BASE} pct={progressPct} color={col} nextColor={nextC} />}
+              <div className="cdisc"
+                onClick={() => exp ? null : setExpandedId(id)}
+                style={{ ...bubbleSkin(col, active, exp ? 2.2 : (hov ? 1.6 : 1)) }}>
+                {exp ? <ExpandedContent id={id} /> : hov ? (
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, padding:'0 18px', width:'100%' }}>
+                    <Icon id={id} color={active ? col : 'var(--muted)'} size={26} />
+                    <span style={{ fontSize:14, fontWeight:900, color:'#fff' }}>{cat.name}</span>
+                    <span style={{ fontSize:38, fontWeight:950, lineHeight:1, color:active?'#fff':'var(--muted)', textShadow:active?`0 0 20px ${col}`:'none' }}>{tierNum>0?'T'+tierNum:'—'}</span>
+                    {active && progressPct != null
+                      ? <span style={{ fontSize:11, fontWeight:800, color:nextC, marginTop:2 }}>{progressPct}% → T{cat.levelUp?.nextTier}</span>
+                      : <span style={{ fontSize:11, color:'var(--muted)', fontStyle:'italic' }}>Ingen data ännu</span>}
+                    {active && cat.levelUp?.primaryBottleneck && (
+                      <span style={{ fontSize:10, color:'var(--muted2)', marginTop:2, maxWidth:150, lineHeight:1.3 }}>Flaskhals: <b style={{ color:nextC }}>{cat.levelUp.primaryBottleneck}</b></span>
+                    )}
+                    <span style={{ fontSize:9.5, fontWeight:800, color:'var(--accent)', marginTop:6, letterSpacing:'0.05em' }}>KLICKA FÖR ALLT</span>
                   </div>
-                  <span style={{ fontSize:9.5, fontWeight:800, color:'var(--accent)', marginTop:2, letterSpacing:'0.05em' }}>KLICKA FÖR ALLT</span>
-                </div>
-              ) : (
-                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5 }}>
-                  <Icon id={id} color={active ? col : 'var(--muted)'} size={24} />
-                  <span style={{ fontSize:20, fontWeight:950, color:active ? '#fff' : 'var(--muted)', lineHeight:1, textShadow:active?`0 0 14px ${col}`:'none' }}>{tierNum > 0 ? 'T' + tierNum : '—'}</span>
-                </div>
-              )}
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5 }}>
+                    <Icon id={id} color={active ? col : 'var(--muted)'} size={26} />
+                    <span style={{ fontSize:22, fontWeight:950, color:active ? '#fff' : 'var(--muted)', lineHeight:1, textShadow:active?`0 0 14px ${col}`:'none' }}>{tierNum > 0 ? 'T' + tierNum : '—'}</span>
+                  </div>
+                )}
+              </div>
+              {hov && active && <Satellites items={cat.metrics || []} size={HOVER} outwardAngle={outwardAngle} color={col} catId={id} catName={cat.name} navTarget={NAV_TARGET[id]} />}
             </div>
             {!exp && !hov && <div className="clabel" style={{ opacity:isExpanded?0:1 }}>{cat.name}</div>}
           </div>
