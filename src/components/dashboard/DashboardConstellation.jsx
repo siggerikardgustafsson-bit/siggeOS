@@ -100,7 +100,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   // Curated layout: 2 top · 1 left · 1 right · 2 bottom — keeps vertical lanes
   // clear so bubbles never collide with the header/footer rows.
   const PRESET = {
-    6: [ {x:31,y:21}, {x:69,y:21}, {x:88,y:50}, {x:69,y:79}, {x:31,y:79}, {x:12,y:50} ],
+    6: [ {x:31,y:19}, {x:69,y:19}, {x:89,y:50}, {x:69,y:81}, {x:31,y:81}, {x:11,y:50} ],
     5: [ {x:31,y:22}, {x:69,y:22}, {x:88,y:55}, {x:50,y:84}, {x:12,y:55} ],
     4: [ {x:30,y:24}, {x:70,y:24}, {x:70,y:76}, {x:30,y:76} ],
   }
@@ -121,7 +121,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   const coreColor = TIER_COLORS[coreTier] || '#4f8ef7'
   const nextColor = TIER_COLORS[maxxProfile?.levelUp?.nextTier] || '#a78bfa'
 
-  const BASE = 158, CORE = 232, COREHOVER = 286, HOVER = 274
+  const BASE = 158, CORE = 268, COREHOVER = 320, HOVER = 274
 
   const isExpanded = expandedId != null
 
@@ -303,13 +303,20 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         .csat { position:absolute; transform:translate(-50%,-50%); z-index:55; display:flex; flex-direction:column;
           align-items:center; gap:6px; appearance:none; background:none; border:none; padding:0; cursor:pointer;
           animation:csatIn .42s cubic-bezier(.34,1.4,.5,1) both; }
-        .csat-disc { position:relative; width:66px; height:66px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+        .csat-disc { position:relative; width:74px; height:74px; border-radius:50%; display:flex; align-items:center; justify-content:center;
           text-align:center; padding:5px; overflow:hidden; transform:translateZ(0); backface-visibility:hidden;
-          transition:transform .22s cubic-bezier(.34,1.4,.5,1), box-shadow .22s ease; }
-        .csat-disc::after { content:''; position:absolute; top:9%; left:18%; width:30%; height:20%; border-radius:50%;
-          transform:rotate(-20deg); background:radial-gradient(closest-side, rgba(255,255,255,.92), rgba(255,255,255,.15) 48%, rgba(255,255,255,0) 76%);
-          pointer-events:none; }
-        .csat:hover .csat-disc { transform:translateZ(0) scale(1.15); }
+          transition:transform .22s cubic-bezier(.34,1.4,.5,1), box-shadow .22s ease;
+          animation:cbubbleMorph 9s ease-in-out infinite; }
+        .csat-disc::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
+          mix-blend-mode:screen; opacity:.6;
+          -webkit-mask:radial-gradient(farthest-side, transparent 54%, #000 80%, transparent 100%);
+          mask:radial-gradient(farthest-side, transparent 54%, #000 80%, transparent 100%);
+          background:conic-gradient(from 200deg, rgba(120,180,255,.5), rgba(190,130,255,.42), rgba(120,255,225,.4), rgba(255,210,130,.42), rgba(255,140,190,.4), rgba(120,180,255,.5));
+          animation:cirid 13s linear infinite; }
+        .csat-disc::after { content:''; position:absolute; top:9%; left:18%; width:30%; height:20%; border-radius:50%; z-index:3;
+          transform:rotate(-20deg); background:radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,.15) 48%, rgba(255,255,255,0) 76%);
+          pointer-events:none; animation:cglint 8s ease-in-out infinite; }
+        .csat:hover .csat-disc { transform:translateZ(0) scale(1.15); animation-play-state:paused; }
         .csat-l { font-size:9.5px; font-weight:800; color:var(--muted2); max-width:96px; text-align:center; line-height:1.15;
           text-transform:uppercase; letter-spacing:.04em; transform:translateZ(0); }
         @keyframes csatIn { from { opacity:0; transform:translate(-50%,-50%) scale(.3) } to { opacity:1; transform:translate(-50%,-50%) scale(1) } }
@@ -412,7 +419,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
                 {exp ? <ExpandedContent id={id} /> : (
                   <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'0 14px' }}>
                     <span style={{ fontSize:10, letterSpacing:'0.18em', fontWeight:900, color:'rgba(255,255,255,.62)', textTransform:'uppercase' }}>Maxx</span>
-                    <span style={{ fontSize:hov?64:56, lineHeight:1, fontWeight:950, letterSpacing:'-0.06em', color:'#fff', textShadow:`0 0 28px ${coreColor}`, transition:'font-size .3s' }}>T{coreTier || '—'}</span>
+                    <span style={{ fontSize:hov?76:66, lineHeight:1, fontWeight:950, letterSpacing:'-0.06em', color:'#fff', textShadow:`0 0 28px ${coreColor}`, transition:'font-size .3s' }}>T{coreTier || '—'}</span>
                     {maxxProfile?.levelUp && (
                       <span style={{ fontSize:11.5, fontWeight:800, color:nextColor, marginTop:4 }}>{maxxProfile.levelUp.progressPct}% → T{maxxProfile.levelUp.nextTier}</span>
                     )}
