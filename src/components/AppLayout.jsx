@@ -4,6 +4,7 @@ import Sidebar from './Sidebar'
 import BottomNav from './BottomNav'
 import QuickLog from './QuickLog'
 import CommandPalette from './CommandPalette'
+import InteractiveFX from './InteractiveFX'
 import Onboarding from './Onboarding'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -75,6 +76,9 @@ export default function AppLayout() {
 
       {/* Global command palette — open with ⌘K / Ctrl+K */}
       <CommandPalette />
+
+      {/* Global cursor-reactive FX engine (Jarvis HUD) */}
+      <InteractiveFX />
 
       {/* Onboarding — shown once for new users */}
       {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
