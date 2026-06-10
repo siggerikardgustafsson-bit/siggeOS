@@ -132,18 +132,18 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   const cornerMap = {}
   corners.forEach(c => { cornerMap[c.id] = { x: c.center.x, y: c.center.y, r: c.r || 64, mag: c.mag || 90 } })
   const hoverCenter = hoverId === 'core'
-    ? { x: 50, y: 50, r: 58, mag: 66 }
+    ? { x: 50, y: 50, r: 62, mag: 82 }
     : cornerMap[hoverId]
       ? cornerMap[hoverId]
-      : (hoverId ? ((n) => n ? { x: n.x, y: n.y, r: 58, mag: 66 } : null)(nodes.find(n => n.c.id === hoverId)) : null)
+      : (hoverId ? ((n) => n ? { x: n.x, y: n.y, r: 62, mag: 82 } : null)(nodes.find(n => n.c.id === hoverId)) : null)
   function pushFor(x, y) {
     if (!hoverCenter || isExpanded) return { px: 0, py: 0 }
-    const R = hoverCenter.r || 58, M = hoverCenter.mag || 66
+    const R = hoverCenter.r || 62, M = hoverCenter.mag || 82
     const dx = x - hoverCenter.x, dy = y - hoverCenter.y
     const d = Math.hypot(dx, dy)
     if (d < 0.6 || d > R) return { px: 0, py: 0 }
     const f = 1 - d / R            // closer ⇒ stronger
-    const mag = M * Math.pow(f, 1.4)   // px, eased falloff
+    const mag = M * Math.pow(f, 1.05)  // px, gentle falloff — neighbours clear out decisively
     return { px: (dx / d) * mag, py: (dy / d) * mag }
   }
 
@@ -394,47 +394,45 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         .catmos-rings .dash { stroke:rgba(255,255,255,.07); stroke-dasharray:2 6; }
         .catmos-tick { fill:rgba(255,255,255,.18); }
         /* Corner info bubbles — collapse to a glassy disc, expand to a panel */
-        .ccorner-shell { position:relative; backface-visibility:hidden; transform:translateZ(0);
-          transition: width .62s cubic-bezier(.34,1.18,.4,1), height .62s cubic-bezier(.34,1.18,.4,1),
-            border-radius .55s cubic-bezier(.22,1,.36,1), box-shadow .45s ease, background .45s ease; }
+        .ccorner-shell { position:relative; overflow:hidden; backface-visibility:hidden; transform:translateZ(0);
+          transition: width .6s cubic-bezier(.22,1,.36,1), height .6s cubic-bezier(.22,1,.36,1),
+            border-radius .6s cubic-bezier(.22,1,.36,1), box-shadow .5s ease, background .5s ease; }
         /* Collapsed = a living bubble, same surface treatment as the main bubbles */
-        .ccorner-shell.cfloat { overflow:hidden;
-          animation: cmapFloat 6.5s ease-in-out infinite, cbubbleMorph 11s ease-in-out infinite; }
-        /* Open = the bubble has swelled into a glass panel; rim keeps breathing */
-        .ccorner-shell.open { overflow:visible; border-radius:26px;
-          background:linear-gradient(170deg, rgba(20,26,42,.92), rgba(10,14,24,.95));
+        .ccorner-shell.cfloat { animation: cmapFloat 6.5s ease-in-out infinite, cbubbleMorph 11s ease-in-out infinite; }
+        /* Open = the bubble has swelled into a clean glass panel. The morph
+           animation is delayed until the size/radius transition has finished,
+           so the corners glide instead of snapping. */
+        .ccorner-shell.open { border-radius:24px;
+          background:linear-gradient(170deg, rgba(20,26,42,.94), rgba(10,14,24,.96));
           border:1px solid var(--glass-border, rgba(255,255,255,.1));
           box-shadow:0 30px 70px -24px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.07),
             0 0 0 1px color-mix(in srgb, var(--cbc, #4f8ef7) 22%, transparent);
           backdrop-filter:blur(16px) saturate(1.05); -webkit-backdrop-filter:blur(16px) saturate(1.05);
-          animation: cpanelMorph 13s ease-in-out infinite; }
+          animation: cpanelMorph 13s ease-in-out infinite .62s; }
         @keyframes cpanelMorph {
-          0%,100% { border-radius:26px 26px 26px 26px }
-          50%     { border-radius:30px 23px 28px 24px }
+          0%,100% { border-radius:24px 24px 24px 24px }
+          50%     { border-radius:27px 22px 25px 23px }
         }
-        /* Soap-film iridescence + drifting glint — shared bubble material */
-        .cbub::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
+        /* Soap-film iridescence + drifting glint — only on the COLLAPSED bubble */
+        .ccorner-shell.cfloat.cbub::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
           mix-blend-mode:screen; opacity:.5;
           -webkit-mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
           mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
           background:conic-gradient(from 200deg, rgba(120,180,255,.5), rgba(190,130,255,.42), rgba(120,255,225,.4), rgba(255,210,130,.42), rgba(255,140,190,.4), rgba(120,180,255,.5));
-          animation:cirid 16s linear infinite; transition:opacity .45s ease; }
-        .cbub::after { content:''; position:absolute; top:7%; left:14%; width:26%; height:17%; border-radius:50%; z-index:3;
+          animation:cirid 16s linear infinite; }
+        .ccorner-shell.cfloat.cbub::after { content:''; position:absolute; top:7%; left:14%; width:26%; height:17%; border-radius:50%; z-index:3;
           transform:rotate(-18deg); opacity:.85;
           background:radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,.2) 46%, rgba(255,255,255,0) 74%);
-          pointer-events:none; animation:cglint 9s ease-in-out infinite; transition:all .45s ease; }
-        /* On the open panel the film stretches into a faint full sheen + corner glint */
-        .ccorner-shell.open.cbub::before { -webkit-mask:none; mask:none; opacity:.14; }
-        .ccorner-shell.open.cbub::after { top:3%; left:5%; width:24%; height:13%; opacity:.55; }
+          pointer-events:none; animation:cglint 9s ease-in-out infinite; }
         .ccorner-cap { position:absolute; inset:0; z-index:4; display:flex; flex-direction:column;
           align-items:center; justify-content:center; gap:3px; text-align:center; pointer-events:none; }
         .ccorner-ico { display:flex; }
         .ccorner-lab { font-size:12px; font-weight:900; color:#fff; letter-spacing:-.01em; }
         .ccorner-sub { font-size:17px; font-weight:950; line-height:1; letter-spacing:-.03em; text-shadow:0 0 14px currentColor; }
         .ccorner-hint { font-size:8px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); opacity:.7; margin-top:2px; }
-        .ccorner-body { animation:ccornBody .4s cubic-bezier(.22,1,.36,1) both; padding:2px; scrollbar-width:none; }
+        .ccorner-body { animation:ccornBody .4s cubic-bezier(.22,1,.36,1) .26s both; padding:2px; scrollbar-width:none; }
         .ccorner-body::-webkit-scrollbar { display:none; }
-        @keyframes ccornBody { from { opacity:0; transform:scale(.95) } to { opacity:1; transform:scale(1) } }
+        @keyframes ccornBody { from { opacity:0; transform:scale(.965) } to { opacity:1; transform:scale(1) } }
         @media (prefers-reduced-motion: reduce) { .cmap-edge,.cfloat,.catmos-rings,.catmos-glow { animation:none } }
       `}</style>
 
