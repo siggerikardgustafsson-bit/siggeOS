@@ -159,6 +159,19 @@ export default function TraningPage() {
     if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); loadCustomExercises(); fetchExerciseLibrary() }
   }, [user])
 
+  // Deep link: ?exercise=<name> opens the exercise progression/history view directly.
+  useEffect(() => {
+    const exercise = searchParams.get('exercise')
+    if (!exercise) return
+    setView('overview')
+    setSelectedExercise(exercise)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('exercise')
+      return next
+    }, { replace: true })
+  }, [searchParams, setSearchParams])
+
   useEffect(() => {
     const sessionId = searchParams.get('session')
     const stravaActivity = searchParams.get('stravaActivity')

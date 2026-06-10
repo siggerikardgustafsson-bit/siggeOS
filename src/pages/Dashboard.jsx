@@ -414,6 +414,7 @@ export default function Dashboard() {
             e1rm: e,
             date: p.date,
             source: 'personal_records',
+            exerciseName: p.exercise_name,
             rows: [
               { label: 'Källa', value: 'personal_records' },
               { label: 'Övning', value: p.exercise_name },
@@ -432,6 +433,7 @@ export default function Dashboard() {
             date: s.training_sessions?.date,
             source: 'training_exercises',
             sessionId: s.session_id || s.training_sessions?.id,
+            exerciseName: s.exercise_name,
             rows: [
               { label: 'Källa', value: 'training_exercises' },
               { label: 'Passdatum', value: s.training_sessions?.date || '—' },
@@ -452,7 +454,9 @@ export default function Dashboard() {
           subtitle: 'Bästa e1RM-källa senaste 60 dagar eller PR-rad',
           value: Math.round(best.e1rm) + ' kg',
           date: best.date,
-          navTarget: best.sessionId ? `/traning?session=${best.sessionId}` : '/traning',
+          navTarget: best.exerciseName
+            ? `/traning?exercise=${encodeURIComponent(best.exerciseName)}`
+            : (best.sessionId ? `/traning?session=${best.sessionId}` : '/traning'),
           navLabel: 'Träning',
           rows: [
             { label: 'e1RM', value: Math.round(best.e1rm) + ' kg' },
