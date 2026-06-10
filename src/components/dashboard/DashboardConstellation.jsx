@@ -405,8 +405,8 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           box-shadow:0 14px 34px -12px color-mix(in srgb, var(--cbc, #4f8ef7) 55%, transparent),
             inset 0 1px 0 rgba(255,255,255,.1);
           backdrop-filter:blur(14px) saturate(1.05); -webkit-backdrop-filter:blur(14px) saturate(1.05);
-          transition: width .68s cubic-bezier(.22,1,.36,1), height .68s cubic-bezier(.22,1,.36,1),
-            border-radius .68s cubic-bezier(.22,1,.36,1), box-shadow .55s ease, transform .6s ease; }
+          transition: width .92s cubic-bezier(.22,1,.36,1), height .92s cubic-bezier(.22,1,.36,1),
+            border-radius .92s cubic-bezier(.22,1,.36,1), box-shadow .72s ease, transform .8s ease; }
         /* Collapsed bubble gently breathes / floats like the main bubbles */
         .ccorner-shell.closed { animation: cmapFloat 6.5s ease-in-out infinite; }
         /* Open panel: deeper shadow + colour rim; no spinning sheen */
@@ -426,7 +426,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           pointer-events:none; animation:cglint 9s ease-in-out infinite; }
         .ccorner-cap { position:absolute; inset:0; z-index:5; display:flex; flex-direction:column;
           align-items:center; justify-content:center; gap:3px; text-align:center; pointer-events:none;
-          transition:opacity .26s ease; }
+          transition:opacity .34s ease; }
         .ccorner-ico { display:flex; }
         .ccorner-lab { font-size:12px; font-weight:900; color:#fff; letter-spacing:-.01em; }
         .ccorner-sub { font-size:17px; font-weight:950; line-height:1; letter-spacing:-.03em; text-shadow:0 0 14px currentColor; }
@@ -435,7 +435,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
            is small it's simply clipped, then fades in as the panel finishes
            growing — and fades back out smoothly on close. */
         .ccorner-body { position:absolute; left:0; top:0; z-index:4; overflow-y:auto;
-          padding:2px; scrollbar-width:none; transition:opacity .42s ease .18s; }
+          padding:2px; scrollbar-width:none; transition:opacity .5s ease .3s; }
         .ccorner-body::-webkit-scrollbar { display:none; }
         @media (prefers-reduced-motion: reduce) { .cmap-edge,.cfloat,.catmos-rings,.catmos-glow { animation:none } }
       `}</style>
