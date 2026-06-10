@@ -1,23 +1,25 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
 import AppLayout from './components/AppLayout'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Jarvis from './pages/Jarvis'
-import JournalPage from './pages/Journal'
-import TraningPage from './pages/Traning'
-import EkonomiPage from './pages/Ekonomi'
-import HalsaPage from './pages/Halsa'
-import PluggPage from './pages/Plugg'
-import JobbPage from './pages/Jobb'
-import InsightsPage from './pages/Insights'
-import UpplevelserPage from './pages/Upplevelser'
-import SettingsPage from './pages/Settings'
-import KalenderPage from './pages/Kalender'
-import ExportPage from './pages/Export'
 import AuthCallback from './pages/AuthCallback'
 import StravaCallback from './pages/StravaCallback'
+
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Jarvis = lazy(() => import('./pages/Jarvis'))
+const JournalPage = lazy(() => import('./pages/Journal'))
+const TraningPage = lazy(() => import('./pages/Traning'))
+const EkonomiPage = lazy(() => import('./pages/Ekonomi'))
+const HalsaPage = lazy(() => import('./pages/Halsa'))
+const PluggPage = lazy(() => import('./pages/Plugg'))
+const JobbPage = lazy(() => import('./pages/Jobb'))
+const InsightsPage = lazy(() => import('./pages/Insights'))
+const UpplevelserPage = lazy(() => import('./pages/Upplevelser'))
+const SettingsPage = lazy(() => import('./pages/Settings'))
+const KalenderPage = lazy(() => import('./pages/Kalender'))
+const ExportPage = lazy(() => import('./pages/Export'))
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -32,9 +34,21 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />
 }
 
+function PageFallback() {
+  return (
+    <div className="maxxit-loading-screen">
+      <div className="maxxit-loading-card">
+        <div className="maxxit-logo maxxit-logo-large"><span>Maxx</span><strong>It</strong></div>
+        <div className="maxxit-loading-text">Laddar…</div>
+      </div>
+    </div>
+  )
+}
+
 function AppRoutes() {
   const { user } = useAuth()
   return (
+    <Suspense fallback={<PageFallback />}>
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
@@ -56,6 +70,7 @@ function AppRoutes() {
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }
 
