@@ -43,8 +43,15 @@ export default function Sidebar() {
         <div className="maxx-rail-brand">
           <div className="maxx-rail-mark">
             <div className="maxx-rail-mark-3d">
-              <span className="maxx-rail-mark-face front">M</span>
-              <span className="maxx-rail-mark-face back">M</span>
+              {Array.from({ length: 16 }).map((_, i) => (
+                <span
+                  key={i}
+                  className="maxx-rail-mark-layer"
+                  style={{ '--d': i, transform: `translateZ(${(i - 7.5) * 1.1}px)` }}
+                >
+                  M
+                </span>
+              ))}
             </div>
             <i className="maxx-rail-mark-ring" />
           </div>
