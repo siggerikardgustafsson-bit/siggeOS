@@ -141,10 +141,13 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         : (navTarget && navigate(navTarget))
       return (
         <button key={j} className="csat"
-          style={{ left:`calc(50% + ${dx}px)`, top:`calc(50% + ${dy}px)`, animationDelay:(0.03 + j*0.045)+'s' }}
+          style={{ left:`calc(50% + ${dx}px)`, top:`calc(50% + ${dy}px)`, animationDelay:(0.04 + j*0.06)+'s' }}
           onClick={(e) => { e.stopPropagation(); go() }}>
-          <span className="csat-disc" style={{ border:`1.5px solid ${color}`, boxShadow:`0 0 16px ${color}66, 0 8px 20px rgba(0,0,0,.5), inset 0 2px 5px rgba(255,255,255,.22)` }}>
-            <span style={{ fontSize:12.5, fontWeight:900, color:'#fff', lineHeight:1.05 }}>{m.value}</span>
+          <span className="csat-disc" style={{
+            background:`radial-gradient(118% 118% at 32% 24%, rgba(255,255,255,.92) 0%, rgba(255,255,255,.1) 11%, ${color}22 34%, rgba(13,18,32,.98) 74%, rgba(8,11,20,1) 100%)`,
+            border:`1px solid ${color}`,
+            boxShadow:`0 0 0 1px ${color}22, 0 10px 26px -8px rgba(0,0,0,.75), 0 0 20px ${color}3a, inset 0 1.5px 1px rgba(255,255,255,.5), inset 0 -10px 18px -8px ${color}40` }}>
+            <span style={{ fontSize:13, fontWeight:900, color:'#fff', lineHeight:1.05, textShadow:`0 1px 6px rgba(0,0,0,.55)` }}>{m.value}</span>
           </span>
           <span className="csat-l">{m.label}</span>
         </button>
@@ -258,15 +261,18 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.1); transition:border-color .15s, background .15s, transform .15s; }
         .cexp-pill:hover { border-color:var(--pc); background:rgba(255,255,255,.09); transform:translateY(-1px); }
         .csat { position:absolute; transform:translate(-50%,-50%); z-index:55; display:flex; flex-direction:column;
-          align-items:center; gap:5px; appearance:none; background:none; border:none; padding:0; cursor:pointer;
-          animation:csatIn .34s cubic-bezier(.22,1,.36,1) both; }
-        .csat-disc { width:62px; height:62px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-          text-align:center; padding:5px; background:radial-gradient(circle at 38% 30%, rgba(255,255,255,.22), rgba(15,21,36,.96) 70%);
-          transition:transform .15s ease; }
-        .csat:hover .csat-disc { transform:scale(1.13); }
-        .csat-l { font-size:9.5px; font-weight:800; color:var(--muted2); max-width:94px; text-align:center; line-height:1.15;
-          text-transform:uppercase; letter-spacing:.03em; }
-        @keyframes csatIn { from { opacity:0; transform:translate(-50%,-50%) scale(.4) } to { opacity:1; transform:translate(-50%,-50%) scale(1) } }
+          align-items:center; gap:6px; appearance:none; background:none; border:none; padding:0; cursor:pointer;
+          animation:csatIn .42s cubic-bezier(.34,1.4,.5,1) both; }
+        .csat-disc { position:relative; width:66px; height:66px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+          text-align:center; padding:5px; overflow:hidden; transform:translateZ(0); backface-visibility:hidden;
+          transition:transform .22s cubic-bezier(.34,1.4,.5,1), box-shadow .22s ease; }
+        .csat-disc::after { content:''; position:absolute; top:9%; left:18%; width:30%; height:20%; border-radius:50%;
+          transform:rotate(-20deg); background:radial-gradient(closest-side, rgba(255,255,255,.92), rgba(255,255,255,.15) 48%, rgba(255,255,255,0) 76%);
+          pointer-events:none; }
+        .csat:hover .csat-disc { transform:translateZ(0) scale(1.15); }
+        .csat-l { font-size:9.5px; font-weight:800; color:var(--muted2); max-width:96px; text-align:center; line-height:1.15;
+          text-transform:uppercase; letter-spacing:.04em; transform:translateZ(0); }
+        @keyframes csatIn { from { opacity:0; transform:translate(-50%,-50%) scale(.3) } to { opacity:1; transform:translate(-50%,-50%) scale(1) } }
         .clabel { font-size:11px; font-weight:800; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-top:9px; text-align:center; transition:opacity .3s; }
         .cmetric-in { display:flex; justify-content:space-between; gap:10px; width:100%; font-size:11.5px; padding:3px 0; }
         .cbig-act {
@@ -277,8 +283,11 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         .cbig-act:hover { transform:translateY(-2px); box-shadow:0 12px 30px rgba(79,142,247,.55); }
         .cbig-act.ghost { background:rgba(255,255,255,.05); color:var(--text); border:1px solid var(--border); box-shadow:none; }
         .cbig-act.ghost:hover { background:rgba(255,255,255,.1); }
-        .cbackdrop { position:absolute; inset:-60px; z-index:30; background:radial-gradient(circle at 50% 45%, rgba(8,12,24,.45), rgba(3,5,11,.9)); backdrop-filter:blur(10px) saturate(1.1); -webkit-backdrop-filter:blur(10px) saturate(1.1); animation:cbackIn .45s ease; }
+        .cbackdrop { position:absolute; inset:-60px; z-index:30; background:radial-gradient(circle at 50% 48%, rgba(6,9,18,.28) 0%, rgba(5,8,15,.42) 55%, rgba(4,6,13,.52) 100%); backdrop-filter:blur(4px) saturate(1.04); -webkit-backdrop-filter:blur(4px) saturate(1.04); animation:cbackIn .5s cubic-bezier(.22,1,.36,1); }
         @keyframes cbackIn { from { opacity:0 } to { opacity:1 } }
+        .ccore-glow { position:absolute; inset:-20%; border-radius:50%; pointer-events:none; z-index:0;
+          filter:blur(16px); animation:cbreath 4.6s ease-in-out infinite; }
+        @keyframes cbreath { 0%,100% { transform:scale(.9); opacity:.45 } 50% { transform:scale(1.06); opacity:.8 } }
         @media (prefers-reduced-motion: reduce) { .cmap-edge,.cfloat { animation:none } }
       `}</style>
 
@@ -316,12 +325,13 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         const corePct = maxxProfile?.levelUp?.progressPct
         return (
           <div className="cnode" style={{ left:'50%', top:'50%', zIndex: exp ? 60 : (hov?40:4),
-            transition:'opacity .5s ease, filter .5s ease, transform .6s cubic-bezier(.34,1.4,.5,1)',
+            transition:'opacity .55s cubic-bezier(.22,1,.36,1), filter .55s ease, transform .66s cubic-bezier(.34,1.32,.5,1)',
             opacity: dimOther ? 0 : 1, pointerEvents: dimOther ? 'none' : 'auto',
-            filter: dimOther ? 'blur(6px)' : 'none',
-            transform: dimOther ? 'translate(-50%,-50%) scale(.28)' : 'translate(-50%,-50%)' }}
+            filter: dimOther ? 'blur(3px)' : 'none',
+            transform: dimOther ? 'translate(-50%,-50%) scale(.3)' : 'translate(-50%,-50%)' }}
             onMouseEnter={() => setHoverId(id)} onMouseLeave={() => setHoverId(null)}>
             <div className={exp ? 'cstack' : 'cstack cfloat'} style={{ width:dim, height:dim }}>
+              {!exp && <div className="ccore-glow" style={{ background:`radial-gradient(circle, ${coreColor}55 0%, ${coreColor}22 42%, transparent 70%)` }} />}
               {!exp && corePct != null && <RingProgress pct={corePct} nextColor={nextColor} />}
               <div className="cdisc"
                 onClick={() => exp ? null : setExpandedId(id)}
@@ -366,11 +376,11 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         const outwardAngle = Math.atan2(n.uy, n.ux)
         return (
           <div key={id} className="cnode" style={{ left, top, zIndex: exp ? 60 : (hov ? 40 : 3),
-            transition:`opacity .5s ease ${dimOther?n.i*0.03:0}s, filter .5s ease, transform .62s cubic-bezier(.34,1.4,.5,1) ${dimOther?n.i*0.03:0}s, left .62s cubic-bezier(.22,1,.36,1), top .62s cubic-bezier(.22,1,.36,1)`,
+            transition:`opacity .55s cubic-bezier(.22,1,.36,1) ${dimOther?n.i*0.04:0}s, filter .55s ease, transform .68s cubic-bezier(.34,1.32,.5,1) ${dimOther?n.i*0.04:0}s, left .66s cubic-bezier(.22,1,.36,1), top .66s cubic-bezier(.22,1,.36,1)`,
             opacity: dimOther ? 0 : 1, pointerEvents: dimOther ? 'none' : 'auto',
-            filter: dimOther ? 'blur(6px)' : 'none',
+            filter: dimOther ? 'blur(3px)' : 'none',
             transform: dimOther
-              ? `translate(calc(-50% + ${n.ux*150}px), calc(-50% + ${n.uy*150}px)) scale(.3)`
+              ? `translate(calc(-50% + ${n.ux*168}px), calc(-50% + ${n.uy*168}px)) scale(.32)`
               : 'translate(-50%,-50%)' }}
             onMouseEnter={() => setHoverId(id)} onMouseLeave={() => setHoverId(null)}>
             <div className={exp ? 'cstack' : 'cstack cfloat'} style={{ width:size, height:size, animationDelay:(n.i*0.5)+'s' }}>
