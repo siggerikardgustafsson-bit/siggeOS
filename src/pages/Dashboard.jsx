@@ -8,6 +8,7 @@ import DetailModal from '../components/dashboard/DetailModal'
 import TodayWidget from '../components/dashboard/TodayWidget'
 import CountUp from '../components/CountUp'
 import DashboardConstellation from '../components/dashboard/DashboardConstellation'
+import { CalendarDays, BarChart2 } from 'lucide-react'
 import {
   getTier, getStudyTier, getSkillTier, getDecayedValue, calcOverallTier,
   estimateVO2max, formatRunTime,
@@ -878,6 +879,94 @@ export default function Dashboard() {
   const oColor = overallTier ? (TIER_COLORS[overallTier]||'#6b7280') : '#6b7280'
   const oLabel = overallTier ? TIER_NAMES[overallTier] : '—'
 
+  // Tier-statistik panel — rendered inside the bottom-right corner bubble on hover.
+  const graphPanel = (
+    <div style={{ padding:'16px' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
+        <span style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'11px', fontWeight:700, color:'var(--muted2)', textTransform:'uppercase', letterSpacing:'0.12em' }}>
+          <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', boxShadow:'0 0 8px var(--accent-glow)' }} />
+          Tier-utveckling
+        </span>
+        <div style={{ display:'flex', gap:'2px', padding:'2px', borderRadius:'10px', background:'rgba(255,255,255,0.04)', border:'1px solid var(--border)' }}>
+          {['7d','30d','90d','1år'].map(p=>(
+            <button key={p} onClick={()=>setGraphPeriod(p)} style={{
+              padding:'4px 10px', fontSize:'10px', borderRadius:'8px',
+              background:graphPeriod===p?'linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 78%, #060914))':'transparent',
+              border:'1px solid '+(graphPeriod===p?'var(--accent-border)':'transparent'),
+              color:graphPeriod===p?'#fff':'var(--muted)',
+              boxShadow:graphPeriod===p?'0 4px 12px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.25)':'none',
+              cursor:'pointer', fontWeight:graphPeriod===p?700:500, transition:'all 0.2s cubic-bezier(0.22,1,0.36,1)',
+            }}>{p}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'12px' }}>
+        {GRAPH_CATS.map(c=>{
+          const active=activeGraphCats.includes(c.id)
+          return (
+            <button key={c.id} onClick={()=>setActiveGraphCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])} style={{
+              display:'flex', alignItems:'center', gap:'5px',
+              padding:'3px 10px', fontSize:'10px', borderRadius:'20px',
+              background:active?c.color+'1f':'transparent',
+              border:'1px solid '+(active?c.color+'55':'var(--border)'),
+              color:active?c.color:'var(--muted)',
+              boxShadow:active?`0 2px 10px -2px ${c.color}55`:'none',
+              cursor:'pointer', transition:'all 0.2s cubic-bezier(0.22,1,0.36,1)', fontWeight:active?700:500,
+            }}>
+              <div style={{ width:5,height:5,borderRadius:'50%',background:active?c.color:'var(--border)', boxShadow:active?`0 0 6px ${c.color}`:'none' }} />
+              {c.label}
+            </button>
+          )
+        })}
+      </div>
+      {tierHistory.length > 0 ? (
+        <ResponsiveContainer width="100%" height={170}>
+          <AreaChart data={tierHistory} margin={{top:4,right:4,left:-24,bottom:0}}>
+            <defs>
+              {GRAPH_CATS.map(c=>(
+                <linearGradient key={c.id} id={'grad-'+c.id} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={c.color} stopOpacity={0.15}/>
+                  <stop offset="95%" stopColor={c.color} stopOpacity={0}/>
+                </linearGradient>
+              ))}
+            </defs>
+            <XAxis dataKey="date" tick={{fontSize:10,fill:'var(--muted)'}} tickLine={false} axisLine={false} />
+            <YAxis domain={[0,8]} ticks={[1,2,3,4,5,6,7,8]} tick={{fontSize:10,fill:'var(--muted)'}} tickLine={false} axisLine={false} tickFormatter={v=>'T'+v} />
+            <Tooltip content={<GraphTooltip />} />
+            {GRAPH_CATS.filter(c=>activeGraphCats.includes(c.id)).map((c,i)=>(
+              <Area key={c.id} type="monotone" dataKey={c.id} name={c.label}
+                stroke={c.color} strokeWidth={2} fill={'url(#grad-'+c.id+')'}
+                dot={false} connectNulls strokeDasharray={i>=3?'4 3':undefined} />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'10px', padding:'34px 0', textAlign:'center' }}>
+          <div style={{ width:'44px', height:'44px', borderRadius:'14px', display:'grid', placeItems:'center', background:'var(--accent-soft)', border:'1px solid var(--accent-border)', boxShadow:'0 0 20px -6px var(--accent-glow)' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18M7 14l4-4 3 3 5-6"/></svg>
+          </div>
+          <div style={{ fontSize:'12.5px', fontWeight:600, color:'var(--muted2)' }}>Ingen tier-historik ännu</div>
+          <div style={{ fontSize:'11px', color:'var(--muted)', maxWidth:'220px', lineHeight:1.45 }}>Logga data i Hälsa så börjar din utvecklingskurva byggas upp här.</div>
+        </div>
+      )}
+    </div>
+  )
+
+  const dashCorners = [
+    {
+      id: 'today', anchor: { left: 6, bottom: 6 }, center: { x: 8, y: 90 },
+      r: 60, mag: 84, color: '#34d399', label: 'Idag',
+      icon: <CalendarDays size={22} />, width: 300, height: 380,
+      render: () => <TodayWidget userId={userId} />,
+    },
+    {
+      id: 'stats', anchor: { right: 6, bottom: 6 }, center: { x: 92, y: 90 },
+      r: 66, mag: 92, color: '#4f8ef7', label: 'Tier', sub: overallTier ? 'T' + overallTier : '—',
+      icon: <BarChart2 size={22} />, width: 560, height: 360,
+      render: () => graphPanel,
+    },
+  ]
+
   return (
     <div className="page-wrap">
 
@@ -919,86 +1008,9 @@ export default function Dashboard() {
               overallTier={overallTier}
               onSelect={setSelectedCategory}
               onMetricClick={(evidence) => { if (evidence?.navTarget) window.location.href = evidence.navTarget; else setSelectedEvidence(evidence) }}
+              corners={dashCorners}
             />
           )}
-
-          {/* BOTTOM ROW — graph + today side by side */}
-          <div className="dashboard-bottom" style={{ display:'grid', gridTemplateColumns:'minmax(0,1fr) 270px', gap:'12px', alignItems:'start' }}>
-
-            {/* GRAPH */}
-            <div className="widget" style={{ padding:'18px' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-                <span style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'11px', fontWeight:700, color:'var(--muted2)', textTransform:'uppercase', letterSpacing:'0.12em' }}>
-                  <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', boxShadow:'0 0 8px var(--accent-glow)' }} />
-                  Tier-utveckling
-                </span>
-                <div style={{ display:'flex', gap:'2px', padding:'2px', borderRadius:'10px', background:'rgba(255,255,255,0.04)', border:'1px solid var(--border)' }}>
-                  {['7d','30d','90d','1år'].map(p=>(
-                    <button key={p} onClick={()=>setGraphPeriod(p)} style={{
-                      padding:'4px 10px', fontSize:'10px', borderRadius:'8px',
-                      background:graphPeriod===p?'linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 78%, #060914))':'transparent',
-                      border:'1px solid '+(graphPeriod===p?'var(--accent-border)':'transparent'),
-                      color:graphPeriod===p?'#fff':'var(--muted)',
-                      boxShadow:graphPeriod===p?'0 4px 12px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.25)':'none',
-                      cursor:'pointer', fontWeight:graphPeriod===p?700:500, transition:'all 0.2s cubic-bezier(0.22,1,0.36,1)',
-                    }}>{p}</button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'12px' }}>
-                {GRAPH_CATS.map(c=>{
-                  const active=activeGraphCats.includes(c.id)
-                  return (
-                    <button key={c.id} onClick={()=>setActiveGraphCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])} style={{
-                      display:'flex', alignItems:'center', gap:'5px',
-                      padding:'3px 10px', fontSize:'10px', borderRadius:'20px',
-                      background:active?c.color+'1f':'transparent',
-                      border:'1px solid '+(active?c.color+'55':'var(--border)'),
-                      color:active?c.color:'var(--muted)',
-                      boxShadow:active?`0 2px 10px -2px ${c.color}55`:'none',
-                      cursor:'pointer', transition:'all 0.2s cubic-bezier(0.22,1,0.36,1)', fontWeight:active?700:500,
-                    }}>
-                      <div style={{ width:5,height:5,borderRadius:'50%',background:active?c.color:'var(--border)', boxShadow:active?`0 0 6px ${c.color}`:'none' }} />
-                      {c.label}
-                    </button>
-                  )
-                })}
-              </div>
-              {tierHistory.length > 0 ? (
-                <ResponsiveContainer width="100%" height={160}>
-                  <AreaChart data={tierHistory} margin={{top:4,right:4,left:-24,bottom:0}}>
-                    <defs>
-                      {GRAPH_CATS.map(c=>(
-                        <linearGradient key={c.id} id={'grad-'+c.id} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={c.color} stopOpacity={0.15}/>
-                          <stop offset="95%" stopColor={c.color} stopOpacity={0}/>
-                        </linearGradient>
-                      ))}
-                    </defs>
-                    <XAxis dataKey="date" tick={{fontSize:10,fill:'var(--muted)'}} tickLine={false} axisLine={false} />
-                    <YAxis domain={[0,8]} ticks={[1,2,3,4,5,6,7,8]} tick={{fontSize:10,fill:'var(--muted)'}} tickLine={false} axisLine={false} tickFormatter={v=>'T'+v} />
-                    <Tooltip content={<GraphTooltip />} />
-                    {GRAPH_CATS.filter(c=>activeGraphCats.includes(c.id)).map((c,i)=>(
-                      <Area key={c.id} type="monotone" dataKey={c.id} name={c.label}
-                        stroke={c.color} strokeWidth={2} fill={'url(#grad-'+c.id+')'}
-                        dot={false} connectNulls strokeDasharray={i>=3?'4 3':undefined} />
-                    ))}
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : (
-                <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'10px', padding:'34px 0', textAlign:'center' }}>
-                  <div style={{ width:'44px', height:'44px', borderRadius:'14px', display:'grid', placeItems:'center', background:'var(--accent-soft)', border:'1px solid var(--accent-border)', boxShadow:'0 0 20px -6px var(--accent-glow)' }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18M7 14l4-4 3 3 5-6"/></svg>
-                  </div>
-                  <div style={{ fontSize:'12.5px', fontWeight:600, color:'var(--muted2)' }}>Ingen tier-historik ännu</div>
-                  <div style={{ fontSize:'11px', color:'var(--muted)', maxWidth:'220px', lineHeight:1.45 }}>Logga data i Hälsa så börjar din utvecklingskurva byggas upp här.</div>
-                </div>
-              )}
-            </div>
-
-            {/* TODAY WIDGET */}
-            <TodayWidget userId={userId} />
-          </div>
 
         </div>
       </div>

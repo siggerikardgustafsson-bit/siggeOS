@@ -69,7 +69,7 @@ function RingProgress({ pct, nextColor, thickness = 4, inset = -7, glow = true }
   )
 }
 
-export default function DashboardConstellation({ categories = [], maxxProfile, overallTier, onSelect, onMetricClick }) {
+export default function DashboardConstellation({ categories = [], maxxProfile, overallTier, onSelect, onMetricClick, corners = [] }) {
   const navigate = useNavigate()
   const isMobile = useIsMobile()
   const [hoverId, setHoverId] = useState(null)
@@ -127,17 +127,60 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
 
   // Soft repulsion — neighbours of the hovered bubble drift a little out of the
   // way, like real bubbles nudging each other in a fluid. Returns a px offset.
+  // Corner widgets (today / stats) repel with a wider, stronger field so the
+  // expanding panel never collides with the category bubbles.
+  const cornerMap = {}
+  corners.forEach(c => { cornerMap[c.id] = { x: c.center.x, y: c.center.y, r: c.r || 64, mag: c.mag || 90 } })
   const hoverCenter = hoverId === 'core'
-    ? { x: 50, y: 50 }
-    : (hoverId ? (nodes.find(n => n.c.id === hoverId) || null) : null)
+    ? { x: 50, y: 50, r: 58, mag: 66 }
+    : cornerMap[hoverId]
+      ? cornerMap[hoverId]
+      : (hoverId ? ((n) => n ? { x: n.x, y: n.y, r: 58, mag: 66 } : null)(nodes.find(n => n.c.id === hoverId)) : null)
   function pushFor(x, y) {
     if (!hoverCenter || isExpanded) return { px: 0, py: 0 }
+    const R = hoverCenter.r || 58, M = hoverCenter.mag || 66
     const dx = x - hoverCenter.x, dy = y - hoverCenter.y
     const d = Math.hypot(dx, dy)
-    if (d < 0.6 || d > 58) return { px: 0, py: 0 }
-    const f = 1 - d / 58           // closer ⇒ stronger
-    const mag = 66 * Math.pow(f, 1.4)   // px, eased falloff
+    if (d < 0.6 || d > R) return { px: 0, py: 0 }
+    const f = 1 - d / R            // closer ⇒ stronger
+    const mag = M * Math.pow(f, 1.4)   // px, eased falloff
     return { px: (dx / d) * mag, py: (dy / d) * mag }
+  }
+
+  // Corner bubble — collapsed glassy disc that expands on hover into a full
+  // info panel (Dagens uppgifter / Tier-statistik), pushing neighbours aside.
+  function CornerBubble({ cfg }) {
+    const open = hoverId === cfg.id && !isExpanded
+    const anchorRight = cfg.anchor.right != null
+    const anchorBottom = cfg.anchor.bottom != null
+    const originX = anchorRight ? 'right' : 'left'
+    const originY = anchorBottom ? 'bottom' : 'top'
+    return (
+      <div className="ccorner"
+        style={{ position: 'absolute', ...cfg.anchor, zIndex: open ? 70 : 6,
+          opacity: isExpanded ? 0 : 1, pointerEvents: isExpanded ? 'none' : 'auto',
+          transition: 'opacity .4s ease' }}
+        onMouseEnter={() => setHoverId(cfg.id)} onMouseLeave={() => setHoverId(null)}>
+        <div className={open ? 'ccorner-shell open' : 'ccorner-shell cfloat'}
+          style={{ width: open ? cfg.width : 112, height: open ? cfg.height : 112,
+            borderRadius: open ? 24 : '50%', transformOrigin: `${originX} ${originY}`,
+            cursor: open ? 'default' : 'pointer',
+            ...(open ? {} : bubbleSkin(cfg.color, true, 1.3)) }}>
+          {open ? (
+            <div className="ccorner-body" style={{ width: cfg.width, height: cfg.height, overflowY: 'auto' }}>
+              {cfg.render()}
+            </div>
+          ) : (
+            <div className="ccorner-cap">
+              <span className="ccorner-ico" style={{ color: cfg.color, filter: `drop-shadow(0 0 8px ${cfg.color}88)` }}>{cfg.icon}</span>
+              <span className="ccorner-lab">{cfg.label}</span>
+              {cfg.sub != null && <span className="ccorner-sub" style={{ color: cfg.color }}>{cfg.sub}</span>}
+              <span className="ccorner-hint">Hovra</span>
+            </div>
+          )}
+        </div>
+      </div>
+    )
   }
 
   // Orbiting mini-bubbles that point straight at a single data source / stat.
@@ -349,6 +392,24 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         .catmos-rings circle { fill:none; stroke:rgba(255,255,255,.055); stroke-width:1; vector-effect:non-scaling-stroke; }
         .catmos-rings .dash { stroke:rgba(255,255,255,.07); stroke-dasharray:2 6; }
         .catmos-tick { fill:rgba(255,255,255,.18); }
+        /* Corner info bubbles — collapse to a glassy disc, expand to a panel */
+        .ccorner-shell { position:relative; overflow:hidden; backface-visibility:hidden;
+          transition: width .58s cubic-bezier(.22,1,.36,1), height .58s cubic-bezier(.22,1,.36,1),
+            border-radius .5s cubic-bezier(.22,1,.36,1), box-shadow .4s ease; }
+        .ccorner-shell.open { overflow:visible;
+          background:linear-gradient(170deg, rgba(20,26,42,.9), rgba(10,14,24,.94));
+          border:1px solid var(--glass-border, rgba(255,255,255,.1));
+          box-shadow:0 30px 70px -24px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.06);
+          backdrop-filter:blur(16px) saturate(1.05); -webkit-backdrop-filter:blur(16px) saturate(1.05); }
+        .ccorner-cap { position:absolute; inset:0; display:flex; flex-direction:column;
+          align-items:center; justify-content:center; gap:3px; text-align:center; pointer-events:none; }
+        .ccorner-ico { display:flex; }
+        .ccorner-lab { font-size:12px; font-weight:900; color:#fff; letter-spacing:-.01em; }
+        .ccorner-sub { font-size:17px; font-weight:950; line-height:1; letter-spacing:-.03em; text-shadow:0 0 14px currentColor; }
+        .ccorner-hint { font-size:8px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); opacity:.7; margin-top:2px; }
+        .ccorner-body { animation:ccornBody .4s cubic-bezier(.22,1,.36,1) both; padding:2px; scrollbar-width:none; }
+        .ccorner-body::-webkit-scrollbar { display:none; }
+        @keyframes ccornBody { from { opacity:0; transform:scale(.95) } to { opacity:1; transform:scale(1) } }
         @media (prefers-reduced-motion: reduce) { .cmap-edge,.cfloat,.catmos-rings,.catmos-glow { animation:none } }
       `}</style>
 
@@ -495,6 +556,9 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           </div>
         )
       })}
+
+      {/* Corner info bubbles — Dagens uppgifter + Tier-statistik */}
+      {corners.map(cfg => <CornerBubble key={cfg.id} cfg={cfg} />)}
     </div>
   )
 }
