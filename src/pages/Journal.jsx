@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../context/ToastContext'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, subMonths, addMonths, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Plus, Save, Loader, BookOpen, X, Edit2, Calendar, Music, Languages, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Save, Loader, X, Edit2, Calendar, Music, ChevronDown, ChevronUp, Search } from 'lucide-react'
 
 const JARVIS_JOURNAL_SYSTEM = `Du är Jarvis, Sigges personliga AI. Analysera denna journal-entry djupgående och returnera ENBART ett JSON-objekt utan markdown eller backticks.
 

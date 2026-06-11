@@ -4,7 +4,7 @@ import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, subMonths } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Download, Loader, FileText, Table, CheckCircle, Dumbbell, Heart, BookOpen, DollarSign, Briefcase, GraduationCap, Zap, Package, Info } from 'lucide-react'
+import { Download, Loader, CheckCircle, Dumbbell, Heart, BookOpen, DollarSign, Briefcase, GraduationCap, Zap, Package, Info } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 const EXPORTS = [

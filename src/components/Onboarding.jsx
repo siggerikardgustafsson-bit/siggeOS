@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { Check, ChevronRight, User, Target, Brain, Zap, LayoutDashboard, MessageSquare, TrendingUp, Plus, Settings, Activity, Dumbbell, Heart, DollarSign, GraduationCap, BookOpen } from 'lucide-react'
+import { Check, ChevronRight, User, Target, Brain, Zap, LayoutDashboard, MessageSquare, TrendingUp, Plus, Settings, Activity } from 'lucide-react'
 
 const STEPS = [
   { id: 'welcome',     Icon: LayoutDashboard, title: 'Välkommen till ditt OS' },

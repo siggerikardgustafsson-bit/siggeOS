@@ -6,7 +6,7 @@ import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import CountUp from '../components/CountUp'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, X, Save, Loader, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Map, Target, RefreshCw, Edit2, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, X, Save, Loader, AlertTriangle, Map, Target, RefreshCw, Edit2, Trash2 } from 'lucide-react'
 
 const EXPENSE_CATEGORIES = [
   { id: 'mat',             label: 'Mat',             color: '#f97316', emoji: '' },

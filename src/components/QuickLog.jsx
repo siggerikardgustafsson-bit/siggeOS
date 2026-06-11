@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
-import { Plus, X, Heart, Dumbbell, DollarSign, TrendingUp, BookOpen, Check, Loader, Trash2, ChevronDown } from 'lucide-react'
+import { Plus, X, Heart, Dumbbell, DollarSign, TrendingUp, BookOpen, Check, Loader, Trash2 } from 'lucide-react'
 
 const TODAY = () => format(new Date(), 'yyyy-MM-dd')
 
