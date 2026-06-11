@@ -159,6 +159,21 @@ function WorldMap({ countryStatus }) {
           onPointerUp={onPointerUp}
           onPointerLeave={onPointerUp}
         >
+          <defs>
+            <linearGradient id="upp-grad-completed" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="color-mix(in srgb, var(--accent) 92%, white)" />
+              <stop offset="55%" stopColor="var(--accent)" />
+              <stop offset="100%" stopColor="color-mix(in srgb, var(--accent) 72%, black)" />
+            </linearGradient>
+            <linearGradient id="upp-grad-planned" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="color-mix(in srgb, #3b82f6 40%, transparent)" />
+              <stop offset="100%" stopColor="color-mix(in srgb, #3b82f6 14%, transparent)" />
+            </linearGradient>
+            <linearGradient id="upp-grad-idea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="color-mix(in srgb, #8b5cf6 40%, transparent)" />
+              <stop offset="100%" stopColor="color-mix(in srgb, #8b5cf6 14%, transparent)" />
+            </linearGradient>
+          </defs>
           {/* Bas: kontinenter utan synliga landsgränser */}
           <g className="upp-world-geo">
             {WORLD_PATHS.map((d, i) => (
@@ -178,7 +193,7 @@ function WorldMap({ countryStatus }) {
             }
             return (
               <path key={name} d={d} className={`upp-fill upp-fill-${st}`}
-                fill={st === 'completed' ? color : `color-mix(in srgb, ${color} 22%, transparent)`}
+                fill={`url(#upp-grad-${st})`}
                 stroke={color} strokeWidth={st === 'completed' ? 0.4 : 0.9}
                 strokeLinejoin="round" vectorEffect="non-scaling-stroke">
                 <title>{name}</title>
