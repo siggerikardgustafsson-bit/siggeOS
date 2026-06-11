@@ -688,9 +688,9 @@ export default function JobbPage() {
   }))
 
   const tabs = [
-    { id: 'pa',         label: 'PA-jobb' },
-    { id: 'projekt',    label: 'Projekt' },
-    { id: 'tidrapport', label: 'Tidrapport' },
+    { id: 'pa',         label: 'PA-jobb',    icon: Briefcase },
+    { id: 'projekt',    label: 'Projekt',    icon: FolderKanban },
+    { id: 'tidrapport', label: 'Tidrapport', icon: FileText },
   ]
 
   return (
@@ -713,15 +713,15 @@ export default function JobbPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-            flex: 1, padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer',
-            background: activeTab === tab.id ? 'var(--surface3)' : 'transparent',
-            color: activeTab === tab.id ? 'var(--text)' : 'var(--muted)',
-            fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
-          }}>{tab.label}</button>
-        ))}
+      <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px' }}>
+        {tabs.map(tab => {
+          const TabIcon = tab.icon
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`mx-segment-btn ${activeTab === tab.id ? 'active' : ''}`} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>
+              <TabIcon size={15} className="mx-seg-ico" /> {tab.label}
+            </button>
+          )
+        })}
       </div>
 
       {/* ===== PA-JOBB ===== */}
@@ -738,9 +738,9 @@ export default function JobbPage() {
                 return total > 0 ? `~${Math.round(total).toLocaleString('sv-SE')} kr` : '—'
               })(), color: '#f59e0b' },
             ].map(({ label, value, color }) => (
-              <div key={label} className="card">
-                <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
-                <div className="mono" style={{ fontSize: '20px', fontWeight: '600', color }}>{value}</div>
+              <div key={label} className="pg-stat" style={{ '--pg-c': color }}>
+                <div className="pg-stat-cap">{label}</div>
+                <div className="pg-stat-num mono">{value}</div>
               </div>
             ))}
           </div>
@@ -971,16 +971,16 @@ export default function JobbPage() {
                 </div>
 
                 {/* Project stats */}
-                <div style={{ display: 'flex', gap: 16, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                   {[
-                    { label: 'Totalt', value: projectTasks.length, color: 'var(--muted)' },
+                    { label: 'Totalt', value: projectTasks.length, color: '#3b82f6' },
                     { label: 'Pågående', value: projectTasks.filter(t => t.status === 'pågående').length, color: '#f59e0b' },
                     { label: 'Klart', value: projectTasks.filter(t => t.status === 'klart').length, color: '#10b981' },
                     { label: 'Brådskande', value: projectTasks.filter(t => t.status !== 'klart' && t.deadline && Math.ceil((new Date(t.deadline) - new Date()) / 86400000) <= 2).length, color: '#ef4444' },
                   ].map(s => (
-                    <div key={s.label}>
-                      <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.06em' }}>{s.label.toUpperCase()}</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: s.color, lineHeight: 1.2 }}>{s.value}</div>
+                    <div key={s.label} className="pg-stat" style={{ '--pg-c': s.color }}>
+                      <div className="pg-stat-cap">{s.label}</div>
+                      <div className="pg-stat-num mono">{s.value}</div>
                     </div>
                   ))}
                 </div>
