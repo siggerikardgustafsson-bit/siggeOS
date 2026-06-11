@@ -4755,6 +4755,67 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   width:4px; height:4px; border-radius:50%; background:#10b981;
   box-shadow:0 0 5px 1px color-mix(in srgb, #10b981 70%, transparent); }
 
+/* JOURNAL — premium entry-kort */
+.jr-entry { position:relative; overflow:hidden;
+  background:linear-gradient(160deg, color-mix(in srgb, var(--surface2) 92%, var(--accent) 4%), var(--surface2));
+  border:1px solid var(--border); border-radius:14px; padding:15px 16px;
+  transition:border-color .2s, box-shadow .2s, transform .2s; }
+.jr-entry::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px;
+  background:linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 30%, transparent));
+  opacity:.55; transition:opacity .2s; }
+.jr-entry:hover { border-color:color-mix(in srgb, var(--accent) 28%, var(--border));
+  box-shadow:0 8px 26px -16px color-mix(in srgb, var(--accent) 60%, transparent);
+  transform:translateY(-1px); }
+.jr-entry:hover::before { opacity:1; }
+
+/* metric-chips i entry-header */
+.jr-chip { display:inline-flex; align-items:center; gap:4px;
+  font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;
+  padding:3px 9px; border-radius:20px; line-height:1;
+  background:color-mix(in srgb, var(--pg-c, var(--accent)) 12%, transparent);
+  color:var(--pg-c, var(--accent));
+  border:1px solid color-mix(in srgb, var(--pg-c, var(--accent)) 26%, transparent); }
+.jr-chip-time { display:inline-flex; align-items:center; gap:4px; font-size:11px;
+  color:var(--muted); font-variant-numeric:tabular-nums; font-weight:500; }
+
+/* entry action-knappar */
+.jr-act { display:inline-flex; align-items:center; gap:4px; cursor:pointer;
+  background:color-mix(in srgb, var(--surface) 60%, transparent);
+  border:1px solid var(--border); border-radius:8px; padding:4px 9px;
+  color:var(--muted); font-size:11px; font-weight:500; font-family:Inter, sans-serif;
+  transition:all .15s; }
+.jr-act:hover { color:var(--accent); border-color:var(--accent-border);
+  background:color-mix(in srgb, var(--accent) 8%, transparent); }
+.jr-act-del:hover { color:var(--red); border-color:color-mix(in srgb, var(--red) 35%, transparent);
+  background:color-mix(in srgb, var(--red) 8%, transparent); }
+
+/* JARVIS analys-panel */
+.jr-jarvis { position:relative; overflow:hidden; margin-top:14px;
+  border-radius:12px; padding:14px 16px;
+  background:linear-gradient(150deg, color-mix(in srgb, var(--accent) 14%, var(--surface)) 0%, color-mix(in srgb, var(--accent) 5%, var(--surface)) 100%);
+  border:1px solid color-mix(in srgb, var(--accent) 26%, transparent);
+  box-shadow:inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
+    0 6px 22px -14px color-mix(in srgb, var(--accent) 70%, transparent); }
+.jr-jarvis::after { content:''; position:absolute; top:-40%; right:-10%;
+  width:160px; height:160px; border-radius:50%; pointer-events:none;
+  background:radial-gradient(circle, color-mix(in srgb, var(--accent) 28%, transparent), transparent 70%); }
+.jr-jarvis-head { display:flex; align-items:center; gap:7px; margin-bottom:9px; position:relative; }
+.jr-jarvis-dot { width:14px; height:14px; border-radius:50%; flex-shrink:0;
+  background:radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent) 90%, #fff), var(--accent));
+  box-shadow:0 0 8px 1px color-mix(in srgb, var(--accent) 70%, transparent);
+  animation:jrPulse 2.4s ease-in-out infinite; }
+@keyframes jrPulse { 0%,100%{ box-shadow:0 0 8px 1px color-mix(in srgb, var(--accent) 70%, transparent); }
+  50%{ box-shadow:0 0 13px 3px color-mix(in srgb, var(--accent) 80%, transparent); } }
+.jr-jarvis-title { font-size:10px; color:var(--accent); font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase; }
+.jr-jarvis-body { font-size:13px; color:var(--text); line-height:1.65; position:relative; }
+.jr-tag-people { display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px;
+  font-size:11px; font-weight:600; background:color-mix(in srgb, #10b981 14%, transparent);
+  color:#10b981; border:1px solid color-mix(in srgb, #10b981 28%, transparent); }
+.jr-tag-key { display:inline-flex; align-items:center; padding:3px 9px; border-radius:20px;
+  font-size:11px; font-weight:500; background:color-mix(in srgb, var(--accent) 8%, var(--surface2));
+  color:var(--muted); border:1px solid var(--border); }
+
 /* Reslistan scrollar internt — resten av sidan hålls statisk */
 .upp-trips-scroll { max-height:calc(100vh - 250px); overflow-y:auto; padding-right:6px;
   scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--accent) 45%, transparent) transparent; }

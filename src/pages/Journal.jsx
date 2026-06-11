@@ -665,42 +665,27 @@ export default function JournalPage() {
               )}
 
               {/* Entries */}
-              {selectedEntries.map(entry => (
-                <div key={entry.id} style={{
-                  background: 'var(--surface2)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '12px', padding: '14px',
-                  transition: 'border-color 0.15s',
-                }}>
+              {selectedEntries.map(entry => {
+                const expanded = viewEntry?.id === entry.id
+                return (
+                <div key={entry.id} className="jr-entry">
                   {/* Entry header */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+                    <div style={{ display: 'flex', gap: '7px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span className="jr-chip-time">
+                        <Calendar size={11} />
                         {format(new Date(entry.created_at), 'HH:mm')}
-                        {entry.is_travel_entry && ' ️'}
+                        {entry.is_travel_entry && ' · Resa'}
                       </span>
-                      {entry.mood && <span style={{ fontSize: '11px', color: '#ec4899', fontWeight: '500' }}> {entry.mood}/10</span>}
-                      {entry.energy && <span style={{ fontSize: '11px', color: '#f59e0b', fontWeight: '500' }}> {entry.energy}/10</span>}
-                      {entry.sleep_hours && <span style={{ fontSize: '11px', color: '#06b6d4', fontWeight: '500' }}> {entry.sleep_hours}h</span>}
+                      {entry.mood != null && <span className="jr-chip" style={{ '--pg-c': '#ec4899' }}>Humör {entry.mood}</span>}
+                      {entry.energy != null && <span className="jr-chip" style={{ '--pg-c': '#f59e0b' }}>Energi {entry.energy}</span>}
+                      {entry.sleep_hours != null && <span className="jr-chip" style={{ '--pg-c': '#06b6d4' }}>{entry.sleep_hours}h sömn</span>}
                     </div>
                     <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                      <button onClick={() => openEditForm(entry)} style={{
-                        background: 'var(--surface2)', border: '1px solid var(--border)',
-                        borderRadius: '7px', padding: '4px 8px', cursor: 'pointer',
-                        color: 'var(--muted)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px',
-                        transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent-border)' }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+                      <button onClick={() => openEditForm(entry)} className="jr-act">
                         <Edit2 size={11} /> Redigera
                       </button>
-                      <button onClick={() => deleteEntry(entry.id)} style={{
-                        background: 'transparent', border: 'none',
-                        borderRadius: '7px', padding: '4px 7px', cursor: 'pointer',
-                        color: 'var(--muted)', fontSize: '11px', transition: 'color 0.15s',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
-                      onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}>
+                      <button onClick={() => deleteEntry(entry.id)} className="jr-act jr-act-del" style={{ padding: '4px 7px' }}>
                         <X size={13} />
                       </button>
                     </div>
@@ -708,27 +693,34 @@ export default function JournalPage() {
 
                   {/* Content */}
                   <div
-                    onClick={() => setViewEntry(viewEntry?.id === entry.id ? null : entry)}
-                    style={{ fontSize: '14px', lineHeight: '1.7', color: 'var(--text)', cursor: 'pointer', marginBottom: entry.ai_summary ? '12px' : '0' }}>
-                    {viewEntry?.id === entry.id ? entry.content : (entry.content?.slice(0, 200) + (entry.content?.length > 200 ? '…' : ''))}
+                    onClick={() => setViewEntry(expanded ? null : entry)}
+                    style={{ fontSize: '14px', lineHeight: '1.7', color: 'var(--text)', cursor: 'pointer' }}>
+                    {expanded ? entry.content : (entry.content?.slice(0, 200) + (entry.content?.length > 200 ? '…' : ''))}
                   </div>
+                  {!expanded && entry.content?.length > 200 && (
+                    <div style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600, marginTop: '6px', cursor: 'pointer' }}
+                      onClick={() => setViewEntry(entry)}>Läs mer →</div>
+                  )}
 
                   {/* AI analysis */}
-                  {viewEntry?.id === entry.id && entry.ai_summary && (
-                    <div style={{ marginTop: '14px', padding: '12px 14px', background: 'var(--accent-soft)', borderRadius: '10px', borderLeft: '2px solid var(--accent)' }}>
-                      <div style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '6px', textTransform: 'uppercase' }}>Jarvis analys</div>
-                      <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: '1.6', marginBottom: entry.ai_extracted_people?.length > 0 ? '10px' : '0' }}>{entry.ai_summary}</div>
+                  {expanded && entry.ai_summary && (
+                    <div className="jr-jarvis">
+                      <div className="jr-jarvis-head">
+                        <span className="jr-jarvis-dot" />
+                        <span className="jr-jarvis-title">Jarvis analys</span>
+                      </div>
+                      <div className="jr-jarvis-body" style={{ marginBottom: entry.ai_extracted_people?.length > 0 || entry.ai_extracted_keywords?.length > 0 ? '11px' : '0' }}>{entry.ai_summary}</div>
                       {entry.ai_extracted_people?.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: entry.ai_extracted_keywords?.length > 0 ? '6px' : '0' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: entry.ai_extracted_keywords?.length > 0 ? '7px' : '0', position: 'relative' }}>
                           {entry.ai_extracted_people.map(p => (
-                            <span key={p} style={{ padding: '2px 7px', borderRadius: '5px', background: 'rgba(16,185,129,0.1)', color: '#10b981', fontSize: '11px' }}> {p}</span>
+                            <span key={p} className="jr-tag-people">{p}</span>
                           ))}
                         </div>
                       )}
                       {entry.ai_extracted_keywords?.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', position: 'relative' }}>
                           {entry.ai_extracted_keywords.map(k => (
-                            <span key={k} style={{ padding: '2px 7px', borderRadius: '5px', background: 'var(--surface2)', color: 'var(--muted)', fontSize: '11px' }}>{k}</span>
+                            <span key={k} className="jr-tag-key">{k}</span>
                           ))}
                         </div>
                       )}
@@ -742,7 +734,7 @@ export default function JournalPage() {
                     </div>
                   )}
                 </div>
-              ))}
+              )})}
               </>)}
             </div>
           </div>
