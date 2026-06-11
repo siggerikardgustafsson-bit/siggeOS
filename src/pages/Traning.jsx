@@ -490,9 +490,6 @@ export default function TraningPage() {
     const idx = {}
     headers.forEach((h, i) => { if (!(h in idx)) idx[h] = i })
 
-    // Log what we found for debugging
-    console.log('Distance col index:', idx['Distance'], 'Moving Time col index:', idx['Moving Time'])
-
     const typeMap = {
       'Run': 'run', 'Trail Run': 'run', 'Virtual Run': 'run',
       'Ride': 'other', 'Virtual Ride': 'other', 'EBikeRide': 'other',
