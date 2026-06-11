@@ -7,7 +7,7 @@ import CountUp from '../components/CountUp'
 import { format, subDays, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Loader, Upload, Apple, X, Plus, Edit2, Check, Scale, Moon, Wine, Syringe, Utensils, Pill, Footprints, Target } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 const DEFAULT_SUPPLEMENTS = ['Kreatin', 'D-vitamin', 'Omega-3', 'Multivitamin', 'Magnesium']
 const NICOTINE_TYPES = [
@@ -52,6 +52,7 @@ export default function HalsaPage() {
   const [importResult, setImportResult] = useState(null)
   const [activeTab, setActiveTab] = useState('log')
   const [graphPeriod, setGraphPeriod] = useState(30)
+  const [historyFilter, setHistoryFilter] = useState('all')
   const [editingLog, setEditingLog] = useState(null)
   const [userSettings, setUserSettings] = useState(null)
 
@@ -336,52 +337,64 @@ export default function HalsaPage() {
       <div className="page-content-scroll">
         <div style={{ padding:'12px 12px 0', maxWidth:'960px', margin:'0 auto' }}>
 
-          {/* Command hero — glowing weight ring + floating stat orbs */}
+          {/* Cohesive stat strip — weight hero + sparkline + inline stats */}
           {(() => {
             const hasW = latestWeight != null && Number.isFinite(Number(latestWeight))
-            let pct = 0
-            if (hasW && targetWeight) {
-              const diff = Math.abs(latestWeight - targetWeight)
-              pct = Math.max(4, Math.min(100, Math.round(100 - (diff / 10) * 100)))
-            } else if (hasW) pct = 62
             const kvar = hasW && targetWeight ? Math.round(Math.abs(latestWeight - targetWeight) * 10) / 10 : null
+            // last ~12 weight points (chronological) for the sparkline
+            const wpts = chartData.filter(d => d.weight != null).slice(-12).map(d => Number(d.weight))
+            let sparkLine = '', sparkFill = '', lastPt = null
+            if (wpts.length >= 2) {
+              const min = Math.min(...wpts), max = Math.max(...wpts)
+              const span = max - min || 1
+              const W = 78, H = 46, pad = 5
+              const xs = i => (i / (wpts.length - 1)) * (W - pad * 2) + pad
+              const ys = v => H - pad - ((v - min) / span) * (H - pad * 2)
+              const pts = wpts.map((v, i) => [xs(i), ys(v)])
+              sparkLine = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')
+              sparkFill = `M${pad} ${H} ` + pts.map(p => `L${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ') + ` L${(W - pad)} ${H} Z`
+              lastPt = pts[pts.length - 1]
+            }
+            const stats = [
+              { cap: 'Sömn 7d', c: '#8b5cf6', val: avgSleep > 0 ? <CountUp value={avgSleep} decimals={1} /> : '—', u: avgSleep > 0 ? 'h' : '' },
+              { cap: 'Steg 7d', c: '#f59e0b', val: avgSteps > 0 ? <CountUp value={Math.round(avgSteps)} /> : '—', u: '' },
+              { cap: 'Tillskott', c: '#06b6d4', val: supplementCompliance7 != null ? <CountUp value={supplementCompliance7} /> : '—', u: supplementCompliance7 != null ? '%' : '' },
+            ]
             return (
-              <div className="hl-hero">
-                <div className="hl-hero-atmos">
-                  <svg className="hl-orbits" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-                    <circle cx="50" cy="50" r="46" strokeDasharray="2 6" />
-                    <circle cx="50" cy="50" r="34" />
-                  </svg>
-                </div>
-
-                <div className="hl-ring" style={{ '--hl-target': pct + '%' }}>
-                  <div className="hl-ring-track" />
-                  <div className="hl-ring-inner">
-                    <div className="hl-ring-cap">Vikt</div>
-                    <div className="hl-ring-val">
+              <div className="hl-strip">
+                <div className="hl-shero">
+                  <div className="hl-shero-main">
+                    <span className="hl-shero-cap">Vikt</span>
+                    <span className="hl-shero-num">
                       {hasW ? <CountUp value={Number(latestWeight)} decimals={1} /> : '—'}<span className="u">kg</span>
-                    </div>
-                    <div className="hl-ring-sub">
+                    </span>
+                    <span className={`hl-shero-sub ${kvar == null ? 'flat' : ''}`}>
                       {kvar != null
                         ? (kvar === 0 ? 'på mål 🎯' : `${kvar} kg ${latestWeight > targetWeight ? 'kvar till mål' : 'under mål'}`)
                         : 'inget mål satt'}
-                    </div>
+                    </span>
                   </div>
+                  {sparkLine && (
+                    <svg className="hl-spark" viewBox="0 0 78 46" preserveAspectRatio="none">
+                      <defs>
+                        <linearGradient id="hlSparkFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.28" />
+                          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <path className="fill" d={sparkFill} />
+                      <path className="line" d={sparkLine} />
+                      {lastPt && <circle cx={lastPt[0]} cy={lastPt[1]} r="2.4" />}
+                    </svg>
+                  )}
                 </div>
-
-                <div className="hl-orbs">
-                  <div className="hl-orb" style={{ '--hl-orb': '#8b5cf6' }}>
-                    <div className="hl-orb-val">{avgSleep > 0 ? <CountUp value={avgSleep} decimals={1} /> : '—'}<span className="u">h</span></div>
-                    <div className="hl-orb-lab">Sömn 7d</div>
-                  </div>
-                  <div className="hl-orb" style={{ '--hl-orb': '#f59e0b' }}>
-                    <div className="hl-orb-val">{avgSteps > 0 ? <CountUp value={Math.round(avgSteps)} /> : '—'}</div>
-                    <div className="hl-orb-lab">Steg 7d</div>
-                  </div>
-                  <div className="hl-orb" style={{ '--hl-orb': '#06b6d4' }}>
-                    <div className="hl-orb-val">{supplementCompliance7 != null ? <CountUp value={supplementCompliance7} /> : '—'}<span className="u">%</span></div>
-                    <div className="hl-orb-lab">Tillskott</div>
-                  </div>
+                <div className="hl-sstats">
+                  {stats.map(s => (
+                    <div key={s.cap} className="hl-sstat" style={{ '--hl-c': s.c }}>
+                      <span className="hl-sstat-cap"><span className="dot" />{s.cap}</span>
+                      <span className="hl-sstat-num">{s.val}{s.u && <span className="u">{s.u}</span>}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )
@@ -615,14 +628,20 @@ export default function HalsaPage() {
                         <div className="hl-chart-title"><span className="dot" />{label}</div>
                         <div className="hl-chart-val">{last != null ? last : '—'}<span className="u">{unit}</span></div>
                       </div>
-                      <ResponsiveContainer width="100%" height={90}>
-                        <LineChart data={data}>
-                          <Line type="monotone" dataKey={key} stroke={color} strokeWidth={2.4} dot={false} connectNulls />
+                      <ResponsiveContainer width="100%" height={94}>
+                        <AreaChart data={data} margin={{ top: 4, right: 2, bottom: 0, left: 2 }}>
+                          <defs>
+                            <linearGradient id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={color} stopOpacity={0.32} />
+                              <stop offset="100%" stopColor={color} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <Area type="monotone" dataKey={key} stroke={color} strokeWidth={2.4} fill={`url(#grad-${key})`} dot={false} connectNulls activeDot={{ r:3.5, strokeWidth:0 }} />
                           <XAxis dataKey="date" hide />
                           <YAxis hide domain={['auto','auto']} />
                           {refLine && <ReferenceLine y={refLine} stroke={color} strokeDasharray="4 3" opacity={0.4} label={{ value:refLabel, fontSize:9, fill:color, position:'insideBottomRight' }} />}
                           <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'8px', fontSize:'12px' }} formatter={v => v!=null ? [`${v}${unit}`, label] : null} labelFormatter={l => format(parseISO(l),'d MMM',{locale:sv})} />
-                        </LineChart>
+                        </AreaChart>
                       </ResponsiveContainer>
                     </div>
                     )
@@ -636,13 +655,19 @@ export default function HalsaPage() {
                     </div>
                     <div className="hl-chart-meta">Tmax ≈ 48h · t½ = 6 dagar · 1-kompartment PK-modell</div>
                     {hasRet ? (
-                      <ResponsiveContainer width="100%" height={90}>
-                        <LineChart data={retData}>
-                          <Line type="monotone" dataKey="conc" stroke="#a78bfa" strokeWidth={2.4} dot={false} />
+                      <ResponsiveContainer width="100%" height={94}>
+                        <AreaChart data={retData} margin={{ top: 4, right: 2, bottom: 0, left: 2 }}>
+                          <defs>
+                            <linearGradient id="grad-ret" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.32} />
+                              <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <Area type="monotone" dataKey="conc" stroke="#a78bfa" strokeWidth={2.4} fill="url(#grad-ret)" dot={false} activeDot={{ r:3.5, strokeWidth:0 }} />
                           <XAxis dataKey="date" hide />
                           <YAxis hide domain={[0,'auto']} />
                           <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'8px', fontSize:'12px' }} formatter={v => [`${v} mg-ekv`, 'Plasmakonc.']} labelFormatter={l => format(parseISO(l),'d MMM',{locale:sv})} />
-                        </LineChart>
+                        </AreaChart>
                       </ResponsiveContainer>
                     ) : (
                       <div className="hl-chart-empty">Ingen retatrutide-data loggad</div>
@@ -654,11 +679,43 @@ export default function HalsaPage() {
           })()}
 
           {/* ── HISTORIK TAB ── */}
-          {activeTab === 'historik' && (
+          {activeTab === 'historik' && (() => {
+            const FILTERS = [
+              { id:'all',     label:'Alla',       c:'var(--accent)' },
+              { id:'weight',  label:'Vikt',       c:'#10b981' },
+              { id:'sleep',   label:'Sömn',       c:'#8b5cf6' },
+              { id:'steps',   label:'Steg',       c:'#f59e0b' },
+              { id:'supps',   label:'Tillskott',  c:'#06b6d4' },
+              { id:'subst',   label:'Substanser', c:'#ef4444' },
+              { id:'ret',     label:'Retatrutide', c:'#a78bfa' },
+            ]
+            const matches = (log) => {
+              switch (historyFilter) {
+                case 'weight': return !!log.weight_kg
+                case 'sleep':  return !!log.sleep_hours
+                case 'steps':  return !!log.steps
+                case 'supps':  return supplementLogs.some(s => s.date === log.date && s.taken)
+                case 'subst':  return log.alcohol_units > 0 || log.nicotine
+                case 'ret':    return !!log.retatrutide_dose_mg
+                default:       return true
+              }
+            }
+            const rows = historyRows.filter(matches).slice(0, 60)
+            return (
             <div className="hl-hist">
-              <div className="hl-hist-cap">Senaste 30 dagar</div>
+              <div className="hl-filter">
+                {FILTERS.map(f => (
+                  <button key={f.id} onClick={() => setHistoryFilter(f.id)}
+                    className={`hl-filter-btn ${historyFilter===f.id ? 'active' : ''}`}
+                    style={{ '--hl-fc': f.c }}>{f.label}</button>
+                ))}
+              </div>
+              <div className="hl-hist-cap">{historyFilter === 'all' ? 'Senaste loggar' : `Dagar med ${FILTERS.find(f=>f.id===historyFilter)?.label.toLowerCase()}`} · {rows.length} dagar</div>
               <div className="hl-hist-list">
-                {historyRows.slice(0,30).map(log => {
+                {rows.length === 0 && (
+                  <div className="hl-chart-empty" style={{ height:60 }}>Inga loggar för detta filter</div>
+                )}
+                {rows.map(log => {
                   const takenSupps = supplementLogs.filter(s => s.date === log.date && s.taken)
                   return (
                   <div key={log.id} className="hl-hist-row">
@@ -686,7 +743,8 @@ export default function HalsaPage() {
                 })}
               </div>
             </div>
-          )}
+            )
+          })()}
 
         </div>
       </div>
