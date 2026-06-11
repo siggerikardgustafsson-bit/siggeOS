@@ -2178,7 +2178,6 @@ export default function TraningPage() {
 
       {selectedSessionDetail && (
         <Modal onClose={() => setSelectedSessionDetail(null)} maxWidth={760} bare>
-          <div className="mx-modal-scroll" style={{ padding: '22px' }}>
             {(() => {
               const session = selectedSessionDetail
               const typeInfo = SESSION_TYPES.find(t => t.id === session.session_type) || SESSION_TYPES[3]
@@ -2193,46 +2192,30 @@ export default function TraningPage() {
 
               return (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '14px', marginBottom: '18px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: typeInfo.color + '20', border: `1px solid ${typeInfo.color}45`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Icon size={20} color={typeInfo.color} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.04em' }}>{getSessionTitle(session)}</div>
-                        <div style={{ fontSize: '13px', color: 'var(--muted2)', marginTop: '3px' }}>
+                  <div className="mx-em-head" style={{ '--em-c': typeInfo.color }}>
+                    <div className="mx-em-top">
+                      <div className="mx-em-ico"><Icon size={22} /></div>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="mx-em-title">{getSessionTitle(session)}</div>
+                        <div className="mx-em-sub">
                           {format(new Date(session.date), 'EEEE d MMMM yyyy', { locale: sv })}
                           {session.source && ` · ${session.source}`}
                           {session.strava_id && ` · Strava #${session.strava_id}`}
                         </div>
                       </div>
+                      <button className="mx-em-close" onClick={() => setSelectedSessionDetail(null)} aria-label="Stäng">
+                        <X size={18} />
+                      </button>
                     </div>
-                    <button onClick={() => setSelectedSessionDetail(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0 }}>
-                      <X size={20} />
-                    </button>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '10px', marginBottom: '16px' }}>
-                    <div className="card-sm">
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Typ</div>
-                      <div style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>{typeInfo.label}</div>
-                    </div>
-                    <div className="card-sm">
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tid</div>
-                      <div className="mono" style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>{session.duration_minutes ? `${session.duration_minutes} min` : session.time_seconds ? formatDuration(session.time_seconds) : '—'}</div>
-                    </div>
-                    <div className="card-sm">
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Känsla</div>
-                      <div className="mono" style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>{session.feeling ? `${session.feeling}/10` : '—'}</div>
-                    </div>
-                    <div className="card-sm">
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{session.session_type === 'gym' ? 'Volym' : 'Distans'}</div>
-                      <div className="mono" style={{ fontSize: '15px', fontWeight: 700, marginTop: '3px' }}>
-                        {session.session_type === 'gym' ? `${Math.round(totalVolume)} kg` : session.distance_km ? `${Number(session.distance_km).toFixed(1)} km` : '—'}
-                      </div>
+                    <div className="mx-em-stats">
+                      <span className="mx-em-pill"><b>{typeInfo.label}</b></span>
+                      <span className="mx-em-pill"><b>{session.duration_minutes ? `${session.duration_minutes} min` : session.time_seconds ? formatDuration(session.time_seconds) : '—'}</b> tid</span>
+                      {session.feeling ? <span className="mx-em-pill"><b>{session.feeling}/10</b> känsla</span> : null}
+                      <span className="mx-em-pill"><b>{session.session_type === 'gym' ? `${Math.round(totalVolume)} kg` : session.distance_km ? `${Number(session.distance_km).toFixed(1)} km` : '—'}</b> {session.session_type === 'gym' ? 'volym' : 'distans'}</span>
                     </div>
                   </div>
 
+                  <div className="mx-modal-scroll" style={{ padding: '20px 22px 22px' }}>
                   {session.notes && (
                     <div className="card-sm" style={{ marginBottom: '16px' }}>
                       <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Anteckningar</div>
@@ -2320,10 +2303,10 @@ export default function TraningPage() {
                     )}
                     <button onClick={() => setSelectedSessionDetail(null)} className="btn btn-primary">Stäng</button>
                   </div>
+                  </div>
                 </>
               )
             })()}
-          </div>
         </Modal>
       )}
 

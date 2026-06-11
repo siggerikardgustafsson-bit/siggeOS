@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { X, TrendingUp, List, Zap } from 'lucide-react'
+import { X, TrendingUp, List, Zap, Footprints } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts'
 import Modal from './Modal'
 
@@ -112,41 +112,37 @@ export default function RunModal({ onClose }) {
   return (
     <Modal onClose={onClose} maxWidth={700} bare>
         {/* Header */}
-        <div style={{ padding: 'clamp(14px, 3vw, 20px) clamp(14px, 3vw, 24px) 0', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: '20px', fontWeight: '700', letterSpacing: '-0.3px' }}> Löphistorik</div>
-              <div style={{ display: 'flex', gap: '16px', marginTop: '5px', fontSize: '13px', color: 'var(--muted)' }}>
-                <span>{runs.length} pass</span>
-                <span>{Math.round(totalKm)} km totalt</span>
-                {longestRun > 0 && <span>längst: {longestRun.toFixed(1)} km</span>}
-                {avgPace && <span>snitt-tempo: {formatPace(avgPace)}/km</span>}
-              </div>
+        <div className="mx-em-head" style={{ '--em-c': '#10b981' }}>
+          <div className="mx-em-top">
+            <div className="mx-em-ico"><Footprints size={22} /></div>
+            <div style={{ minWidth: 0 }}>
+              <div className="mx-em-title">Löphistorik</div>
+              <div className="mx-em-sub">Tempo, PR & alla löppass</div>
             </div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
-              <X size={20} />
-            </button>
+            <button className="mx-em-close" onClick={onClose} aria-label="Stäng"><X size={18} /></button>
           </div>
 
-          <div style={{ display: 'flex', gap: '0', marginTop: '16px', borderBottom: '1px solid var(--border)' }}>
-            {[
-              { id: 'pr',          label: 'PR per distans', icon: Zap },
-              { id: 'progression', label: 'Tempohistorik',  icon: TrendingUp },
-              { id: 'logg',        label: 'Alla pass',      icon: List },
-            ].map(({ id, label, icon: Icon }) => (
-              <button key={id} onClick={() => setTab(id)} style={{
-                display: 'flex', alignItems: 'center', gap: '5px',
-                padding: '8px 14px', border: 'none', cursor: 'pointer',
-                background: 'transparent',
-                color: tab === id ? 'var(--accent)' : 'var(--muted)',
-                fontSize: '13px', fontWeight: tab === id ? '600' : '400',
-                fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
-                borderBottom: tab === id ? '2px solid var(--accent)' : '2px solid transparent',
-                marginBottom: '-1px',
-              }}>
-                <Icon size={12} /> {label}
-              </button>
-            ))}
+          <div className="mx-em-stats">
+            <span className="mx-em-pill"><b>{runs.length}</b> pass</span>
+            <span className="mx-em-pill"><b>{Math.round(totalKm)}</b> km totalt</span>
+            {longestRun > 0 && <span className="mx-em-pill"><b>{longestRun.toFixed(1)} km</b> längst</span>}
+            {avgPace && <span className="mx-em-pill"><b>{formatPace(avgPace)}</b> snitt-tempo</span>}
+          </div>
+
+          <div className="mx-em-tabs">
+            <div className="mx-segment" style={{ display: 'flex', width: '100%' }}>
+              {[
+                { id: 'pr',          label: 'PR per distans', icon: Zap },
+                { id: 'progression', label: 'Tempohistorik',  icon: TrendingUp },
+                { id: 'logg',        label: 'Alla pass',      icon: List },
+              ].map(({ id, label, icon: Icon }) => (
+                <button key={id} onClick={() => setTab(id)}
+                  className={`mx-segment-btn ${tab === id ? 'active' : ''}`}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  <Icon size={13} className="mx-seg-ico" /> {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { X, TrendingUp, List, BarChart2 } from 'lucide-react'
+import { X, TrendingUp, List, BarChart2, Dumbbell } from 'lucide-react'
 import Modal from './Modal'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -114,42 +114,38 @@ export default function ExerciseModal({ exerciseName, onClose }) {
     <Modal onClose={onClose} maxWidth={700} bare>
 
         {/* Header */}
-        <div style={{ padding: 'clamp(14px, 3vw, 20px) clamp(14px, 3vw, 24px) 0', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: '20px', fontWeight: '700', letterSpacing: '-0.3px' }}>{exerciseName}</div>
-              <div style={{ display: 'flex', gap: '16px', marginTop: '5px', fontSize: '13px', color: 'var(--muted)' }}>
-                <span>{sessions.length} pass</span>
-                <span>{allSets.length} set</span>
-                {allTimePR > 0 && <span style={{ color: '#f59e0b' }}> PR: {allTimePR}kg</span>}
-              </div>
+        <div className="mx-em-head" style={{ '--em-c': '#3b82f6' }}>
+          <div className="mx-em-top">
+            <div className="mx-em-ico"><Dumbbell size={22} /></div>
+            <div style={{ minWidth: 0 }}>
+              <div className="mx-em-title">{exerciseName}</div>
+              <div className="mx-em-sub">Styrkehistorik & progression</div>
             </div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px' }}>
-              <X size={20} />
-            </button>
+            <button className="mx-em-close" onClick={onClose} aria-label="Stäng"><X size={18} /></button>
+          </div>
+
+          <div className="mx-em-stats">
+            <span className="mx-em-pill"><b>{sessions.length}</b> pass</span>
+            <span className="mx-em-pill"><b>{allSets.length}</b> set</span>
+            {allTimePR > 0 && <span className="mx-em-pill pr"><b>{allTimePR}kg</b> PR</span>}
           </div>
 
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: '0', marginTop: '16px', borderBottom: '1px solid var(--border)' }}>
-            {[
-              { id: 'progression', label: 'Progression', icon: TrendingUp },
-              { id: 'vikt',        label: 'Per vikt',    icon: BarChart2 },
-              { id: 'reps',        label: 'Per reps',    icon: BarChart2 },
-              { id: 'logg',        label: 'Logg',        icon: List },
-            ].map(({ id, label, icon: Icon }) => (
-              <button key={id} onClick={() => setTab(id)} style={{
-                display: 'flex', alignItems: 'center', gap: '5px',
-                padding: '8px 14px', border: 'none', cursor: 'pointer',
-                background: 'transparent',
-                color: tab === id ? 'var(--accent)' : 'var(--muted)',
-                fontSize: '13px', fontWeight: tab === id ? '600' : '400',
-                fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
-                borderBottom: tab === id ? '2px solid var(--accent)' : '2px solid transparent',
-                marginBottom: '-1px',
-              }}>
-                <Icon size={12} /> {label}
-              </button>
-            ))}
+          <div className="mx-em-tabs">
+            <div className="mx-segment" style={{ display: 'flex', width: '100%' }}>
+              {[
+                { id: 'progression', label: 'Progression', icon: TrendingUp },
+                { id: 'vikt',        label: 'Per vikt',    icon: BarChart2 },
+                { id: 'reps',        label: 'Per reps',    icon: BarChart2 },
+                { id: 'logg',        label: 'Logg',        icon: List },
+              ].map(({ id, label, icon: Icon }) => (
+                <button key={id} onClick={() => setTab(id)}
+                  className={`mx-segment-btn ${tab === id ? 'active' : ''}`}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  <Icon size={13} className="mx-seg-ico" /> {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
