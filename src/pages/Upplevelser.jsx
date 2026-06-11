@@ -853,12 +853,19 @@ Returnera ENBART JSON utan backticks:
   const doneQuests = sideQuests.filter(q => q.status === 'done')
   const filteredTrips = tripFilter === 'all' ? trips : trips.filter(t => t.status === tripFilter)
 
+  // Kartan följer samma filter som listan
   const countryStatus = {}
-  for (const t of trips) {
+  for (const t of filteredTrips) {
     const cs = t.countries?.length ? t.countries : (t.country ? [t.country] : [])
     for (const c of cs) {
-      if (!COUNTRY_COORDS[c]) continue
+      if (!COUNTRY_COORDS[c] && !COUNTRY_PATHS[c]) continue
       if (!countryStatus[c] || STATUS_RANK[t.status] > STATUS_RANK[countryStatus[c]]) countryStatus[c] = t.status
+    }
+  }
+  // Sverige (hemland) räknas alltid som besökt
+  if (tripFilter === 'all' || tripFilter === 'completed') {
+    if (!countryStatus['Sverige'] || STATUS_RANK['completed'] > STATUS_RANK[countryStatus['Sverige']]) {
+      countryStatus['Sverige'] = 'completed'
     }
   }
 
