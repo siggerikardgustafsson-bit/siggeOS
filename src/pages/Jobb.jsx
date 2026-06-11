@@ -690,7 +690,6 @@ export default function JobbPage() {
   const tabs = [
     { id: 'pa',         label: 'PA-jobb',    icon: Briefcase },
     { id: 'projekt',    label: 'Projekt',    icon: FolderKanban },
-    { id: 'tidrapport', label: 'Tidrapport', icon: FileText },
   ]
 
   return (
@@ -1082,57 +1081,6 @@ export default function JobbPage() {
       )}
 
       {/* ===== TIDRAPPORT ===== */}
-      {activeTab === 'tidrapport' && (
-        <>
-          <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px' }}>
-            Tidrapport för {format(selectedMonth, 'MMMM yyyy', { locale: sv })}
-          </div>
-
-          {paShifts.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
-              <FileText size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-              <div>Inga pass loggade denna månad</div>
-            </div>
-          ) : (
-            <div className="card">
-              <div className="table-scroll-wrap">
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '420px' }}>
-                <thead>
-                  <tr style={{ color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
-                    {['Datum', 'Start', 'Slut', 'Timmar', 'Typ', 'Est. lön'].map(h => (
-                      <th key={h} style={{ padding: '8px', textAlign: 'left', fontWeight: '500' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...paShifts].reverse().map(shift => {
-                    const pay = shift.estimated_pay || calculateShiftPay(shift.start_time, shift.end_time, shift.shift_type || 'sov')
-                    return (
-                      <tr key={shift.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                        <td style={{ padding: '10px 8px' }}>{format(parseISO(shift.date), 'd MMM', { locale: sv })}</td>
-                        <td className="mono" style={{ padding: '10px 8px' }}>{shift.start_time ? format(parseISO(shift.start_time), 'HH:mm') : '—'}</td>
-                        <td className="mono" style={{ padding: '10px 8px' }}>{shift.end_time ? format(parseISO(shift.end_time), 'HH:mm') : '—'}</td>
-                        <td className="mono" style={{ padding: '10px 8px', color: '#10b981', fontWeight: '600' }}>{shift.hours_worked?.toFixed(1)}</td>
-                        <td style={{ padding: '10px 8px' }}>{shift.shift_type === 'sov' ? 'Sov Sov' : 'Vak Vaken'}</td>
-                        <td className="mono" style={{ padding: '10px 8px', color: '#f59e0b' }}>{pay ? `~${pay.toLocaleString('sv-SE')} kr` : '—'}</td>
-                      </tr>
-                    )
-                  })}
-                  <tr style={{ borderTop: '2px solid var(--border)', fontWeight: '600' }}>
-                    <td colSpan={3} style={{ padding: '10px 8px' }}>Totalt</td>
-                    <td className="mono" style={{ padding: '10px 8px', color: '#10b981' }}>{totalHours.toFixed(1)}h</td>
-                    <td></td>
-                    <td className="mono" style={{ padding: '10px 8px', color: '#f59e0b' }}>
-                      ~{Math.round(paShifts.reduce((sum, s) => sum + (s.estimated_pay || calculateShiftPay(s.start_time, s.end_time, s.shift_type || 'sov') || 0), 0)).toLocaleString('sv-SE')} kr
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-              </div>
-            </div>
-          )}
-        </>
-      )}
     </div>
         </div>
       </div>
