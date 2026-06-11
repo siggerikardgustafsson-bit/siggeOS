@@ -47,6 +47,88 @@ const FLAGS = {
   'Sydafrika':'🇿🇦','Kenya':'🇰🇪','Etiopien':'🇪🇹','Tanzania':'🇹🇿',
 }
 
+// Approx [lon, lat] för varje land → equirectangular-projektion i kartan
+const COUNTRY_COORDS = {
+  'Sverige':[15,62],'Norge':[8,61],'Danmark':[10,56],'Finland':[26,64],'Island':[-19,65],
+  'Spanien':[-4,40],'Portugal':[-8,39.5],'Frankrike':[2,47],'Italien':[12,42],'Tyskland':[10,51],
+  'Österrike':[14,47.5],'Schweiz':[8,47],'Belgien':[4,50.5],'Nederländerna':[5,52],
+  'Luxemburg':[6,49.6],'Storbritannien':[-2,54],'Irland':[-8,53],
+  'Polen':[19,52],'Tjeckien':[15,50],'Slovakien':[19,48.7],'Ungern':[19,47],'Rumänien':[25,46],
+  'Bulgarien':[25,42.7],'Serbien':[21,44],'Kroatien':[15.5,45.1],'Bosnien':[18,44],
+  'Slovenien':[14.8,46],'Montenegro':[19.3,42.7],'Albanien':[20,41],'Nordmakedonien':[21.7,41.6],
+  'Kosovo':[21,42.6],'Moldavien':[28.4,47],'Ukraina':[31,49],'Belarus':[28,53.7],
+  'Estland':[26,59],'Lettland':[25,57],'Litauen':[24,55],
+  'Turkiet':[35,39],'Grekland':[22,39],'Cypern':[33,35],'Malta':[14.4,35.9],
+  'Ryssland':[90,62],'Georgien':[43.4,42],'Armenien':[45,40],'Azerbajdzjan':[47.5,40.4],
+  'UAE':[54,24],'Saudiarabien':[45,24],'Israel':[35,31.5],'Jordanien':[36,31],
+  'Libanon':[35.8,33.9],'Egypten':[30,27],'Marocko':[-6,32],'Tunisien':[9,34],
+  'USA':[-98,39],'Kanada':[-106,56],'Mexiko':[-102,23],'Kuba':[-79,22],
+  'Costa Rica':[-84,10],'Colombia':[-74,4],'Peru':[-75,-10],'Argentina':[-64,-38],'Brasilien':[-52,-10],
+  'Japan':[138,36],'Kina':[105,35],'Sydkorea':[128,36],'Thailand':[101,15],'Vietnam':[106,16],
+  'Indonesien':[113,-1],'Indien':[79,22],'Singapore':[104,1.3],'Malaysia':[102,4],'Filippinerna':[122,12],
+  'Australien':[134,-25],'Nya Zeeland':[174,-41],
+  'Sydafrika':[25,-29],'Kenya':[38,0],'Etiopien':[40,9],'Tanzania':[35,-6],
+}
+
+const STATUS_RANK = { completed: 3, planned: 2, idea: 1 }
+const STATUS_MAP_COLOR = { completed: '#10b981', planned: '#3b82f6', idea: '#8b5cf6' }
+
+function WorldMap({ countryStatus }) {
+  // Beskär till regionen där data faktiskt finns (Europa-centrerad men hela världen syns)
+  const W = 360, H = 180
+  const proj = ([lon, lat]) => [lon + 180, 90 - lat]
+  const graticule = []
+  for (let lon = -150; lon <= 150; lon += 30) graticule.push(['v', lon + 180])
+  for (let lat = -60; lat <= 60; lat += 30) graticule.push(['h', 90 - lat])
+  return (
+    <div className="upp-map-panel">
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+        <defs>
+          <radialGradient id="upp-map-bg" cx="50%" cy="42%" r="75%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.05)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+          </radialGradient>
+        </defs>
+        <rect x="0" y="0" width={W} height={H} fill="url(#upp-map-bg)" />
+        {graticule.map((g, i) => g[0] === 'v'
+          ? <line key={i} x1={g[1]} y1="0" x2={g[1]} y2={H} stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+          : <line key={i} x1="0" y1={g[1]} x2={W} y2={g[1]} stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+        )}
+        {/* Bas: alla kända länder som svaga noder */}
+        {Object.entries(COUNTRY_COORDS).map(([name, coord]) => {
+          if (countryStatus[name]) return null
+          const [x, y] = proj(coord)
+          return <circle key={name} cx={x} cy={y} r="1.4" fill="rgba(255,255,255,0.14)" />
+        })}
+        {/* Markerade länder */}
+        {Object.entries(COUNTRY_COORDS).map(([name, coord]) => {
+          const st = countryStatus[name]
+          if (!st) return null
+          const [x, y] = proj(coord)
+          const color = STATUS_MAP_COLOR[st]
+          return (
+            <g key={name} className={`upp-node upp-node-${st}`}>
+              <title>{name}</title>
+              <circle cx={x} cy={y} r="7" fill={color} opacity="0.16" />
+              {st === 'completed'
+                ? <circle cx={x} cy={y} r="3" fill={color} stroke="#fff" strokeWidth="0.5" />
+                : <circle cx={x} cy={y} r="2.8" fill="none" stroke={color} strokeWidth="1.4" strokeDasharray={st === 'idea' ? '2 1.5' : 'none'} />}
+            </g>
+          )
+        })}
+      </svg>
+      <div className="upp-map-legend">
+        {[['completed', 'Avklarad'], ['planned', 'Planerad'], ['idea', 'Idé']].map(([k, label]) => (
+          <span key={k} className="upp-map-leg-item">
+            <span className={`upp-map-leg-dot upp-map-leg-${k}`} style={{ '--leg-c': STATUS_MAP_COLOR[k] }} />
+            {label}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const ADVENTURE_CATEGORIES = ['mat', 'musik', 'natur', 'spontant', 'socialt', 'kultur', 'övrigt']
 const TRIP_STATUSES = [
   { id: 'completed', label: 'Avklarad', color: '#10b981' },
@@ -696,6 +778,15 @@ Returnera ENBART JSON utan backticks:
   const doneQuests = sideQuests.filter(q => q.status === 'done')
   const filteredTrips = tripFilter === 'all' ? trips : trips.filter(t => t.status === tripFilter)
 
+  const countryStatus = {}
+  for (const t of trips) {
+    const cs = t.countries?.length ? t.countries : (t.country ? [t.country] : [])
+    for (const c of cs) {
+      if (!COUNTRY_COORDS[c]) continue
+      if (!countryStatus[c] || STATUS_RANK[t.status] > STATUS_RANK[countryStatus[c]]) countryStatus[c] = t.status
+    }
+  }
+
   const tabs = [
     { id: 'resor', label: 'Resor', icon: Compass },
     { id: 'aventyr', label: 'Äventyr', icon: Flame },
@@ -766,7 +857,11 @@ Returnera ENBART JSON utan backticks:
             <TripForm initial={EMPTY_TRIP} onSave={saveTrip} onCancel={() => setShowNewTrip(false)} saving={saving} />
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="upp-resor-layout">
+          <div className="upp-map-col">
+            <WorldMap countryStatus={countryStatus} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {filteredTrips.map(trip => {
               const isExpanded = expandedTrip === trip.id
               const isEditing = editingTrip === trip.id
@@ -823,8 +918,7 @@ Returnera ENBART JSON utan backticks:
                     </div>
                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                       {(trip.status === 'idea' || trip.status === 'planned') && (
-                        <button onClick={e => { e.stopPropagation(); setPlanningTrip(trip) }}
-                          style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', borderRadius: '6px', border: '1px solid rgba(139,92,246,0.3)', background: 'rgba(139,92,246,0.1)', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif', fontWeight: '600' }}>
+                        <button onClick={e => { e.stopPropagation(); setPlanningTrip(trip) }} className="upp-plan-btn">
                           <FileText size={12} /> Planera
                         </button>
                       )}
@@ -891,19 +985,7 @@ Returnera ENBART JSON utan backticks:
               )
             })}
           </div>
-
-          {allCountries.length > 0 && (
-            <div className="card" style={{ marginTop: '20px' }}>
-              <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '10px', fontWeight: '600' }}>BESÖKTA LÄNDER ({allCountries.length})</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {allCountries.map(c => (
-                  <div key={c} style={{ padding: '4px 10px', background: 'var(--surface)', borderRadius: '6px', fontSize: '13px', border: '1px solid var(--border)' }}>
-                    {FLAGS[c] || '🌍'} {c}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          </div>
         </>
       )}
 

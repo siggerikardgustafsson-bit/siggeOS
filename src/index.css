@@ -4676,6 +4676,34 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .pg-goals-scroll::-webkit-scrollbar-thumb { border-radius:999px; background:color-mix(in srgb, var(--accent) 45%, transparent); }
 .pg-goals-scroll::-webkit-scrollbar-thumb:hover { background:color-mix(in srgb, var(--accent) 70%, transparent); }
 
+/* ───────────── UPPLEVELSER — världskarta ───────────── */
+.upp-resor-layout { display:flex; gap:16px; align-items:flex-start; }
+.upp-map-col { flex:0 0 320px; position:sticky; top:8px; }
+@media (max-width: 760px){ .upp-resor-layout { flex-direction:column; } .upp-map-col { position:static; flex:1 1 auto; width:100%; } }
+.upp-map-panel { border-radius:16px; padding:12px; overflow:hidden;
+  background:radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--accent) 8%, var(--surface2)), var(--surface));
+  border:1px solid var(--border); box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 18px 40px -28px rgba(0,0,0,.7); }
+.upp-node-completed circle:last-child { filter:drop-shadow(0 0 4px #10b981); }
+.upp-node-planned circle:last-child { filter:drop-shadow(0 0 4px #3b82f6); }
+.upp-node-idea circle:last-child { filter:drop-shadow(0 0 3px #8b5cf6); }
+.upp-node { transition:opacity .2s; }
+.upp-map-legend { display:flex; gap:14px; justify-content:center; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+.upp-map-leg-item { display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); font-weight:600; }
+.upp-map-leg-dot { width:9px; height:9px; border-radius:50%; }
+.upp-map-leg-completed { background:var(--leg-c); box-shadow:0 0 6px var(--leg-c); }
+.upp-map-leg-planned { background:transparent; border:1.6px solid var(--leg-c); }
+.upp-map-leg-idea { background:transparent; border:1.6px dashed var(--leg-c); }
+
+.upp-plan-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 13px; border-radius:9px; cursor:pointer;
+  font-size:12px; font-family:Inter, sans-serif; font-weight:700; letter-spacing:.01em; color:#fff;
+  border:1px solid color-mix(in srgb, #8b5cf6 55%, transparent);
+  background:linear-gradient(135deg, #7c3aed, #a78bfa);
+  box-shadow:0 4px 14px -6px rgba(139,92,246,.7), inset 0 1px 0 rgba(255,255,255,.18);
+  transition:transform .15s cubic-bezier(.22,1,.36,1), box-shadow .15s, filter .15s; }
+.upp-plan-btn:hover { transform:translateY(-1px); filter:brightness(1.08); box-shadow:0 7px 20px -6px rgba(139,92,246,.85), inset 0 1px 0 rgba(255,255,255,.25); }
+.upp-plan-btn:active { transform:translateY(0); }
+@media (prefers-reduced-motion: reduce){ .upp-plan-btn { transition:none; } }
+
 /* ───────────── EKONOMI — premium log form ───────────── */
 .ek-log { position:relative; overflow:hidden; padding:22px; border-radius:20px;
   background:linear-gradient(168deg, rgba(22,28,46,.5), rgba(11,15,26,.72));
