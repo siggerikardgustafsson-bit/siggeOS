@@ -32,21 +32,6 @@ function Widget({ title, icon, color = 'var(--accent)', children, action, delay 
   )
 }
 
-function HeroStat({ label, color, value, decimals = 0, unit, suffix, sub, delay = 0, fallback }) {
-  const has = value != null && Number.isFinite(Number(value))
-  return (
-    <div className="mx-stat" style={{ '--mx-stat-color': color, animationDelay: `${delay}ms` }}>
-      <div className="mx-stat-label"><span className="mx-stat-dot" />{label}</div>
-      <div className="mx-stat-value">
-        {has ? <CountUp value={Number(value)} decimals={decimals} /> : (fallback ?? '—')}
-        {has && unit && <span className="unit">{unit}</span>}
-        {has && suffix}
-      </div>
-      {sub && <div className="mx-stat-sub">{sub}</div>}
-    </div>
-  )
-}
-
 function SaveBtn({ onClick, saving, saved }) {
   return (
     <button onClick={onClick} disabled={saving} className="btn btn-primary" style={{ fontSize: '11px', padding: '5px 12px' }}>
@@ -351,17 +336,56 @@ export default function HalsaPage() {
       <div className="page-content-scroll">
         <div style={{ padding:'12px 12px 0', maxWidth:'960px', margin:'0 auto' }}>
 
-          {/* Hero stat band */}
-          <div className="mx-statband">
-            <HeroStat label="Vikt" color="#10b981" value={latestWeight} decimals={1} unit="kg" delay={0}
-              sub={targetWeight ? (latestWeight ? `${Math.abs(Math.round((latestWeight - targetWeight) * 10) / 10)} kg ${latestWeight > targetWeight ? 'kvar' : 'under'} mål` : `mål ${targetWeight} kg`) : 'inget mål satt'} />
-            <HeroStat label="Sömn 7d" color="#8b5cf6" value={avgSleep > 0 ? avgSleep : null} decimals={1} unit="h" delay={70}
-              sub="snitt senaste veckan" />
-            <HeroStat label="Steg 7d" color="#f59e0b" value={avgSteps > 0 ? Math.round(avgSteps) : null} delay={140}
-              sub="snitt per dag" />
-            <HeroStat label="Tillskott 7d" color="#06b6d4" value={supplementCompliance7} unit="%" delay={210}
-              fallback="—" sub="compliance" />
-          </div>
+          {/* Command hero — glowing weight ring + floating stat orbs */}
+          {(() => {
+            const hasW = latestWeight != null && Number.isFinite(Number(latestWeight))
+            let pct = 0
+            if (hasW && targetWeight) {
+              const diff = Math.abs(latestWeight - targetWeight)
+              pct = Math.max(4, Math.min(100, Math.round(100 - (diff / 10) * 100)))
+            } else if (hasW) pct = 62
+            const kvar = hasW && targetWeight ? Math.round(Math.abs(latestWeight - targetWeight) * 10) / 10 : null
+            return (
+              <div className="hl-hero">
+                <div className="hl-hero-atmos">
+                  <svg className="hl-orbits" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+                    <circle cx="50" cy="50" r="46" strokeDasharray="2 6" />
+                    <circle cx="50" cy="50" r="34" />
+                  </svg>
+                </div>
+
+                <div className="hl-ring" style={{ '--hl-target': pct + '%' }}>
+                  <div className="hl-ring-track" />
+                  <div className="hl-ring-inner">
+                    <div className="hl-ring-cap">Vikt</div>
+                    <div className="hl-ring-val">
+                      {hasW ? <CountUp value={Number(latestWeight)} decimals={1} /> : '—'}<span className="u">kg</span>
+                    </div>
+                    <div className="hl-ring-sub">
+                      {kvar != null
+                        ? (kvar === 0 ? 'på mål 🎯' : `${kvar} kg ${latestWeight > targetWeight ? 'kvar till mål' : 'under mål'}`)
+                        : 'inget mål satt'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="hl-orbs">
+                  <div className="hl-orb" style={{ '--hl-orb': '#8b5cf6' }}>
+                    <div className="hl-orb-val">{avgSleep > 0 ? <CountUp value={avgSleep} decimals={1} /> : '—'}<span className="u">h</span></div>
+                    <div className="hl-orb-lab">Sömn 7d</div>
+                  </div>
+                  <div className="hl-orb" style={{ '--hl-orb': '#f59e0b' }}>
+                    <div className="hl-orb-val">{avgSteps > 0 ? <CountUp value={Math.round(avgSteps)} /> : '—'}</div>
+                    <div className="hl-orb-lab">Steg 7d</div>
+                  </div>
+                  <div className="hl-orb" style={{ '--hl-orb': '#06b6d4' }}>
+                    <div className="hl-orb-val">{supplementCompliance7 != null ? <CountUp value={supplementCompliance7} /> : '—'}<span className="u">%</span></div>
+                    <div className="hl-orb-lab">Tillskott</div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Import feedback */}
           {(importResult || importing) && (
