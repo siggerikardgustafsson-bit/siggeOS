@@ -71,7 +71,7 @@ const COUNTRY_COORDS = {
 }
 
 const STATUS_RANK = { completed: 3, planned: 2, idea: 1 }
-const STATUS_MAP_COLOR = { completed: '#10b981', planned: '#3b82f6', idea: '#8b5cf6' }
+const STATUS_MAP_COLOR = { completed: 'var(--accent)', planned: '#3b82f6', idea: '#8b5cf6' }
 
 function WorldMap({ countryStatus }) {
   // Beskär till regionen där data faktiskt finns (Europa-centrerad men hela världen syns)
@@ -111,8 +111,8 @@ function WorldMap({ countryStatus }) {
               <title>{name}</title>
               <circle cx={x} cy={y} r="7" fill={color} opacity="0.16" />
               {st === 'completed'
-                ? <circle cx={x} cy={y} r="3" fill={color} stroke="#fff" strokeWidth="0.5" />
-                : <circle cx={x} cy={y} r="2.8" fill="none" stroke={color} strokeWidth="1.4" strokeDasharray={st === 'idea' ? '2 1.5' : 'none'} />}
+                ? <circle cx={x} cy={y} r="3.6" fill={color} />
+                : <circle cx={x} cy={y} r="3.2" fill="none" stroke={color} strokeWidth="1.8" />}
             </g>
           )
         })}
