@@ -20,11 +20,11 @@ const COLORS = {
 
 function StatCard({ label, value, sub, color = COLORS.blue, trend }) {
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-      <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '500' }}>{label.toUpperCase()}</div>
-      <div className="mono" style={{ fontSize: '26px', fontWeight: '700', color, lineHeight: 1 }}>{value}</div>
+    <div className="pg-stat" style={{ '--pg-c': color }}>
+      <div className="pg-stat-cap">{label}</div>
+      <div className="pg-stat-num mono">{value}</div>
       {sub && (
-        <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <div style={{ position: 'relative', fontSize: '11px', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px' }}>
           {trend === 'up' && <TrendingUp size={11} color={COLORS.green} />}
           {trend === 'down' && <TrendingDown size={11} color={COLORS.red} />}
           {trend === 'flat' && <Minus size={11} color="var(--muted)" />}
@@ -37,9 +37,9 @@ function StatCard({ label, value, sub, color = COLORS.blue, trend }) {
 
 function SectionHeader({ title, color }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', marginTop: '8px' }}>
-      <div style={{ width: '3px', height: '18px', borderRadius: '2px', background: color }} />
-      <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text)' }}>{title}</div>
+    <div className="ins-section" style={{ '--ins-c': color }}>
+      <div className="ins-section-bar" />
+      <div className="ins-section-title">{title}</div>
     </div>
   )
 }

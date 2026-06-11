@@ -4725,6 +4725,17 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   background:color-mix(in srgb, var(--accent) 12%, transparent); border-radius:3px;
   padding:1px 5px; align-self:flex-start; margin-top:1px; }
 
+/* ───────────── INSIGHTS — premium ───────────── */
+.ins-section { display:flex; align-items:center; gap:10px; margin:8px 0 14px; }
+.ins-section-bar { width:4px; height:18px; border-radius:3px;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--ins-c) 95%, white), var(--ins-c));
+  box-shadow:0 0 10px -1px var(--ins-c), 0 0 3px var(--ins-c); }
+.ins-section-title { font-size:13px; font-weight:700; letter-spacing:.01em; color:var(--text); }
+.insights-chart-grid .card { transition:transform .15s cubic-bezier(.22,1,.36,1), box-shadow .15s, border-color .15s; }
+.insights-chart-grid .card:hover { transform:translateY(-2px);
+  box-shadow:0 16px 36px -22px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.05);
+  border-color:color-mix(in srgb, var(--accent) 22%, var(--border)); }
+
 /* Reslistan scrollar internt — resten av sidan hålls statisk */
 .upp-trips-scroll { max-height:calc(100vh - 250px); overflow-y:auto; padding-right:6px;
   scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--accent) 45%, transparent) transparent; }
