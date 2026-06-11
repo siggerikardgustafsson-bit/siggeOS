@@ -74,22 +74,15 @@ function WeekBar({ sessions }) {
   const weekDays = eachDayOfInterval({ start: weekStart, end: endOfWeek(today, { weekStartsOn: 1 }) })
 
   return (
-    <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
+    <div className="tr-week">
       {weekDays.map((day, i) => {
         const dateStr = format(day, 'yyyy-MM-dd')
         const hasSession = sessions.some(s => s.date === dateStr)
         const isToday = format(today, 'yyyy-MM-dd') === dateStr
         return (
-          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-            <div style={{
-              width: '100%',
-              height: '32px',
-              borderRadius: '4px',
-              background: hasSession ? '#3b82f6' : isToday ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)',
-              border: isToday && !hasSession ? '1px solid rgba(59,130,246,0.4)' : 'none',
-              transition: 'all 0.3s',
-            }} />
-            <span style={{ fontSize: '10px', color: isToday ? 'var(--blue)' : 'var(--muted)' }}>{days[i]}</span>
+          <div key={i} className="tr-week-day">
+            <div className={`tr-week-bar ${hasSession ? 'on' : ''} ${isToday ? 'today' : ''}`} />
+            <span className={`tr-week-lab ${isToday ? 'today' : ''}`}>{days[i]}</span>
           </div>
         )
       })}
@@ -1222,28 +1215,27 @@ export default function TraningPage() {
 
       {view === 'overview' && (
         <>
-          {/* Week overview */}
-          <div className="card" style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px' }}>DENNA VECKA</div>
-            <WeekBar sessions={sessions} />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '16px' }}>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Pass</div>
-                <div className="mono" style={{ fontSize: '24px', fontWeight: '600', color: '#3b82f6' }}>{thisWeekSessions.length}</div>
+          {/* Week overview — cohesive stat strip */}
+          <div className="hl-strip" style={{ marginBottom: '16px' }}>
+            <div className="hl-shero" style={{ minWidth: '300px', flex: '1 1 320px' }}>
+              <div className="hl-shero-main" style={{ minWidth: '64px' }}>
+                <span className="hl-shero-cap">Denna vecka</span>
+                <span className="hl-shero-num" style={{ color: '#fff' }}>{thisWeekSessions.length}<span className="u">pass</span></span>
               </div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Total tid</div>
-                <div className="mono" style={{ fontSize: '24px', fontWeight: '600' }}>
-                  {thisWeekSessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0)}
-                  <span style={{ fontSize: '13px', color: 'var(--muted)' }}>min</span>
-                </div>
+              <div style={{ flex: 1, minWidth: 0 }}><WeekBar sessions={sessions} /></div>
+            </div>
+            <div className="hl-sstats">
+              <div className="hl-sstat" style={{ '--hl-c': '#3b82f6' }}>
+                <span className="hl-sstat-cap"><i className="dot" /> Total tid</span>
+                <span className="hl-sstat-num">
+                  {thisWeekSessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0)}<span className="u">min</span>
+                </span>
               </div>
-              <div>
-                <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Km löpt</div>
-                <div className="mono" style={{ fontSize: '24px', fontWeight: '600', color: '#10b981' }}>
-                  {thisWeekSessions.filter(s => s.session_type === 'run').reduce((sum, s) => sum + (s.distance_km || 0), 0).toFixed(1)}
-                  <span style={{ fontSize: '13px', color: 'var(--muted)' }}>km</span>
-                </div>
+              <div className="hl-sstat" style={{ '--hl-c': '#10b981' }}>
+                <span className="hl-sstat-cap"><i className="dot" /> Km löpt</span>
+                <span className="hl-sstat-num">
+                  {thisWeekSessions.filter(s => s.session_type === 'run').reduce((sum, s) => sum + (s.distance_km || 0), 0).toFixed(1)}<span className="u">km</span>
+                </span>
               </div>
             </div>
           </div>
@@ -1306,8 +1298,8 @@ export default function TraningPage() {
                                   <span style={{ color: 'var(--muted2)' }}>{m.name}</span>
                                   <span className="mono" style={{ color: 'var(--text)', fontWeight: 700 }}>{m.effectiveSets.toFixed(m.effectiveSets % 1 ? 1 : 0)} set</span>
                                 </div>
-                                <div style={{ height: '6px', borderRadius: '999px', background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                                  <div style={{ height: '100%', width: `${width}%`, borderRadius: '999px', background: 'linear-gradient(90deg, var(--accent), #10b981)' }} />
+                                <div className="ek-cat-track">
+                                  <div className="ek-cat-fill" style={{ width: `${width}%`, '--ek-c': '#10b981', background: 'linear-gradient(90deg, var(--accent), #10b981)' }} />
                                 </div>
                               </div>
                             )
