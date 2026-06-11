@@ -4425,6 +4425,34 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .ek-tx-date { font-size:11px; color:var(--muted); margin-top:1px; }
 .ek-tx-amt { font-size:13.5px; font-weight:800; font-variant-numeric:tabular-nums; }
 
+/* Fixed costs */
+.ek-fx-add { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:9px; cursor:pointer;
+  font-size:11.5px; font-weight:700; font-family:Inter, sans-serif; color:var(--accent);
+  background:color-mix(in srgb, var(--accent) 12%, transparent); border:1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  transition:transform .16s cubic-bezier(.22,1,.36,1), background .18s ease, box-shadow .18s ease; }
+.ek-fx-add:hover { transform:translateY(-1px); background:color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow:0 6px 16px -6px var(--accent); }
+.ek-fx-row { display:flex; align-items:center; gap:12px; padding:10px 6px; border-bottom:1px solid var(--border);
+  border-radius:8px; transition:background .18s ease, padding .18s ease; }
+.ek-fx-row:hover { background:var(--surface2); padding-left:10px; padding-right:10px; }
+.ek-fx-name { flex:1; font-size:13px; color:var(--text); }
+.ek-fx-amt { font-size:13px; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums; }
+.ek-fx-actions { display:flex; gap:4px; opacity:0; transition:opacity .18s ease; }
+.ek-fx-row:hover .ek-fx-actions { opacity:1; }
+.ek-fx-icon { display:grid; place-items:center; width:28px; height:28px; border-radius:8px; cursor:pointer;
+  background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+  transition:transform .14s ease, color .16s ease, border-color .16s ease, background .16s ease; }
+.ek-fx-icon:hover { transform:translateY(-1px); color:var(--text); border-color:var(--accent); }
+.ek-fx-icon.del:hover { color:#ef4444; border-color:#ef4444; }
+.ek-fx-icon.save { color:#10b981; border-color:color-mix(in srgb, #10b981 40%, var(--border)); }
+.ek-fx-icon.save:hover { background:color-mix(in srgb, #10b981 16%, transparent); border-color:#10b981; }
+.ek-fx-icon:disabled { opacity:.5; cursor:not-allowed; }
+.ek-fx-edit { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); }
+.ek-fx-total { display:flex; justify-content:space-between; align-items:baseline; padding-top:12px; }
+.ek-fx-total span:first-child { font-size:13px; font-weight:700; color:var(--text); }
+.ek-fx-total-val { font-size:15px; font-weight:900; color:#fff; font-variant-numeric:tabular-nums; }
+@media (prefers-reduced-motion: reduce){ .ek-fx-add, .ek-fx-icon { transition:none; } }
+
 /* Donut glow halo */
 .ek-donut-wrap { position:relative; }
 .ek-donut-wrap::before { content:''; position:absolute; inset:14%; border-radius:50%; pointer-events:none; z-index:0;

@@ -518,6 +518,8 @@ export default function EkonomiPage() {
   const [csnUsage, setCsnUsage] = useState(0)
   const [csnLimit, setCsnLimit] = useState(114500)
   const [saving, setSaving] = useState(false)
+  const [editingFixed, setEditingFixed] = useState(null) // id being edited, or 'new'
+  const [fixedForm, setFixedForm] = useState({ name: '', amount: '' })
 
   // Compute salary period correctly:
   // The "current" period for a given reference date is:
@@ -643,6 +645,40 @@ export default function EkonomiPage() {
 
   async function deleteEntry(table, id) {
     await supabase.from(table).delete().eq('id', id)
+    await fetchAll()
+  }
+
+  function startAddFixed() {
+    setEditingFixed('new')
+    setFixedForm({ name: '', amount: '' })
+  }
+  function startEditFixed(fc) {
+    setEditingFixed(fc.id)
+    setFixedForm({ name: fc.name, amount: String(fc.amount) })
+  }
+  function cancelFixed() {
+    setEditingFixed(null)
+    setFixedForm({ name: '', amount: '' })
+  }
+  async function saveFixed() {
+    const amount = parseFloat(fixedForm.amount)
+    const name = fixedForm.name.trim()
+    if (!name) { toast({ message: 'Ange ett namn.', type: 'error' }); return }
+    if (!isFinite(amount) || amount <= 0) { toast({ message: 'Ange ett giltigt belopp.', type: 'error' }); return }
+    setSaving(true)
+    let error
+    if (editingFixed === 'new') {
+      ({ error } = await supabase.from('fixed_costs').insert({ user_id: user.id, name, amount, active: true }))
+    } else {
+      ({ error } = await supabase.from('fixed_costs').update({ name, amount }).eq('id', editingFixed))
+    }
+    if (error) { toast({ message: 'Kunde inte spara.', type: 'error' }); setSaving(false); return }
+    await fetchAll()
+    cancelFixed()
+    setSaving(false)
+  }
+  async function deleteFixed(id) {
+    await supabase.from('fixed_costs').delete().eq('id', id)
     await fetchAll()
   }
 
@@ -798,17 +834,52 @@ export default function EkonomiPage() {
 
           {/* Fixed costs */}
           <div className="ek-card" style={{ marginBottom: '16px' }}>
-            <div className="ek-card-cap">Fasta kostnader</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <span className="ek-card-cap" style={{ marginBottom: 0 }}>Fasta kostnader</span>
+              {editingFixed === null && (
+                <button onClick={startAddFixed} className="ek-fx-add">
+                  <Plus size={13} /> Lägg till
+                </button>
+              )}
+            </div>
+            <div>
+              {fixedCosts.length === 0 && editingFixed !== 'new' && (
+                <div style={{ fontSize: '13px', color: 'var(--muted)', padding: '4px 0 10px' }}>Inga fasta kostnader ännu.</div>
+              )}
               {fixedCosts.map(fc => (
-                <div key={fc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: '13px', color: 'var(--text)' }}>{fc.name}</span>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>{fc.amount.toLocaleString('sv-SE')} kr</span>
-                </div>
+                editingFixed === fc.id ? (
+                  <div key={fc.id} className="ek-fx-edit">
+                    <input className="input" placeholder="Namn" value={fixedForm.name}
+                      onChange={e => setFixedForm(f => ({ ...f, name: e.target.value }))} style={{ flex: 1 }} />
+                    <input className="input" type="number" placeholder="kr" value={fixedForm.amount}
+                      onChange={e => setFixedForm(f => ({ ...f, amount: e.target.value }))} style={{ width: '90px' }} />
+                    <button onClick={saveFixed} disabled={saving} className="ek-fx-icon save" title="Spara"><Save size={14} /></button>
+                    <button onClick={cancelFixed} className="ek-fx-icon" title="Avbryt"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <div key={fc.id} className="ek-fx-row">
+                    <span className="ek-fx-name">{fc.name}</span>
+                    <span className="ek-fx-amt">{fc.amount.toLocaleString('sv-SE')} kr</span>
+                    <div className="ek-fx-actions">
+                      <button onClick={() => startEditFixed(fc)} className="ek-fx-icon" title="Redigera"><Edit2 size={13} /></button>
+                      <button onClick={() => deleteFixed(fc.id)} className="ek-fx-icon del" title="Ta bort"><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                )
               ))}
-              <div style={{ paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Totalt</span>
-                <span style={{ fontSize: '15px', fontWeight: 900, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{fixedTotal.toLocaleString('sv-SE')} kr</span>
+              {editingFixed === 'new' && (
+                <div className="ek-fx-edit">
+                  <input className="input" placeholder="Namn (t.ex. Hyra)" value={fixedForm.name} autoFocus
+                    onChange={e => setFixedForm(f => ({ ...f, name: e.target.value }))} style={{ flex: 1 }} />
+                  <input className="input" type="number" placeholder="kr" value={fixedForm.amount}
+                    onChange={e => setFixedForm(f => ({ ...f, amount: e.target.value }))} style={{ width: '90px' }} />
+                  <button onClick={saveFixed} disabled={saving} className="ek-fx-icon save" title="Spara"><Save size={14} /></button>
+                  <button onClick={cancelFixed} className="ek-fx-icon" title="Avbryt"><X size={14} /></button>
+                </div>
+              )}
+              <div className="ek-fx-total">
+                <span>Totalt</span>
+                <span className="ek-fx-total-val">{fixedTotal.toLocaleString('sv-SE')} kr</span>
               </div>
             </div>
           </div>
