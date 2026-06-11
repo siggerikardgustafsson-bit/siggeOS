@@ -4655,6 +4655,20 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .pg-course::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--pg-accent, var(--accent)); opacity:.65; }
 .pg-course:hover { border-color:color-mix(in srgb, var(--pg-accent, var(--accent)) 40%, var(--border)) !important; box-shadow:0 14px 36px -22px color-mix(in srgb, var(--pg-accent, var(--accent)) 80%, transparent); }
 @media (prefers-reduced-motion: reduce){ .pg-course { transition:none; } }
+.pg-avatar { flex-shrink:0; width:46px; height:46px; border-radius:13px; display:flex; align-items:center; justify-content:center;
+  font-size:15px; font-weight:900; letter-spacing:-.02em; color:var(--pg-accent, var(--accent));
+  background:linear-gradient(160deg, color-mix(in srgb, var(--pg-accent) 26%, var(--surface3)), color-mix(in srgb, var(--pg-accent) 8%, var(--surface3)));
+  border:1px solid color-mix(in srgb, var(--pg-accent) 40%, transparent);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 6px 18px -12px color-mix(in srgb, var(--pg-accent) 80%, transparent); }
+.pg-progress { height:6px; border-radius:999px; background:color-mix(in srgb, var(--pg-accent) 12%, var(--surface3)); overflow:hidden; }
+.pg-progress-fill { height:100%; border-radius:999px; background:linear-gradient(90deg, color-mix(in srgb, var(--pg-accent) 70%, transparent), var(--pg-accent));
+  box-shadow:0 0 10px color-mix(in srgb, var(--pg-accent) 60%, transparent); transition:width .5s cubic-bezier(.22,1,.36,1); }
+.pg-days { flex-shrink:0; min-width:58px; text-align:center; padding:7px 10px; border-radius:13px;
+  background:linear-gradient(160deg, color-mix(in srgb, var(--pg-accent) 14%, var(--surface3)), color-mix(in srgb, var(--pg-accent) 4%, var(--surface3)));
+  border:1px solid color-mix(in srgb, var(--pg-accent) 28%, var(--border)); }
+.pg-days-num { font-size:22px; font-weight:900; line-height:1; letter-spacing:-.03em; color:var(--pg-accent); }
+.pg-days-lbl { font-size:9px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin-top:3px; }
+@media (prefers-reduced-motion: reduce){ .pg-progress-fill { transition:none; } }
 
 /* ───────────── EKONOMI — premium log form ───────────── */
 .ek-log { position:relative; overflow:hidden; padding:22px; border-radius:20px;

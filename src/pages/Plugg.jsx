@@ -589,6 +589,9 @@ export default function PluggPage() {
             const daysLeft = course.exam_date ? differenceInDays(parseISO(course.exam_date), new Date()) : null
             const mandatoryForCourse = mandatorySessions[course.id] || []
             const attendedCount = mandatoryForCourse.filter(m => m.attended).length
+            const accentColor = course.term === 'Extrakurrikulär' ? '#a78bfa' : (daysLeft !== null && daysLeft < 14 ? '#ef4444' : daysLeft !== null && daysLeft < 30 ? '#f59e0b' : '#3b82f6')
+            const initials = (course.name || '?').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+            const examPct = courseExams.length > 0 ? Math.round((doneExams / courseExams.length) * 100) : null
 
             return (
               <div key={course.id}>
@@ -601,7 +604,7 @@ export default function PluggPage() {
                     <div style={{ flex: 1, height: '1px', background: 'rgba(139,92,246,0.3)' }} />
                   </div>
                 )}
-              <div className="card pg-course" style={{ marginBottom: '12px', borderColor: course.term === 'Extrakurrikulär' ? 'rgba(139,92,246,0.2)' : 'var(--border)', '--pg-accent': course.term === 'Extrakurrikulär' ? '#a78bfa' : (daysLeft !== null && daysLeft < 14 ? '#ef4444' : daysLeft !== null && daysLeft < 30 ? '#f59e0b' : '#3b82f6') }}>
+              <div className="card pg-course" style={{ marginBottom: '12px', borderColor: course.term === 'Extrakurrikulär' ? 'rgba(139,92,246,0.2)' : 'var(--border)', '--pg-accent': accentColor }}>
                 {isEditing ? (
                   <div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
@@ -618,30 +621,41 @@ export default function PluggPage() {
                   </div>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}
                       onClick={() => setExpandedCourse(isExpanded ? null : course.id)}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                          <div style={{ fontSize: '15px', fontWeight: '600' }}>{course.name}</div>
+                      <div className="pg-avatar" style={{ '--pg-accent': accentColor }}>{initials}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '15px', fontWeight: '700', letterSpacing: '-0.01em' }}>{course.name}</div>
                           {courseExams.length > 0 && (
-                            <div style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '4px',
+                            <div style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '999px',
                               background: doneExams === courseExams.length ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                              color: doneExams === courseExams.length ? '#10b981' : '#f59e0b', fontWeight: '600' }}>
+                              color: doneExams === courseExams.length ? '#10b981' : '#f59e0b', fontWeight: '700' }}>
                               {doneExams}/{courseExams.length} klara
                             </div>
                           )}
                           {mandatoryForCourse.length > 0 && (
-                            <div style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(139,92,246,0.15)', color: '#a78bfa', fontWeight: '600' }}>
+                            <div style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '999px', background: 'rgba(139,92,246,0.15)', color: '#a78bfa', fontWeight: '700' }}>
                                {attendedCount}/{mandatoryForCourse.length}
                             </div>
                           )}
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '10px' }}>
+                        <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: examPct !== null ? '8px' : 0 }}>
                           <span style={{ color: course.term === 'Extrakurrikulär' ? '#a78bfa' : 'inherit' }}>{course.term}</span>
-                          {daysLeft !== null && <span style={{ color: daysLeft < 14 ? '#ef4444' : daysLeft < 30 ? '#f59e0b' : 'var(--muted)' }}>{daysLeft < 0 ? 'Avslutad' : `${daysLeft}d kvar`}</span>}
                         </div>
+                        {examPct !== null && (
+                          <div className="pg-progress" style={{ '--pg-accent': accentColor }}>
+                            <div className="pg-progress-fill" style={{ width: examPct + '%' }} />
+                          </div>
+                        )}
                       </div>
-                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      {daysLeft !== null && (
+                        <div className="pg-days" style={{ '--pg-accent': accentColor }}>
+                          <div className="pg-days-num">{daysLeft < 0 ? '✓' : daysLeft}</div>
+                          <div className="pg-days-lbl">{daysLeft < 0 ? 'Avslutad' : daysLeft === 1 ? 'dag kvar' : 'dagar kvar'}</div>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
                         <button onClick={e => { e.stopPropagation(); setEditingCourse(course.id); setEditForm({ name: course.name, term: course.term, exam_date: course.exam_date || '' }) }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '4px', opacity: 0.6 }}><Edit2 size={14} /></button>
                         {isExpanded ? <ChevronUp size={16} color="var(--muted)" /> : <ChevronDown size={16} color="var(--muted)" />}
