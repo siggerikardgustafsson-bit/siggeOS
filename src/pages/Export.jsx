@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, subMonths } from 'date-fns'
 import { sv } from 'date-fns/locale'
@@ -98,6 +99,7 @@ const PERIODS = [
 
 export default function ExportPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [period, setPeriod] = useState(365)
   const [loading, setLoading] = useState({})
   const [done, setDone] = useState({})
@@ -144,7 +146,7 @@ export default function ExportPage() {
       XLSX.writeFile(wb, filename)
       setDone(prev => ({ ...prev, [exp.id]: true }))
       setTimeout(() => setDone(prev => ({ ...prev, [exp.id]: false })), 3000)
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); toast({ message: `Kunde inte exportera ${exp.label}`, type: 'error' }) }
     setLoading(prev => ({ ...prev, [exp.id]: false }))
   }
 
@@ -176,7 +178,7 @@ export default function ExportPage() {
       XLSX.writeFile(wb, filename)
       setDone(prev => ({ ...prev, all: true }))
       setTimeout(() => setDone(prev => ({ ...prev, all: false })), 3000)
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); toast({ message: 'Kunde inte skapa den kompletta exporten', type: 'error' }) }
     setLoading(prev => ({ ...prev, all: false }))
   }
 

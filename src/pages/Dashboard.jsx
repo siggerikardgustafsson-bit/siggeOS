@@ -9,6 +9,7 @@ import TodayWidget from '../components/dashboard/TodayWidget'
 import CountUp from '../components/CountUp'
 import DashboardConstellation from '../components/dashboard/DashboardConstellation'
 import { CalendarDays, BarChart2 } from 'lucide-react'
+import { useToast } from '../context/ToastContext'
 import {
   getTier, getStudyTier, getSkillTier, getDecayedValue, calcOverallTier,
   estimateVO2max, formatRunTime,
@@ -188,6 +189,7 @@ function EvidenceModal({ evidence, onClose }) {
 export default function Dashboard() {
 
   const heroTilt = useTilt({ max: 5 })
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [selectedEvidence, setSelectedEvidence] = useState(null)
@@ -845,9 +847,9 @@ export default function Dashboard() {
       const maxx = buildMaxxProfile(cats)
       setMaxxProfile(maxx)
       setOverallTier(maxx?.tier?.tier || calcOverallTier(cats.filter(c=>c.tier&&c.hasData).map(c=>({tier:c.tier.tier}))))
-    } catch(e){ console.error('Dashboard error:',e) }
+    } catch(e){ console.error('Dashboard error:',e); toast({ message: 'Kunde inte ladda all dashboarddata', type: 'error' }) }
     finally { setLoading(false) }
-  }, [userId, refreshKey])
+  }, [userId, refreshKey, toast])
 
   useEffect(() => { fetchAllData() }, [fetchAllData])
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, subMonths, startOfWeek, parseISO, differenceInDays, eachWeekOfInterval, startOfMonth, endOfMonth, getDay } from 'date-fns'
 import { sv } from 'date-fns/locale'
@@ -89,6 +90,7 @@ const CustomTooltip = ({ active, payload, label, unit = '' }) => {
 
 export default function InsightsPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [generatingReport, setGeneratingReport] = useState(false)
   const [weeklyReport, setWeeklyReport] = useState('')
@@ -399,7 +401,7 @@ export default function InsightsPage() {
         },
       })
       setWeeklyReport(rd?.content || '')
-    } catch (err) { console.error(err) }
+    } catch (err) { console.error(err); toast({ message: 'Kunde inte generera veckorapporten', type: 'error' }) }
     setGeneratingReport(false)
   }
 

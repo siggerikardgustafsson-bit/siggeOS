@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import {
   Sun, Moon, Palette, Image, Layout, Bell, Shield,
@@ -143,6 +144,7 @@ function ContextFileUpload({ field, files = [], onUpload, onRemove }) {
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth()
+  const { toast } = useToast()
   const { theme, setTheme, accent, setAccent, bgImage, setBgImage, blurId, setBlurId, dimId, setDimId, compact, setCompact, BACKGROUNDS, BLUR_LEVELS, DIM_LEVELS } = useTheme()
   const [activeSection, setActiveSection] = useState('utseende')
   const [saving, setSaving] = useState(false)
@@ -181,7 +183,7 @@ export default function SettingsPage() {
 
   async function saveProfile() {
     setSaving(true)
-    await supabase.from('user_settings').upsert({
+    const { error } = await supabase.from('user_settings').upsert({
       user_id: user.id,
       display_name: displayName,
       about_me: aboutMe,
@@ -193,6 +195,11 @@ export default function SettingsPage() {
       notif_training: notifTraining,
     }, { onConflict: 'user_id' })
     setSaving(false)
+    if (error) {
+      console.error(error)
+      toast({ message: 'Kunde inte spara inställningarna', type: 'error' })
+      return
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -253,17 +260,22 @@ export default function SettingsPage() {
   }
 
   async function exportData() {
-    const tables = ['health_logs', 'journal_entries', 'training_sessions', 'income_logs', 'expense_logs', 'pa_shifts', 'trips', 'adventures', 'side_quests']
-    const result = {}
-    for (const t of tables) {
-      const { data } = await supabase.from(t).select('*').eq('user_id', user.id)
-      result[t] = data || []
+    try {
+      const tables = ['health_logs', 'journal_entries', 'training_sessions', 'income_logs', 'expense_logs', 'pa_shifts', 'trips', 'adventures', 'side_quests']
+      const result = {}
+      for (const t of tables) {
+        const { data } = await supabase.from(t).select('*').eq('user_id', user.id)
+        result[t] = data || []
+      }
+      const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `sigge-os-export-${new Date().toISOString().slice(0,10)}.json`
+      a.click()
+    } catch (e) {
+      console.error(e)
+      toast({ message: 'Kunde inte exportera data', type: 'error' })
     }
-    const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `sigge-os-export-${new Date().toISOString().slice(0,10)}.json`
-    a.click()
   }
 
   const sections = [
