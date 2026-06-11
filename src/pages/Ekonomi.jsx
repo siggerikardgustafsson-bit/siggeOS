@@ -721,100 +721,113 @@ export default function EkonomiPage() {
           })()}
 
           {/* CSN */}
-          <div className={`card ${csnWarn ? '' : ''}`} style={{ marginBottom: '16px', borderColor: csnWarn ? 'rgba(245,158,11,0.4)' : 'var(--border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500' }}>CSN FRIBELOPP</span>
-              {csnWarn && <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f59e0b', fontSize: '12px' }}><AlertTriangle size={12} /> Varning</div>}
+          <div className="ek-card" style={{ marginBottom: '16px', borderColor: csnWarn ? 'rgba(245,158,11,0.4)' : 'var(--glass-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <span className="ek-card-cap" style={{ marginBottom: 0 }}>CSN Fribelopp</span>
+              {csnWarn && <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f59e0b', fontSize: '12px', fontWeight: 700 }}><AlertTriangle size={12} /> Varning</div>}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span className="mono" style={{ fontSize: '15px', fontWeight: '600' }}>{Math.round(csnUsage).toLocaleString('sv-SE')} kr</span>
-              <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{Math.round(csnLimit - csnUsage).toLocaleString('sv-SE')} kr kvar</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '10px' }}>
+              <span style={{ fontSize: '20px', fontWeight: 900, color: '#fff', letterSpacing: '-.02em' }}>{Math.round(csnUsage).toLocaleString('sv-SE')} <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--muted2)' }}>kr</span></span>
+              <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600 }}>{Math.round(csnLimit - csnUsage).toLocaleString('sv-SE')} kr kvar</span>
             </div>
-            <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${Math.min(csnPct, 100)}%`, background: csnWarn ? '#f59e0b' : '#10b981', borderRadius: '3px', transition: 'width 0.6s' }} />
+            <div className="ek-csn-track" style={{ '--ek-csn': csnWarn ? '#f59e0b' : '#10b981' }}>
+              <div className="ek-csn-fill" style={{ width: `${Math.min(csnPct, 100)}%` }} />
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '5px' }}>{csnPct.toFixed(1)}% av 114 500 kr förbrukat detta halvår</div>
+            <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '7px' }}>{csnPct.toFixed(1)}% av 114 500 kr förbrukat detta halvår</div>
           </div>
 
           {/* Donut + categories */}
-          <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '16px', marginBottom: '16px' }}>
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              <DonutChart data={expensesByCategory} />
-              <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Utgifter</div>
-            </div>
-            <div className="card">
-              <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '10px' }}>KATEGORIER</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {expensesByCategory.length === 0 ? (
-                  <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Inga utgifter loggade</div>
-                ) : expensesByCategory.sort((a, b) => b.value - a.value).map(cat => (
-                  <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
-                    <div style={{ flex: 1, fontSize: '13px' }}>{cat.label}</div>
-                    <div className="mono" style={{ fontSize: '13px', fontWeight: '500' }}>{cat.value.toLocaleString('sv-SE')} kr</div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)', width: '35px', textAlign: 'right' }}>
-                      {((cat.value / (totalExpenses || 1)) * 100).toFixed(0)}%
-                    </div>
-                  </div>
-                ))}
+          <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', marginBottom: '16px' }}>
+            <div className="ek-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+              <div className="ek-donut-wrap">
+                <DonutChart data={expensesByCategory} size={150} />
+                <div className="ek-donut-center">
+                  <div className="ek-donut-total">{Math.round(totalExpenses / 1000)}k</div>
+                  <div className="ek-donut-lab">Utgifter</div>
+                </div>
               </div>
+            </div>
+            <div className="ek-card">
+              <div className="ek-card-cap">Kategorier</div>
+              {expensesByCategory.length === 0 ? (
+                <div style={{ color: 'var(--muted)', fontSize: '13px' }}>Inga utgifter loggade</div>
+              ) : (
+                <div className="ek-cat">
+                  {expensesByCategory.slice().sort((a, b) => b.value - a.value).map(cat => {
+                    const pct = (cat.value / (totalExpenses || 1)) * 100
+                    return (
+                      <div key={cat.id} className="ek-cat-row" style={{ '--ek-c': cat.color }}>
+                        <div className="ek-cat-dot" />
+                        <div className="ek-cat-mid">
+                          <div className="ek-cat-top">
+                            <span className="ek-cat-name">{cat.label}</span>
+                            <span className="ek-cat-val">{cat.value.toLocaleString('sv-SE')} kr</span>
+                          </div>
+                          <div className="ek-cat-track">
+                            <div className="ek-cat-fill" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                        <div className="ek-cat-pct">{pct.toFixed(0)}%</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Fixed costs */}
-          <div className="card" style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '10px' }}>FASTA KOSTNADER</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div className="ek-card" style={{ marginBottom: '16px' }}>
+            <div className="ek-card-cap">Fasta kostnader</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               {fixedCosts.map(fc => (
-                <div key={fc.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{fc.name}</span>
-                  <span className="mono" style={{ fontSize: '13px', color: 'var(--muted)' }}>{fc.amount.toLocaleString('sv-SE')} kr</span>
+                <div key={fc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text)' }}>{fc.name}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>{fc.amount.toLocaleString('sv-SE')} kr</span>
                 </div>
               ))}
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '13px', fontWeight: '500' }}>Totalt</span>
-                <span className="mono" style={{ fontSize: '13px', fontWeight: '600' }}>{fixedTotal.toLocaleString('sv-SE')} kr</span>
+              <div style={{ paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Totalt</span>
+                <span style={{ fontSize: '15px', fontWeight: 900, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{fixedTotal.toLocaleString('sv-SE')} kr</span>
               </div>
             </div>
           </div>
 
           {/* Recent transactions */}
-          <div className="card">
-            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '10px' }}>SENASTE TRANSAKTIONER</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div className="ek-card">
+            <div className="ek-card-cap">Senaste transaktioner</div>
+            <div>
               {[...incomes.map(i => ({ ...i, type: 'income' })), ...expenses.map(e => ({ ...e, type: 'expense' }))]
                 .sort((a, b) => new Date(b.date) - new Date(a.date))
                 .slice(0, 15)
                 .map(tx => {
                   const cat = EXPENSE_CATEGORIES.find(c => c.id === tx.category)
+                  const isInc = tx.type === 'income'
+                  const ekc = isInc ? '#10b981' : (cat?.color || '#ef4444')
                   return (
-                    <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '16px' }}>{tx.type === 'income' ? '' : cat?.emoji || ''}</span>
-                        <div>
-                          <div>{tx.description || tx.source || cat?.label || 'Utgift'}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{format(new Date(tx.date), 'd MMM', { locale: sv })}</div>
-                        </div>
+                    <div key={tx.id} className="ek-tx" style={{ '--ek-c': ekc }}>
+                      <div className="ek-tx-ico" style={{ fontSize: '15px' }}>{isInc ? '＋' : (cat?.emoji || '−')}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="ek-tx-name">{tx.description || tx.source || cat?.label || 'Utgift'}</div>
+                        <div className="ek-tx-date">{format(new Date(tx.date), 'd MMM', { locale: sv })}</div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <div className="mono" style={{ fontSize: '13px', fontWeight: '500', color: tx.type === 'income' ? '#10b981' : '#ef4444' }}>
-                            {tx.type === 'income' ? '+' : '-'}
-                            {tx.type === 'income' && TAXED_SOURCES.includes(tx.source)
-                              ? Math.round(tx.amount * (1 - TAX_RATE)).toLocaleString('sv-SE')
-                              : tx.amount.toLocaleString('sv-SE')} kr
+                      <div style={{ textAlign: 'right' }}>
+                        <div className="ek-tx-amt" style={{ color: isInc ? '#10b981' : '#ef4444' }}>
+                          {isInc ? '+' : '-'}
+                          {isInc && TAXED_SOURCES.includes(tx.source)
+                            ? Math.round(tx.amount * (1 - TAX_RATE)).toLocaleString('sv-SE')
+                            : tx.amount.toLocaleString('sv-SE')} kr
+                        </div>
+                        {isInc && TAXED_SOURCES.includes(tx.source) && (
+                          <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
+                            brutto {tx.amount.toLocaleString('sv-SE')} kr
                           </div>
-                          {tx.type === 'income' && TAXED_SOURCES.includes(tx.source) && (
-                            <div style={{ fontSize: '10px', color: 'var(--muted)' }}>
-                              brutto {tx.amount.toLocaleString('sv-SE')} kr
-                            </div>
-                          )}
-                        </div>
-                        <button onClick={() => deleteEntry(tx.type === 'income' ? 'income_logs' : 'expense_logs', tx.id)}
-                          style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: '2px' }}>
-                          <X size={12} />
-                        </button>
+                        )}
                       </div>
+                      <button onClick={() => deleteEntry(isInc ? 'income_logs' : 'expense_logs', tx.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: '2px' }}>
+                        <X size={12} />
+                      </button>
                     </div>
                   )
                 })}

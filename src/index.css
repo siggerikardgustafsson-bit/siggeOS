@@ -4365,3 +4365,48 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   border-color:color-mix(in srgb, var(--mx-card-color, var(--accent)) 55%, var(--border));
   box-shadow:0 0 0 3px color-mix(in srgb, var(--mx-card-color, var(--accent)) 16%, transparent); }
 .mx-card-sub { font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:7px; }
+
+/* ───────────── EKONOMI — premium overview ───────────── */
+.ek-card { position:relative; overflow:hidden; padding:18px; border-radius:18px;
+  background:var(--surface); border:1px solid var(--glass-border); box-shadow:var(--glass-shadow);
+  backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+  animation:mxStatRise .5s cubic-bezier(.22,1,.36,1) both; }
+.ek-card-cap { font-size:10.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
+
+/* Donut center */
+.ek-donut-wrap { position:relative; display:flex; align-items:center; justify-content:center; }
+.ek-donut-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
+.ek-donut-total { font-size:18px; font-weight:900; color:#fff; letter-spacing:-.02em; line-height:1; }
+.ek-donut-lab { font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-top:4px; }
+
+/* Category rows with bars */
+.ek-cat { display:flex; flex-direction:column; gap:11px; }
+.ek-cat-row { display:grid; grid-template-columns:11px 1fr auto; align-items:center; gap:10px; }
+.ek-cat-dot { width:9px; height:9px; border-radius:3px; background:var(--ek-c); box-shadow:0 0 8px var(--ek-c); }
+.ek-cat-mid { min-width:0; }
+.ek-cat-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:5px; }
+.ek-cat-name { font-size:13px; font-weight:600; color:var(--text); }
+.ek-cat-val { font-size:12.5px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
+.ek-cat-track { height:6px; border-radius:99px; background:var(--surface3, rgba(255,255,255,.06)); overflow:hidden; }
+.ek-cat-fill { height:100%; border-radius:99px; background:linear-gradient(90deg, color-mix(in srgb, var(--ek-c) 70%, transparent), var(--ek-c));
+  box-shadow:0 0 10px -2px var(--ek-c); transform-origin:left; animation:ekBar .8s cubic-bezier(.22,1,.36,1) both; }
+.ek-cat-pct { font-size:11px; font-weight:700; color:var(--muted); width:34px; text-align:right; font-variant-numeric:tabular-nums; }
+@keyframes ekBar { from { transform:scaleX(0); } }
+
+/* CSN meter */
+.ek-csn-track { position:relative; height:9px; border-radius:99px; background:var(--surface3, rgba(255,255,255,.07));
+  overflow:hidden; box-shadow:inset 0 1px 2px rgba(0,0,0,.3); }
+.ek-csn-fill { height:100%; border-radius:99px; transform-origin:left; animation:ekBar .9s cubic-bezier(.22,1,.36,1) both;
+  background:linear-gradient(90deg, color-mix(in srgb, var(--ek-csn, #10b981) 60%, transparent), var(--ek-csn, #10b981)); }
+.ek-csn-fill::after { content:''; position:absolute; inset:0; border-radius:99px; pointer-events:none;
+  background:linear-gradient(180deg, rgba(255,255,255,.28), transparent 60%); }
+
+/* Transaction rows */
+.ek-tx { display:flex; align-items:center; gap:12px; padding:10px 4px; border-bottom:1px solid var(--border); transition:background .18s ease, padding .18s ease; border-radius:8px; }
+.ek-tx:last-child { border-bottom:none; }
+.ek-tx:hover { background:var(--surface2); padding-left:10px; padding-right:10px; }
+.ek-tx-ico { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; flex-shrink:0;
+  background:color-mix(in srgb, var(--ek-c) 16%, transparent); border:1px solid color-mix(in srgb, var(--ek-c) 32%, transparent); }
+.ek-tx-name { font-size:13px; font-weight:600; color:var(--text); }
+.ek-tx-date { font-size:11px; color:var(--muted); margin-top:1px; }
+.ek-tx-amt { font-size:13.5px; font-weight:800; font-variant-numeric:tabular-nums; }
