@@ -4868,6 +4868,30 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .settings-nav-btn:not(.is-active):hover { background:color-mix(in srgb, var(--accent) 7%, transparent) !important;
   color:var(--text) !important; }
 
+/* EXPORT — premium */
+.exp-card { position:relative; overflow:hidden;
+  display:flex; justify-content:space-between; align-items:center;
+  border:1px solid color-mix(in srgb, var(--exp-c, var(--accent)) 22%, var(--border)) !important;
+  background:linear-gradient(150deg, color-mix(in srgb, var(--exp-c, var(--accent)) 8%, var(--surface)), var(--surface)) !important;
+  transition:transform .18s cubic-bezier(.22,1,.36,1), box-shadow .18s, border-color .18s; }
+.exp-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:linear-gradient(180deg, var(--exp-c, var(--accent)), color-mix(in srgb, var(--exp-c, var(--accent)) 25%, transparent)); }
+.exp-card:hover { transform:translateY(-2px);
+  border-color:color-mix(in srgb, var(--exp-c, var(--accent)) 45%, transparent) !important;
+  box-shadow:0 10px 30px -16px color-mix(in srgb, var(--exp-c, var(--accent)) 90%, transparent); }
+.exp-badge { width:38px; height:38px; border-radius:11px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--exp-c, var(--accent)) 32%, var(--surface)), color-mix(in srgb, var(--exp-c, var(--accent)) 10%, var(--surface)));
+  border:1px solid color-mix(in srgb, var(--exp-c, var(--accent)) 42%, transparent);
+  box-shadow:0 0 14px -3px color-mix(in srgb, var(--exp-c, var(--accent)) 60%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent); }
+.exp-period { padding:7px 14px; border-radius:9px; border:1px solid var(--border); cursor:pointer;
+  background:var(--surface2); color:var(--muted2); font-size:13px; font-weight:500;
+  font-family:Inter, sans-serif; transition:all .15s; }
+.exp-period:hover { border-color:var(--accent-border); color:var(--text); }
+.exp-period.is-active { border:1px solid transparent; color:#fff;
+  background:linear-gradient(150deg, color-mix(in srgb, var(--accent) 92%, #fff) 0%, var(--accent) 60%, color-mix(in srgb, var(--accent) 75%, #000) 100%);
+  box-shadow:0 5px 16px -8px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.25); }
+
 /* Reslistan scrollar internt — resten av sidan hålls statisk */
 .upp-trips-scroll { max-height:calc(100vh - 250px); overflow-y:auto; padding-right:6px;
   scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--accent) 45%, transparent) transparent; }

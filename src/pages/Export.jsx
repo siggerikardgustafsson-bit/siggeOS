@@ -197,14 +197,7 @@ export default function ExportPage() {
         <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px', letterSpacing: '0.05em' }}>TIDSPERIOD</div>
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {PERIODS.map(({ label, days }) => (
-            <button key={days} onClick={() => setPeriod(days)} style={{
-              padding: '7px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-              background: period === days ? 'var(--accent)' : 'var(--surface2)',
-              color: period === days ? 'white' : 'var(--muted2)',
-              fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif',
-              transition: 'all 0.15s',
-              boxShadow: period === days ? '0 2px 10px var(--accent-glow)' : 'none',
-            }}>{label}</button>
+            <button key={days} onClick={() => setPeriod(days)} className={`exp-period${period === days ? ' is-active' : ''}`}>{label}</button>
           ))}
         </div>
       </div>
@@ -215,13 +208,9 @@ export default function ExportPage() {
           const isLoading = loading[exp.id]
           const isDone = done[exp.id]
           return (
-            <div key={exp.id} className="card" style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              borderColor: exp.isAll ? 'rgba(52,211,153,0.2)' : 'var(--border)',
-              background: exp.isAll ? 'rgba(52,211,153,0.04)' : 'var(--surface)',
-            }}>
-              <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                <div style={{ width: 36, height: 36, borderRadius: '10px', background: exp.color + '15', border: '1px solid ' + exp.color + '30', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div key={exp.id} className="card exp-card" style={{ '--exp-c': exp.color || 'var(--accent)' }}>
+              <div style={{ display: 'flex', gap: '14px', alignItems: 'center', position: 'relative', paddingLeft: '4px' }}>
+                <div className="exp-badge" style={{ '--exp-c': exp.color || 'var(--accent)' }}>
                   {exp.Icon && <exp.Icon size={18} color={exp.color} />}
                 </div>
                 <div>
