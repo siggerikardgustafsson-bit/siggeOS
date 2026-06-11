@@ -43,6 +43,15 @@ const FLAGS = {
   'Sydafrika':'🇿🇦','Kenya':'🇰🇪','Etiopien':'🇪🇹','Tanzania':'🇹🇿',
 }
 
+// Samma logik som Plugg: kapa bort "KOD. Kursnamn" och lärar-info
+function parseMandTitle(title) {
+  if (!title) return ''
+  const parts = title.split(',').map(s => s.trim()).filter(Boolean)
+  const rest = parts.slice(1) // släng "KOD. Kursnamn"
+  const labelParts = rest.filter(p => !/^l[äa]rare:/i.test(p) && p.toLowerCase() !== 'obligatorisk')
+  return labelParts.join(' · ') || parts[0] || title
+}
+
 function EventDot({ type }) {
   const t = EVENT_TYPES[type] || EVENT_TYPES.training
   const IconComp = t.Icon
@@ -79,7 +88,7 @@ export default function KalenderPage() {
       supabase.from('training_sessions').select('date, session_type, distance_km, duration_minutes, notes').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase.from('pa_shifts').select('date, hours_worked, shift_type, start_time, end_time').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase.from('course_exams').select('exam_date, name, courses(name)').eq('user_id', user.id).not('exam_date', 'is', null).gte('exam_date', start).lte('exam_date', end),
-      supabase.from('mandatory_sessions').select('date, title, start_time, end_time, attended').eq('user_id', user.id).gte('date', start).lte('date', end),
+      supabase.from('mandatory_sessions').select('date, title, custom_title, start_time, end_time, attended').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase
         .from('study_task_deadlines')
         .select('id, task_id, name, due_date, completed, sort_order, study_tasks(title, task_type, status, priority, courses(name))')
@@ -113,7 +122,7 @@ export default function KalenderPage() {
     }
     for (const m of mandRes.data || []) {
       const timeStr = m.start_time ? format(parseISO(m.start_time), 'HH:mm') + (m.end_time ? '–' + format(parseISO(m.end_time), 'HH:mm') : '') : null
-      add(m.date, 'mandatory', { label: m.title, attended: m.attended, id: m.id, time: timeStr })
+      add(m.date, 'mandatory', { label: m.custom_title?.trim() || parseMandTitle(m.title), attended: m.attended, id: m.id, time: timeStr })
     }
     for (const d of taskDeadlineRes.data || []) {
       const task = d.study_tasks
