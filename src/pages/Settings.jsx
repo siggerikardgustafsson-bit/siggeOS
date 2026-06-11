@@ -66,7 +66,7 @@ function formatFileSize(bytes = 0) {
 function SectionHeader({ icon: Icon, title, subtitle }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
-      <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="set-badge">
         <Icon size={15} color="var(--accent)" />
       </div>
       <div>
@@ -289,7 +289,7 @@ export default function SettingsPage() {
         <div className="settings-nav-wrap">
           <div className="card settings-nav" style={{ padding: '8px' }}>
           {sections.map(s => (
-            <button key={s.id} onClick={() => setActiveSection(s.id)} className="settings-nav-btn" style={{
+            <button key={s.id} onClick={() => setActiveSection(s.id)} className={`settings-nav-btn${activeSection === s.id ? ' is-active' : ''}`} style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: '9px',
               padding: '9px 10px', borderRadius: '9px', border: 'none', cursor: 'pointer',
               background: activeSection === s.id ? 'var(--accent-soft)' : 'transparent',
