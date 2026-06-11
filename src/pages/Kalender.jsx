@@ -244,6 +244,22 @@ export default function KalenderPage() {
         {format(month, 'MMMM yyyy', { locale: sv })}
       </div>
 
+      {/* Month stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
+        {[
+          { label: 'Träningspass', value: trainCount, color: '#3b82f6' },
+          { label: 'PA-pass', value: paCount, color: '#f97316' },
+          { label: 'Obligatoriska', value: mandCount, color: '#8b5cf6' },
+          { label: 'Tentor', value: examCount, color: '#ef4444' },
+          { label: 'Deadlines', value: studyDeadlineCount, color: '#a78bfa' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="pg-stat" style={{ '--pg-c': color }}>
+            <div className="pg-stat-cap">{label}</div>
+            <div className="pg-stat-num mono">{value}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Filter chips */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
         {Object.entries(EVENT_TYPES).map(([key, { label, color, Icon: IconComp }]) => {
@@ -268,7 +284,7 @@ export default function KalenderPage() {
       <div style={{ display: 'grid', gridTemplateColumns: selectedDay ? '1fr 300px' : '1fr', gap: '16px', alignItems: 'start' }}>
 
         {/* Calendar grid */}
-        <div className="card" style={{ padding: '16px' }}>
+        <div className="card kal-cal-card" style={{ padding: '16px' }}>
           {/* Day headers */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' }}>
             {dayHeaders.map(d => (
@@ -293,7 +309,9 @@ export default function KalenderPage() {
               const hasTrip = tripEvents.length > 0
 
               return (
-                <div key={dateStr} onClick={() => setSelectedDay(isSelected ? null : dateStr)} style={{
+                <div key={dateStr} onClick={() => setSelectedDay(isSelected ? null : dateStr)}
+                  className={`kal-cell${today ? ' kal-cell-today' : ''}${isSelected ? ' kal-cell-selected' : ''}`}
+                  style={{
                   minHeight: '68px', padding: '4px', borderRadius: '6px', cursor: 'pointer',
                   background: isSelected ? 'var(--accent-soft)' : today ? 'rgba(79,142,247,0.06)' : hasExam ? 'rgba(239,68,68,0.04)' : hasPA ? 'rgba(249,115,22,0.04)' : hasTrip ? 'rgba(232,121,249,0.06)' : hasStudyDeadline ? 'rgba(167,139,250,0.06)' : isWeekend ? 'rgba(255,255,255,0.01)' : 'transparent',
                   border: `1px solid ${isSelected ? 'var(--accent-border)' : today ? 'var(--accent-border)' : hasTrip ? 'rgba(232,121,249,0.25)' : hasStudyDeadline ? 'rgba(167,139,250,0.25)' : dayEvents.length > 0 ? 'var(--border)' : 'transparent'}`,

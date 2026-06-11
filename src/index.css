@@ -4707,6 +4707,18 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .upp-map-leg-planned { background:transparent; border:2px solid var(--leg-c); box-shadow:0 0 8px var(--leg-c); }
 .upp-map-leg-idea { background:transparent; border:2px solid var(--leg-c); box-shadow:0 0 8px var(--leg-c); }
 
+/* ───────────── KALENDER — premium ───────────── */
+.kal-cal-card { position:relative; overflow:hidden;
+  background:radial-gradient(130% 100% at 50% 0%, color-mix(in srgb, var(--accent) 5%, var(--surface)), var(--surface)); }
+.kal-cal-card::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; pointer-events:none;
+  background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent), transparent); opacity:.6; }
+.kal-cell { position:relative; transition:transform .12s cubic-bezier(.22,1,.36,1), box-shadow .12s, background .12s; }
+.kal-cell:hover { transform:translateY(-1px); box-shadow:0 6px 16px -10px rgba(0,0,0,.7), inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
+.kal-cell-today { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 14px -6px var(--accent); }
+.kal-cell-today::after { content:''; position:absolute; top:5px; right:5px; width:5px; height:5px; border-radius:50%;
+  background:var(--accent); box-shadow:0 0 6px var(--accent); }
+.kal-cell-selected { box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent), 0 8px 22px -12px var(--accent); }
+
 /* Reslistan scrollar internt — resten av sidan hålls statisk */
 .upp-trips-scroll { max-height:calc(100vh - 250px); overflow-y:auto; padding-right:6px;
   scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--accent) 45%, transparent) transparent; }
