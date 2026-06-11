@@ -697,9 +697,9 @@ Returnera ENBART JSON utan backticks:
   const filteredTrips = tripFilter === 'all' ? trips : trips.filter(t => t.status === tripFilter)
 
   const tabs = [
-    { id: 'resor', label: 'Resor' },
-    { id: 'aventyr', label: 'Äventyr' },
-    { id: 'quests', label: 'Side Quests' },
+    { id: 'resor', label: 'Resor', icon: Compass },
+    { id: 'aventyr', label: 'Äventyr', icon: Flame },
+    { id: 'quests', label: 'Side Quests', icon: SkipForward },
   ]
 
   return (
@@ -721,20 +721,34 @@ Returnera ENBART JSON utan backticks:
       <div className="page-content-scroll">
         <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
 
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-            flex: 1, padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer',
-            background: activeTab === tab.id ? 'var(--surface3)' : 'transparent',
-            color: activeTab === tab.id ? 'var(--text)' : 'var(--muted)',
-            fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif', transition: 'all 0.15s',
-          }}>{tab.label}</button>
-        ))}
+      <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px' }}>
+        {tabs.map(tab => {
+          const TabIcon = tab.icon
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`mx-segment-btn ${activeTab === tab.id ? 'active' : ''}`} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>
+              <TabIcon size={15} className="mx-seg-ico" /> {tab.label}
+            </button>
+          )
+        })}
       </div>
 
       {/* ===== RESOR ===== */}
       {activeTab === 'resor' && (
         <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
+            {[
+              { label: 'Genomförda', value: completedTrips.length, color: '#10b981' },
+              { label: 'Länder', value: allCountries.length, color: '#3b82f6' },
+              { label: 'Planerade', value: trips.filter(t => t.status === 'planned').length, color: '#8b5cf6' },
+              { label: 'Dagar reste', value: completedTrips.reduce((sum, t) => sum + (t.start_date && t.end_date ? differenceInDays(parseISO(t.end_date), parseISO(t.start_date)) + 1 : 0), 0), color: '#f59e0b' },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="pg-stat" style={{ '--pg-c': color }}>
+                <div className="pg-stat-cap">{label}</div>
+                <div className="pg-stat-num mono">{value}</div>
+              </div>
+            ))}
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ display: 'flex', gap: '6px' }}>
               {[{ id: 'all', label: 'Alla' }, ...TRIP_STATUSES].map(({ id, label }) => (
