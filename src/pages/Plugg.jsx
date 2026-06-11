@@ -532,15 +532,15 @@ export default function PluggPage() {
       <div className="page-content-scroll">
         <div style={{ padding: "16px 16px 0", maxWidth: "1000px", margin: "0 auto" }}>
 
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
-        {[{ id: 'aktiva', label: 'Aktiva kurser' }, { id: 'arkiv', label: 'Arkiv' }, { id: 'session', label: 'Studielogg' }].map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-            flex: 1, padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer',
-            background: activeTab === tab.id ? 'var(--surface3)' : 'transparent',
-            color: activeTab === tab.id ? 'var(--text)' : 'var(--muted)',
-            fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif',
-          }}>{tab.label}</button>
-        ))}
+      <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px' }}>
+        {[{ id: 'aktiva', label: 'Aktiva kurser', icon: GraduationCap }, { id: 'arkiv', label: 'Arkiv', icon: Archive }, { id: 'session', label: 'Studielogg', icon: BookOpen }].map(tab => {
+          const TabIcon = tab.icon
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`mx-segment-btn ${activeTab === tab.id ? 'active' : ''}`} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>
+              <TabIcon size={15} className="mx-seg-ico" /> {tab.label}
+            </button>
+          )
+        })}
       </div>
 
       {/* ===== AKTIVA KURSER ===== */}
@@ -601,7 +601,7 @@ export default function PluggPage() {
                     <div style={{ flex: 1, height: '1px', background: 'rgba(139,92,246,0.3)' }} />
                   </div>
                 )}
-              <div className="card" style={{ marginBottom: '12px', borderColor: course.term === 'Extrakurrikulär' ? 'rgba(139,92,246,0.2)' : 'var(--border)' }}>
+              <div className="card pg-course" style={{ marginBottom: '12px', borderColor: course.term === 'Extrakurrikulär' ? 'rgba(139,92,246,0.2)' : 'var(--border)', '--pg-accent': course.term === 'Extrakurrikulär' ? '#a78bfa' : (daysLeft !== null && daysLeft < 14 ? '#ef4444' : daysLeft !== null && daysLeft < 30 ? '#f59e0b' : '#3b82f6') }}>
                 {isEditing ? (
                   <div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
@@ -1154,7 +1154,7 @@ export default function PluggPage() {
             const courseExams = exams[course.id] || []
             const doneExams = courseExams.filter(e => e.grade === 'G').length
             return (
-              <div key={course.id} className="card" style={{ marginBottom: '10px', borderColor: course.grade === 'G' ? 'rgba(16,185,129,0.2)' : 'var(--border)' }}>
+              <div key={course.id} className="card pg-course" style={{ marginBottom: '10px', borderColor: course.grade === 'G' ? 'rgba(16,185,129,0.2)' : 'var(--border)', '--pg-accent': course.grade === 'G' ? '#10b981' : course.grade === 'IG' ? '#ef4444' : '#6b7280' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
                   onClick={() => setExpandedCourse(isExpanded ? null : `archive-${course.id}`)}>
                   <div>
@@ -1240,9 +1240,9 @@ export default function PluggPage() {
               { label: 'Totalt loggat', value: `${totalStudyHours.toFixed(1)}h`, color: '#3b82f6' },
               { label: 'Sessioner', value: studySessions.length, color: '#10b981' },
             ].map(({ label, value, color }) => (
-              <div key={label} className="card">
-                <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
-                <div className="mono" style={{ fontSize: '22px', fontWeight: '600', color }}>{value}</div>
+              <div key={label} className="pg-stat" style={{ '--pg-c': color }}>
+                <div className="pg-stat-cap">{label}</div>
+                <div className="pg-stat-num mono">{value}</div>
               </div>
             ))}
           </div>

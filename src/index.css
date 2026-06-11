@@ -4642,6 +4642,20 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .tr-ex-name:hover .tr-ex-chev { opacity:1; transform:translateX(0); color:var(--accent); }
 @media (prefers-reduced-motion: reduce){ .tr-ex-name .tr-ex-chev { transition:none; } }
 
+/* ───────────── PLUGG — premium ───────────── */
+.pg-stat { position:relative; overflow:hidden; border-radius:16px; padding:16px 18px;
+  background:linear-gradient(160deg, color-mix(in srgb, var(--pg-c) 12%, var(--surface2)), color-mix(in srgb, var(--pg-c) 3%, var(--surface2)));
+  border:1px solid color-mix(in srgb, var(--pg-c) 24%, var(--border));
+  box-shadow:0 10px 30px -18px color-mix(in srgb, var(--pg-c) 70%, transparent), inset 0 1px 0 rgba(255,255,255,.05); }
+.pg-stat::before { content:''; position:absolute; top:-40%; right:-20%; width:120px; height:120px; border-radius:50%;
+  background:radial-gradient(circle, color-mix(in srgb, var(--pg-c) 30%, transparent), transparent 70%); pointer-events:none; }
+.pg-stat-cap { position:relative; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+.pg-stat-num { position:relative; font-size:28px; font-weight:900; line-height:1; letter-spacing:-.03em; color:var(--pg-c); }
+.pg-course { position:relative; overflow:hidden; transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+.pg-course::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--pg-accent, var(--accent)); opacity:.65; }
+.pg-course:hover { border-color:color-mix(in srgb, var(--pg-accent, var(--accent)) 40%, var(--border)) !important; box-shadow:0 14px 36px -22px color-mix(in srgb, var(--pg-accent, var(--accent)) 80%, transparent); }
+@media (prefers-reduced-motion: reduce){ .pg-course { transition:none; } }
+
 /* ───────────── EKONOMI — premium log form ───────────── */
 .ek-log { position:relative; overflow:hidden; padding:22px; border-radius:20px;
   background:linear-gradient(168deg, rgba(22,28,46,.5), rgba(11,15,26,.72));
