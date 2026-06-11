@@ -379,9 +379,9 @@ export default function Jarvis() {
           <button onClick={() => setShowInsights(!showInsights)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid ' + (showInsights ? 'var(--accent-border)' : 'var(--border)'), background: showInsights ? 'var(--accent-soft)' : 'var(--surface2)', color: showInsights ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}>
             <Brain size={12} /> Minne {showInsights ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
           </button>
-          {hour < 12 && <button onClick={() => generateBrief('morning')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.25)', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}><Sun size={12} /> Morning brief</button>}
-          {hour >= 18 && <button onClick={() => generateBrief('evening')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(139,92,246,0.25)', background: 'rgba(139,92,246,0.08)', color: '#a78bfa', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}><Moon size={12} /> Kväll</button>}
-          <button onClick={() => generateBrief('weekly')} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 11px', borderRadius: '8px', border: '1px solid rgba(52,211,153,0.25)', background: 'rgba(52,211,153,0.08)', color: '#34d399', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif' }}><Zap size={12} /> Vecka</button>
+          {hour < 12 && <button onClick={() => generateBrief('morning')} disabled={loading} className="jvs-brief" style={{ '--jvs-c': '#fbbf24' }}><Sun size={12} /> Morning brief</button>}
+          {hour >= 18 && <button onClick={() => generateBrief('evening')} disabled={loading} className="jvs-brief" style={{ '--jvs-c': '#a78bfa' }}><Moon size={12} /> Kväll</button>}
+          <button onClick={() => generateBrief('weekly')} disabled={loading} className="jvs-brief" style={{ '--jvs-c': '#34d399' }}><Zap size={12} /> Vecka</button>
         </div>
       </div>
 
@@ -407,7 +407,7 @@ export default function Jarvis() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {messages.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '40px 20px', gap: '20px' }}>
-            <div style={{ width: 56, height: 56, borderRadius: '16px', background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="jvs-orb jvs-orb-lg" style={{ width: 56, height: 56, borderRadius: '16px' }}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
             </div>
             <div style={{ textAlign: 'center' }}>
@@ -426,8 +426,8 @@ export default function Jarvis() {
           if (msg.isSeparator) return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0' }}><div style={{ flex: 1, height: '1px', background: 'var(--border)' }} /><span style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 600, whiteSpace: 'nowrap', letterSpacing: '0.05em' }}>{msg.content}</span><div style={{ flex: 1, height: '1px', background: 'var(--border)' }} /></div>
           return (
             <div key={i} style={{ display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', gap: '10px', alignItems: 'flex-end' }}>
-              {msg.role === 'assistant' && <div style={{ width: 28, height: 28, borderRadius: '8px', flexShrink: 0, background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></div>}
-              <div style={{ maxWidth: '72%', padding: msg.role === 'user' ? '10px 16px' : '14px 18px', borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px', background: msg.role === 'user' ? 'var(--accent)' : 'var(--surface)', border: msg.role === 'assistant' ? '1px solid var(--glass-border)' : 'none', color: msg.role === 'user' ? 'white' : 'var(--text)', fontSize: '14px', lineHeight: '1.65', backdropFilter: msg.role === 'assistant' ? 'blur(20px)' : 'none', WebkitBackdropFilter: msg.role === 'assistant' ? 'blur(20px)' : 'none', boxShadow: msg.role === 'user' ? '0 4px 16px var(--accent-glow)' : 'var(--glass-shadow)' }}>
+              {msg.role === 'assistant' && <div className="jvs-orb" style={{ width: 28, height: 28 }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></div>}
+              <div className={msg.role === 'user' ? 'jvs-bubble-user' : 'jvs-bubble-ai'}>
                 <MarkdownMessage content={msg.content} userMessage={msg.role === 'user'} />
               </div>
             </div>
@@ -437,8 +437,8 @@ export default function Jarvis() {
         {pendingActions.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: 38, maxWidth: 680 }}>
             {pendingActions.map(action => (
-              <div key={action._id} style={{ border: '1px solid var(--accent-border)', background: 'var(--accent-soft)', borderRadius: 14, padding: 12, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ minWidth: 0 }}>
+              <div key={action._id} className="jvs-action">
+                <div style={{ minWidth: 0, position: 'relative', paddingLeft: 6 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 3 }}>{ACTION_LABELS[action.action] || action.action}</div>
                   <div style={{ fontSize: 12, color: 'var(--muted2)', overflowWrap: 'anywhere' }}>{actionSummary(action)}</div>
                 </div>
@@ -453,8 +453,8 @@ export default function Jarvis() {
 
         {loading && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-            <div style={{ width: 28, height: 28, borderRadius: '8px', background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
-            <div style={{ padding: '14px 18px', borderRadius: '4px 18px 18px 18px', background: 'var(--surface)', border: '1px solid var(--glass-border)', display: 'flex', gap: '5px', alignItems: 'center', backdropFilter: 'blur(20px)' }}>{[0,1,2].map(j => <div key={j} style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'bounce 1.2s ease-in-out ' + (j * 0.15) + 's infinite' }} />)}</div>
+            <div className="jvs-orb" style={{ width: 28, height: 28 }} />
+            <div className="jvs-bubble-ai" style={{ display: 'flex', gap: '5px', alignItems: 'center', padding: '14px 18px' }}>{[0,1,2].map(j => <div key={j} style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'bounce 1.2s ease-in-out ' + (j * 0.15) + 's infinite' }} />)}</div>
           </div>
         )}
         <div ref={messagesEndRef} />

@@ -4816,6 +4816,46 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   font-size:11px; font-weight:500; background:color-mix(in srgb, var(--accent) 8%, var(--surface2));
   color:var(--muted); border:1px solid var(--border); }
 
+/* JARVIS — premium chat */
+.jvs-brief { display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+  padding:6px 12px; border-radius:9px; font-size:12px; font-weight:600;
+  font-family:Inter, sans-serif; line-height:1;
+  color:var(--jvs-c, var(--accent));
+  background:linear-gradient(150deg, color-mix(in srgb, var(--jvs-c, var(--accent)) 16%, transparent), color-mix(in srgb, var(--jvs-c, var(--accent)) 6%, transparent));
+  border:1px solid color-mix(in srgb, var(--jvs-c, var(--accent)) 30%, transparent);
+  transition:transform .15s cubic-bezier(.22,1,.36,1), box-shadow .15s, background .15s; }
+.jvs-brief:hover { transform:translateY(-1px);
+  box-shadow:0 6px 16px -9px color-mix(in srgb, var(--jvs-c, var(--accent)) 90%, transparent); }
+.jvs-brief:disabled { opacity:.5; cursor:default; transform:none; box-shadow:none; }
+
+/* avatar-orb */
+.jvs-orb { border-radius:9px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  background:radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--accent) 30%, var(--surface)), var(--surface));
+  border:1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  box-shadow:0 0 12px -2px color-mix(in srgb, var(--accent) 55%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent); }
+.jvs-orb-lg { box-shadow:0 0 28px -4px color-mix(in srgb, var(--accent) 60%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 16%, transparent); }
+
+/* assistant bubble */
+.jvs-bubble-ai { position:relative; max-width:72%; padding:14px 18px;
+  border-radius:4px 18px 18px 18px; font-size:14px; line-height:1.65; color:var(--text);
+  background:linear-gradient(155deg, color-mix(in srgb, var(--accent) 7%, var(--surface)), var(--surface));
+  border:1px solid color-mix(in srgb, var(--accent) 16%, var(--glass-border));
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+  box-shadow:var(--glass-shadow); }
+.jvs-bubble-user { max-width:72%; padding:10px 16px; border-radius:18px 18px 4px 18px;
+  font-size:14px; line-height:1.65; color:#fff;
+  background:linear-gradient(150deg, color-mix(in srgb, var(--accent) 92%, #fff) 0%, var(--accent) 60%, color-mix(in srgb, var(--accent) 75%, #000) 100%);
+  box-shadow:0 6px 20px -8px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.25); }
+
+/* pending action-kort */
+.jvs-action { position:relative; overflow:hidden;
+  border:1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius:14px; padding:13px 14px;
+  display:flex; gap:12px; align-items:center; justify-content:space-between;
+  background:linear-gradient(150deg, color-mix(in srgb, var(--accent) 13%, var(--surface)), color-mix(in srgb, var(--accent) 5%, var(--surface)));
+  box-shadow:0 6px 22px -14px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent); }
+.jvs-action::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
+  background:linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 30%, transparent)); }
+
 /* Reslistan scrollar internt — resten av sidan hålls statisk */
 .upp-trips-scroll { max-height:calc(100vh - 250px); overflow-y:auto; padding-right:6px;
   scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--accent) 45%, transparent) transparent; }
