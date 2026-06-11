@@ -12,6 +12,21 @@ import {
 import StudyModal from '../components/StudyModal'
 
 const GRADES = ['IG', 'G']
+
+// Mandatory-session titles arrive as "KOD. Kursnamn, Typ, Obligatorisk, Lärare: X, Lärare: Y".
+// Strip the redundant course code/name prefix and the "Obligatorisk" noise; surface teachers separately.
+function parseMandTitle(title) {
+  if (!title) return { label: title || '', teachers: [] }
+  const parts = title.split(',').map(s => s.trim()).filter(Boolean)
+  const rest = parts.slice(1) // drop "KOD. Kursnamn"
+  const teachers = rest
+    .filter(p => /^l[äa]rare:/i.test(p))
+    .map(p => p.replace(/^l[äa]rare:\s*/i, '').trim())
+    .filter(Boolean)
+  const labelParts = rest.filter(p => !/^l[äa]rare:/i.test(p) && p.toLowerCase() !== 'obligatorisk')
+  const label = labelParts.join(' · ') || parts[0] || title
+  return { label, teachers }
+}
 const TERMS = ['Termin 1','Termin 2','Termin 3','Termin 4','Termin 5','Termin 6',
                'Termin 7','Termin 8','Termin 9','Termin 10','Termin 11','Extrakurrikulär']
 
@@ -674,9 +689,9 @@ export default function PluggPage() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                               {mandatoryForCourse.sort((a, b) => b.date.localeCompare(a.date)).map(session => {
                                 const timeStr = session.start_time ? format(parseISO(session.start_time), 'HH:mm') + (session.end_time ? '\u2013' + format(parseISO(session.end_time), 'HH:mm') : '') : null
-                                const displayTitle = session.custom_title || session.title
-                                const typeKeywords = ['F\u00f6rel\u00e4sning','Grupparbete','Redovisning','Projektarbete','Bastest','Seminarium','Workshop','Laboration','Handledd']
-                                const detectedType = typeKeywords.find(k => session.title?.includes(k))
+                                const parsedMand = session.custom_title ? { label: session.custom_title, teachers: [] } : parseMandTitle(session.title)
+                                const displayTitle = parsedMand.label
+                                const teacherStr = parsedMand.teachers.length > 0 ? parsedMand.teachers[0].split(' ').slice(0, 2).join(' ') + (parsedMand.teachers.length > 1 ? ` +${parsedMand.teachers.length - 1}` : '') : null
                                 const isEditingThis = editingMandTitle === session.id
                                 return (
                                   <div key={session.id} style={{ borderRadius: '8px', background: session.attended ? 'rgba(16,185,129,0.06)' : 'var(--surface2)', border: `1px solid ${session.attended ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`, marginBottom: '6px' }}>
@@ -697,10 +712,10 @@ export default function PluggPage() {
                                             <button onClick={() => { setEditingMandTitle(session.id); setMandTitleDraft(displayTitle) }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 2, opacity: 0.4, flexShrink: 0 }}><Edit2 size={11} /></button>
                                           </div>
                                         )}
-                                        <div style={{ display: 'flex', gap: 6, marginTop: 2, alignItems: 'center' }}>
-                                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{format(parseISO(session.date), 'd MMM', { locale: sv })}</span>
-                                          {timeStr && <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600 }}>{timeStr}</span>}
-                                          {detectedType && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: 'rgba(139,92,246,0.1)', color: '#a78bfa', fontWeight: 600 }}>{detectedType}</span>}
+                                        <div style={{ display: 'flex', gap: 8, marginTop: 3, alignItems: 'center', minWidth: 0 }}>
+                                          <span style={{ fontSize: 11, color: 'var(--muted)', flexShrink: 0 }}>{format(parseISO(session.date), 'd MMM', { locale: sv })}</span>
+                                          {timeStr && <span style={{ fontSize: 11, color: '#8b5cf6', fontWeight: 600, flexShrink: 0 }}>{timeStr}</span>}
+                                          {teacherStr && <span style={{ fontSize: 11, color: 'var(--muted2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{teacherStr}</span>}
                                         </div>
                                       </div>
                                       <button onClick={() => deleteMandatorySession(session.id)} style={{ background: 'none', border: 'none', color: 'rgba(248,113,113,0.35)', cursor: 'pointer', padding: 3, flexShrink: 0 }} onMouseEnter={e => e.currentTarget.style.color = '#f87171'} onMouseLeave={e => e.currentTarget.style.color = 'rgba(248,113,113,0.35)'}><Trash2 size={12} /></button>
@@ -963,35 +978,7 @@ export default function PluggPage() {
                                       )}
                                     </div>
 
-                                    {/* Filer */}
-                                    <div style={{ marginBottom: '12px' }}>
-                                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>FILER</div>
-                                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`goals-${exam.id}`} onChange={e => handleGoalsPdfUpload(e, exam.id, course.id)} />
-                                        <label htmlFor={`goals-${exam.id}`} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                          {uploadingGoalsPdf === exam.id ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : <><Upload size={11} /> Lärandemål PDF</>}
-                                        </label>
-                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`oldexam-${exam.id}`} onChange={e => handleOldExamUpload(e, exam.id, course.id)} />
-                                        <label htmlFor={`oldexam-${exam.id}`} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', color: 'var(--muted)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                          {uploadingOldExam === exam.id ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</> : <><FileText size={11} /> Gammal tenta</>}
-                                        </label>
-                                        <input type="file" accept=".pdf" style={{ display: 'none' }} id={`material-${exam.id}`} onChange={e => handleCourseMaterialUpload(e, exam.id, course.id)} />
-                                        <label htmlFor={`material-${exam.id}`} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(16,185,129,0.06)' }}>
-                                          {uploadingCourseMaterial === exam.id ? <><Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> Läser in...</> : <><BookOpen size={11} /> Kursmaterial</>}
-                                        </label>
-                                      </div>
-                                      {examFilesForExam.length > 0 && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
-                                          {examFilesForExam.map(f => (
-                                            <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--muted)' }}>
-                                              <FileText size={11} color="#10b981" />
-                                              <span style={{ flex: 1 }}>{f.file_name}</span>
-                                              <button onClick={() => deleteExamFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px' }}><Trash2 size={11} /></button>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
+                                    {/* Filhantering finns i "Filer"-panelen ovan */}
 
                                     {/* Lärandemål */}
                                     {examGoalList.length > 0 && (
