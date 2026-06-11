@@ -4736,6 +4736,25 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   box-shadow:0 16px 36px -22px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.05);
   border-color:color-mix(in srgb, var(--accent) 22%, var(--border)); }
 
+/* JOURNAL — premium kalenderdagar */
+.jr-day { width:34px; height:34px; border-radius:9px; border:1px solid transparent;
+  cursor:pointer; font-size:12px; font-family:Inter, sans-serif; font-weight:400;
+  background:transparent; color:var(--text); position:relative;
+  transition:transform .15s cubic-bezier(.22,1,.36,1), background .15s, box-shadow .15s, border-color .15s; }
+.jr-day:hover { background:color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color:color-mix(in srgb, var(--accent) 22%, transparent); transform:translateY(-1px); }
+.jr-day-entry { font-weight:500; }
+.jr-day-today { font-weight:600; color:var(--accent);
+  background:color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color:color-mix(in srgb, var(--accent) 32%, transparent); }
+.jr-day-selected { font-weight:700; color:#fff;
+  background:linear-gradient(160deg, color-mix(in srgb, var(--accent) 92%, #fff) 0%, var(--accent) 55%, color-mix(in srgb, var(--accent) 70%, #000) 100%);
+  border-color:color-mix(in srgb, var(--accent) 60%, #fff);
+  box-shadow:0 6px 18px -8px var(--accent), 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent), inset 0 1px 0 rgba(255,255,255,.35); }
+.jr-day-dot { position:absolute; bottom:4px; left:50%; transform:translateX(-50%);
+  width:4px; height:4px; border-radius:50%; background:#10b981;
+  box-shadow:0 0 5px 1px color-mix(in srgb, #10b981 70%, transparent); }
+
 /* Reslistan scrollar internt — resten av sidan hålls statisk */
 .upp-trips-scroll { max-height:calc(100vh - 250px); overflow-y:auto; padding-right:6px;
   scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--accent) 45%, transparent) transparent; }

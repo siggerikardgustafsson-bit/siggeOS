@@ -55,22 +55,12 @@ function Slider({ label, value, onChange, color = '#3b82f6' }) {
 function CalendarDay({ date, hasEntry, isSelected, onClick }) {
   const today = isToday(date)
   return (
-    <button onClick={() => onClick(date)} style={{
-      width: '34px', height: '34px', borderRadius: '8px', border: 'none',
-      cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter, sans-serif',
-      fontWeight: isSelected || today ? '600' : '400',
-      background: isSelected ? 'var(--accent)' : today ? 'var(--accent-soft)' : 'transparent',
-      color: isSelected ? 'white' : today ? 'var(--accent)' : 'var(--text)',
-      position: 'relative', transition: 'all 0.15s',
-    }}>
+    <button
+      onClick={() => onClick(date)}
+      className={`jr-day${isSelected ? ' jr-day-selected' : ''}${today ? ' jr-day-today' : ''}${hasEntry ? ' jr-day-entry' : ''}`}
+    >
       {format(date, 'd')}
-      {hasEntry && !isSelected && (
-        <div style={{
-          position: 'absolute', bottom: '3px', left: '50%',
-          transform: 'translateX(-50%)', width: '4px', height: '4px',
-          borderRadius: '50%', background: '#10b981',
-        }} />
-      )}
+      {hasEntry && !isSelected && <span className="jr-day-dot" />}
     </button>
   )
 }
@@ -409,17 +399,14 @@ export default function JournalPage() {
                 padding: '16px', boxShadow: 'var(--glass-shadow)',
               }}>
                 {/* Stats row */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
                   {[
                     { label: 'Entries i månaden', value: entries.length, color: 'var(--accent)' },
-                    { label: 'Streak', value: streak > 0 ? streak + 'd ' : '0d', color: streak > 0 ? '#f59e0b' : 'var(--muted)' },
+                    { label: 'Streak', value: streak > 0 ? streak + 'd' : '0d', color: streak > 0 ? '#f59e0b' : '#64748b' },
                   ].map(s => (
-                    <div key={s.label} style={{
-                      background: 'var(--surface2)', borderRadius: '10px',
-                      padding: '10px 12px', border: '1px solid var(--border)',
-                    }}>
-                      <div style={{ fontSize: '20px', fontWeight: '700', color: s.color, letterSpacing: '-0.02em', lineHeight: 1 }}>{s.value}</div>
-                      <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '4px' }}>{s.label}</div>
+                    <div key={s.label} className="pg-stat" style={{ '--pg-c': s.color, padding: '12px 14px' }}>
+                      <div className="pg-stat-num mono" style={{ fontSize: '24px' }}>{s.value}</div>
+                      <div className="pg-stat-cap" style={{ marginTop: '6px', marginBottom: 0 }}>{s.label}</div>
                     </div>
                   ))}
                 </div>
