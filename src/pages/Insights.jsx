@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
-import { format, subDays, subMonths, startOfWeek, parseISO, differenceInDays, eachWeekOfInterval, startOfMonth, endOfMonth, getDay } from 'date-fns'
+import { format, subDays, startOfWeek, parseISO, differenceInDays, getDay } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity } from 'lucide-react'
 import {
