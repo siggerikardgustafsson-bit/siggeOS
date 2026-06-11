@@ -593,17 +593,13 @@ export default function HalsaPage() {
             return (
               <div>
                 {/* Period selector */}
-                <div style={{ display:'flex', gap:'6px', marginBottom:'14px', justifyContent:'flex-end' }}>
-                  {[7, 14, 30, 90].map(d => (
-                    <button key={d} onClick={() => setGraphPeriod(d)} style={{
-                      padding:'4px 12px', fontSize:'11px', borderRadius:'7px',
-                      background: graphPeriod===d ? 'var(--accent-soft)' : 'var(--surface2)',
-                      border:'1px solid '+(graphPeriod===d ? 'var(--accent-border)' : 'var(--border)'),
-                      color: graphPeriod===d ? 'var(--accent)' : 'var(--muted)',
-                      cursor:'pointer', fontWeight: graphPeriod===d ? 600 : 400,
-                      transition:'all 0.15s',
-                    }}>{d}d</button>
-                  ))}
+                <div style={{ display:'flex', marginBottom:'14px', justifyContent:'flex-end' }}>
+                  <div className="hl-period">
+                    {[7, 14, 30, 90].map(d => (
+                      <button key={d} onClick={() => setGraphPeriod(d)}
+                        className={`hl-period-btn ${graphPeriod===d ? 'active' : ''}`}>{d}d</button>
+                    ))}
+                  </div>
                 </div>
 
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
@@ -611,15 +607,17 @@ export default function HalsaPage() {
                     { key:'weight', label:'Vikt', color:'#10b981', unit:'kg', refLine:targetWeight, refLabel:targetWeight ? `Mål ${targetWeight}kg` : '', data:filteredData },
                     { key:'sleep',  label:'Sömn', color:'#8b5cf6', unit:'h', data:filteredData },
                     { key:'steps',  label:'Steg/dag', color:'#f59e0b', unit:' steg', data:filteredData },
-                  ].map(({ key, label, color, unit, refLine, refLabel, data }) => (
-                    <div key={key} style={{ background:'var(--surface)', backdropFilter:'var(--glass-blur)', WebkitBackdropFilter:'var(--glass-blur)', border:'1px solid var(--glass-border)', borderRadius:'16px', padding:'16px', boxShadow:'var(--glass-shadow)' }}>
-                      <div style={{ fontSize:'13px', fontWeight:'600', color:'var(--text)', marginBottom:'3px' }}>{label}</div>
-                      <div style={{ fontSize:'13px', color, fontWeight:'700', marginBottom:'10px' }}>
-                        {data.filter(d => d[key] != null).slice(-1)[0]?.[key]}{unit}
+                  ].map(({ key, label, color, unit, refLine, refLabel, data }) => {
+                    const last = data.filter(d => d[key] != null).slice(-1)[0]?.[key]
+                    return (
+                    <div key={key} className="hl-chart" style={{ '--hl-c': color }}>
+                      <div className="hl-chart-head">
+                        <div className="hl-chart-title"><span className="dot" />{label}</div>
+                        <div className="hl-chart-val">{last != null ? last : '—'}<span className="u">{unit}</span></div>
                       </div>
                       <ResponsiveContainer width="100%" height={90}>
                         <LineChart data={data}>
-                          <Line type="monotone" dataKey={key} stroke={color} strokeWidth={2} dot={false} connectNulls />
+                          <Line type="monotone" dataKey={key} stroke={color} strokeWidth={2.4} dot={false} connectNulls />
                           <XAxis dataKey="date" hide />
                           <YAxis hide domain={['auto','auto']} />
                           {refLine && <ReferenceLine y={refLine} stroke={color} strokeDasharray="4 3" opacity={0.4} label={{ value:refLabel, fontSize:9, fill:color, position:'insideBottomRight' }} />}
@@ -627,28 +625,27 @@ export default function HalsaPage() {
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
-                  ))}
+                    )
+                  })}
 
                   {/* Retatrutide concentration */}
-                  <div style={{ background:'var(--surface)', backdropFilter:'var(--glass-blur)', WebkitBackdropFilter:'var(--glass-blur)', border:'1px solid var(--glass-border)', borderRadius:'16px', padding:'16px', boxShadow:'var(--glass-shadow)' }}>
-                    <div style={{ fontSize:'13px', fontWeight:'600', color:'var(--text)', marginBottom:'3px' }}>Retatrutide — plasmakonc.</div>
-                    <div style={{ fontSize:'13px', color:'#a78bfa', fontWeight:'700', marginBottom:'2px' }}>
-                      {hasRet ? (retData.slice(-1)[0]?.conc.toFixed(2) + ' mg-ekv') : '—'}
+                  <div className="hl-chart" style={{ '--hl-c': '#a78bfa' }}>
+                    <div className="hl-chart-head">
+                      <div className="hl-chart-title"><span className="dot" />Retatrutide — plasmakonc.</div>
+                      <div className="hl-chart-val">{hasRet ? retData.slice(-1)[0]?.conc.toFixed(2) : '—'}<span className="u">mg-ekv</span></div>
                     </div>
-                    <div style={{ fontSize:'10px', color:'var(--muted)', marginBottom:'10px' }}>Tmax ≈ 48h · t½ = 6 dagar · 1-kompartment PK-modell</div>
+                    <div className="hl-chart-meta">Tmax ≈ 48h · t½ = 6 dagar · 1-kompartment PK-modell</div>
                     {hasRet ? (
                       <ResponsiveContainer width="100%" height={90}>
                         <LineChart data={retData}>
-                          <Line type="monotone" dataKey="conc" stroke="#a78bfa" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="conc" stroke="#a78bfa" strokeWidth={2.4} dot={false} />
                           <XAxis dataKey="date" hide />
                           <YAxis hide domain={[0,'auto']} />
                           <Tooltip contentStyle={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'8px', fontSize:'12px' }} formatter={v => [`${v} mg-ekv`, 'Plasmakonc.']} labelFormatter={l => format(parseISO(l),'d MMM',{locale:sv})} />
                         </LineChart>
                       </ResponsiveContainer>
                     ) : (
-                      <div style={{ height:90, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:'12px', fontStyle:'italic' }}>
-                        Ingen retatrutide-data loggad
-                      </div>
+                      <div className="hl-chart-empty">Ingen retatrutide-data loggad</div>
                     )}
                   </div>
                 </div>
@@ -658,38 +655,35 @@ export default function HalsaPage() {
 
           {/* ── HISTORIK TAB ── */}
           {activeTab === 'historik' && (
-            <div style={{ background:'var(--surface)', backdropFilter:'var(--glass-blur)', WebkitBackdropFilter:'var(--glass-blur)', border:'1px solid var(--glass-border)', borderRadius:'16px', padding:'16px', boxShadow:'var(--glass-shadow)' }}>
-              <div style={{ fontSize:'12px', color:'var(--muted)', fontWeight:'600', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'12px' }}>
-                Senaste 30 dagar
-              </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:'6px' }}>
-                {historyRows.slice(0,30).map(log => (
-                  <div key={log.id} style={{ display:'flex', alignItems:'center', gap:'12px', padding:'10px 12px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:'10px', transition:'border-color 0.15s' }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border2)'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                    <span style={{ fontSize:'12px', color:'var(--muted)', minWidth:'60px' }}>
+            <div className="hl-hist">
+              <div className="hl-hist-cap">Senaste 30 dagar</div>
+              <div className="hl-hist-list">
+                {historyRows.slice(0,30).map(log => {
+                  const takenSupps = supplementLogs.filter(s => s.date === log.date && s.taken)
+                  return (
+                  <div key={log.id} className="hl-hist-row">
+                    <span className="hl-hist-date">
                       {format(parseISO(log.date), 'EEE d/M', { locale:sv })}
                     </span>
-                    <div style={{ display:'flex', gap:'10px', flex:1, flexWrap:'wrap' }}>
-                      {log.weight_kg && <span style={{ fontSize:'12px', color:'#10b981' }}>⚖ {log.weight_kg}kg</span>}
-                      {log.sleep_hours && <span style={{ fontSize:'12px', color:'#8b5cf6' }}> {log.sleep_hours}h</span>}
-                      {log.steps && <span style={{ fontSize:'12px', color:'#f59e0b' }}> {log.steps.toLocaleString('sv-SE')}</span>}
-                      {log.alcohol_units > 0 && <span style={{ fontSize:'12px', color:'#ef4444' }}>{log.alcohol_units} enheter alkohol</span>}
-                      {supplementLogs.some(s => s.date === log.date && s.taken) && (
-                        <span style={{ fontSize:'12px', color:'#06b6d4' }} title={supplementLogs.filter(s => s.date === log.date && s.taken).map(s => s.supplement_name).join(', ')}>
-                          💊 {supplementLogs.filter(s => s.date === log.date && s.taken).length}/{supplements.length}
+                    <div className="hl-hist-chips">
+                      {log.weight_kg && <span className="hl-chip" style={{ '--hl-cc':'#10b981' }}>⚖ {log.weight_kg}kg</span>}
+                      {log.sleep_hours && <span className="hl-chip" style={{ '--hl-cc':'#8b5cf6' }}>🌙 {log.sleep_hours}h</span>}
+                      {log.steps && <span className="hl-chip" style={{ '--hl-cc':'#f59e0b' }}>👟 {log.steps.toLocaleString('sv-SE')}</span>}
+                      {log.alcohol_units > 0 && <span className="hl-chip" style={{ '--hl-cc':'#ef4444' }}>🍷 {log.alcohol_units}</span>}
+                      {takenSupps.length > 0 && (
+                        <span className="hl-chip" style={{ '--hl-cc':'#06b6d4' }} title={takenSupps.map(s => s.supplement_name).join(', ')}>
+                          💊 {takenSupps.length}/{supplements.length}
                         </span>
                       )}
-                      {log.nicotine && <span style={{ fontSize:'12px', color:'#f59e0b' }}>nikotin</span>}
-                      {log.retatrutide_dose_mg && <span style={{ fontSize:'12px', color:'#a78bfa' }}> {log.retatrutide_dose_mg}mg</span>}
+                      {log.nicotine && <span className="hl-chip" style={{ '--hl-cc':'#f59e0b' }}>nikotin</span>}
+                      {log.retatrutide_dose_mg && <span className="hl-chip" style={{ '--hl-cc':'#a78bfa' }}>💉 {log.retatrutide_dose_mg}mg</span>}
                     </div>
-                    <button onClick={() => openEditLog(log)} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'7px', padding:'4px 8px', cursor:'pointer', color:'var(--muted)', fontSize:'11px', display:'flex', alignItems:'center', gap:'4px', flexShrink:0, transition:'all 0.15s' }}
-                      onMouseEnter={e => { e.currentTarget.style.color='var(--accent)'; e.currentTarget.style.borderColor='var(--accent-border)' }}
-                      onMouseLeave={e => { e.currentTarget.style.color='var(--muted)'; e.currentTarget.style.borderColor='var(--border)' }}>
+                    <button onClick={() => openEditLog(log)} className="hl-hist-edit">
                       <Edit2 size={11} /> Redigera
                     </button>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
