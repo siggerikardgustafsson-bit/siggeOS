@@ -106,7 +106,7 @@ export default function ExportPage() {
     let query = supabase.from(table).select(select).eq('user_id', user.id).order(orderBy || 'date')
     if (period > 0) {
       const from = format(subDays(new Date(), period), 'yyyy-MM-dd')
-      query = query.gte(orderBy === 'date' ? 'date' : 'date', from)
+      query = query.gte('date', from)
     }
     const { data } = await query
     return data || []
