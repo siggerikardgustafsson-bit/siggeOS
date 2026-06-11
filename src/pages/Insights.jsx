@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { format, subDays, subMonths, startOfWeek, parseISO, differenceInDays, eachWeekOfInterval, startOfMonth, endOfMonth } from 'date-fns'
+import { format, subDays, subMonths, startOfWeek, parseISO, differenceInDays, eachWeekOfInterval, startOfMonth, endOfMonth, getDay } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Loader, TrendingUp, TrendingDown, Minus, Zap } from 'lucide-react'
+import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Area, AreaChart, ComposedChart
@@ -44,6 +44,37 @@ function SectionHeader({ title, color }) {
   )
 }
 
+const PERIODS = [
+  { label: '30d', days: 30 },
+  { label: '90d', days: 90 },
+  { label: '180d', days: 180 },
+  { label: '1 år', days: 365 },
+]
+
+const WEEKDAY_LABELS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön']
+
+// Pearson correlation coefficient over paired numeric arrays
+function pearson(pairs) {
+  const n = pairs.length
+  if (n < 4) return null
+  let sx = 0, sy = 0, sxy = 0, sx2 = 0, sy2 = 0
+  for (const [x, y] of pairs) {
+    sx += x; sy += y; sxy += x * y; sx2 += x * x; sy2 += y * y
+  }
+  const num = n * sxy - sx * sy
+  const den = Math.sqrt((n * sx2 - sx * sx) * (n * sy2 - sy * sy))
+  if (den === 0) return null
+  return Math.round((num / den) * 100) / 100
+}
+
+function corrStrength(r) {
+  const a = Math.abs(r)
+  if (a >= 0.6) return 'Starkt'
+  if (a >= 0.35) return 'Måttligt'
+  if (a >= 0.15) return 'Svagt'
+  return 'Inget'
+}
+
 const CustomTooltip = ({ active, payload, label, unit = '' }) => {
   if (!active || !payload?.length) return null
   return (
@@ -64,6 +95,7 @@ export default function InsightsPage() {
   const [aiObservations, setAiObservations] = useState([])
   const [loadingObs, setLoadingObs] = useState(false)
   const [obsLastUpdated, setObsLastUpdated] = useState(null)
+  const [period, setPeriod] = useState(90)
   const [data, setData] = useState({
     weightData: [],
     sleepData: [],
@@ -74,14 +106,18 @@ export default function InsightsPage() {
     paData: [],
     prData: [],
     examProgress: [],
+    sleepEnergyData: [],
+    correlations: [],
+    weekdayData: [],
+    streaks: [],
   })
 
-  useEffect(() => { if (user) fetchAll() }, [user])
+  useEffect(() => { if (user) fetchAll() }, [user, period])
 
   async function fetchAll() {
     setLoading(true)
-    const since90 = format(subDays(new Date(), 90), 'yyyy-MM-dd')
-    const since180 = format(subDays(new Date(), 180), 'yyyy-MM-dd')
+    const since90 = format(subDays(new Date(), period), 'yyyy-MM-dd')
+    const since180 = format(subDays(new Date(), Math.max(period, 180)), 'yyyy-MM-dd')
 
     const [healthRes, journalRes, studyRes, trainingRes, incomeRes, expenseRes, paRes, examRes, courseRes, prRes] = await Promise.all([
       supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy').eq('user_id', user.id).gte('date', since90).order('date'),
@@ -131,6 +167,67 @@ export default function InsightsPage() {
       else if (h < 9) sleepBuckets['8-9h'].push(e.energy)
       else sleepBuckets['> 9h'].push(e.energy)
     }
+    const sleepEnergyData = Object.entries(sleepBuckets).map(([bucket, vals]) => ({
+      bucket,
+      energi: vals.length ? avg(vals) : 0,
+      antal: vals.length,
+    })).filter(d => d.antal > 0)
+
+    // ===== Cross-metric correlations (daily merge) =====
+    // Build a per-day record combining sleep, energy, mood, training count, study hours
+    const daily = {}
+    const touch = (d) => { if (!daily[d]) daily[d] = {}; return daily[d] }
+    for (const e of journalRes.data || []) {
+      const r = touch(e.date)
+      if (e.sleep_hours > 0) r.sleep = e.sleep_hours
+      if (e.energy) r.energy = e.energy
+      if (e.mood) r.mood = e.mood
+    }
+    for (const l of healthRes.data || []) {
+      const r = touch(l.date)
+      if (l.sleep_hours > 0 && r.sleep == null) r.sleep = l.sleep_hours
+      if (l.energy && r.energy == null) r.energy = l.energy
+    }
+    for (const s of studyRes.data || []) {
+      const r = touch(s.date)
+      r.study = (r.study || 0) + (s.hours || 0)
+    }
+    for (const t of trainingRes.data || []) {
+      const r = touch(t.date)
+      r.train = (r.train || 0) + 1
+    }
+    const days = Object.values(daily)
+    const buildPairs = (a, b) => days.filter(d => d[a] != null && d[b] != null).map(d => [d[a], d[b]])
+    const corrDefs = [
+      { key: ['sleep', 'energy'], label: 'Sömn → Energi' },
+      { key: ['sleep', 'mood'],   label: 'Sömn → Humör' },
+      { key: ['energy', 'mood'],  label: 'Energi → Humör' },
+      { key: ['train', 'energy'], label: 'Träning → Energi' },
+      { key: ['train', 'sleep'],  label: 'Träning → Sömn' },
+      { key: ['study', 'energy'], label: 'Plugg → Energi' },
+    ]
+    const correlations = corrDefs.map(c => {
+      const pairs = buildPairs(c.key[0], c.key[1])
+      const r = pearson(pairs)
+      return r == null ? null : { label: c.label, r, n: pairs.length, strength: corrStrength(r) }
+    }).filter(Boolean).sort((a, b) => Math.abs(b.r) - Math.abs(a.r))
+
+    // ===== Weekday patterns (avg per weekday, Mon-first) =====
+    const wd = WEEKDAY_LABELS.map(d => ({ day: d, _energy: [], _train: 0, _occ: new Set() }))
+    const idxMonFirst = (date) => { const g = getDay(parseISO(date)); return g === 0 ? 6 : g - 1 }
+    for (const e of journalRes.data || []) {
+      if (e.energy) wd[idxMonFirst(e.date)]._energy.push(e.energy)
+    }
+    for (const t of trainingRes.data || []) {
+      const i = idxMonFirst(t.date)
+      wd[i]._train += 1
+      wd[i]._occ.add(t.date)
+    }
+    const weekdayData = wd.map(d => ({
+      day: d.day,
+      energi: d._energy.length ? avg(d._energy) : 0,
+      pass: d._train,
+    }))
 
     // Study hours per week
     const studyByWeek = {}
@@ -201,7 +298,21 @@ export default function InsightsPage() {
     // PRs
     const prData = (prRes.data || []).slice(0, 6)
 
-    setData({ weightData, sleepData, stepsData, studyData, trainingData, incomeData, paData, examProgress, prData })
+    // ===== Streaks & records =====
+    const streaks = []
+    const loggedDates = new Set((healthRes.data || []).map(l => l.date))
+    let logStreak = 0
+    for (let i = 0; i < 365; i++) {
+      const d = format(subDays(new Date(), i), 'yyyy-MM-dd')
+      if (loggedDates.has(d)) logStreak++
+      else if (i > 0) break
+    }
+    streaks.push({ icon: 'flame', label: 'Loggnings-streak', value: `${logStreak} dgr`, color: COLORS.amber })
+    streaks.push({ icon: 'award', label: 'Bästa träningsvecka', value: `${Math.max(0, ...trainingData.map(d => d.pass))} pass`, color: COLORS.cyan })
+    streaks.push({ icon: 'activity', label: 'Nätter ≥7h sömn', value: `${allSleepEntries.filter(e => e.sleep_hours >= 7).length}`, color: COLORS.purple })
+    streaks.push({ icon: 'award', label: 'Bästa pluggvecka', value: `${Math.max(0, ...studyData.map(d => d.timmar))}h`, color: COLORS.amber })
+
+    setData({ weightData, sleepData, stepsData, studyData, trainingData, incomeData, paData, examProgress, prData, sleepEnergyData, correlations, weekdayData, streaks })
     setLoading(false)
     generateObservations({ weightData, sleepData, studyData, trainingData })
   }
@@ -313,7 +424,13 @@ export default function InsightsPage() {
       <div className="page-header">
         <div>
           <div className="page-header-title">Insights</div>
-          <div className="page-header-sub">Mönster, risker och signaler senaste 90 dagarna</div>
+          <div className="page-header-sub">Mönster, risker och signaler senaste {period === 365 ? '12 månaderna' : `${period} dagarna`}</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {PERIODS.map(({ label, days }) => (
+            <button key={days} onClick={() => setPeriod(days)} className={`exp-period${period === days ? ' is-active' : ''}`}>{label}</button>
+          ))}
         </div>
         <button onClick={generateWeeklyReport} disabled={generatingReport} style={{
           display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 13px',
@@ -324,6 +441,7 @@ export default function InsightsPage() {
           {generatingReport ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={12} />}
           Analysera vecka
         </button>
+        </div>
       </div>
 
       <div className="page-content-scroll">
@@ -383,6 +501,111 @@ export default function InsightsPage() {
         <StatCard label="Plugg denna vecka" value={`${totalStudyThisWeek}h`} color={COLORS.amber} />
         <StatCard label="PA denna månad" value={`${totalPaThisMonth}h`} color={COLORS.green} />
         <StatCard label="Träning (4 veckor)" value={`${trainingSessions} pass`} color={COLORS.cyan} />
+      </div>
+
+      {/* ===== STREAKS / REKORD ===== */}
+      {data.streaks.length > 0 && (
+        <div className="insights-stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '28px' }}>
+          {data.streaks.map((s, i) => {
+            const Ic = s.icon === 'flame' ? Flame : s.icon === 'award' ? Award : Activity
+            return (
+              <div key={i} className="pg-stat" style={{ '--pg-c': s.color }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Ic size={13} color={s.color} />
+                  <div className="pg-stat-cap" style={{ margin: 0 }}>{s.label}</div>
+                </div>
+                <div className="pg-stat-num mono" style={{ color: s.color }}>{s.value}</div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ===== SAMBAND & MÖNSTER ===== */}
+      <SectionHeader title="Samband & mönster" color={COLORS.red} />
+      <div className="insights-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+        {/* Sleep → Energy */}
+        <div className="card">
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>SÖMN → ENERGI (snitt-energi per sömnintervall)</div>
+          {data.sleepEnergyData.length > 1 ? (
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={data.sleepEnergyData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                <defs>
+                  <linearGradient id="seGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={COLORS.cyan} stopOpacity={0.95} />
+                    <stop offset="100%" stopColor={COLORS.purple} stopOpacity={0.75} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: 'var(--muted)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} domain={[0, 10]} />
+                <Tooltip content={<CustomTooltip unit=" energi" />} />
+                <Bar dataKey="energi" fill="url(#seGrad)" radius={[4, 4, 0, 0]} name="Energi" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>För få journaldagar med både sömn & energi</div>}
+        </div>
+
+        {/* Correlation matrix */}
+        <div className="card">
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>KORRELATIONER (vad hänger ihop?)</div>
+          {data.correlations.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+              {data.correlations.map((c, i) => {
+                const pos = c.r >= 0
+                const col = c.strength === 'Inget' ? 'var(--muted)' : pos ? COLORS.green : COLORS.red
+                return (
+                  <div key={i}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--text)' }}>{c.label}</span>
+                      <span className="mono" style={{ color: col, fontWeight: 600, fontSize: '11px' }}>
+                        {c.strength} · {pos ? '+' : ''}{c.r}
+                      </span>
+                    </div>
+                    <div style={{ position: 'relative', height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px' }}>
+                      <div style={{ position: 'absolute', left: '50%', top: '-1px', width: '1px', height: '8px', background: 'rgba(255,255,255,0.15)' }} />
+                      <div style={{ position: 'absolute', top: 0, height: '100%', borderRadius: '3px', background: col,
+                        width: `${Math.abs(c.r) * 50}%`, left: pos ? '50%' : `${50 - Math.abs(c.r) * 50}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+              <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '2px' }}>+1 = följs åt · −1 = motverkar · baserat på dagliga värden</div>
+            </div>
+          ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Inte tillräckligt med data för korrelationer</div>}
+        </div>
+      </div>
+
+      {/* Weekday patterns */}
+      <div className="insights-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
+        <div className="card">
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>ENERGI PER VECKODAG (snitt)</div>
+          {data.weekdayData.some(d => d.energi > 0) ? (
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart data={data.weekdayData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--muted)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} domain={[0, 10]} />
+                <Tooltip content={<CustomTooltip unit=" energi" />} />
+                <Bar dataKey="energi" fill={COLORS.amber} radius={[3, 3, 0, 0]} name="Energi" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Ingen energidata per veckodag</div>}
+        </div>
+        <div className="card">
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>TRÄNINGSPASS PER VECKODAG</div>
+          {data.weekdayData.some(d => d.pass > 0) ? (
+            <ResponsiveContainer width="100%" height={150}>
+              <BarChart data={data.weekdayData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'var(--muted)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} allowDecimals={false} />
+                <Tooltip content={<CustomTooltip unit=" pass" />} />
+                <Bar dataKey="pass" fill={COLORS.cyan} radius={[3, 3, 0, 0]} name="Pass" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Inga träningspass att visa</div>}
+        </div>
       </div>
 
       {/* ===== HÄLSA ===== */}
