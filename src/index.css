@@ -4635,6 +4635,12 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .tr-sess-chev { color:var(--muted2); flex-shrink:0; transition:transform .18s ease, color .18s ease; }
 .tr-sess:hover .tr-sess-chev { color:var(--tr-c); transform:translateX(3px); }
 @media (prefers-reduced-motion: reduce){ .tr-sess, .tr-sess-ico, .tr-sess-chev { transition:none; } }
+.tr-sess-muscles { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.tr-sess-mtag { font-size:10px; font-weight:700; letter-spacing:.01em; padding:2px 8px; border-radius:999px; color:var(--tr-c); background:color-mix(in srgb, var(--tr-c) 13%, transparent); border:1px solid color-mix(in srgb, var(--tr-c) 26%, transparent); white-space:nowrap; }
+.tr-ex-name .tr-ex-chev { color:var(--muted2); opacity:0; transform:translateX(-3px); transition:opacity .18s ease, transform .18s ease, color .18s ease; }
+.tr-ex-name:hover { color:var(--accent); }
+.tr-ex-name:hover .tr-ex-chev { opacity:1; transform:translateX(0); color:var(--accent); }
+@media (prefers-reduced-motion: reduce){ .tr-ex-name .tr-ex-chev { transition:none; } }
 
 /* ───────────── EKONOMI — premium log form ───────────── */
 .ek-log { position:relative; overflow:hidden; padding:22px; border-radius:20px;

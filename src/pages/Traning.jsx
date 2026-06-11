@@ -1420,6 +1420,7 @@ export default function TraningPage() {
                   const typeInfo = SESSION_TYPES.find(t => t.id === session.session_type) || SESSION_TYPES[3]
                   const Icon = typeInfo.icon
                   const setCount = session.training_exercises?.length || 0
+                  const primaryMuscles = getSessionMuscles(session).filter(m => m.role === 'primary').slice(0, 3)
                   return (
                     <button key={session.id} className="tr-sess" style={{ '--tr-c': typeInfo.color }} onClick={() => openSessionDetail(session)}>
                       <div className="tr-sess-ico"><Icon size={16} color={typeInfo.color} /></div>
@@ -1431,6 +1432,13 @@ export default function TraningPage() {
                           {session.pace_per_km ? ` · ${formatPace(session.pace_per_km)}/km` : ''}
                           {setCount ? ` · ${setCount} set` : ''}
                         </div>
+                        {primaryMuscles.length > 0 && (
+                          <div className="tr-sess-muscles">
+                            {primaryMuscles.map(m => (
+                              <span key={m.name} className="tr-sess-mtag">{m.name}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       {session.feeling && (
                         <div className="tr-sess-feel" style={{ color: session.feeling >= 7 ? '#10b981' : session.feeling >= 5 ? '#f59e0b' : '#ef4444' }}>
@@ -1485,7 +1493,7 @@ export default function TraningPage() {
                     <div key={ex.id} className="card-sm" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text)' }}>{ex.name}</div>
+                          <button onClick={() => setSelectedExercise(ex.name)} title="Visa progression" style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', fontSize: '15px', fontWeight: '700', color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: '5px' }} className="tr-ex-name">{ex.name}<ChevronRight size={13} className="tr-ex-chev" /></button>
                           <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
                             {ex.category || 'Okategori'}{ex.equipment ? ` · ${ex.equipment}` : ''}{ex.user_id ? ' · egen' : ' · standard'}
                           </div>
