@@ -4085,6 +4085,52 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+
+/* ── Portal modal (viewport-fixed, follows nothing, scroll-locked body) ── */
+.mx-modal-overlay--portal {
+  position: fixed; inset: 0; z-index: 1200;
+  display: flex; align-items: center; justify-content: center;
+  padding: clamp(10px, 3vw, 28px);
+  background: radial-gradient(120% 120% at 50% 0%, rgba(10,14,24,.62), rgba(6,9,16,.78));
+  backdrop-filter: blur(12px) saturate(1.1); -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  animation: mxModalFade .26s cubic-bezier(.22,1,.36,1) both;
+  overflow-y: auto;
+}
+.mx-modal {
+  position: relative; width: 100%; box-sizing: border-box;
+  max-height: min(90vh, calc(100dvh - 32px));
+  display: flex; flex-direction: column;
+  background: linear-gradient(168deg, color-mix(in srgb, var(--surface) 92%, #1a2238 8%), var(--surface));
+  border: 1px solid var(--glass-border);
+  border-radius: 22px;
+  backdrop-filter: blur(28px) saturate(1.15); -webkit-backdrop-filter: blur(28px) saturate(1.15);
+  box-shadow: 0 32px 90px -20px rgba(0,0,0,.72), 0 8px 28px -12px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.1) inset;
+  animation: mxModalRise .42s cubic-bezier(.22,1,.36,1) both; transform-origin: 50% 8%;
+  overflow: hidden;
+}
+.mx-modal::before {
+  content: ''; position: absolute; top: 0; left: 12%; right: 12%; height: 1px; z-index: 5; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: .55;
+}
+.mx-modal.pad { padding: 22px; overflow-y: auto; }
+.mx-modal-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+  padding: 20px 22px 16px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.mx-modal-head-main { min-width: 0; }
+.mx-modal-title { font-size: 21px; font-weight: 850; letter-spacing: -.03em; color: #fff; }
+.mx-modal-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+.mx-modal-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.mx-modal-close {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; cursor: pointer;
+  background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+  transition: transform .15s ease, color .16s ease, border-color .16s ease, background .16s ease;
+}
+.mx-modal-close:hover { transform: translateY(-1px); color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface2)); }
+.mx-modal-scroll { overflow-y: auto; padding: 18px 22px 22px; flex: 1; min-height: 0; }
+@media (prefers-reduced-motion: reduce) { .mx-modal-overlay--portal, .mx-modal { animation: none !important; } }
+@media (max-width: 600px) { .mx-modal-head { padding: 16px 16px 12px; } .mx-modal-scroll { padding: 14px 16px 18px; } .mx-modal.pad { padding: 16px; } }
 .mx-modal-panel {
   position: relative;
   animation: mxModalRise 0.46s cubic-bezier(0.22,1,0.36,1) both;
@@ -4475,6 +4521,27 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .tr-week-bar.on.today { box-shadow:0 0 18px -1px #3b82f6, inset 0 1px 0 rgba(255,255,255,.35); }
 .tr-week-lab { font-size:10px; font-weight:700; color:var(--muted); }
 .tr-week-lab.today { color:#60a5fa; }
+
+/* Recent session rows */
+.tr-sess { display:flex; align-items:center; gap:12px; width:100%; text-align:left; cursor:pointer;
+  padding:12px 14px; border-radius:14px; font-family:Inter, sans-serif;
+  background:var(--surface); border:1px solid var(--glass-border); box-shadow:var(--glass-shadow);
+  backdrop-filter:var(--glass-blur); -webkit-backdrop-filter:var(--glass-blur);
+  transition:transform .16s cubic-bezier(.22,1,.36,1), border-color .18s ease, box-shadow .18s ease; }
+.tr-sess:hover { transform:translateY(-2px); border-color:color-mix(in srgb, var(--tr-c) 45%, var(--glass-border));
+  box-shadow:0 12px 30px -14px var(--tr-c), var(--glass-shadow); }
+.tr-sess-ico { width:38px; height:38px; border-radius:11px; display:grid; place-items:center; flex-shrink:0;
+  background:color-mix(in srgb, var(--tr-c) 16%, transparent); border:1px solid color-mix(in srgb, var(--tr-c) 32%, transparent);
+  transition:transform .16s ease; }
+.tr-sess:hover .tr-sess-ico { transform:scale(1.08); }
+.tr-sess-mid { flex:1; min-width:0; }
+.tr-sess-title { font-size:14px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tr-sess-meta { font-size:11.5px; color:var(--muted); margin-top:2px; }
+.tr-sess-feel { font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; flex-shrink:0; }
+.tr-sess-feel span { font-size:10px; color:var(--muted); font-weight:700; }
+.tr-sess-chev { color:var(--muted2); flex-shrink:0; transition:transform .18s ease, color .18s ease; }
+.tr-sess:hover .tr-sess-chev { color:var(--tr-c); transform:translateX(3px); }
+@media (prefers-reduced-motion: reduce){ .tr-sess, .tr-sess-ico, .tr-sess-chev { transition:none; } }
 
 /* ───────────── EKONOMI — premium log form ───────────── */
 .ek-log { position:relative; overflow:hidden; padding:22px; border-radius:20px;

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { X, TrendingUp, List, BarChart2 } from 'lucide-react'
+import Modal from './Modal'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, BarChart, Bar, ReferenceLine, ScatterChart, Scatter, ZAxis
@@ -110,24 +111,7 @@ export default function ExerciseModal({ exerciseName, onClose }) {
   })
 
   return (
-    <div className="mx-modal-overlay" style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
-      background: 'rgba(0,0,0,0.65)',
-      backdropFilter: 'blur(8px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 'clamp(8px, 3vw, 24px)',
-    }} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="mx-modal-panel" style={{
-        background: 'var(--surface)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid var(--border)',
-        borderRadius: '20px',
-        width: '100%', maxWidth: '700px',
-        maxHeight: 'min(88vh, calc(100dvh - 16px))',
-        display: 'flex', flexDirection: 'column',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
-        overflow: 'hidden',
-      }}>
+    <Modal onClose={onClose} maxWidth={700} bare>
 
         {/* Header */}
         <div style={{ padding: 'clamp(14px, 3vw, 20px) clamp(14px, 3vw, 24px) 0', flexShrink: 0 }}>
@@ -406,7 +390,6 @@ export default function ExerciseModal({ exerciseName, onClose }) {
             </>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

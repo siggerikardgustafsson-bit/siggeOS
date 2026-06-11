@@ -8,6 +8,7 @@ import { sv } from 'date-fns/locale'
 import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, ChevronDown, ChevronUp, Trophy, TrendingUp, Flame, Calendar, ChevronLeft, ChevronRight, RefreshCw, Link, Upload, Search, Edit3, Library, Check } from 'lucide-react'
 import ExerciseModal from '../components/ExerciseModal'
 import RunModal from '../components/RunModal'
+import Modal from '../components/Modal'
 
 const BASE_EXERCISE_LIBRARY = {
   'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Armhävningar'],
@@ -1418,87 +1419,26 @@ export default function TraningPage() {
                 {recentSessions.map(session => {
                   const typeInfo = SESSION_TYPES.find(t => t.id === session.session_type) || SESSION_TYPES[3]
                   const Icon = typeInfo.icon
-                  const isExpanded = expandedSession === session.id
+                  const setCount = session.training_exercises?.length || 0
                   return (
-                    <div key={session.id} className="card" style={{ cursor: 'pointer' }} onClick={() => setExpandedSession(isExpanded ? null : session.id)}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: typeInfo.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Icon size={15} color={typeInfo.color} />
-                          </div>
-                          <div>
-                            <div style={{ fontSize: '14px', fontWeight: '500' }}>
-                              {getSessionTitle(session)}
-                            </div>
-                            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                              {format(new Date(session.date), 'd MMM', { locale: sv })}
-                              {session.duration_minutes && ` · ${session.duration_minutes} min`}
-                              {session.pace_per_km && ` · ${formatPace(session.pace_per_km)}/km`}
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {session.feeling && (
-                            <div className="mono" style={{ fontSize: '13px', color: session.feeling >= 7 ? '#10b981' : session.feeling >= 5 ? '#f59e0b' : '#ef4444' }}>
-                              {session.feeling}/10
-                            </div>
-                          )}
-                          {isExpanded ? <ChevronUp size={14} color="var(--muted)" /> : <ChevronDown size={14} color="var(--muted)" />}
+                    <button key={session.id} className="tr-sess" style={{ '--tr-c': typeInfo.color }} onClick={() => openSessionDetail(session)}>
+                      <div className="tr-sess-ico"><Icon size={16} color={typeInfo.color} /></div>
+                      <div className="tr-sess-mid">
+                        <div className="tr-sess-title">{getSessionTitle(session)}</div>
+                        <div className="tr-sess-meta">
+                          {format(new Date(session.date), 'd MMM', { locale: sv })}
+                          {session.duration_minutes ? ` · ${session.duration_minutes} min` : ''}
+                          {session.pace_per_km ? ` · ${formatPace(session.pace_per_km)}/km` : ''}
+                          {setCount ? ` · ${setCount} set` : ''}
                         </div>
                       </div>
-
-                      {isExpanded && (
-                        <>
-                          {/* Action buttons */}
-                          <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }} onClick={e => e.stopPropagation()}>
-                            <button onClick={e => { e.stopPropagation(); openSessionDetail(session) }} className="btn btn-primary btn-sm">
-                              Öppna pass
-                            </button>
-                            <button onClick={e => { e.stopPropagation(); openEditSession(session) }} className="btn btn-ghost btn-sm">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                              Redigera
-                            </button>
-                            <button onClick={e => { e.stopPropagation(); deleteSession(session.id) }} className="btn btn-danger btn-sm">
-                              <X size={12} /> Ta bort
-                            </button>
-                          </div>
-
-                          {session.training_exercises?.length > 0 && (
-                            <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
-                              {Object.entries(
-                                session.training_exercises.reduce((acc, ex) => {
-                                  if (!acc[ex.exercise_name]) acc[ex.exercise_name] = []
-                                  acc[ex.exercise_name].push(ex)
-                                  return acc
-                                }, {})
-                              ).map(([name, sets]) => (
-                                <div key={name} style={{ marginBottom: '10px' }}>
-                                  <div
-                                    onClick={e => { e.stopPropagation(); setSelectedExercise(name) }}
-                                    style={{ fontSize: '13px', fontWeight: '600', marginBottom: '5px', color: 'var(--accent)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                  >
-                                    {name}
-                                    <TrendingUp size={11} />
-                                  </div>
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                                    {sets.map((s, i) => (
-                                      <span key={i} className="mono" style={{
-                                        fontSize: '12px', padding: '3px 8px', borderRadius: '5px',
-                                        background: s.is_dropset ? 'rgba(245,158,11,0.12)' : 'var(--accent-soft)',
-                                        color: s.is_dropset ? '#f59e0b' : 'var(--accent)',
-                                        border: s.is_dropset ? '1px solid rgba(245,158,11,0.25)' : 'none',
-                                      }}>
-                                        {s.reps}×{s.weight_kg}kg{s.is_dropset ? ' ↓' : ''}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </>
+                      {session.feeling && (
+                        <div className="tr-sess-feel" style={{ color: session.feeling >= 7 ? '#10b981' : session.feeling >= 5 ? '#f59e0b' : '#ef4444' }}>
+                          {session.feeling}<span>/10</span>
+                        </div>
                       )}
-                    </div>
+                      <ChevronRight size={15} className="tr-sess-chev" />
+                    </button>
                   )
                 })}
               </div>
@@ -1784,23 +1724,33 @@ export default function TraningPage() {
                   key={type.id}
                   onClick={() => setSessionType(type.id)}
                   style={{
-                    padding: '12px 8px',
-                    borderRadius: '8px',
+                    position: 'relative',
+                    padding: '16px 8px',
+                    borderRadius: '14px',
                     border: `1px solid ${sessionType === type.id ? type.color : 'var(--border)'}`,
-                    background: sessionType === type.id ? type.color + '15' : 'transparent',
+                    background: sessionType === type.id
+                      ? `linear-gradient(165deg, ${type.color}22, ${type.color}0a)`
+                      : 'var(--surface2)',
                     color: sessionType === type.id ? type.color : 'var(--muted)',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: '6px',
+                    gap: '8px',
                     fontSize: '13px',
                     fontFamily: 'Inter, sans-serif',
-                    fontWeight: '500',
-                    transition: 'all 0.15s',
+                    fontWeight: sessionType === type.id ? '750' : '550',
+                    letterSpacing: '-0.01em',
+                    boxShadow: sessionType === type.id
+                      ? `0 8px 26px -10px ${type.color}aa, inset 0 1px 0 ${type.color}33`
+                      : 'none',
+                    transform: sessionType === type.id ? 'translateY(-2px)' : 'none',
+                    transition: 'all 0.2s cubic-bezier(0.22, 1, 0.36, 1)',
                   }}
+                  onMouseEnter={e => { if (sessionType !== type.id) { e.currentTarget.style.borderColor = type.color + '88'; e.currentTarget.style.color = 'var(--text)' } }}
+                  onMouseLeave={e => { if (sessionType !== type.id) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--muted)' } }}
                 >
-                  <Icon size={18} />
+                  <Icon size={20} />
                   {type.label}
                 </button>
               )
@@ -1870,16 +1820,7 @@ export default function TraningPage() {
 
               {/* Exercise picker modal */}
               {showExercisePicker !== false && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-                  <div style={{ background: 'var(--surface)', borderRadius: '20px 20px 0 0', padding: '20px', width: '100%', maxWidth: '560px', maxHeight: '75vh', overflowY: 'auto', boxShadow: '0 -8px 40px rgba(0,0,0,0.5)' }}>
-                    {/* Handle */}
-                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '4px' }}>
-                      <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border2)' }} />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingTop: '8px' }}>
-                      <div style={{ fontWeight: '600', fontSize: '15px' }}>Välj övning</div>
-                      <button onClick={() => setShowExercisePicker(false)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--muted)' }}><X size={14} /></button>
-                    </div>
+                <Modal onClose={() => setShowExercisePicker(false)} maxWidth={560} title="Välj övning">
                     {Object.entries(exerciseLibrary).map(([category, exs]) => (
                       <div key={category} style={{ marginBottom: '14px' }}>
                         <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '6px' }}>{category.toUpperCase()}</div>
@@ -1904,8 +1845,7 @@ export default function TraningPage() {
                         }
                       }} className="btn btn-primary" style={{ flexShrink: 0 }}>Spara</button>
                     </div>
-                  </div>
-                </div>
+                </Modal>
               )}
 
               <button onClick={() => addExercise()} className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: '20px' }}>
@@ -2010,18 +1950,7 @@ export default function TraningPage() {
       )}
 
       {editingLibraryExercise && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={e => e.target === e.currentTarget && setEditingLibraryExercise(null)}>
-          <div style={{ background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '20px', width: '100%', maxWidth: '760px', maxHeight: '88vh', overflowY: 'auto', padding: '22px', boxShadow: 'var(--glass-shadow)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '18px' }}>
-              <div>
-                <div style={{ fontSize: '20px', fontWeight: '800', letterSpacing: '-0.04em' }}>Redigera övning</div>
-                <div style={{ fontSize: '12px', color: 'var(--muted2)', marginTop: '4px' }}>
-                  {editingLibraryExercise.original_user_id ? 'Egen övning' : 'Standardövning — sparas som egen version vid ändring'}
-                </div>
-              </div>
-              <button onClick={() => setEditingLibraryExercise(null)} className="btn btn-ghost btn-icon"><X size={16} /></button>
-            </div>
-
+        <Modal onClose={() => setEditingLibraryExercise(null)} maxWidth={760} title="Redigera övning" subtitle={editingLibraryExercise.original_user_id ? 'Egen övning' : 'Standardövning — sparas som egen version vid ändring'}>
             <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '12px', marginBottom: '12px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Namn</label>
@@ -2099,16 +2028,15 @@ export default function TraningPage() {
                 {savingLibraryExercise ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={14} /> Spara övning</>}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
 
 
       {(showAllPrModal || showStrengthPrModal || showRunPrModal) && (
-        <div onClick={() => { setShowAllPrModal(false); setShowStrengthPrModal(false); setShowRunPrModal(false) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(10px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div onClick={e => e.stopPropagation()} className="card" style={{ width: 'min(1040px, 100%)', maxHeight: '86vh', overflowY: 'auto', padding: 0 }}>
+        <Modal onClose={() => { setShowAllPrModal(false); setShowStrengthPrModal(false); setShowRunPrModal(false) }} maxWidth={1040} bare>
+          <div className="mx-modal-scroll" style={{ padding: 0 }}>
             <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
               <div>
                 <div style={{ fontSize: '24px', fontWeight: 850, letterSpacing: '-0.045em' }}>{showRunPrModal ? 'Alla löp-PBn' : showStrengthPrModal ? 'Alla styrke-PBn' : 'Alla PBn'}</div>
@@ -2245,12 +2173,12 @@ export default function TraningPage() {
               )}
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {selectedSessionDetail && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(10px)', zIndex: 650, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={e => e.target === e.currentTarget && setSelectedSessionDetail(null)}>
-          <div style={{ background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '20px', width: '100%', maxWidth: '760px', maxHeight: '88vh', overflowY: 'auto', padding: '22px', boxShadow: 'var(--glass-shadow)' }}>
+        <Modal onClose={() => setSelectedSessionDetail(null)} maxWidth={760} bare>
+          <div className="mx-modal-scroll" style={{ padding: '22px' }}>
             {(() => {
               const session = selectedSessionDetail
               const typeInfo = SESSION_TYPES.find(t => t.id === session.session_type) || SESSION_TYPES[3]
@@ -2396,7 +2324,7 @@ export default function TraningPage() {
               )
             })()}
           </div>
-        </div>
+        </Modal>
       )}
 
       {selectedExercise && (
@@ -2409,13 +2337,7 @@ export default function TraningPage() {
 
       {/* EDIT SESSION MODAL */}
       {editingSession && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} onClick={e => e.target === e.currentTarget && setEditingSession(null)}>
-          <div style={{ background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '18px', width: '100%', maxWidth: '560px', maxHeight: '85vh', overflowY: 'auto', padding: '20px', boxShadow: 'var(--glass-shadow)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-              <div style={{ fontSize: '15px', fontWeight: '600' }}>Redigera pass</div>
-              <button onClick={() => setEditingSession(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={18} /></button>
-            </div>
-
+        <Modal onClose={() => setEditingSession(null)} maxWidth={560} title="Redigera pass">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
               <div>
                 <label style={{ fontSize: '11px', color: 'var(--muted)', display: 'block', marginBottom: '4px' }}>DATUM</label>
@@ -2460,8 +2382,7 @@ export default function TraningPage() {
             <button onClick={saveEditSession} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
               <Save size={14} /> Spara ändringar
             </button>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
       </div>
