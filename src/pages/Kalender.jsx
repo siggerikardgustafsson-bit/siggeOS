@@ -312,7 +312,7 @@ export default function KalenderPage() {
                 <div key={dateStr} onClick={() => setSelectedDay(isSelected ? null : dateStr)}
                   className={`kal-cell${today ? ' kal-cell-today' : ''}${isSelected ? ' kal-cell-selected' : ''}`}
                   style={{
-                  minHeight: '68px', padding: '4px', borderRadius: '6px', cursor: 'pointer',
+                  minHeight: '84px', padding: '4px', borderRadius: '6px', cursor: 'pointer',
                   background: isSelected ? 'var(--accent-soft)' : today ? 'rgba(79,142,247,0.06)' : hasExam ? 'rgba(239,68,68,0.04)' : hasPA ? 'rgba(249,115,22,0.04)' : hasTrip ? 'rgba(232,121,249,0.06)' : hasStudyDeadline ? 'rgba(167,139,250,0.06)' : isWeekend ? 'rgba(255,255,255,0.01)' : 'transparent',
                   border: `1px solid ${isSelected ? 'var(--accent-border)' : today ? 'var(--accent-border)' : hasTrip ? 'rgba(232,121,249,0.25)' : hasStudyDeadline ? 'rgba(167,139,250,0.25)' : dayEvents.length > 0 ? 'var(--border)' : 'transparent'}`,
                   opacity: inMonth ? 1 : 0.3,
@@ -334,22 +334,23 @@ export default function KalenderPage() {
                       {tripEvents[0].isFirst ? tripEvents[0].label : '✈'}
                     </div>
                   )}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     {nonTripEvents.slice(0, 3).map((ev, i) => {
                       const t = EVENT_TYPES[ev.type]
                       const IconComp = t.Icon
                       return (
-                        <div key={i} style={{
-                          width: '14px', height: '14px', borderRadius: '3px',
-                          background: t.color + '25', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          flexShrink: 0, color: t.color,
+                        <div key={i} className="kal-evt" style={{
+                          '--evc': t.color,
+                          background: `color-mix(in srgb, ${t.color} 16%, transparent)`,
+                          color: t.color, borderLeft: `2px solid ${t.color}`,
                         }} title={ev.label}>
-                          <IconComp size={8} />
+                          <IconComp size={8} style={{ flexShrink: 0 }} />
+                          <span className="kal-evt-lbl">{ev.label || t.label}</span>
                         </div>
                       )
                     })}
                     {nonTripEvents.length > 3 && (
-                      <div style={{ fontSize: '8px', color: 'var(--muted)', lineHeight: '14px' }}>+{nonTripEvents.length - 3}</div>
+                      <div className="kal-evt-more">+{nonTripEvents.length - 3} fler</div>
                     )}
                   </div>
                 </div>
