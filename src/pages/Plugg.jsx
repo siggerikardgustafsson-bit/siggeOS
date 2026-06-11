@@ -984,7 +984,7 @@ export default function PluggPage() {
                                     {examGoalList.length > 0 && (
                                       <div style={{ marginBottom: '12px' }}>
                                         <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '6px', fontWeight: '600' }}>LÄRANDEMÅL ({examGoalList.length})</div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <div className="pg-goals-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '6px', ...(examGoalList.length > 6 ? { maxHeight: '232px', overflowY: 'auto', paddingRight: '6px' } : {}) }}>
                                           {examGoalList.map(goal => {
                                             const m = goal.mastery || 0
                                             const color = m >= 80 ? '#10b981' : m >= 50 ? '#f59e0b' : m >= 20 ? '#3b82f6' : '#6b7280'
