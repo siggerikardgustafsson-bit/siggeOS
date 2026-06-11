@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../context/ToastContext'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
+import CountUp from '../components/CountUp'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, X, Save, Loader, TrendingUp, TrendingDown, AlertTriangle, DollarSign, Map, Target, RefreshCw, Edit2, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -674,63 +675,50 @@ export default function EkonomiPage() {
         <div className="mx-content-edge" style={{ padding: "16px 16px 0", width: "100%", maxWidth: "none", margin: "0" }}>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px' }}>
+      <div className="mx-segment" style={{ marginBottom: '20px' }}>
         {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-            flex: 1, padding: '8px', borderRadius: '7px', border: 'none', cursor: 'pointer',
-            background: activeTab === tab.id ? 'var(--surface3)' : 'transparent',
-            color: activeTab === tab.id ? 'var(--text)' : 'var(--muted)',
-            fontSize: '13px', fontWeight: '500', fontFamily: 'Inter, sans-serif',
-            transition: 'all 0.15s',
-          }}>{tab.label}</button>
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={`mx-segment-btn ${activeTab === tab.id ? 'active' : ''}`}>{tab.label}</button>
         ))}
       </div>
 
       {/* OVERVIEW TAB */}
       {activeTab === 'overview' && (
         <>
-          {/* Balance cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', WebkitFlex: '1', gap: '12px', marginBottom: '16px' }}>
-            <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Inkomst (netto)</span>
-                <TrendingUp size={14} color="#10b981" />
+          {/* Balance stat strip — hero balans + inline inkomst/utgifter/CSN */}
+          {(() => {
+            const balCol = balance >= 0 ? '#10b981' : '#ef4444'
+            const csnLeft = Math.max(0, Math.round(csnLimit - csnUsage))
+            return (
+              <div className="hl-strip" style={{ marginBottom: '16px' }}>
+                <div className="hl-shero">
+                  <div className="hl-shero-main">
+                    <span className="hl-shero-cap">Balans denna period</span>
+                    <span className="hl-shero-num" style={{ color: balCol }}>
+                      <CountUp value={Math.round(balance)} /><span className="u" style={{ color: 'var(--muted2)' }}>kr</span>
+                    </span>
+                    <span className="hl-shero-sub" style={{ color: balCol }}>
+                      {balance >= 0 ? 'överskott' : 'underskott'} · netto − utgifter
+                    </span>
+                  </div>
+                </div>
+                <div className="hl-sstats">
+                  <div className="hl-sstat" style={{ '--hl-c': '#10b981' }}>
+                    <span className="hl-sstat-cap"><span className="dot" />Inkomst netto</span>
+                    <span className="hl-sstat-num"><CountUp value={Math.round(totalIncomeNet)} /><span className="u">kr</span></span>
+                  </div>
+                  <div className="hl-sstat" style={{ '--hl-c': '#ef4444' }}>
+                    <span className="hl-sstat-cap"><span className="dot" />Utgifter</span>
+                    <span className="hl-sstat-num"><CountUp value={Math.round(totalExpenses + fixedTotal)} /><span className="u">kr</span></span>
+                  </div>
+                  <div className="hl-sstat" style={{ '--hl-c': '#f59e0b' }}>
+                    <span className="hl-sstat-cap"><span className="dot" />CSN kvar</span>
+                    <span className="hl-sstat-num"><CountUp value={csnLeft} /><span className="u">kr</span></span>
+                  </div>
+                </div>
               </div>
-              <div className="mono" style={{ fontSize: '22px', fontWeight: '600', color: '#10b981' }}>
-                {Math.round(totalIncomeNet).toLocaleString('sv-SE')}
-                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}> kr</span>
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
-                Brutto: {Math.round(totalIncomeGross).toLocaleString('sv-SE')} kr
-              </div>
-            </div>
-            <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Utgifter</span>
-                <TrendingDown size={14} color="#ef4444" />
-              </div>
-              <div className="mono" style={{ fontSize: '22px', fontWeight: '600', color: '#ef4444' }}>
-                {Math.round(totalExpenses + fixedTotal).toLocaleString('sv-SE')}
-                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}> kr</span>
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
-                Fasta: {fixedTotal.toLocaleString('sv-SE')} kr
-              </div>
-            </div>
-            <div className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Balans</span>
-                <DollarSign size={14} color={balance >= 0 ? '#10b981' : '#ef4444'} />
-              </div>
-              <div className="mono" style={{ fontSize: '22px', fontWeight: '600', color: balance >= 0 ? '#10b981' : '#ef4444' }}>
-                {Math.round(balance).toLocaleString('sv-SE')}
-                <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '400' }}> kr</span>
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '3px' }}>
-                Netto − utgifter
-              </div>
-            </div>
-          </div>
+            )
+          })()}
 
           {/* CSN */}
           <div className={`card ${csnWarn ? '' : ''}`} style={{ marginBottom: '16px', borderColor: csnWarn ? 'rgba(245,158,11,0.4)' : 'var(--border)' }}>
