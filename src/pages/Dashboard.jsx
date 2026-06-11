@@ -978,10 +978,16 @@ export default function Dashboard() {
         </div>
         {overallTier && (
           <div className="page-header-actions">
-            <div style={{ display:'flex', alignItems:'center', gap:'6px', padding:'4px 11px', borderRadius:'20px', background: oColor + '12', border:'1px solid ' + oColor + '30' }}>
-              <div style={{ width:6, height:6, borderRadius:'50%', background:oColor, boxShadow:'0 0 6px ' + oColor }} />
-              <span style={{ fontSize:'12px', fontWeight:700, color:oColor }}>T{overallTier}/8</span>
-              <span style={{ fontSize:'11px', color: oColor + 'aa' }}>{oLabel}</span>
+            <div style={{
+              display:'flex', alignItems:'center', gap:'8px', padding:'6px 14px 6px 11px', borderRadius:'20px',
+              background:`linear-gradient(135deg, ${oColor}26 0%, ${oColor}0f 100%)`,
+              border:'1px solid ' + oColor + '4d',
+              boxShadow:`0 4px 18px -8px ${oColor}, inset 0 1px 0 rgba(255,255,255,0.12)`,
+            }}>
+              <div style={{ width:7, height:7, borderRadius:'50%', background:oColor, boxShadow:`0 0 8px 1px ${oColor}, 0 0 0 3px ${oColor}22` }} />
+              <span style={{ fontSize:'12.5px', fontWeight:800, color:oColor, letterSpacing:'0.02em' }}>T{overallTier}/8</span>
+              <span style={{ width:1, height:11, background: oColor + '40' }} />
+              <span style={{ fontSize:'11px', fontWeight:600, color: oColor + 'cc', textTransform:'uppercase', letterSpacing:'0.06em' }}>{oLabel}</span>
             </div>
           </div>
         )}
