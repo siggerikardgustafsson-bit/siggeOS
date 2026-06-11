@@ -8,6 +8,7 @@ import {
   Plus, X, Save, Loader, Check, ChevronDown, ChevronUp,
   Compass, Flame, SkipForward, Edit2, FileText, Sparkles, ExternalLink, Trash2
 } from 'lucide-react'
+import { WORLD_PATHS } from '../lib/worldPaths'
 
 const COUNTRIES = [
   'Sverige','Norge','Danmark','Finland','Island',
@@ -91,15 +92,15 @@ function WorldMap({ countryStatus }) {
         </defs>
         <rect x="0" y="0" width={W} height={H} fill="url(#upp-map-bg)" />
         {graticule.map((g, i) => g[0] === 'v'
-          ? <line key={i} x1={g[1]} y1="0" x2={g[1]} y2={H} stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
-          : <line key={i} x1="0" y1={g[1]} x2={W} y2={g[1]} stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+          ? <line key={i} x1={g[1]} y1="0" x2={g[1]} y2={H} stroke="rgba(255,255,255,0.035)" strokeWidth="0.4" />
+          : <line key={i} x1="0" y1={g[1]} x2={W} y2={g[1]} stroke="rgba(255,255,255,0.035)" strokeWidth="0.4" />
         )}
-        {/* Bas: alla kända länder som svaga noder */}
-        {Object.entries(COUNTRY_COORDS).map(([name, coord]) => {
-          if (countryStatus[name]) return null
-          const [x, y] = proj(coord)
-          return <circle key={name} cx={x} cy={y} r="1.4" fill="rgba(255,255,255,0.14)" />
-        })}
+        {/* Kontinenter + landsgränser */}
+        <g className="upp-world-geo">
+          {WORLD_PATHS.map((d, i) => (
+            <path key={i} d={d} fill="rgba(255,255,255,0.055)" stroke="rgba(255,255,255,0.14)" strokeWidth="0.3" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          ))}
+        </g>
         {/* Markerade länder */}
         {Object.entries(COUNTRY_COORDS).map(([name, coord]) => {
           const st = countryStatus[name]
@@ -892,36 +893,36 @@ Returnera ENBART JSON utan backticks:
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }}
                     onClick={() => setExpandedTrip(isExpanded ? null : trip.id)}>
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1 }}>
-                      <div style={{ fontSize: '22px', letterSpacing: '-2px' }}>
-                        {tripCountries.slice(0, 4).map(c => FLAGS[c] || '🌍').join('')}
+                    <div style={{ display: 'flex', gap: '11px', alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '20px', letterSpacing: '-2px', lineHeight: 1.1, flexShrink: 0, paddingTop: 1 }}>
+                        {tripCountries.slice(0, 3).map(c => FLAGS[c] || '🌍').join('')}
                       </div>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                          <div style={{ fontSize: '15px', fontWeight: '600' }}>{trip.title}</div>
-                          <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px',
-                            background: status?.color + '20', color: status?.color, fontWeight: '600' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                          <div style={{ fontSize: '14.5px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{trip.title}</div>
+                          <span style={{ flexShrink: 0, fontSize: '10px', padding: '2px 8px', borderRadius: '999px',
+                            background: status?.color + '20', color: status?.color, fontWeight: '700' }}>
                             {status?.label}
                           </span>
                           {daysUntil !== null && daysUntil >= 0 && (
-                            <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600' }}>om {daysUntil}d</span>
+                            <span style={{ flexShrink: 0, fontSize: '11px', color: '#3b82f6', fontWeight: '700' }}>om {daysUntil}d</span>
                           )}
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--muted)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                          {tripCountries.length > 0 && <span>{tripCountries.join(' · ')}</span>}
+                        <div style={{ fontSize: '11.5px', color: 'var(--muted)', display: 'flex', gap: '7px', flexWrap: 'wrap', marginTop: 4, alignItems: 'center' }}>
+                          {tripCountries.length > 0 && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{tripCountries.join(' · ')}</span>}
                           {trip.city && <span>📍 {trip.city}</span>}
                           {trip.start_date && <span>{format(parseISO(trip.start_date), 'MMM yyyy', { locale: sv })}</span>}
-                          {days && <span>{days} dagar</span>}
+                          {days && <span>{days} d</span>}
                           {trip.rating > 0 && <span style={{ color: '#f59e0b' }}>{'★'.repeat(trip.rating)}</span>}
                         </div>
+                        {(trip.status === 'idea' || trip.status === 'planned') && (
+                          <button onClick={e => { e.stopPropagation(); setPlanningTrip(trip) }} className="upp-plan-btn" style={{ marginTop: 9 }}>
+                            <FileText size={12} /> Planera
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                      {(trip.status === 'idea' || trip.status === 'planned') && (
-                        <button onClick={e => { e.stopPropagation(); setPlanningTrip(trip) }} className="upp-plan-btn">
-                          <FileText size={12} /> Planera
-                        </button>
-                      )}
+                    <div style={{ display: 'flex', gap: '2px', alignItems: 'center', flexShrink: 0 }}>
                       <button onClick={e => { e.stopPropagation(); setEditingTrip(trip.id); setExpandedTrip(null) }}
                         style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', opacity: 0.6 }}>
                         <Edit2 size={13} />
