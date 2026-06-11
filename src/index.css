@@ -4303,6 +4303,50 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .mx-em-close:hover { color: #fff; border-color: var(--accent-border); background: var(--accent-soft); }
 .mx-em-tabs { margin-top: 18px; }
 
+/* ===== Premium log rows (exercise / run history) ===== */
+.mx-logrow {
+  position: relative;
+  padding: 13px 15px 13px 17px;
+  border-radius: 14px;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--surface2) 80%, transparent), color-mix(in srgb, var(--surface) 60%, transparent));
+  border: 1px solid var(--border);
+  overflow: hidden;
+  transition: border-color .22s ease, transform .22s cubic-bezier(.22,1,.36,1), box-shadow .22s ease;
+}
+.mx-logrow::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: linear-gradient(180deg, var(--lr-c, var(--accent)), transparent);
+  opacity: .8;
+}
+.mx-logrow:hover {
+  transform: translateX(2px);
+  border-color: color-mix(in srgb, var(--lr-c, var(--accent)) 45%, var(--border));
+  box-shadow: 0 10px 26px -16px color-mix(in srgb, var(--lr-c, var(--accent)) 90%, transparent);
+}
+.mx-logrow.pr {
+  background: linear-gradient(120deg, rgba(245,158,11,.1), color-mix(in srgb, var(--surface) 60%, transparent));
+  border-color: rgba(245,158,11,.28);
+}
+.mx-logrow.pr::before { background: linear-gradient(180deg, #f59e0b, transparent); }
+.mx-logrow-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 9px; }
+.mx-logrow-date { font-size: 13px; font-weight: 700; color: var(--text); text-transform: capitalize; }
+.mx-logrow-badge { font-size: 9.5px; font-weight: 800; letter-spacing: .04em; padding: 2px 7px; border-radius: 6px; background: rgba(245,158,11,.2); color: #f59e0b; }
+.mx-logrow-stats { display: flex; gap: 12px; font-size: 12px; color: var(--muted); align-items: baseline; }
+.mx-logrow-stats b { font-size: 14px; font-weight: 800; letter-spacing: -.02em; }
+.mx-set-chip {
+  font-size: 12px; padding: 4px 9px; border-radius: 8px;
+  background: rgba(255,255,255,0.05); color: var(--muted2);
+  border: 1px solid transparent; transition: all .15s;
+}
+.mx-set-chip.top {
+  background: color-mix(in srgb, var(--lr-c, var(--accent)) 16%, transparent);
+  color: var(--lr-c, var(--accent));
+  border-color: color-mix(in srgb, var(--lr-c, var(--accent)) 40%, transparent);
+  font-weight: 700;
+}
+.mx-set-chip.drop { background: rgba(245,158,11,.13); color: #f59e0b; border-color: rgba(245,158,11,.3); }
+
 /* Premium glass widget shell (tilt-aware) */
 .mx-card {
   position: relative;

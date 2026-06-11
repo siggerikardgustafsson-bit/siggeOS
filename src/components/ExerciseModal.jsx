@@ -7,7 +7,8 @@ import { X, TrendingUp, List, BarChart2, Dumbbell } from 'lucide-react'
 import Modal from './Modal'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, BarChart, Bar, ReferenceLine, ScatterChart, Scatter, ZAxis
+  CartesianGrid, BarChart, Bar, ReferenceLine, ScatterChart, Scatter, ZAxis,
+  AreaChart, Area
 } from 'recharts'
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -162,27 +163,46 @@ export default function ExerciseModal({ exerciseName, onClose }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                   <div>
                     <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '12px', letterSpacing: '0.06em' }}>MAX VIKT PER PASS</div>
-                    <ResponsiveContainer width="100%" height={160}>
-                      <LineChart data={progressionData} margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} />
-                        <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} domain={['auto', 'auto']} />
+                    <ResponsiveContainer width="100%" height={170}>
+                      <AreaChart data={progressionData} margin={{ top: 6, right: 6, bottom: 0, left: -15 }}>
+                        <defs>
+                          <linearGradient id="em-weight-fill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.42} />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                          </linearGradient>
+                          <filter id="em-weight-glow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="3.2" result="b" />
+                            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+                          </filter>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} domain={['auto', 'auto']} axisLine={false} tickLine={false} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Line type="monotone" dataKey="maxVikt" stroke="var(--accent)" strokeWidth={2.5}
-                          dot={{ r: 4, fill: 'var(--accent)', strokeWidth: 0 }} name="Max vikt" unit="kg" connectNulls />
-                        {allTimePR > 0 && <ReferenceLine y={allTimePR} stroke="#f59e0b" strokeDasharray="4 4" opacity={0.5} label={{ value: 'PR', fontSize: 9, fill: '#f59e0b', position: 'right' }} />}
-                      </LineChart>
+                        <Area type="monotone" dataKey="maxVikt" stroke="#60a5fa" strokeWidth={2.75}
+                          fill="url(#em-weight-fill)" name="Max vikt" unit="kg" connectNulls
+                          style={{ filter: 'url(#em-weight-glow)' }}
+                          dot={{ r: 3, fill: '#0b1220', stroke: '#60a5fa', strokeWidth: 2 }}
+                          activeDot={{ r: 5, fill: '#60a5fa', stroke: '#fff', strokeWidth: 1.5 }} />
+                        {allTimePR > 0 && <ReferenceLine y={allTimePR} stroke="#f59e0b" strokeDasharray="4 4" opacity={0.55} label={{ value: 'PR', fontSize: 9, fill: '#f59e0b', position: 'right' }} />}
+                      </AreaChart>
                     </ResponsiveContainer>
                   </div>
                   <div>
                     <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '12px', letterSpacing: '0.06em' }}>TOTAL VOLYM PER PASS (kg × reps)</div>
-                    <ResponsiveContainer width="100%" height={100}>
-                      <BarChart data={progressionData} margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} />
-                        <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Bar dataKey="volym" fill="var(--accent)" opacity={0.4} radius={[3,3,0,0]} name="Volym" />
+                    <ResponsiveContainer width="100%" height={110}>
+                      <BarChart data={progressionData} margin={{ top: 5, right: 6, bottom: 0, left: -15 }}>
+                        <defs>
+                          <linearGradient id="em-vol-fill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.85} />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.25} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(96,165,250,0.08)' }} />
+                        <Bar dataKey="volym" fill="url(#em-vol-fill)" radius={[5,5,0,0]} name="Volym" maxBarSize={34} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -218,16 +238,27 @@ export default function ExerciseModal({ exerciseName, onClose }) {
                       <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px', letterSpacing: '0.06em' }}>
                         MAX REPS PÅ {selectedWeight}KG ÖVER TID
                       </div>
-                      <ResponsiveContainer width="100%" height={160}>
-                        <LineChart data={weightRepsData} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} />
-                          <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} allowDecimals={false} domain={[0, 'auto']} />
+                      <ResponsiveContainer width="100%" height={170}>
+                        <AreaChart data={weightRepsData} margin={{ top: 6, right: 6, bottom: 0, left: -20 }}>
+                          <defs>
+                            <linearGradient id="em-reps-fill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#34d399" stopOpacity={0.4} />
+                              <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
+                            </linearGradient>
+                            <filter id="em-reps-glow" x="-20%" y="-20%" width="140%" height="140%">
+                              <feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+                            </filter>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} allowDecimals={false} domain={[0, 'auto']} axisLine={false} tickLine={false} />
                           <Tooltip content={<CustomTooltip />} />
-                          <Line type="monotone" dataKey="reps" stroke="#34d399" strokeWidth={2.5}
-                            dot={{ r: 5, fill: '#34d399', strokeWidth: 0 }} name="Reps" connectNulls />
-                          <ReferenceLine y={Math.max(...weightRepsData.map(d => d.reps))} stroke="#34d399" strokeDasharray="4 4" opacity={0.4} label={{ value: 'Max', fontSize: 9, fill: '#34d399', position: 'right' }} />
-                        </LineChart>
+                          <Area type="monotone" dataKey="reps" stroke="#34d399" strokeWidth={2.75}
+                            fill="url(#em-reps-fill)" name="Reps" connectNulls style={{ filter: 'url(#em-reps-glow)' }}
+                            dot={{ r: 3, fill: '#0b1220', stroke: '#34d399', strokeWidth: 2 }}
+                            activeDot={{ r: 5, fill: '#34d399', stroke: '#fff', strokeWidth: 1.5 }} />
+                          <ReferenceLine y={Math.max(...weightRepsData.map(d => d.reps))} stroke="#34d399" strokeDasharray="4 4" opacity={0.45} label={{ value: 'Max', fontSize: 9, fill: '#34d399', position: 'right' }} />
+                        </AreaChart>
                       </ResponsiveContainer>
                       <div style={{ marginTop: '8px', display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--muted)' }}>
                         <span>Max reps: <span className="mono" style={{ color: '#34d399', fontWeight: '600' }}>{Math.max(...weightRepsData.map(d => d.reps))}</span></span>
@@ -292,16 +323,27 @@ export default function ExerciseModal({ exerciseName, onClose }) {
                       <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px', letterSpacing: '0.06em' }}>
                         MAX VIKT PÅ {selectedReps} REPS ÖVER TID
                       </div>
-                      <ResponsiveContainer width="100%" height={160}>
-                        <LineChart data={repsWeightData} margin={{ top: 5, right: 5, bottom: 0, left: -15 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} />
-                          <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} domain={['auto', 'auto']} />
+                      <ResponsiveContainer width="100%" height={170}>
+                        <AreaChart data={repsWeightData} margin={{ top: 6, right: 6, bottom: 0, left: -15 }}>
+                          <defs>
+                            <linearGradient id="em-rw-fill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#a78bfa" stopOpacity={0.4} />
+                              <stop offset="100%" stopColor="#a78bfa" stopOpacity={0} />
+                            </linearGradient>
+                            <filter id="em-rw-glow" x="-20%" y="-20%" width="140%" height="140%">
+                              <feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+                            </filter>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} domain={['auto', 'auto']} axisLine={false} tickLine={false} />
                           <Tooltip content={<CustomTooltip />} />
-                          <Line type="monotone" dataKey="vikt" stroke="#a78bfa" strokeWidth={2.5}
-                            dot={{ r: 5, fill: '#a78bfa', strokeWidth: 0 }} name="Vikt" unit="kg" connectNulls />
-                          <ReferenceLine y={Math.max(...repsWeightData.map(d => d.vikt))} stroke="#a78bfa" strokeDasharray="4 4" opacity={0.4} label={{ value: 'Max', fontSize: 9, fill: '#a78bfa', position: 'right' }} />
-                        </LineChart>
+                          <Area type="monotone" dataKey="vikt" stroke="#a78bfa" strokeWidth={2.75}
+                            fill="url(#em-rw-fill)" name="Vikt" unit="kg" connectNulls style={{ filter: 'url(#em-rw-glow)' }}
+                            dot={{ r: 3, fill: '#0b1220', stroke: '#a78bfa', strokeWidth: 2 }}
+                            activeDot={{ r: 5, fill: '#a78bfa', stroke: '#fff', strokeWidth: 1.5 }} />
+                          <ReferenceLine y={Math.max(...repsWeightData.map(d => d.vikt))} stroke="#a78bfa" strokeDasharray="4 4" opacity={0.45} label={{ value: 'Max', fontSize: 9, fill: '#a78bfa', position: 'right' }} />
+                        </AreaChart>
                       </ResponsiveContainer>
                       <div style={{ marginTop: '8px', display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--muted)' }}>
                         <span>Bästa vikt: <span className="mono" style={{ color: '#a78bfa', fontWeight: '600' }}>{Math.max(...repsWeightData.map(d => d.vikt))}kg</span></span>
@@ -345,20 +387,16 @@ export default function ExerciseModal({ exerciseName, onClose }) {
                     const totalVol = Math.round(sets.reduce((sum, s) => sum + ((s.weight_kg || 0) * (s.reps || 0)), 0))
                     const isPR = maxWeight === allTimePR
                     return (
-                      <div key={date} style={{
-                        padding: '14px 16px', borderRadius: '12px',
-                        background: isPR ? 'rgba(245,158,11,0.06)' : 'var(--surface2)',
-                        border: `1px solid ${isPR ? 'rgba(245,158,11,0.2)' : 'var(--border)'}`,
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div key={date} className={`mx-logrow ${isPR ? 'pr' : ''}`} style={{ '--lr-c': '#3b82f6' }}>
+                        <div className="mx-logrow-head">
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ fontSize: '13px', fontWeight: '600' }}>
+                            <div className="mx-logrow-date">
                               {format(parseISO(date), 'EEEE d MMM yyyy', { locale: sv })}
                             </div>
-                            {isPR && <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(245,158,11,0.2)', color: '#f59e0b', fontWeight: '700' }}>PR</span>}
+                            {isPR && <span className="mx-logrow-badge">PR</span>}
                           </div>
-                          <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--muted)' }}>
-                            <span className="mono" style={{ color: 'var(--accent)', fontWeight: '600' }}>{maxWeight}kg</span>
+                          <div className="mx-logrow-stats">
+                            <span className="mono" style={{ color: '#60a5fa', fontWeight: 800 }}><b>{maxWeight}</b>kg</span>
                             <span>vol {totalVol}</span>
                           </div>
                         </div>
@@ -366,13 +404,7 @@ export default function ExerciseModal({ exerciseName, onClose }) {
                           {sets.slice().sort((a, b) => a.set_number - b.set_number).map((s, i) => {
                             const isTop = s.weight_kg === maxWeight
                             return (
-                              <span key={i} className="mono" style={{
-                                fontSize: '12px', padding: '4px 9px', borderRadius: '6px',
-                                background: isTop ? 'var(--accent-soft)' : 'rgba(255,255,255,0.05)',
-                                color: isTop ? 'var(--accent)' : 'var(--muted2)',
-                                border: `1px solid ${isTop ? 'var(--accent-border)' : 'transparent'}`,
-                                fontWeight: isTop ? '600' : '400',
-                              }}>
+                              <span key={i} className={`mono mx-set-chip ${isTop ? 'top' : ''}`}>
                                 {s.reps}×{s.weight_kg}kg
                               </span>
                             )

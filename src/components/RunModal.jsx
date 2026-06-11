@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { format, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { X, TrendingUp, List, Zap, Footprints } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, AreaChart, Area } from 'recharts'
 import Modal from './Modal'
 
 const DISTANCES = [
@@ -241,15 +241,25 @@ export default function RunModal({ onClose }) {
                         <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '10px', letterSpacing: '0.06em' }}>
                           SNABBASTE TEMPO PÅ PASS ≥ {DISTANCES.find(d => d.km === selectedDist)?.label} ÖVER TID
                         </div>
-                        <ResponsiveContainer width="100%" height={180}>
-                          <LineChart data={progData} margin={{ top: 5, right: 5, bottom: 0, left: 10 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} />
+                        <ResponsiveContainer width="100%" height={190}>
+                          <AreaChart data={progData} margin={{ top: 6, right: 6, bottom: 0, left: 10 }}>
+                            <defs>
+                              <linearGradient id="rm-tempo-fill" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#10b981" stopOpacity={0.4} />
+                                <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                              </linearGradient>
+                              <filter id="rm-tempo-glow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="3.2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+                              </filter>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
                             <YAxis
                               tick={{ fontSize: 10, fill: 'var(--muted)' }}
                               reversed={true}
                               domain={['auto', 'auto']}
                               tickFormatter={v => formatPace(v)}
+                              axisLine={false} tickLine={false}
                             />
                             <Tooltip
                               content={({ active, payload, label }) => {
@@ -263,13 +273,15 @@ export default function RunModal({ onClose }) {
                                 )
                               }}
                             />
-                            <Line type="monotone" dataKey="tempo" stroke="#10b981" strokeWidth={2.5}
-                              dot={{ r: 4, fill: '#10b981', strokeWidth: 0 }} name="Tempo" connectNulls />
+                            <Area type="monotone" dataKey="tempo" stroke="#10b981" strokeWidth={2.75}
+                              fill="url(#rm-tempo-fill)" name="Tempo" connectNulls style={{ filter: 'url(#rm-tempo-glow)' }}
+                              dot={{ r: 3, fill: '#0b1220', stroke: '#10b981', strokeWidth: 2 }}
+                              activeDot={{ r: 5, fill: '#10b981', stroke: '#fff', strokeWidth: 1.5 }} />
                             {bestPaceInProg && (
                               <ReferenceLine y={bestPaceInProg} stroke="#f59e0b" strokeDasharray="4 4" opacity={0.6}
                                 label={{ value: `PR ${formatPace(bestPaceInProg)}`, fontSize: 9, fill: '#f59e0b', position: 'right' }} />
                             )}
-                          </LineChart>
+                          </AreaChart>
                         </ResponsiveContainer>
                         <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '6px' }}>
                           ↑ Lägre = snabbare. Gul linje = ditt bästa tempo.
@@ -310,32 +322,28 @@ export default function RunModal({ onClose }) {
                     const isLong = run.distance_km >= 15
                     const isFast = run.pace_per_km && run.pace_per_km < 280 // < 4:40/km
                     return (
-                      <div key={run.id} style={{
-                        padding: '12px 16px', borderRadius: '12px',
-                        background: 'var(--surface2)',
-                        border: '1px solid var(--border)',
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                              <div style={{ fontSize: '13px', fontWeight: '600' }}>
+                      <div key={run.id} className="mx-logrow" style={{ '--lr-c': '#10b981' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px', flexWrap: 'wrap' }}>
+                              <div className="mx-logrow-date">
                                 {format(parseISO(run.date), 'EEEE d MMM yyyy', { locale: sv })}
                               </div>
-                              {isLong && <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>Lång</span>}
-                              {isFast && <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'rgba(52,211,153,0.15)', color: '#34d399' }}>Snabb</span>}
+                              {isLong && <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '6px', background: 'rgba(139,92,246,0.16)', color: '#a78bfa', fontWeight: 700 }}>Lång</span>}
+                              {isFast && <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '6px', background: 'rgba(52,211,153,0.16)', color: '#34d399', fontWeight: 700 }}>Snabb</span>}
                             </div>
-                            {run.notes && <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{run.notes}</div>}
+                            {run.notes && <div style={{ fontSize: '11px', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{run.notes}</div>}
                           </div>
-                          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexShrink: 0 }}>
                             {run.distance_km && (
                               <div style={{ textAlign: 'right' }}>
-                                <div className="mono" style={{ fontSize: '15px', fontWeight: '700', color: 'var(--accent)' }}>{run.distance_km.toFixed(1)} km</div>
+                                <div className="mono" style={{ fontSize: '16px', fontWeight: '800', color: '#60a5fa', letterSpacing: '-.02em' }}>{run.distance_km.toFixed(1)} km</div>
                                 {run.duration_minutes && <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{run.duration_minutes} min</div>}
                               </div>
                             )}
                             {run.pace_per_km && (
                               <div style={{ textAlign: 'right' }}>
-                                <div className="mono" style={{ fontSize: '15px', fontWeight: '700', color: '#10b981' }}>{formatPace(run.pace_per_km)}</div>
+                                <div className="mono" style={{ fontSize: '16px', fontWeight: '800', color: '#10b981', letterSpacing: '-.02em' }}>{formatPace(run.pace_per_km)}</div>
                                 <div style={{ fontSize: '11px', color: 'var(--muted)' }}>per km</div>
                               </div>
                             )}

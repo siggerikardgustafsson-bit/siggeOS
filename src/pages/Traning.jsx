@@ -2260,14 +2260,14 @@ export default function TraningPage() {
                         {exerciseGroups.length ? (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             {exerciseGroups.map(group => (
-                              <div key={group.name} style={{ padding: '12px', borderRadius: '12px', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
-                                <button onClick={() => setSelectedExercise(group.name)} style={{ background: 'none', border: 'none', padding: 0, marginBottom: '8px', color: 'var(--accent)', fontSize: '14px', fontWeight: 750, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                              <div key={group.name} className="mx-logrow" style={{ '--lr-c': typeInfo.color }}>
+                                <button onClick={() => setSelectedExercise(group.name)} style={{ background: 'none', border: 'none', padding: 0, marginBottom: '9px', color: 'var(--text)', fontSize: '14px', fontWeight: 800, letterSpacing: '-.02em', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                   {group.name}
-                                  <TrendingUp size={12} />
+                                  <TrendingUp size={12} style={{ color: typeInfo.color }} />
                                 </button>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                   {group.sets.map((s, i) => (
-                                    <span key={s.id || i} className="mono" style={{ fontSize: '12px', padding: '5px 9px', borderRadius: '8px', background: s.is_dropset ? 'rgba(245,158,11,0.12)' : 'var(--accent-soft)', color: s.is_dropset ? '#f59e0b' : 'var(--accent)', border: s.is_dropset ? '1px solid rgba(245,158,11,0.25)' : '1px solid var(--accent-border)' }}>
+                                    <span key={s.id || i} className={`mono mx-set-chip ${s.is_dropset ? 'drop' : 'top'}`} style={!s.is_dropset ? { '--lr-c': typeInfo.color } : undefined}>
                                       {s.reps ?? '—'}×{s.weight_kg ?? '—'}kg{s.is_dropset ? ' ↓' : ''}
                                     </span>
                                   ))}
