@@ -35,32 +35,52 @@ function DonutChart({ data, size = 140 }) {
 
   const r = size / 2
   const inner = r * 0.6
+  const gap = slices.filter(s => s.pct > 0).length > 1 ? 0.012 : 0  // angular gap between slices
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {slices.map((slice, i) => {
-        if (slice.pct === 0) return null
-        const startAngle = slice.start * 2 * Math.PI - Math.PI / 2
-        const endAngle = (slice.start + slice.pct) * 2 * Math.PI - Math.PI / 2
-        const x1 = r + r * Math.cos(startAngle)
-        const y1 = r + r * Math.sin(startAngle)
-        const x2 = r + r * Math.cos(endAngle)
-        const y2 = r + r * Math.sin(endAngle)
-        const xi1 = r + inner * Math.cos(startAngle)
-        const yi1 = r + inner * Math.sin(startAngle)
-        const xi2 = r + inner * Math.cos(endAngle)
-        const yi2 = r + inner * Math.sin(endAngle)
-        const large = slice.pct > 0.5 ? 1 : 0
-        return (
-          <path
-            key={i}
-            d={`M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${inner} ${inner} 0 ${large} 0 ${xi1} ${yi1}`}
-            fill={slice.color}
-            opacity={0.85}
-          />
-        )
-      })}
-      <circle cx={r} cy={r} r={inner * 0.85} fill="var(--surface)" />
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible' }}>
+      <defs>
+        <filter id="ek-donut-glow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="3.2" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+        <radialGradient id="ek-donut-hole" cx="50%" cy="42%" r="65%">
+          <stop offset="0%" stopColor="color-mix(in srgb, var(--surface) 88%, #fff 12%)" />
+          <stop offset="100%" stopColor="var(--surface)" />
+        </radialGradient>
+        {slices.map((slice, i) => slice.pct > 0 && (
+          <linearGradient key={i} id={`ek-slice-${i}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={`color-mix(in srgb, ${slice.color} 65%, #fff 8%)`} />
+            <stop offset="100%" stopColor={slice.color} />
+          </linearGradient>
+        ))}
+      </defs>
+      <g filter="url(#ek-donut-glow)">
+        {slices.map((slice, i) => {
+          if (slice.pct === 0) return null
+          const s0 = slice.start + gap / 2
+          const s1 = slice.start + slice.pct - gap / 2
+          const startAngle = s0 * 2 * Math.PI - Math.PI / 2
+          const endAngle = s1 * 2 * Math.PI - Math.PI / 2
+          const x1 = r + r * Math.cos(startAngle)
+          const y1 = r + r * Math.sin(startAngle)
+          const x2 = r + r * Math.cos(endAngle)
+          const y2 = r + r * Math.sin(endAngle)
+          const xi1 = r + inner * Math.cos(startAngle)
+          const yi1 = r + inner * Math.sin(startAngle)
+          const xi2 = r + inner * Math.cos(endAngle)
+          const yi2 = r + inner * Math.sin(endAngle)
+          const large = (s1 - s0) > 0.5 ? 1 : 0
+          return (
+            <path
+              key={i}
+              d={`M ${xi1} ${yi1} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${inner} ${inner} 0 ${large} 0 ${xi1} ${yi1}`}
+              fill={`url(#ek-slice-${i})`}
+            />
+          )
+        })}
+      </g>
+      <circle cx={r} cy={r} r={inner * 0.86} fill="url(#ek-donut-hole)" />
     </svg>
   )
 }
@@ -838,91 +858,78 @@ export default function EkonomiPage() {
 
       {/* LOG TAB */}
       {activeTab === 'log' && (
-        <div className="card">
+        <div className="ek-log" style={{ '--ek-lc': logType === 'income' ? '#10b981' : '#ef4444' }}>
           {/* Toggle */}
-          <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface2)', borderRadius: '8px', padding: '4px' }}>
-            {[{ id: 'expense', label: '− Utgift' }, { id: 'income', label: '+ Inkomst' }].map(t => (
-              <button key={t.id} onClick={() => setLogType(t.id)} style={{
-                flex: 1, padding: '8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                background: logType === t.id ? (t.id === 'income' ? '#10b981' : '#ef4444') : 'transparent',
-                color: logType === t.id ? 'white' : 'var(--muted)',
-                fontSize: '14px', fontWeight: '600', fontFamily: 'Inter, sans-serif',
-                transition: 'all 0.15s',
-              }}>{t.label}</button>
+          <div className="ek-log-seg">
+            {[{ id: 'expense', label: '− Utgift', cls: 'exp' }, { id: 'income', label: '+ Inkomst', cls: 'inc' }].map(t => (
+              <button key={t.id} onClick={() => setLogType(t.id)}
+                className={`ek-log-seg-btn ${t.cls} ${logType === t.id ? 'active' : ''}`}>{t.label}</button>
             ))}
           </div>
 
           {logType === 'expense' && (
             <>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Belopp (kr)</label>
-                <input className="input" type="number" placeholder="0" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} style={{ fontSize: '20px', padding: '12px 14px' }} />
+              <div className="ek-amount">
+                <label className="ek-log-label">Belopp</label>
+                <input type="number" placeholder="0" value={expenseForm.amount} onChange={e => setExpenseForm(f => ({ ...f, amount: e.target.value }))} />
+                <span className="ek-amount-suf">kr</span>
               </div>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '8px' }}>Kategori</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+              <div className="ek-field">
+                <label className="ek-log-label">Kategori</label>
+                <div className="ek-pick">
                   {EXPENSE_CATEGORIES.map(cat => (
-                    <button key={cat.id} onClick={() => setExpenseForm(f => ({ ...f, category: cat.id }))} style={{
-                      padding: '8px 4px', borderRadius: '8px', border: `1px solid ${expenseForm.category === cat.id ? cat.color : 'var(--border)'}`,
-                      background: expenseForm.category === cat.id ? cat.color + '20' : 'transparent',
-                      color: expenseForm.category === cat.id ? cat.color : 'var(--muted)',
-                      cursor: 'pointer', fontSize: '11px', fontFamily: 'Inter, sans-serif',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px',
-                    }}>
-                      <span style={{ fontSize: '16px' }}>{cat.emoji}</span>
+                    <button key={cat.id} onClick={() => setExpenseForm(f => ({ ...f, category: cat.id }))}
+                      className={`ek-pick-btn ${expenseForm.category === cat.id ? 'active' : ''}`}
+                      style={{ '--ek-c': cat.color }}>
+                      <span className="em">{cat.emoji}</span>
                       {cat.label}
                     </button>
                   ))}
                 </div>
               </div>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Beskrivning (valfritt)</label>
+              <div className="ek-field">
+                <label className="ek-log-label">Beskrivning (valfritt)</label>
                 <input className="input" placeholder="t.ex. ICA, Systembolaget..." value={expenseForm.description} onChange={e => setExpenseForm(f => ({ ...f, description: e.target.value }))} />
               </div>
-              <div style={{ marginBottom: '20px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Datum</label>
+              <div className="ek-field">
+                <label className="ek-log-label">Datum</label>
                 <input className="input" type="date" value={expenseForm.date} onChange={e => setExpenseForm(f => ({ ...f, date: e.target.value }))} />
               </div>
-              <button onClick={saveExpense} className="btn btn-primary" disabled={saving || !expenseForm.amount} style={{ width: '100%', justifyContent: 'center', background: '#ef4444' }}>
-                {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={14} /> Logga utgift</>}
+              <button onClick={saveExpense} className="ek-submit" disabled={saving || !expenseForm.amount}>
+                {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={15} /> Logga utgift</>}
               </button>
             </>
           )}
 
           {logType === 'income' && (
             <>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>
-                  Belopp (kr)
+              <div className="ek-amount">
+                <label className="ek-log-label">
+                  Belopp
                   {incomeForm.source === 'PA-jobb' && (
-                    <span style={{ color: '#f59e0b', marginLeft: '6px' }}>— logga bruttolön (före skatt)</span>
+                    <span style={{ color: '#f59e0b', marginLeft: '6px', textTransform: 'none', letterSpacing: 0, fontWeight: 700 }}>— bruttolön (före skatt)</span>
                   )}
                 </label>
-                <input className="input" type="number" placeholder="0" value={incomeForm.amount} onChange={e => setIncomeForm(f => ({ ...f, amount: e.target.value }))} style={{ fontSize: '20px', padding: '12px 14px' }} />
+                <input type="number" placeholder="0" value={incomeForm.amount} onChange={e => setIncomeForm(f => ({ ...f, amount: e.target.value }))} />
+                <span className="ek-amount-suf">kr</span>
                 {incomeForm.source === 'PA-jobb' && incomeForm.amount && (
-                  <div style={{ fontSize: '12px', color: '#10b981', marginTop: '6px' }}>
+                  <div style={{ fontSize: '12px', color: '#10b981', marginTop: '8px', fontWeight: 700 }}>
                     Netto (70%): {Math.round(parseFloat(incomeForm.amount) * 0.7).toLocaleString('sv-SE')} kr
                   </div>
                 )}
               </div>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Källa</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              <div className="ek-field">
+                <label className="ek-log-label">Källa</label>
+                <div className="ek-chips">
                   {INCOME_SOURCES.map(src => (
                     <button key={src} onClick={() => setIncomeForm(f => ({
                       ...f, source: src,
                       counts_toward_csn: src !== 'Erik Norling',
-                    }))} style={{
-                      padding: '7px 14px', borderRadius: '8px',
-                      border: `1px solid ${incomeForm.source === src ? '#10b981' : 'var(--border)'}`,
-                      background: incomeForm.source === src ? 'rgba(16,185,129,0.15)' : 'transparent',
-                      color: incomeForm.source === src ? '#10b981' : 'var(--muted)',
-                      cursor: 'pointer', fontSize: '13px', fontFamily: 'Inter, sans-serif',
-                    }}>{src}</button>
+                    }))} className={`ek-chip-btn ${incomeForm.source === src ? 'active' : ''}`}>{src}</button>
                   ))}
                 </div>
               </div>
-              <div style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="ek-field" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input type="checkbox" id="csn-check" checked={incomeForm.counts_toward_csn}
                   onChange={e => setIncomeForm(f => ({ ...f, counts_toward_csn: e.target.checked }))}
                   style={{ accentColor: '#10b981', width: '16px', height: '16px', cursor: 'pointer' }} />
@@ -931,13 +938,15 @@ export default function EkonomiPage() {
                   {incomeForm.source === 'Erik Norling' && <span style={{ color: '#f59e0b', marginLeft: '6px' }}>(Erik = kontant, räknas ej)</span>}
                 </label>
               </div>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Datum</label>
+              <div className="ek-field">
+                <label className="ek-log-label">Datum</label>
                 <input className="input" type="date" value={incomeForm.date} onChange={e => setIncomeForm(f => ({ ...f, date: e.target.value }))} />
               </div>
-              <input className="input" placeholder="Anteckningar (valfritt)" value={incomeForm.notes} onChange={e => setIncomeForm(f => ({ ...f, notes: e.target.value }))} style={{ marginBottom: '20px' }} />
-              <button onClick={saveIncome} className="btn btn-primary" disabled={saving || !incomeForm.amount} style={{ width: '100%', justifyContent: 'center' }}>
-                {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={14} /> Logga inkomst</>}
+              <div className="ek-field">
+                <input className="input" placeholder="Anteckningar (valfritt)" value={incomeForm.notes} onChange={e => setIncomeForm(f => ({ ...f, notes: e.target.value }))} />
+              </div>
+              <button onClick={saveIncome} className="ek-submit" disabled={saving || !incomeForm.amount}>
+                {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={15} /> Logga inkomst</>}
               </button>
             </>
           )}
