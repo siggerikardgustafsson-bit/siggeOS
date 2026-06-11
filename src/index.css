@@ -4683,16 +4683,37 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .upp-map-panel { border-radius:16px; padding:14px; overflow:hidden;
   background:radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--accent) 8%, var(--surface2)), var(--surface));
   border:1px solid var(--border); box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 18px 40px -28px rgba(0,0,0,.7); }
-.upp-node-completed circle:last-child { filter:drop-shadow(0 0 5px var(--accent)) drop-shadow(0 0 2px var(--accent)); }
-.upp-node-planned circle:last-child { filter:drop-shadow(0 0 6px #3b82f6) drop-shadow(0 0 2px #3b82f6); }
-.upp-node-idea circle:last-child { filter:drop-shadow(0 0 6px #8b5cf6) drop-shadow(0 0 2px #8b5cf6); }
-.upp-node { transition:opacity .2s; }
+.upp-map-stage { position:relative; border-radius:12px; overflow:hidden; }
+.upp-map-svg { width:100%; height:auto; display:block; cursor:grab; touch-action:none; }
+.upp-map-svg:active { cursor:grabbing; }
+/* Markerade länder — fyllda former */
+.upp-fill { transition:opacity .2s; }
+.upp-fill-completed { filter:drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 80%, transparent)); }
+.upp-fill-planned { filter:drop-shadow(0 0 4px #3b82f6) drop-shadow(0 0 1.5px #3b82f6); }
+.upp-fill-idea { filter:drop-shadow(0 0 4px #8b5cf6) drop-shadow(0 0 1.5px #8b5cf6); }
+/* Zoom-kontroller */
+.upp-map-zoom { position:absolute; right:10px; bottom:10px; display:flex; flex-direction:column; gap:6px; }
+.upp-map-zoom button { width:28px; height:28px; border-radius:8px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; font-weight:700;
+  color:var(--text); border:1px solid var(--border);
+  background:color-mix(in srgb, var(--surface) 80%, transparent); backdrop-filter:blur(6px);
+  box-shadow:0 4px 12px -4px rgba(0,0,0,.5); transition:filter .15s, transform .1s; }
+.upp-map-zoom button:hover { filter:brightness(1.25); }
+.upp-map-zoom button:active { transform:scale(.92); }
 .upp-map-legend { display:flex; gap:18px; justify-content:center; margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
 .upp-map-leg-item { display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); font-weight:600; }
 .upp-map-leg-dot { width:10px; height:10px; border-radius:50%; }
 .upp-map-leg-completed { background:var(--leg-c); box-shadow:0 0 8px var(--leg-c); }
 .upp-map-leg-planned { background:transparent; border:2px solid var(--leg-c); box-shadow:0 0 8px var(--leg-c); }
 .upp-map-leg-idea { background:transparent; border:2px solid var(--leg-c); box-shadow:0 0 8px var(--leg-c); }
+
+/* Reslistan scrollar internt — resten av sidan hålls statisk */
+.upp-trips-scroll { max-height:calc(100vh - 250px); overflow-y:auto; padding-right:6px;
+  scrollbar-width:thin; scrollbar-color:color-mix(in srgb, var(--accent) 45%, transparent) transparent; }
+.upp-trips-scroll::-webkit-scrollbar { width:6px; }
+.upp-trips-scroll::-webkit-scrollbar-track { background:transparent; }
+.upp-trips-scroll::-webkit-scrollbar-thumb { border-radius:999px; background:color-mix(in srgb, var(--accent) 45%, transparent); }
+@media (max-width: 760px){ .upp-trips-scroll { max-height:none; overflow:visible; padding-right:0; } }
 
 .upp-plan-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 13px; border-radius:9px; cursor:pointer;
   font-size:12px; font-family:Inter, sans-serif; font-weight:700; letter-spacing:.01em; color:#fff;

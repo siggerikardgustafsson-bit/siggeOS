@@ -8,7 +8,7 @@ import {
   Plus, X, Save, Loader, Check, ChevronDown, ChevronUp,
   Compass, Flame, SkipForward, Edit2, FileText, Sparkles, ExternalLink, Trash2
 } from 'lucide-react'
-import { WORLD_PATHS } from '../lib/worldPaths'
+import { WORLD_PATHS, COUNTRY_PATHS } from '../lib/worldPaths'
 
 const COUNTRIES = [
   'Sverige','Norge','Danmark','Finland','Island',
@@ -74,50 +74,124 @@ const COUNTRY_COORDS = {
 const STATUS_RANK = { completed: 3, planned: 2, idea: 1 }
 const STATUS_MAP_COLOR = { completed: 'var(--accent)', planned: '#3b82f6', idea: '#8b5cf6' }
 
+// Världen full-bredd är 360 men datan är mest på norra halvklotet/Europa.
+// Beskär bort Antarktis och tomma poler för bättre fyllnad.
+const MAP_VIEW = { x: 0, y: 18, w: 360, h: 134 }
+
 function WorldMap({ countryStatus }) {
-  // Beskär till regionen där data faktiskt finns (Europa-centrerad men hela världen syns)
-  const W = 360, H = 180
   const proj = ([lon, lat]) => [lon + 180, 90 - lat]
-  const graticule = []
-  for (let lon = -150; lon <= 150; lon += 30) graticule.push(['v', lon + 180])
-  for (let lat = -60; lat <= 60; lat += 30) graticule.push(['h', 90 - lat])
+  const [view, setView] = React.useState(MAP_VIEW)
+  const svgRef = React.useRef(null)
+  const drag = React.useRef(null)
+
+  function clampZoom(w) {
+    return Math.max(MAP_VIEW.w * 0.12, Math.min(MAP_VIEW.w, w))
+  }
+
+  function zoomAt(factor, cx, cy) {
+    setView(v => {
+      let nw = clampZoom(v.w * factor)
+      const ratio = v.h / v.w
+      let nh = nw * ratio
+      // håll punkten (cx,cy) stilla
+      const px = (cx - v.x) / v.w
+      const py = (cy - v.y) / v.h
+      let nx = cx - px * nw
+      let ny = cy - py * nh
+      // begränsa panorering till kartans gräns
+      nx = Math.max(MAP_VIEW.x - nw * 0.15, Math.min(MAP_VIEW.x + MAP_VIEW.w - nw * 0.85, nx))
+      ny = Math.max(MAP_VIEW.y - nh * 0.15, Math.min(MAP_VIEW.y + MAP_VIEW.h - nh * 0.85, ny))
+      return { x: nx, y: ny, w: nw, h: nh }
+    })
+  }
+
+  function toSvg(e) {
+    const svg = svgRef.current
+    const rect = svg.getBoundingClientRect()
+    const px = (e.clientX - rect.left) / rect.width
+    const py = (e.clientY - rect.top) / rect.height
+    return [view.x + px * view.w, view.y + py * view.h]
+  }
+
+  function onWheel(e) {
+    e.preventDefault()
+    const [cx, cy] = toSvg(e)
+    zoomAt(e.deltaY > 0 ? 1.12 : 0.89, cx, cy)
+  }
+
+  function onPointerDown(e) {
+    drag.current = { x: e.clientX, y: e.clientY, view }
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+  function onPointerMove(e) {
+    if (!drag.current) return
+    const svg = svgRef.current
+    const rect = svg.getBoundingClientRect()
+    const dx = (e.clientX - drag.current.x) / rect.width * drag.current.view.w
+    const dy = (e.clientY - drag.current.y) / rect.height * drag.current.view.h
+    const v = drag.current.view
+    let nx = v.x - dx, ny = v.y - dy
+    nx = Math.max(MAP_VIEW.x - v.w * 0.15, Math.min(MAP_VIEW.x + MAP_VIEW.w - v.w * 0.85, nx))
+    ny = Math.max(MAP_VIEW.y - v.h * 0.15, Math.min(MAP_VIEW.y + MAP_VIEW.h - v.h * 0.85, ny))
+    setView({ x: nx, y: ny, w: v.w, h: v.h })
+  }
+  function onPointerUp(e) {
+    drag.current = null
+    e.currentTarget.releasePointerCapture?.(e.pointerId)
+  }
+
+  function btnZoom(factor) {
+    zoomAt(factor, view.x + view.w / 2, view.y + view.h / 2)
+  }
+
+  const zoomed = view.w < MAP_VIEW.w - 0.5
+
   return (
     <div className="upp-map-panel">
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-        <defs>
-          <radialGradient id="upp-map-bg" cx="50%" cy="42%" r="75%">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.05)" />
-            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-          </radialGradient>
-        </defs>
-        <rect x="0" y="0" width={W} height={H} fill="url(#upp-map-bg)" />
-        {graticule.map((g, i) => g[0] === 'v'
-          ? <line key={i} x1={g[1]} y1="0" x2={g[1]} y2={H} stroke="rgba(255,255,255,0.035)" strokeWidth="0.4" />
-          : <line key={i} x1="0" y1={g[1]} x2={W} y2={g[1]} stroke="rgba(255,255,255,0.035)" strokeWidth="0.4" />
-        )}
-        {/* Kontinenter + landsgränser */}
-        <g className="upp-world-geo">
-          {WORLD_PATHS.map((d, i) => (
-            <path key={i} d={d} fill="rgba(255,255,255,0.055)" stroke="rgba(255,255,255,0.14)" strokeWidth="0.3" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-          ))}
-        </g>
-        {/* Markerade länder */}
-        {Object.entries(COUNTRY_COORDS).map(([name, coord]) => {
-          const st = countryStatus[name]
-          if (!st) return null
-          const [x, y] = proj(coord)
-          const color = STATUS_MAP_COLOR[st]
-          return (
-            <g key={name} className={`upp-node upp-node-${st}`}>
-              <title>{name}</title>
-              <circle cx={x} cy={y} r="7" fill={color} opacity="0.16" />
-              {st === 'completed'
-                ? <circle cx={x} cy={y} r="3.6" fill={color} />
-                : <circle cx={x} cy={y} r="3.2" fill="none" stroke={color} strokeWidth="1.8" />}
-            </g>
-          )
-        })}
-      </svg>
+      <div className="upp-map-stage">
+        <svg
+          ref={svgRef}
+          viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+          className="upp-map-svg"
+          onWheel={onWheel}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerLeave={onPointerUp}
+        >
+          {/* Bas: kontinenter utan synliga landsgränser */}
+          <g className="upp-world-geo">
+            {WORLD_PATHS.map((d, i) => (
+              <path key={i} d={d} fill="rgba(255,255,255,0.05)" stroke="none" />
+            ))}
+          </g>
+          {/* Markerade länder med riktig geometri */}
+          {Object.entries(countryStatus).map(([name, st]) => {
+            const d = COUNTRY_PATHS[name]
+            const color = STATUS_MAP_COLOR[st]
+            if (!d) {
+              // fallback: liten prick om geometri saknas
+              const coord = COUNTRY_COORDS[name]
+              if (!coord) return null
+              const [x, y] = proj(coord)
+              return <circle key={name} cx={x} cy={y} r="2.4" fill={color} className={`upp-fill upp-fill-${st}`} />
+            }
+            return (
+              <path key={name} d={d} className={`upp-fill upp-fill-${st}`}
+                fill={st === 'completed' ? color : `color-mix(in srgb, ${color} 22%, transparent)`}
+                stroke={color} strokeWidth={st === 'completed' ? 0.4 : 0.9}
+                strokeLinejoin="round" vectorEffect="non-scaling-stroke">
+                <title>{name}</title>
+              </path>
+            )
+          })}
+        </svg>
+        <div className="upp-map-zoom">
+          <button type="button" aria-label="Zooma in" onClick={() => btnZoom(0.7)}>+</button>
+          <button type="button" aria-label="Zooma ut" onClick={() => btnZoom(1.42)}>−</button>
+          {zoomed && <button type="button" aria-label="Återställ" onClick={() => setView(MAP_VIEW)} style={{ fontSize: 11 }}>⟲</button>}
+        </div>
+      </div>
       <div className="upp-map-legend">
         {[['completed', 'Avklarad'], ['planned', 'Planerad'], ['idea', 'Idé']].map(([k, label]) => (
           <span key={k} className="upp-map-leg-item">
@@ -862,7 +936,7 @@ Returnera ENBART JSON utan backticks:
           <div className="upp-map-col">
             <WorldMap countryStatus={countryStatus} />
           </div>
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="upp-trips-scroll" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {filteredTrips.map(trip => {
               const isExpanded = expandedTrip === trip.id
               const isEditing = editingTrip === trip.id
@@ -894,8 +968,8 @@ Returnera ENBART JSON utan backticks:
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }}
                     onClick={() => setExpandedTrip(isExpanded ? null : trip.id)}>
                     <div style={{ display: 'flex', gap: '11px', alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '20px', letterSpacing: '-2px', lineHeight: 1.1, flexShrink: 0, paddingTop: 1 }}>
-                        {tripCountries.slice(0, 3).map(c => FLAGS[c] || '🌍').join('')}
+                      <div style={{ fontSize: '18px', lineHeight: 1.05, flexShrink: 0, paddingTop: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                        {tripCountries.slice(0, 4).map((c, i) => <span key={i}>{FLAGS[c] || '🌍'}</span>)}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
