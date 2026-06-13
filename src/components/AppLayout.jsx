@@ -6,6 +6,7 @@ import QuickLog from './QuickLog'
 import CommandPalette from './CommandPalette'
 import InteractiveFX from './InteractiveFX'
 import Onboarding from './Onboarding'
+import InstallPrompt from './InstallPrompt'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -73,6 +74,9 @@ export default function AppLayout() {
 
       {/* Global quick-log FAB — visible on all pages */}
       <QuickLog />
+
+      {/* PWA install prompt — shown when installable, dismissible */}
+      <InstallPrompt />
 
       {/* Global command palette — open with ⌘K / Ctrl+K */}
       <CommandPalette />

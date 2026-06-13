@@ -6,7 +6,7 @@ import { format, subDays, startOfWeek, parseISO, differenceInDays, getDay } from
 import { sv } from 'date-fns/locale'
 import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity } from 'lucide-react'
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip,
+  Line, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Area, AreaChart, ComposedChart
 } from 'recharts'
 

@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 import {
   Sun, Moon, Palette, Image, Layout, Bell, Shield,
   Download, Trash2, Save, Loader, Upload, X, Check,
-  User, Target, Brain, ChevronRight, Zap
+  User, Target, Brain
 } from 'lucide-react'
 
 const ACCENTS = [
@@ -270,7 +270,7 @@ export default function SettingsPage() {
       const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = `sigge-os-export-${new Date().toISOString().slice(0,10)}.json`
+      a.download = `maxxit-export-${new Date().toISOString().slice(0,10)}.json`
       a.click()
     } catch (e) {
       console.error(e)
@@ -575,7 +575,7 @@ export default function SettingsPage() {
                 <Toggle value={notifTraining} onChange={v => { setNotifTraining(v); saveProfile() }} />
               </SettingRow>
               <div style={{ marginTop: '14px', padding: '12px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '8px', fontSize: '12px', color: 'var(--amber)' }}>
-                Notiser kräver att Sigge OS är öppen i webbläsaren. Native notiser kräver en installerad app.
+                Notiser kräver att MaxxIt är öppen i webbläsaren. Native notiser kräver en installerad app.
               </div>
             </div>
           )}

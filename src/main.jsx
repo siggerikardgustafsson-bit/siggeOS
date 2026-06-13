@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
+import { registerSW } from './pwa.js'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -11,3 +12,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </ThemeProvider>
   </React.StrictMode>,
 )
+
+registerSW()

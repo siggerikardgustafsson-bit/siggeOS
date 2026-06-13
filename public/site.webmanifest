@@ -1,19 +1,64 @@
 {
-  "name": "Sigge OS",
-  "short_name": "Sigge OS",
+  "id": "/",
+  "name": "MaxxIt",
+  "short_name": "MaxxIt",
+  "description": "Din personliga livskontrollpanel – träning, hälsa, ekonomi, plugg och Jarvis, din AI-coach.",
+  "lang": "sv-SE",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "theme_color": "#111d33",
+  "background_color": "#07090f",
+  "categories": ["productivity", "health", "lifestyle"],
   "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "theme_color": "#07090f",
-  "background_color": "#07090f",
-  "display": "standalone"
+  "shortcuts": [
+    {
+      "name": "Jarvis",
+      "short_name": "Jarvis",
+      "description": "Prata med din AI-coach",
+      "url": "/jarvis",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Träning",
+      "short_name": "Träning",
+      "description": "Logga och följ din träning",
+      "url": "/traning",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Kalender",
+      "short_name": "Kalender",
+      "description": "Dagens schema och händelser",
+      "url": "/kalender",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
 }

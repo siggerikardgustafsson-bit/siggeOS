@@ -19,7 +19,7 @@ const clean = (value: any) => value == null || value === '' ? null : value
 const TOOLS = [
   {
     name: 'fetch_workouts',
-    description: 'Pass, PR, styrka/löptrend, Strava-historik. PR→90d, senaste→limit 1.',
+    description: 'Pass, PR, styrka/löptrend, Strava-historik. All-time PR-tavla→include_prs=true. Senaste→limit 1.',
     input_schema: {
       type: 'object',
       properties: {
@@ -27,14 +27,14 @@ const TOOLS = [
         date_from: { type: 'string', description: 'YYYY-MM-DD' },
         date_to: { type: 'string', description: 'YYYY-MM-DD' },
         limit: { type: 'number', description: 'default 20' },
-        include_prs: { type: 'boolean', description: 'true = beräkna PR (maxvikt per övning) för perioden, kompakt format' },
+        include_prs: { type: 'boolean', description: 'true = hämta all-time PR-tavla: styrke-PR (personal_records) + löp-PR per distans (run_personal_records)' },
       },
       required: [],
     },
   },
   {
     name: 'fetch_health',
-    description: 'Vikt, sömn, steg, energi, humör, stress, alkohol, puls. Trender→30-90d.',
+    description: 'Vikt, sömn, steg, energi, humör, stress, alkohol, puls, kosttillskott (intag/följsamhet), retatrutide-dos. Trender→30-90d.',
     input_schema: {
       type: 'object',
       properties: {
@@ -62,7 +62,7 @@ const TOOLS = [
   },
   {
     name: 'fetch_economy',
-    description: 'Inkomster, utgifter/kategori, fasta kostnader, CSN. Budget/sparande/trend→30-90d, type=both.',
+    description: 'Inkomster, utgifter/kategori, fasta kostnader, nettoförmögenhet + 30d-trend, tillgångar, CSN. Budget/sparande/förmögenhet/trend→30-90d, type=both.',
     input_schema: {
       type: 'object',
       properties: {
@@ -270,25 +270,37 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
 
       let prSection = ''
       if (input.include_prs) {
-        // Compute PR (max weight per exercise) from all fetched sessions
-        const prMap: Record<string, { weight: number; date: string; reps: number }> = {}
-        for (const ex of exercises || []) {
-          if (!ex.weight_kg) continue
-          const prev = prMap[ex.exercise_name]
-          if (!prev || ex.weight_kg > prev.weight) {
-            const sess = sessions.find((s: any) => s.id === ex.session_id)
-            prMap[ex.exercise_name] = { weight: ex.weight_kg, date: sess?.date || '?', reps: ex.reps || 0 }
-          }
+        // Authoritative all-time PR boards (not just this fetch window).
+        const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`
+        const [strengthRes, runRes] = await Promise.all([
+          supabase.from('personal_records')
+            .select('exercise_name,weight_kg,reps,date,distance_km,pace_per_km,time_seconds')
+            .eq('user_id', userId).order('weight_kg', { ascending: false }).limit(60),
+          supabase.from('run_personal_records')
+            .select('label,distance_key,time_seconds,pace_per_km,date')
+            .eq('user_id', userId).order('time_seconds', { ascending: true }),
+        ])
+        // Strength PBs only — exclude legacy run-style records stored in personal_records.
+        const strengthLines = (strengthRes.data || [])
+          .filter((p: any) => p.weight_kg != null && p.distance_km == null && p.pace_per_km == null)
+          .sort((a: any, b: any) => String(a.exercise_name).localeCompare(String(b.exercise_name)))
+          .map((p: any) => `${p.exercise_name}: ${p.weight_kg}kg × ${p.reps || '?'}r (${p.date || '?'})`).join('\n')
+        // Best run effort per distance.
+        const runBest: Record<string, any> = {}
+        for (const r of runRes.data || []) {
+          if (!r.time_seconds) continue
+          if (!runBest[r.distance_key] || r.time_seconds < runBest[r.distance_key].time_seconds) runBest[r.distance_key] = r
         }
-        const prLines = Object.entries(prMap).sort((a, b) => a[0].localeCompare(b[0])).map(([name, v]) => `${name}: ${v.weight}kg × ${v.reps}r (${v.date})`).join('\n')
-        if (prLines) prSection = `\n\nPR DENNA PERIOD:\n${prLines}`
+        const runLines = Object.values(runBest)
+          .map((r: any) => `${r.label || r.distance_key}: ${fmtTime(r.time_seconds)}${r.pace_per_km ? ' (' + fmtTime(r.pace_per_km) + '/km)' : ''} (${r.date || '?'})`).join('\n')
+        prSection = `\n\nSTYRKE-PR (all-time):\n${strengthLines || '—'}\n\nLÖP-PR (all-time):\n${runLines || '—'}`
       }
       return `Träning (${sessions.length} pass):\n\n${rows}${prSection}`
     }
 
     if (toolName === 'fetch_health') {
       const { data, error } = await supabase.from('health_logs')
-        .select('id,date,weight_kg,body_fat_pct,steps,sleep_hours,sleep_quality,sleep_type,sleep_note,resting_hr,screen_time_minutes,alcohol_units,nicotine,caffeine_mg,energy,energy_level,stress_level,mood,source')
+        .select('id,date,weight_kg,body_fat_pct,steps,sleep_hours,sleep_quality,sleep_type,sleep_note,resting_hr,screen_time_minutes,alcohol_units,nicotine,caffeine_mg,energy,energy_level,stress_level,mood,retatrutide_dose_mg,source')
         .eq('user_id', userId)
         .gte('date', input.date_from || thirtyDaysAgo)
         .lte('date', input.date_to || today)
@@ -311,11 +323,34 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         if (r.caffeine_mg) parts.push(`koffein ${r.caffeine_mg}mg`)
         if (r.body_fat_pct) parts.push(`fett ${r.body_fat_pct}%`)
         if (r.resting_hr) parts.push(`vilopuls ${r.resting_hr}`)
+        if (r.retatrutide_dose_mg) parts.push(`retatrutide ${r.retatrutide_dose_mg}mg`)
         if (r.sleep_note) parts.push(`"${r.sleep_note.slice(0,80)}"`)
         parts.push(`[id:${r.id}]`)
         return parts.join(' | ')
       }).join('\n')
-      return `Hälsa (${data.length} dagar):\n${rows}`
+
+      // Supplement adherence over the same window (taken vs logged days per supplement).
+      const { data: supps } = await supabase.from('supplement_logs')
+        .select('date,supplement_name,taken')
+        .eq('user_id', userId)
+        .gte('date', input.date_from || thirtyDaysAgo)
+        .lte('date', input.date_to || today)
+        .order('date', { ascending: false })
+        .limit(400)
+      let suppSection = ''
+      if (supps?.length) {
+        const byName: Record<string, { taken: number; total: number }> = {}
+        for (const s of supps) {
+          const n = s.supplement_name || '?'
+          if (!byName[n]) byName[n] = { taken: 0, total: 0 }
+          byName[n].total++
+          if (s.taken) byName[n].taken++
+        }
+        const line = Object.entries(byName).sort((a, b) => b[1].taken - a[1].taken)
+          .map(([n, v]) => `${n}: ${v.taken}/${v.total} dgr`).join(', ')
+        suppSection = `\n\nKOSTTILLSKOTT (intag i perioden): ${line}`
+      }
+      return `Hälsa (${data.length} dagar):\n${rows}${suppSection}`
     }
 
     if (toolName === 'fetch_journal') {
@@ -387,7 +422,26 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
 
       const { data: fixed } = await supabase.from('fixed_costs')
         .select('id,name,amount,category,active').eq('user_id', userId).eq('active', true).order('amount', { ascending: false })
-      if (fixed?.length) results.push(`FASTA KOSTNADER:\n${fixed.map((f: any) => `${f.name} | ${f.amount} kr | ${f.category} [id:${f.id}]`).join('\n')}`)
+      if (fixed?.length) {
+        const fixedTotal = fixed.reduce((s: number, f: any) => s + Number(f.amount || 0), 0)
+        results.push(`FASTA KOSTNADER (${Math.round(fixedTotal).toLocaleString('sv-SE')} kr/mån):\n${fixed.map((f: any) => `${f.name} | ${f.amount} kr | ${f.category} [id:${f.id}]`).join('\n')}`)
+      }
+
+      // Net worth: precomputed daily total + 30d trend, plus current asset breakdown.
+      const { data: nw } = await supabase.from('net_worth_history')
+        .select('date,total_sek').eq('user_id', userId).order('date', { ascending: false }).limit(120)
+      if (nw?.length) {
+        const latest = nw[0]
+        const ref = nw.find((r: any) => r.date <= daysAgoISO(30)) || nw[nw.length - 1]
+        const delta = Number(latest.total_sek || 0) - Number(ref.total_sek || 0)
+        const pct = ref.total_sek ? ((delta / Number(ref.total_sek)) * 100).toFixed(1) : '—'
+        results.unshift(`NETTOFÖRMÖGENHET: ${Math.round(latest.total_sek).toLocaleString('sv-SE')} kr (${latest.date}) | Δ30d: ${delta >= 0 ? '+' : ''}${Math.round(delta).toLocaleString('sv-SE')} kr (${pct}%)`)
+      }
+      const { data: assets } = await supabase.from('assets')
+        .select('name,type,quantity,manual_price_sek').eq('user_id', userId).order('created_at')
+      if (assets?.length) {
+        results.push(`TILLGÅNGAR:\n${assets.map((a: any) => `${a.name} | ${a.type}${a.quantity ? ' | ' + a.quantity + ' st' : ''}${a.manual_price_sek != null ? ' | ' + Math.round(a.manual_price_sek).toLocaleString('sv-SE') + ' kr' : ''}`).join('\n')}`)
+      }
 
       return results.length ? results.join('\n\n') : 'Ingen ekonomidata hittades.'
     }
@@ -800,10 +854,10 @@ VÄNNER: ${friendLines || '–'}
 NU: ${context || '–'}${contentBlock ? '\n'+contentBlock : ''}
 
 VERKTYG – hämta NÄR data saknas, INTE om svaret ryms ovan. Hämta parallellt vid flera domäner. Ej samma data 2x.
-Brief/kväll/vecka → journal+health+workouts+scores. Mående → fetch_journal(summaries_only=true för trend, full för djup). Pass/PR → fetch_workouts. Schema → fetch_calendar. Ekonomi → fetch_economy. Resor → fetch_experiences. Tasks → fetch_tasks. Djupare minne/sök minne → fetch_memory_goals(search_keyword). Gammal chatt/"vad sa vi om X" → fetch_chat_history(search_keyword). Journal-sök → fetch_journal(search_keyword).
+Brief/kväll/vecka → journal+health+workouts+scores. Mående → fetch_journal(summaries_only=true för trend, full för djup). Pass/styrka/löp → fetch_workouts. PR/rekord → fetch_workouts(include_prs=true). Kosttillskott/medicin/retatrutide → fetch_health. Schema → fetch_calendar. Ekonomi/sparande/nettoförmögenhet/tillgångar → fetch_economy. Resor → fetch_experiences. Tasks → fetch_tasks. Djupare minne/sök minne → fetch_memory_goals(search_keyword). Gammal chatt/"vad sa vi om X" → fetch_chat_history(search_keyword). Journal-sök → fetch_journal(search_keyword).
 
 SPARA TYST (execute_action, nämn ej): faktum om Sigge → save_insight | uppdatera fel insikt → update_insight(id,insight_text) | ta bort inaktuell insikt → delete_insight(id) | väninfo → update_friend | korrigering/ny sanning → update_memory_context(context_area,update_text) | preferens → save_preference. Spara 1-2 insikter/konversation om något viktigt framkommit. Kolla MINNE ovan innan du sparar – spara inte om det redan framgår. Rätta aktivt felaktiga minnen när Sigge korrigerar dig.
-Pass/PR → fetch_workouts(include_prs=true, date_from för önskad period).
+PR/rekord (styrka+löp) → fetch_workouts(include_prs=true) ger all-time PR-tavla.
 
 ÅTGÄRDER: execute_action direkt utan bekräftelse. Saknas ID → hämta först. delete → bekräfta vad raderas.
 

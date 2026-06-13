@@ -6,8 +6,8 @@ import { sv } from 'date-fns/locale'
 import { X, TrendingUp, List, BarChart2, Dumbbell } from 'lucide-react'
 import Modal from './Modal'
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  CartesianGrid, BarChart, Bar, ReferenceLine, ScatterChart, Scatter, ZAxis,
+  XAxis, YAxis, Tooltip, ResponsiveContainer,
+  CartesianGrid, BarChart, Bar, ReferenceLine,
   AreaChart, Area
 } from 'recharts'
 

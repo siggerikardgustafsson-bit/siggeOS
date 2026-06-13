@@ -6,7 +6,7 @@ import { format, parseISO, differenceInDays } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import {
   Plus, X, Save, Loader, Check, ChevronDown, ChevronUp,
-  Compass, Flame, SkipForward, Edit2, FileText, Sparkles, ExternalLink, Trash2
+  Compass, Flame, SkipForward, Edit2, FileText, Sparkles, Trash2
 } from 'lucide-react'
 import { WORLD_PATHS, COUNTRY_PATHS } from '../lib/worldPaths'
 

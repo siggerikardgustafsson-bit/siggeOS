@@ -1,4 +1,4 @@
-import { differenceInDays, parseISO, subDays, format } from 'date-fns'
+import { differenceInDays, parseISO } from 'date-fns'
 
 // ─── DECAY ────────────────────────────────────────────────────────────────────
 export function getDecayedValue(value, date, decayDays) {

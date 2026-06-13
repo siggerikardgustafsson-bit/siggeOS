@@ -12,37 +12,51 @@
       <stop offset="0.45" stop-color="#AAB4BF" stop-opacity="0.55"/>
       <stop offset="1" stop-color="#5F6B76" stop-opacity="0.55"/>
     </linearGradient>
+    <linearGradient id="plateGrad" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b2c49"/>
+      <stop offset="0.55" stop-color="#101d33"/>
+      <stop offset="1" stop-color="#080e1a"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.4" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#82a5d7" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#82a5d7" stop-opacity="0"/>
+    </radialGradient>
     <filter id="softDepth" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
       <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0B1220" flood-opacity="0.24"/>
       <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#FFFFFF" flood-opacity="0.35"/>
     </filter>
   </defs>
 
-  <g filter="url(#softDepth)">
+  <rect x="0" y="0" width="1024" height="1024" rx="200" fill="url(#plateGrad)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="200" fill="url(#sheen)"/>
+
+  <g transform="translate(512 512) scale(0.90314) translate(-536.5 -552.5)">
+    <g filter="url(#softDepth)">
+      <path
+        d="M215 770V444C215 397 273 375 304 410L505 633C532 663 578 660 602 626L795 360"
+        stroke="url(#silver)"
+        stroke-width="112"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+      <path
+        d="M785 302C781 286 796 272 811 278L899 311C916 317 922 338 911 352L853 428C843 442 822 439 816 423L785 302Z"
+        fill="url(#silver)"/>
+
+      <path
+        d="M792 312L844 407"
+        stroke="url(#edge)"
+        stroke-width="10"
+        stroke-linecap="round"
+        opacity="0.45"/>
+    </g>
+
     <path
       d="M215 770V444C215 397 273 375 304 410L505 633C532 663 578 660 602 626L795 360"
-      stroke="url(#silver)"
-      stroke-width="112"
-      stroke-linecap="round"
-      stroke-linejoin="round"/>
-
-    <path
-      d="M785 302C781 286 796 272 811 278L899 311C916 317 922 338 911 352L853 428C843 442 822 439 816 423L785 302Z"
-      fill="url(#silver)"/>
-
-    <path
-      d="M792 312L844 407"
       stroke="url(#edge)"
-      stroke-width="10"
+      stroke-width="116"
       stroke-linecap="round"
-      opacity="0.45"/>
+      stroke-linejoin="round"
+      opacity="0.22"/>
   </g>
-
-  <path
-    d="M215 770V444C215 397 273 375 304 410L505 633C532 663 578 660 602 626L795 360"
-    stroke="url(#edge)"
-    stroke-width="116"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    opacity="0.22"/>
 </svg>

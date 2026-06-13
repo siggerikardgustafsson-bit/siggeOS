@@ -3,53 +3,16 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp, Plus, Trash2, Check, X } from 'lucide-react'
+import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import MarkdownMessage from '../components/MarkdownMessage'
 
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
-const clean = (value) => value === undefined || value === null || value === '' ? null : value
-
-// System prompt built in edge function
-
-const ACTION_LABELS = {
-  create_erik_task: 'Skapa Erik-uppdrag',
-  create_adventure: 'Skapa upplevelse',
-  save_insight: 'Spara minne',
-  log_training: 'Logga träning',
-  log_health: 'Logga hälsa',
-  log_expense: 'Logga utgift',
-  log_income: 'Logga inkomst',
-  update_training: 'Uppdatera träning',
-  update_health: 'Uppdatera hälsa',
-  update_erik_task: 'Uppdatera Erik-uppdrag',
-  update_expense: 'Uppdatera utgift',
-  delete_training: 'Radera träning',
-  delete_health: 'Radera hälsologg',
-  delete_erik_task: 'Radera Erik-uppdrag',
-  delete_expense: 'Radera utgift',
-  delete_income: 'Radera inkomst',
-  create_project_task: 'Skapa projekt-task',
-  update_project_task: 'Uppdatera projekt-task',
-  delete_project_task: 'Radera projekt-task',
-  create_trip: 'Skapa resa',
-  update_trip: 'Uppdatera resa',
-  update_friend: 'Uppdatera vän',
-  save_preference: 'Spara preferens',
-  update_memory_context: 'Uppdatera kontext',
-}
 
 function stripAccidentalActionJson(content = '') {
   return content
     .replace(/<jarvis_actions>[\s\S]*?<\/jarvis_actions>/gi, '')
     .replace(/```json\s*\{[\s\S]*?"action"[\s\S]*?\}\s*```/gi, '')
     .trim()
-}
-
-function normalizeHealthFields(fields = {}) {
-  const f = { ...fields }
-  if (f.energy != null && f.energy_level == null) f.energy_level = f.energy
-  if (f.energy_level != null && f.energy == null) f.energy = f.energy_level
-  return f
 }
 
 export default function Jarvis() {
@@ -62,8 +25,6 @@ export default function Jarvis() {
   const [showInsights, setShowInsights] = useState(false)
   const [newInsight, setNewInsight] = useState('')
   const [addingInsight, setAddingInsight] = useState(false)
-  const [pendingActions, setPendingActions] = useState([])
-  const [actionLoading, setActionLoading] = useState(null)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const contextRef = useRef('')
@@ -81,7 +42,7 @@ export default function Jarvis() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, loading, pendingActions])
+  }, [messages, loading])
 
   useEffect(() => { window.__jarvisMessages = messages }, [messages])
 
@@ -182,130 +143,6 @@ export default function Jarvis() {
     setInsights(prev => prev.filter(i => i.id !== id))
   }
 
-  async function executeAction(action) {
-    if (!action?.action || !user) return
-    setActionLoading(action._id)
-    const d = action
-    try {
-      let res
-      switch (d.action) {
-        case 'create_erik_task':
-          res = await supabase.from('erik_tasks').insert({ user_id: user.id, title: d.title, description: d.description || '', deadline: clean(d.deadline), tag: d.tag || 'Övrig verksamhet', status: d.status || 'ej_påbörjat', priority: d.priority || 'medium' })
-          break
-        case 'create_adventure':
-          res = await supabase.from('adventures').insert({ user_id: user.id, title: d.title, description: d.description || '', date: d.date || todayISO(), location: d.location || '', category: d.category || 'övrigt', rating: clean(d.rating) })
-          break
-        case 'save_insight':
-          res = await supabase.from('jarvis_insights').insert({ user_id: user.id, insight: d.insight, category: d.category || 'mönster', confidence: d.confidence || 80 })
-          break
-        case 'log_training':
-          res = await supabase.from('training_sessions').insert({ user_id: user.id, date: d.date || todayISO(), session_type: d.session_type || 'övrigt', duration_minutes: clean(d.duration_minutes), distance_km: clean(d.distance_km), time_seconds: clean(d.time_seconds), pace_per_km: clean(d.pace_per_km), feeling: clean(d.feeling), notes: d.notes || '', source: 'jarvis' })
-          break
-        case 'log_health': {
-          const date = d.date || todayISO()
-          const fields = normalizeHealthFields({ weight_kg: clean(d.weight_kg), sleep_hours: clean(d.sleep_hours), energy: clean(d.energy), energy_level: clean(d.energy_level), steps: clean(d.steps), alcohol_units: clean(d.alcohol_units), nicotine: d.nicotine || false, mood: clean(d.mood), stress_level: clean(d.stress_level), sleep_quality: clean(d.sleep_quality), caffeine_mg: clean(d.caffeine_mg), source: 'jarvis' })
-          Object.keys(fields).forEach(k => fields[k] == null && delete fields[k])
-          const { data: existing } = await supabase.from('health_logs').select('id').eq('user_id', user.id).eq('date', date).limit(1).maybeSingle()
-          res = existing?.id
-            ? await supabase.from('health_logs').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', existing.id).eq('user_id', user.id)
-            : await supabase.from('health_logs').insert({ user_id: user.id, date, ...fields })
-          break
-        }
-        case 'log_expense':
-          res = await supabase.from('expense_logs').insert({ user_id: user.id, date: d.date || todayISO(), amount: Number(d.amount || 0), category: d.category || 'Övrigt', description: d.description || '' })
-          break
-        case 'log_income':
-          res = await supabase.from('income_logs').insert({ user_id: user.id, date: d.date || todayISO(), amount: Number(d.amount || 0), source: d.source || 'Övrigt', notes: d.notes || d.description || '' })
-          break
-        case 'update_training':
-          res = d.id && d.fields ? await supabase.from('training_sessions').update(d.fields).eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id/fields') }
-          break
-        case 'update_health':
-          res = d.id && d.fields ? await supabase.from('health_logs').update(normalizeHealthFields(d.fields)).eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id/fields') }
-          break
-        case 'update_erik_task':
-          res = d.id && d.fields ? await supabase.from('erik_tasks').update(d.fields).eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id/fields') }
-          break
-        case 'update_expense':
-          res = d.id && d.fields ? await supabase.from('expense_logs').update(d.fields).eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id/fields') }
-          break
-        case 'delete_training':
-          res = d.id ? await supabase.from('training_sessions').delete().eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id') }
-          break
-        case 'delete_health':
-          res = d.id ? await supabase.from('health_logs').delete().eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id') }
-          break
-        case 'delete_erik_task':
-          res = d.id ? await supabase.from('erik_tasks').delete().eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id') }
-          break
-        case 'delete_expense':
-          res = d.id ? await supabase.from('expense_logs').delete().eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id') }
-          break
-        case 'delete_income':
-          res = d.id ? await supabase.from('income_logs').delete().eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id') }
-          break
-        case 'create_project_task':
-          res = await supabase.from('project_tasks').insert({
-            user_id: user.id,
-            project_id: d.project_id,
-            title: d.title,
-            description: d.description || null,
-            deadline: clean(d.deadline),
-            priority: d.priority || 'medium',
-            notes: d.notes || null,
-            status: d.status || 'ej_påbörjat',
-          })
-          break
-        case 'update_project_task':
-          res = d.id && d.fields
-            ? await supabase.from('project_tasks').update(d.fields).eq('id', d.id).eq('user_id', user.id)
-            : { error: new Error('Saknar id/fields') }
-          break
-        case 'delete_project_task':
-          res = d.id
-            ? await supabase.from('project_tasks').delete().eq('id', d.id).eq('user_id', user.id)
-            : { error: new Error('Saknar id') }
-          break
-        case 'create_trip':
-          res = await supabase.from('trips').insert({
-            user_id: user.id,
-            title: d.title,
-            countries: d.countries || [],
-            country: d.countries?.[0] || '',
-            city: d.city || '',
-            start_date: clean(d.start_date),
-            end_date: clean(d.end_date),
-            status: d.status || 'idea',
-            planning_doc: d.planning_doc || null,
-            budget_items: d.budget_items || null,
-            budget_sek: clean(d.budget_sek),
-            notes: d.planning_doc || d.notes || null,
-            highlights: d.highlights || null,
-          })
-          break
-        case 'update_trip':
-          res = d.id && d.fields ? await supabase.from('trips').update({ ...d.fields, notes: d.fields.planning_doc || d.fields.notes }).eq('id', d.id).eq('user_id', user.id) : { error: new Error('Saknar id/fields') }
-          break
-        default:
-          res = { error: new Error('Okänd action: ' + d.action) }
-      }
-      if (res?.error) throw res.error
-      setPendingActions(prev => prev.filter(a => a._id !== action._id))
-      setMessages(prev => [...prev, { role: 'assistant', content: `Klart — ${ACTION_LABELS[d.action] || d.action} genomförd.` }])
-      await refreshContext(true)
-      if (d.action === 'save_insight') await loadInsights()
-    } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `Action misslyckades: ${err?.message || 'okänt fel'}` }])
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  function addPendingActions(actions = []) {
-    const normalized = actions.filter(a => a?.action).map((a, idx) => ({ ...a, _id: `${Date.now()}-${idx}-${Math.random().toString(16).slice(2)}` }))
-    if (normalized.length) setPendingActions(prev => [...prev, ...normalized])
-  }
-
   async function sendToJarvis(promptText, visible = true) {
     if (!promptText.trim() || loading) return
     const userMsg = { role: 'user', content: promptText.trim() }
@@ -332,7 +169,6 @@ export default function Jarvis() {
       setMessages(prev => [...prev, assistantMsg])
       const { error: saveAsstErr } = await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: assistantMsg.content })
       if (saveAsstErr) console.error('Failed to save assistant message:', saveAsstErr)
-      addPendingActions(data?.actions || [])
       if (data?.savedMemory) loadInsights()
     } catch (err) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Något gick fel: ${err?.message || 'Okänt fel'}.` }])
@@ -358,12 +194,6 @@ export default function Jarvis() {
 
   function handleKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
-  }
-
-  function actionSummary(action) {
-    const copy = { ...action }
-    delete copy._id
-    return Object.entries(copy).filter(([k]) => k !== 'action').slice(0, 6).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`).join(' · ')
   }
 
   const hour = new Date().getHours()
@@ -412,7 +242,7 @@ export default function Jarvis() {
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '17px', fontWeight: '600', color: 'var(--text)', marginBottom: '6px' }}>Jarvis är redo</div>
-              <div style={{ fontSize: '13px', color: 'var(--muted)', maxWidth: '320px', lineHeight: '1.6' }}>Han hämtar live-data vid behov och ber om godkännande innan han skriver större saker till databasen.</div>
+              <div style={{ fontSize: '13px', color: 'var(--muted)', maxWidth: '320px', lineHeight: '1.6' }}>Han hämtar live-data vid behov och kan logga, uppdatera och skapa direkt åt dig i appen.</div>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', maxWidth: '520px' }}>
               {['Visa min senaste journal entry', 'Kvällssummering', 'Hur mår jag generellt?', 'Analysera min löpning', 'Vad vet du om mig?'].map(s => (
@@ -433,23 +263,6 @@ export default function Jarvis() {
             </div>
           )
         })}
-
-        {pendingActions.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginLeft: 38, maxWidth: 680 }}>
-            {pendingActions.map(action => (
-              <div key={action._id} className="jvs-action">
-                <div style={{ minWidth: 0, position: 'relative', paddingLeft: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 3 }}>{ACTION_LABELS[action.action] || action.action}</div>
-                  <div style={{ fontSize: 12, color: 'var(--muted2)', overflowWrap: 'anywhere' }}>{actionSummary(action)}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <button className="btn btn-primary btn-sm" disabled={actionLoading === action._id} onClick={() => executeAction(action)}><Check size={13} /> Godkänn</button>
-                  <button className="btn btn-ghost btn-sm" disabled={actionLoading === action._id} onClick={() => setPendingActions(prev => prev.filter(a => a._id !== action._id))}><X size={13} /> Avbryt</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {loading && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>

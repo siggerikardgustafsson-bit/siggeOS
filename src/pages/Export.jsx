@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays } from 'date-fns'
-import { sv } from 'date-fns/locale'
 import { Download, Loader, CheckCircle, Dumbbell, Heart, BookOpen, DollarSign, Briefcase, GraduationCap, Zap, Package, Info } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
@@ -142,7 +141,7 @@ export default function ExportPage() {
         XLSX.utils.book_append_sheet(wb, ws, exp.label)
       }
 
-      const filename = `sigge-os-${exp.id}-${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+      const filename = `maxxit-${exp.id}-${format(new Date(), 'yyyy-MM-dd')}.xlsx`
       XLSX.writeFile(wb, filename)
       setDone(prev => ({ ...prev, [exp.id]: true }))
       setTimeout(() => setDone(prev => ({ ...prev, [exp.id]: false })), 3000)
@@ -174,7 +173,7 @@ export default function ExportPage() {
         }
       }
 
-      const filename = `sigge-os-komplett-${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+      const filename = `maxxit-komplett-${format(new Date(), 'yyyy-MM-dd')}.xlsx`
       XLSX.writeFile(wb, filename)
       setDone(prev => ({ ...prev, all: true }))
       setTimeout(() => setDone(prev => ({ ...prev, all: false })), 3000)
