@@ -6,8 +6,9 @@ import { supabase } from '../lib/supabase'
 import {
   Sun, Moon, Palette, Image, Layout, Bell, Shield,
   Download, Trash2, Save, Loader, Upload, X, Check,
-  User, Target, Brain
+  User, Target, Brain, Share, Smartphone
 } from 'lucide-react'
+import { usePwaInstall } from '../hooks/usePwaInstall'
 
 const ACCENTS = [
   { id: 'blue',   label: 'Blå',    color: '#4f8ef7' },
@@ -278,11 +279,14 @@ export default function SettingsPage() {
     }
   }
 
+  const { canInstall, installed, ios, promptInstall } = usePwaInstall()
+
   const sections = [
     { id: 'utseende', label: 'Utseende', icon: Palette },
     { id: 'profil', label: 'Profil & mål', icon: User },
     { id: 'jarvis', label: 'Jarvis AI', icon: Brain },
     { id: 'notiser', label: 'Notiser', icon: Bell },
+    { id: 'app', label: 'Appen', icon: Smartphone },
     { id: 'data', label: 'Data & integritet', icon: Shield },
   ]
 
@@ -577,6 +581,47 @@ export default function SettingsPage() {
               <div style={{ marginTop: '14px', padding: '12px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '8px', fontSize: '12px', color: 'var(--amber)' }}>
                 Notiser kräver att MaxxIt är öppen i webbläsaren. Native notiser kräver en installerad app.
               </div>
+            </div>
+          )}
+
+          {/* ===== APPEN ===== */}
+          {activeSection === 'app' && (
+            <div className="card">
+              <SectionHeader icon={Download} title="Installera MaxxIt" subtitle="Lägg till appen på hemskärmen eller skrivbordet" />
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
+                <img src="/icon-192.png" alt="" width="56" height="56" style={{ borderRadius: '14px', flexShrink: 0, boxShadow: '0 4px 16px rgba(0,0,0,0.35)' }} />
+                <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.55 }}>
+                  Installerad öppnas MaxxIt i eget fönster utan webbläsarens adressfält — egen ikon, helskärm och snabb start.
+                </div>
+              </div>
+
+              {installed ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.25)', color: 'var(--green)', fontSize: '13px', fontWeight: 500 }}>
+                  <Check size={16} /> Appen är redan installerad på den här enheten.
+                </div>
+              ) : ios ? (
+                <div style={{ fontSize: '13px', color: 'var(--muted2)', lineHeight: 1.7, padding: '13px 15px', borderRadius: '10px', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                  På iPhone/iPad: tryck på <Share size={14} style={{ verticalAlign: '-2px' }} /> <strong>Dela</strong> längst ner i Safari, och välj sedan <strong>”Lägg till på hemskärmen”</strong>.
+                </div>
+              ) : canInstall ? (
+                <button
+                  onClick={promptInstall}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '8px',
+                    fontSize: '14px', fontWeight: 600, padding: '11px 18px',
+                    borderRadius: '11px', cursor: 'pointer', color: '#fff', border: 'none',
+                    background: 'linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 78%, #000) 100%)',
+                    boxShadow: '0 2px 12px var(--accent-glow)',
+                  }}
+                >
+                  <Download size={16} /> Installera MaxxIt
+                </button>
+              ) : (
+                <div style={{ fontSize: '13px', color: 'var(--muted2)', lineHeight: 1.7, padding: '13px 15px', borderRadius: '10px', background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                  Öppna webbläsarens meny och välj <strong>”Installera MaxxIt”</strong>. I Chrome/Edge på dator finns även en installationsikon <Download size={13} style={{ verticalAlign: '-2px' }} /> till höger i adressfältet.
+                </div>
+              )}
             </div>
           )}
 

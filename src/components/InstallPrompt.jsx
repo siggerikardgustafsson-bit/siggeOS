@@ -1,91 +1,45 @@
 import { useEffect, useState } from 'react'
 import { Download, X, Share } from 'lucide-react'
+import { usePwaInstall } from '../hooks/usePwaInstall'
 
 const DISMISS_KEY = 'pwa-install-dismissed-v1'
 
-function isStandalone() {
-  return (
-    window.matchMedia?.('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true
-  )
-}
-
-function isIOS() {
-  const ua = window.navigator.userAgent || ''
-  return /iphone|ipad|ipod/i.test(ua) && !window.MSStream
-}
-
 // Tasteful, dismissible "add to home screen" prompt.
-// - Chromium/Android: captures the native beforeinstallprompt and triggers it on click.
+// - Chromium/Android: uses the captured beforeinstallprompt (via usePwaInstall).
 // - iOS Safari (no beforeinstallprompt): shows the manual Share → "Lägg till på hemskärmen" hint.
 // - Never shows once installed (standalone) or after the user dismisses it.
+// The persistent button under Inställningar → Appen shares the same hook.
 export default function InstallPrompt() {
-  const [deferred, setDeferred] = useState(null)
-  const [show, setShow] = useState(false)
-  const [ios, setIos] = useState(false)
+  const { canInstall, installed, ios, promptInstall } = usePwaInstall()
+
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return !!localStorage.getItem(DISMISS_KEY)
+    } catch {
+      return false
+    }
+  })
   const [mobile, setMobile] = useState(
     () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches,
   )
 
   useEffect(() => {
-    if (isStandalone()) return
-    try {
-      if (localStorage.getItem(DISMISS_KEY)) return
-    } catch {
-      /* localStorage may be unavailable (private mode) — just proceed */
-    }
-
     const mq = window.matchMedia('(max-width: 768px)')
     const onMq = (e) => setMobile(e.matches)
     mq.addEventListener?.('change', onMq)
-
-    const onBeforeInstall = (e) => {
-      e.preventDefault()
-      setDeferred(e)
-      setShow(true)
-    }
-    const onInstalled = () => {
-      setShow(false)
-      setDeferred(null)
-    }
-
-    window.addEventListener('beforeinstallprompt', onBeforeInstall)
-    window.addEventListener('appinstalled', onInstalled)
-
-    // iOS never fires beforeinstallprompt → offer manual instructions instead.
-    if (isIOS()) {
-      setIos(true)
-      setShow(true)
-    }
-
-    return () => {
-      mq.removeEventListener?.('change', onMq)
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall)
-      window.removeEventListener('appinstalled', onInstalled)
-    }
+    return () => mq.removeEventListener?.('change', onMq)
   }, [])
 
+  const show = !installed && !dismissed && (canInstall || ios)
   if (!show) return null
 
   const dismiss = () => {
-    setShow(false)
+    setDismissed(true)
     try {
       localStorage.setItem(DISMISS_KEY, String(Date.now()))
     } catch {
       /* ignore persistence failure */
     }
-  }
-
-  const install = async () => {
-    if (!deferred) return
-    deferred.prompt()
-    try {
-      await deferred.userChoice
-    } catch {
-      /* user choice rejected/unavailable — nothing to do */
-    }
-    setDeferred(null)
-    setShow(false)
   }
 
   return (
@@ -135,7 +89,7 @@ export default function InstallPrompt() {
 
       {!ios && (
         <button
-          onClick={install}
+          onClick={promptInstall}
           style={{
             flexShrink: 0,
             display: 'flex',
