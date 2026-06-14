@@ -8,7 +8,7 @@
  *
  * Bump CACHE_VERSION to force clients onto a fresh set of caches.
  */
-const CACHE_VERSION = 'v1'
+const CACHE_VERSION = 'v2'
 const SHELL_CACHE = `maxxit-shell-${CACHE_VERSION}`
 const ASSET_CACHE = `maxxit-assets-${CACHE_VERSION}`
 const FONT_CACHE = `maxxit-fonts-${CACHE_VERSION}`
