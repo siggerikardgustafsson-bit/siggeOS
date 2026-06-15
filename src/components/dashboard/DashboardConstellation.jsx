@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import CategoryCard from './CategoryCard'
+import Sparkline from '../Sparkline'
 
 const TIER_COLORS = {
   0:'rgba(255,255,255,0.15)',1:'rgba(255,255,255,0.75)',2:'#4f8ef7',3:'#a78bfa',
@@ -595,6 +596,10 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
                     {active && cat.levelUp?.primaryBottleneck && (
                       <span style={{ fontSize:10, color:'var(--muted2)', marginTop:2, maxWidth:150, lineHeight:1.3 }}>Flaskhals: <b style={{ color:nextC }}>{cat.levelUp.primaryBottleneck}</b></span>
                     )}
+                    {(() => {
+                      const sv = (cat.chartData || []).map(d => d[cat.chartLines?.[0]?.key]).filter(v => v != null)
+                      return active && sv.length > 1 ? <div style={{ marginTop:6, width:120 }}><Sparkline data={sv} color={col} width={120} height={26} /></div> : null
+                    })()}
                     <span style={{ fontSize:9.5, fontWeight:800, color:'var(--accent)', marginTop:6, letterSpacing:'0.05em' }}>KLICKA FÖR ALLT</span>
                   </div>
                 ) : (

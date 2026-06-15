@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../context/ToastContext'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import CountUp from '../components/CountUp'
+import EmptyState from '../components/EmptyState'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, X, Save, Loader, AlertTriangle, Map, Target, RefreshCw, Edit2, Trash2 } from 'lucide-react'
 
@@ -506,6 +508,7 @@ function NetWorthTab({ user }) {
 export default function EkonomiPage() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('overview')
   const [logType, setLogType] = useState('expense')
   const [selectedMonth, setSelectedMonth] = useState(new Date())
@@ -1028,11 +1031,9 @@ export default function EkonomiPage() {
       {activeTab === 'trips' && (
         <div>
           {trips.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
-              <Map size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-              <div>Inga planerade resor</div>
-              <div style={{ fontSize: '12px', marginTop: '6px' }}>Lägg till resor i Resor-modulen</div>
-            </div>
+            <EmptyState icon={Map} title="Inga planerade resor"
+              text="Resor planeras och budgeteras i Upplevelser-modulen."
+              action={{ label: 'Till Resor', onClick: () => navigate('/upplevelser') }} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {trips.map(trip => {
@@ -1041,10 +1042,11 @@ export default function EkonomiPage() {
                 const pct = budget > 0 ? (spent / budget) * 100 : 0
                 const daysLeft = trip.start_date ? Math.ceil((new Date(trip.start_date) - new Date()) / 86400000) : null
                 return (
-                  <div key={trip.id} className="card">
+                  <div key={trip.id} className="card" onClick={() => navigate('/upplevelser')}
+                    title="Öppna resan i Upplevelser" style={{ cursor: 'pointer' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                       <div>
-                        <div style={{ fontSize: '15px', fontWeight: '600' }}>{trip.name}</div>
+                        <div style={{ fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>{trip.name} <span style={{ fontSize: '12px', color: 'var(--accent)', opacity: 0.8 }}>↗</span></div>
                         <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
                           {trip.destination}
                           {daysLeft !== null && daysLeft > 0 && <span style={{ color: '#10b981', marginLeft: '8px' }}>om {daysLeft} dagar</span>}

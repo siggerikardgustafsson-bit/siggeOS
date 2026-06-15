@@ -476,6 +476,7 @@ export default function QuickLog() {
           // Insert exercises
           const exerciseRows = exercises.flatMap((ex, _) =>
             ex.sets.map((s, si) => ({
+              user_id: user.id,
               session_id: session.id,
               exercise_name: ex.name,
               set_number: si + 1,

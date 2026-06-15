@@ -1,10 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeaders, getAuthedUser, unauthorized } from '../_shared/auth.ts'
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
@@ -861,6 +856,8 @@ PR/rekord (styrka+löp) → fetch_workouts(include_prs=true) ger all-time PR-tav
 
 ÅTGÄRDER: execute_action direkt utan bekräftelse. Saknas ID → hämta först. delete → bekräfta vad raderas.
 
+LÄNKAR: När du hänvisar till en sida, länka med markdown så Sigge kan klicka dit direkt: [Träning](/traning), [Hälsa](/halsa), [Ekonomi](/ekonomi), [Plugg](/plugg), [Jobb](/jobb), [Kalender](/kalender), [Insights](/insights), [Upplevelser](/upplevelser), [Journal](/journal), [Dashboard](/). Max 1–2 länkar/svar, bara när det tillför.
+
 Svar på användarens språk. Kort.`
 }
 
@@ -868,17 +865,22 @@ Svar på användarens språk. Kort.`
 // MAIN HANDLER
 // ─────────────────────────────────────────────
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const cors = corsHeaders(req)
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { messages = [], context = '', examFileId, materialIds } = await req.json()
-    const authHeader = req.headers.get('Authorization') || ''
+    const { messages = [], context = '', examFileId, materialIds, stream = false } = await req.json()
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
-    const serviceKey = Deno.env.get('SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    const supabase = createClient(supabaseUrl, serviceKey)
-    const anonClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', { global: { headers: { Authorization: authHeader } } })
-    const { data: { user } } = await anonClient.auth.getUser()
+    // Per-request JWT/RLS client: every read/write runs AS the authenticated user,
+    // so Postgres RLS enforces ownership (defense-in-depth on top of the explicit
+    // .eq('user_id', …) filters in executeTool). No service-role client is created
+    // here — every table Jarvis touches is user-owned data covered by owner RLS,
+    // so the RLS-bypassing service role is not required.
+    const { user, userClient: supabase } = await getAuthedUser(req)
+    // Reject unauthenticated callers outright — prevents anonymous use of the
+    // Anthropic-backed chat (cost abuse) and keeps behaviour uniform with the
+    // other functions. Authenticated callers (the only real callers) are unaffected.
+    if (!user) return unauthorized(req)
 
     // Fetch settings, insights, friends, and optional content in parallel
     const [settingsResult, insightsResult, friendsResult, contentResult] = await Promise.all([
@@ -887,12 +889,16 @@ serve(async (req) => {
       user ? supabase.from('friends').select('name,relationship').eq('user_id', user.id).order('created_at', { ascending: false }).limit(15) : Promise.resolve({ data: [] }),
       (async () => {
         let block = ''
-        if (materialIds?.length) {
-          const { data: mats } = await supabase.from('course_materials').select('file_name,content').in('id', materialIds)
+        // SECURITY: this runs on the SERVICE-ROLE client, which bypasses RLS, so the
+        // user scope MUST be applied explicitly here. Without `.eq('user_id', user.id)`
+        // a client could pass arbitrary ids and read another user's uploaded course
+        // materials / old exams. Also gated on `user` so nothing leaks when unauthenticated.
+        if (user && materialIds?.length) {
+          const { data: mats } = await supabase.from('course_materials').select('file_name,content').in('id', materialIds).eq('user_id', user.id)
           if (mats?.length) block += '\nKURSMATERIAL:\n' + mats.map((m: any) => `--- ${m.file_name} ---\n${m.content || ''}`).join('\n\n')
         }
-        if (examFileId) {
-          const { data: ef } = await supabase.from('exam_old_files').select('file_name,content').eq('id', examFileId).single()
+        if (user && examFileId) {
+          const { data: ef } = await supabase.from('exam_old_files').select('file_name,content').eq('id', examFileId).eq('user_id', user.id).single()
           if (ef?.content) block += `\nVALD TENTA "${ef.file_name}":\n${ef.content}`
         }
         return block
@@ -927,6 +933,101 @@ serve(async (req) => {
     )
     const cachedSystem = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
 
+    const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+    const MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-6'
+    const MEMORY_ACTIONS = ['save_insight', 'update_insight', 'delete_insight', 'save_preference', 'update_memory_context', 'update_friend']
+
+    // ── STREAMING PATH (opt-in via body.stream) ──────────────────────────────
+    // Additive: the non-stream JSON loop below is untouched, so any client that
+    // doesn't request streaming (or any failure here) keeps the exact old behaviour.
+    if (stream) {
+      const encoder = new TextEncoder()
+      const sseBody = new ReadableStream({
+        async start(controller) {
+          const send = (obj: any) => { try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)) } catch (_) { /* closed */ } }
+          const streamMessages: any[] = [...formattedMessages]
+          let savedMemory = false
+          const called = new Set<string>()
+          try {
+            for (let it = 0; it < 8; it++) {
+              const resp = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': ANTHROPIC_KEY,
+                  'anthropic-version': '2023-06-01',
+                  'anthropic-beta': 'pdfs-2024-09-25',
+                },
+                body: JSON.stringify({ model: MODEL, max_tokens: 2500, system: cachedSystem, tools: cachedTools, messages: streamMessages, stream: true }),
+              })
+              if (!resp.ok || !resp.body) {
+                const errJson = await resp.json().catch(() => ({}))
+                send({ type: 'error', error: errJson?.error?.message || `Anthropic API error (${resp.status})` })
+                break
+              }
+              const reader = resp.body.getReader()
+              const decoder = new TextDecoder()
+              let buf = ''
+              const blocks: any[] = []
+              let cur: any = null
+              let stopReason: string | null = null
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                buf += decoder.decode(value, { stream: true })
+                let nl: number
+                while ((nl = buf.indexOf('\n')) >= 0) {
+                  const line = buf.slice(0, nl); buf = buf.slice(nl + 1)
+                  if (!line.startsWith('data:')) continue
+                  const payload = line.slice(5).trim()
+                  if (!payload) continue
+                  let ev: any
+                  try { ev = JSON.parse(payload) } catch { continue }
+                  if (ev.type === 'content_block_start') {
+                    cur = ev.content_block?.type === 'tool_use'
+                      ? { type: 'tool_use', id: ev.content_block.id, name: ev.content_block.name, input: '' }
+                      : { type: 'text', text: '' }
+                  } else if (ev.type === 'content_block_delta') {
+                    if (ev.delta?.type === 'text_delta' && cur?.type === 'text') { cur.text += ev.delta.text; send({ type: 'text', text: ev.delta.text }) }
+                    else if (ev.delta?.type === 'input_json_delta' && cur?.type === 'tool_use') { cur.input += ev.delta.partial_json || '' }
+                  } else if (ev.type === 'content_block_stop') {
+                    if (cur?.type === 'tool_use') { let inp: any = {}; try { inp = cur.input ? JSON.parse(cur.input) : {} } catch { /* keep {} */ } blocks.push({ type: 'tool_use', id: cur.id, name: cur.name, input: inp }) }
+                    else if (cur?.type === 'text') { blocks.push({ type: 'text', text: cur.text }) }
+                    cur = null
+                  } else if (ev.type === 'message_delta') {
+                    if (ev.delta?.stop_reason) stopReason = ev.delta.stop_reason
+                  }
+                }
+              }
+              if (stopReason === 'tool_use') {
+                streamMessages.push({ role: 'assistant', content: blocks })
+                const toolBlocks = blocks.filter((b) => b.type === 'tool_use')
+                const toolResults = await Promise.all(toolBlocks.map(async (block: any) => {
+                  const isFetch = block.name !== 'execute_action'
+                  const key = isFetch ? `${block.name}:${JSON.stringify(block.input || {})}` : null
+                  if (key && called.has(key)) return { type: 'tool_result', tool_use_id: block.id, content: '(redan hämtat denna session, se tidigare svar)' }
+                  if (key) called.add(key)
+                  const result = user ? await executeTool(block.name, block.input || {}, supabase, user.id) : 'Ingen användare inloggad.'
+                  if (block.name === 'execute_action' && MEMORY_ACTIONS.includes(block.input?.action)) savedMemory = true
+                  return { type: 'tool_result', tool_use_id: block.id, content: result }
+                }))
+                streamMessages.push({ role: 'user', content: toolResults })
+                send({ type: 'tool', names: toolBlocks.map((b: any) => b.name) })
+                continue
+              }
+              break
+            }
+            send({ type: 'done', savedMemory })
+          } catch (err) {
+            send({ type: 'error', error: err instanceof Error ? err.message : String(err) })
+          } finally {
+            try { controller.close() } catch (_) { /* already closed */ }
+          }
+        },
+      })
+      return new Response(sseBody, { headers: { ...cors, 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache' } })
+    }
+
     for (let iterations = 0; iterations < 8; iterations++) {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -948,7 +1049,7 @@ serve(async (req) => {
       const data = await response.json()
       if (!response.ok) {
         return new Response(JSON.stringify({ error: data.error?.message || 'Anthropic API error', detail: data }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500, headers: { ...cors, 'Content-Type': 'application/json' },
         })
       }
 
@@ -982,12 +1083,12 @@ serve(async (req) => {
       .trim()
 
     return new Response(JSON.stringify({ content: cleaned || 'Inget svar.', actions: [], savedMemory }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return new Response(JSON.stringify({ error: msg }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...cors, 'Content-Type': 'application/json' },
     })
   }
 })

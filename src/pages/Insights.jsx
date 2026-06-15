@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
@@ -88,9 +89,20 @@ const CustomTooltip = ({ active, payload, label, unit = '' }) => {
   )
 }
 
+function ChartEmpty({ text, cta, to }) {
+  const navigate = useNavigate()
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '30px 0', textAlign: 'center' }}>
+      <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{text}</div>
+      {cta && to && <button className="btn btn-ghost" style={{ fontSize: '12px' }} onClick={() => navigate(to)}>{cta}</button>}
+    </div>
+  )
+}
+
 export default function InsightsPage() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [generatingReport, setGeneratingReport] = useState(false)
   const [weeklyReport, setWeeklyReport] = useState('')
@@ -592,7 +604,7 @@ export default function InsightsPage() {
                 <Bar dataKey="energi" fill={COLORS.amber} radius={[3, 3, 0, 0]} name="Energi" />
               </BarChart>
             </ResponsiveContainer>
-          ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Ingen energidata per veckodag</div>}
+          ) : <ChartEmpty text="Ingen energidata per veckodag" cta="Logga hälsa →" to="/halsa" />}
         </div>
         <div className="card">
           <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>TRÄNINGSPASS PER VECKODAG</div>
@@ -606,7 +618,7 @@ export default function InsightsPage() {
                 <Bar dataKey="pass" fill={COLORS.cyan} radius={[3, 3, 0, 0]} name="Pass" />
               </BarChart>
             </ResponsiveContainer>
-          ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Inga träningspass att visa</div>}
+          ) : <ChartEmpty text="Inga träningspass att visa" cta="Logga pass →" to="/traning" />}
         </div>
       </div>
 
@@ -670,7 +682,7 @@ export default function InsightsPage() {
                 <Area type="monotone" dataKey="steg" stroke={COLORS.amber} fill="url(#stepsGrad)" strokeWidth={2} dot={false} name="Steg" />
               </AreaChart>
             </ResponsiveContainer>
-          ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '20px 0', textAlign: 'center' }}>Ingen stegdata — importera från Apple Health</div>}
+          ) : <ChartEmpty text="Ingen stegdata — importera från Apple Health" cta="Till Hälsa →" to="/halsa" />}
         </div>
       </div>
 
@@ -698,19 +710,25 @@ export default function InsightsPage() {
           <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>SENASTE PRs</div>
           {data.prData.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {data.prData.slice(0, 5).map((pr, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--surface2)', borderRadius: '6px' }}>
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: '500' }}>{pr.exercise_name || pr.exercise}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{pr.date ? format(parseISO(pr.date), 'd MMM yyyy', { locale: sv }) : ''}</div>
-                  </div>
-                  <div className="mono" style={{ fontSize: '14px', fontWeight: '600', color: COLORS.cyan }}>
-                    {pr.weight_kg ? `${pr.weight_kg}kg` : pr.time_seconds ? `${Math.floor(pr.time_seconds/60)}:${String(pr.time_seconds%60).padStart(2,'0')}` : pr.distance_km ? `${pr.distance_km}km` : '—'}
-                  </div>
-                </div>
-              ))}
+              {data.prData.slice(0, 5).map((pr, i) => {
+                const exName = pr.exercise_name || pr.exercise
+                return (
+                  <button key={i} type="button" className="evidence-clickable"
+                    onClick={() => navigate(`/traning?exercise=${encodeURIComponent(exName || '')}`)}
+                    title="Öppna övningshistorik"
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exName}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--muted)' }}>{pr.date ? format(parseISO(pr.date), 'd MMM yyyy', { locale: sv }) : ''}</div>
+                    </div>
+                    <div className="mono" style={{ fontSize: '14px', fontWeight: '600', color: COLORS.cyan, flexShrink: 0 }}>
+                      {pr.weight_kg ? `${pr.weight_kg}kg` : pr.time_seconds ? `${Math.floor(pr.time_seconds/60)}:${String(pr.time_seconds%60).padStart(2,'0')}` : pr.distance_km ? `${pr.distance_km}km` : '—'}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
-          ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Inga PRs registrerade</div>}
+          ) : <ChartEmpty text="Inga PRs registrerade" cta="Till träning →" to="/traning" />}
         </div>
       </div>
 

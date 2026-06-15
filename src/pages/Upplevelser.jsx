@@ -9,6 +9,7 @@ import {
   Compass, Flame, SkipForward, Edit2, FileText, Sparkles, Trash2
 } from 'lucide-react'
 import { WORLD_PATHS, COUNTRY_PATHS } from '../lib/worldPaths'
+import EmptyState from '../components/EmptyState'
 
 const COUNTRIES = [
   'Sverige','Norge','Danmark','Finland','Island',
@@ -1137,11 +1138,9 @@ Returnera ENBART JSON utan backticks:
           )}
 
           {adventures.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
-              <Compass size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-              <div>Inga äventyr loggade ännu</div>
-              <div style={{ fontSize: '12px', marginTop: '6px' }}>Du kan också be Jarvis logga äventyr i chatten</div>
-            </div>
+            <EmptyState icon={Compass} title="Inga äventyr loggade ännu"
+              text="Logga ett spontant äventyr — eller be Jarvis göra det åt dig i chatten."
+              action={{ label: 'Logga äventyr', onClick: () => setShowNewAdventure(true) }} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {adventures.map(adv => (
@@ -1228,11 +1227,9 @@ Returnera ENBART JSON utan backticks:
           )}
 
           {sideQuests.length === 0 && (
-            <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
-              <Flame size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-              <div>Inga side quests ännu</div>
-              <div style={{ fontSize: '12px', marginTop: '6px' }}>Tryck "Generera nya quests" för att få Jarvis att föreslå något</div>
-            </div>
+            <EmptyState icon={Flame} title="Inga side quests ännu"
+              text="Låt Jarvis föreslå nya spontana utmaningar baserat på dina mål."
+              action={{ label: generatingQuests ? 'Genererar…' : 'Generera quests', onClick: generateSideQuests }} />
           )}
         </>
       )}

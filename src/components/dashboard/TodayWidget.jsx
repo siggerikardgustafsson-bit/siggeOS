@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { format } from 'date-fns'
 import { supabase } from '../../lib/supabase'
-import { Dumbbell, Briefcase, FileText, Stethoscope, CheckSquare, Clock } from 'lucide-react'
+import { Dumbbell, Briefcase, FileText, Stethoscope, CheckSquare, Clock, ChevronRight } from 'lucide-react'
 
 const EVENT_TYPES = {
-  training:  { color: '#4f8ef7', Icon: Dumbbell,     label: 'Träning' },
-  pa_shift:  { color: '#34d399', Icon: Briefcase,    label: 'PA-pass' },
-  exam:      { color: '#f87171', Icon: FileText,      label: 'Tenta' },
-  mandatory: { color: '#a78bfa', Icon: Stethoscope,  label: 'Obligatorisk' },
-  task:      { color: '#fbbf24', Icon: CheckSquare,  label: 'Uppgift' },
+  training:  { color: '#4f8ef7', Icon: Dumbbell,     label: 'Träning',     nav: '/traning'  },
+  pa_shift:  { color: '#34d399', Icon: Briefcase,    label: 'PA-pass',     nav: '/kalender' },
+  exam:      { color: '#f87171', Icon: FileText,      label: 'Tenta',       nav: '/plugg'    },
+  mandatory: { color: '#a78bfa', Icon: Stethoscope,  label: 'Obligatorisk', nav: '/kalender' },
+  task:      { color: '#fbbf24', Icon: CheckSquare,  label: 'Uppgift',     nav: '/jobb'     },
 }
 
 export default function TodayWidget({ userId }) {
+  const navigate = useNavigate()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const today = format(new Date(), 'yyyy-MM-dd')
@@ -129,14 +131,22 @@ export default function TodayWidget({ userId }) {
             const cfg = EVENT_TYPES[ev.type]
             const IconComp = cfg.Icon
             return (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '9px 12px',
-                background: cfg.color + '0d',
-                border: '1px solid ' + cfg.color + '22',
-                borderRadius: '10px',
-                borderLeft: '2px solid ' + cfg.color,
-              }}>
+              <button key={i} type="button"
+                onClick={() => cfg.nav && navigate(cfg.nav)}
+                title={cfg.nav ? `Öppna ${cfg.label}` : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: '9px 12px', width: '100%', textAlign: 'left',
+                  background: cfg.color + '0d',
+                  border: '1px solid ' + cfg.color + '22',
+                  borderRadius: '10px',
+                  borderLeft: '2px solid ' + cfg.color,
+                  cursor: cfg.nav ? 'pointer' : 'default',
+                  fontFamily: 'inherit',
+                  transition: 'background 0.16s, border-color 0.16s, transform 0.16s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = cfg.color + '1c'; e.currentTarget.style.borderColor = cfg.color + '4d'; e.currentTarget.style.transform = 'translateX(2px)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = cfg.color + '0d'; e.currentTarget.style.borderColor = cfg.color + '22'; e.currentTarget.style.transform = 'none' }}>
                 <span style={{ color: cfg.color, flexShrink: 0, display: 'flex' }}>
                   <IconComp size={14} />
                 </span>
@@ -153,7 +163,8 @@ export default function TodayWidget({ userId }) {
                     <Clock size={10} /> {ev.time}
                   </span>
                 )}
-              </div>
+                <ChevronRight size={13} style={{ color: cfg.color, opacity: 0.5, flexShrink: 0, marginLeft: ev.time ? 0 : 'auto' }} />
+              </button>
             )
           })}
         </div>

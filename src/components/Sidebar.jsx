@@ -5,7 +5,7 @@ import {
   LayoutDashboard, BookOpen, Dumbbell, Heart,
   DollarSign, GraduationCap, Briefcase,
   BarChart2, MessageSquare, LogOut, Compass, Settings, CalendarDays, Download,
-  ChevronRight,
+  ChevronRight, User,
 } from 'lucide-react'
 
 const navItems = [
@@ -67,8 +67,17 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        {/* Bottom — settings + sign out */}
+        {/* Bottom — profile + settings + sign out */}
         <div className="maxx-rail-foot">
+          <NavLink
+            to="/profil"
+            onClick={blurAfterNav}
+            className={({ isActive }) => `maxx-rail-item ${isActive ? 'active' : ''}`}
+          >
+            <span className="maxx-rail-ico"><User size={18} /></span>
+            <span className="maxx-rail-label">Profil</span>
+          </NavLink>
+
           <NavLink
             to="/installningar"
             onClick={blurAfterNav}

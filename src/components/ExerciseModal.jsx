@@ -42,8 +42,12 @@ export default function ExerciseModal({ exerciseName, onClose }) {
     setLoading(true)
     const { data } = await supabase
       .from('training_exercises')
-      .select('*, training_sessions(date, feeling)')
+      // !inner + the user_id filter scope this to the current user's own sessions.
+      // Without it, this returned every user's sets for the exercise name. RLS on
+      // training_exercises (parent-session join) also enforces this — defense in depth.
+      .select('*, training_sessions!inner(date, feeling, user_id)')
       .eq('exercise_name', exerciseName)
+      .eq('training_sessions.user_id', user.id)
       .order('training_sessions(date)', { ascending: true })
     setAllSets(data || [])
     setLoading(false)

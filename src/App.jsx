@@ -20,6 +20,7 @@ const UpplevelserPage = lazy(() => import('./pages/Upplevelser'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
 const KalenderPage = lazy(() => import('./pages/Kalender'))
 const ExportPage = lazy(() => import('./pages/Export'))
+const ProfilePage = lazy(() => import('./pages/Profile'))
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -66,6 +67,7 @@ function AppRoutes() {
         <Route path="/insights"      element={<InsightsPage />} />
         <Route path="/kalender"      element={<KalenderPage />} />
         <Route path="/export"        element={<ExportPage />} />
+        <Route path="/profil"        element={<ProfilePage />} />
         <Route path="/installningar" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

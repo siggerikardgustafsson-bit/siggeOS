@@ -1,10 +1,13 @@
 // Simple markdown renderer for chat messages
-// Handles: **bold**, headers, tables, bullet lists, numbered lists, code
+// Handles: **bold**, *italic*, `code`, [links](/path), headers, tables, lists
+import { useNavigate } from 'react-router-dom'
 
 export default function MarkdownMessage({ content, userMessage = false }) {
+  const navigate = useNavigate()
   if (!content) return null
 
   const textColor = userMessage ? 'white' : 'var(--text)'
+  const linkColor = userMessage ? 'white' : 'var(--accent)'
   const mutedColor = userMessage ? 'rgba(255,255,255,0.7)' : 'var(--muted)'
   const borderColor = userMessage ? 'rgba(255,255,255,0.2)' : 'var(--border)'
   const codeBackground = userMessage ? 'rgba(0,0,0,0.2)' : 'var(--surface2)'
@@ -17,21 +20,33 @@ export default function MarkdownMessage({ content, userMessage = false }) {
     let i = 0
 
     while (remaining.length > 0) {
+      const linkMatch = remaining.match(/^(.*?)\[([^\]]+)\]\(([^)]+)\)/)
       const boldMatch = remaining.match(/^(.*?)\*\*(.+?)\*\*/)
       const italicMatch = remaining.match(/^(.*?)\*(.+?)\*/)
       const codeMatch = remaining.match(/^(.*?)`(.+?)`/)
 
-      const matches = [boldMatch, italicMatch, codeMatch].filter(Boolean)
+      const matches = [linkMatch, boldMatch, italicMatch, codeMatch].filter(Boolean)
       if (matches.length === 0) {
         parts.push(<span key={i++}>{remaining}</span>)
         break
       }
 
-      // Pick earliest match
+      // Pick earliest match (shortest preceding text)
       const earliest = matches.sort((a, b) => a[1].length - b[1].length)[0]
       if (earliest[1]) parts.push(<span key={i++}>{earliest[1]}</span>)
 
-      if (earliest === boldMatch) {
+      if (earliest === linkMatch) {
+        const href = earliest[3].trim()
+        const internal = href.startsWith('/')
+        parts.push(
+          <a key={i++} href={href}
+            onClick={(e) => { if (internal) { e.preventDefault(); navigate(href) } }}
+            target={internal ? undefined : '_blank'} rel={internal ? undefined : 'noopener noreferrer'}
+            style={{ color: linkColor, fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '2px', textDecorationColor: userMessage ? 'rgba(255,255,255,0.5)' : 'var(--accent-border)', cursor: 'pointer' }}>
+            {earliest[2]}
+          </a>
+        )
+      } else if (earliest === boldMatch) {
         parts.push(<strong key={i++} style={{ fontWeight: '700', color: headerColor }}>{earliest[2]}</strong>)
       } else if (earliest === italicMatch) {
         parts.push(<em key={i++}>{earliest[2]}</em>)
@@ -39,7 +54,7 @@ export default function MarkdownMessage({ content, userMessage = false }) {
         parts.push(<code key={i++} style={{ background: codeBackground, padding: '1px 5px', borderRadius: '4px', fontSize: '12px', fontFamily: 'JetBrains Mono, monospace' }}>{earliest[2]}</code>)
       }
 
-      remaining = remaining.slice(earliest[1].length + earliest[0].length - earliest[1].length)
+      remaining = remaining.slice(earliest[0].length)
     }
     return parts
   }

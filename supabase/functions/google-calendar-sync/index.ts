@@ -1,11 +1,6 @@
 // supabase/functions/google-calendar-sync/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeaders, unauthorized, getAuthedUser, serviceClient } from '../_shared/auth.ts'
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') ?? ''
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') ?? ''
@@ -78,23 +73,18 @@ function parseShiftHours(event: any): { start: string; end: string; hours: numbe
 }
 
 serve(async (req) => {
+  const cors = corsHeaders(req)
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: cors })
   }
 
   try {
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('No auth header')
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SERVICE_ROLE_KEY') ?? '',
-    )
-
-    // Get user from token
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-    if (authError || !user) throw new Error('Unauthorized')
+    // Resolve the authenticated user (rejects anon-key-only / anonymous calls).
+    const { user } = await getAuthedUser(req)
+    if (!user) return unauthorized(req)
+    // Service-role client required for the locked-down google_tokens table and
+    // cross-table upserts — every query below is scoped by user.id.
+    const supabase = serviceClient()
 
     const url = new URL(req.url)
     const actionParam = url.searchParams.get('action')
@@ -129,7 +119,7 @@ serve(async (req) => {
       }, { onConflict: 'user_id' })
 
       return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
@@ -148,7 +138,7 @@ serve(async (req) => {
 
       if (!tokenRow?.refresh_token) {
         return new Response(JSON.stringify({ error: 'not_connected', message: 'Google Calendar inte kopplat' }), {
-          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          status: 400, headers: { ...cors, 'Content-Type': 'application/json' }
         })
       }
 
@@ -195,7 +185,7 @@ serve(async (req) => {
           notes: event.description || null,
           google_event_id: event.id,
           synced_from_google: true,
-        }, { onConflict: 'google_event_id' })
+        }, { onConflict: 'user_id,google_event_id' })
         synced++
       }
 
@@ -204,7 +194,7 @@ serve(async (req) => {
         total_events: events.length,
         pa_events: paEvents.length,
         synced,
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }), { headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
     // ===== CHECK CONNECTION =====
@@ -212,14 +202,14 @@ serve(async (req) => {
       const { data } = await supabase.from('google_tokens')
         .select('updated_at').eq('user_id', user.id).single()
       return new Response(JSON.stringify({ connected: !!data, last_sync: data?.updated_at }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        { headers: { ...cors, 'Content-Type': 'application/json' } })
     }
 
     // ===== SYNC MANDATORY SESSIONS =====
     if (action === 'mandatory') {
       const { data: tokenRow } = await supabase.from('google_tokens').select('*').eq('user_id', user.id).single()
       if (!tokenRow?.refresh_token) {
-        return new Response(JSON.stringify({ error: 'not_connected' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        return new Response(JSON.stringify({ error: 'not_connected' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
 
       let accessToken = tokenRow.access_token
@@ -290,7 +280,7 @@ serve(async (req) => {
         }
 
         if (googleEventId) {
-          const { error } = await supabase.from('mandatory_sessions').upsert(record, { onConflict: 'google_event_id' })
+          const { error } = await supabase.from('mandatory_sessions').upsert(record, { onConflict: 'user_id,google_event_id' })
           if (error) console.error('Upsert error:', error.message, error.details)
         } else {
           const { data: existing } = await supabase
@@ -309,7 +299,7 @@ serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ success: true, synced, total: mandatoryEvents.length }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
@@ -317,7 +307,7 @@ serve(async (req) => {
 
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 500, headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 })

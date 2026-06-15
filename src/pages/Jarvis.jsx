@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
+import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp, Plus, Trash2, Sparkles, Copy, RefreshCw, Check } from 'lucide-react'
 import MarkdownMessage from '../components/MarkdownMessage'
 
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
@@ -13,6 +13,31 @@ function stripAccidentalActionJson(content = '') {
     .replace(/<jarvis_actions>[\s\S]*?<\/jarvis_actions>/gi, '')
     .replace(/```json\s*\{[\s\S]*?"action"[\s\S]*?\}\s*```/gi, '')
     .trim()
+}
+
+// Contextual follow-up suggestions — derived locally from the last reply, no token cost.
+const FOLLOWUP_RULES = [
+  { kw: ['löp', 'pace', '5k', '10k', 'distans', 'tempo', 'km'], qs: ['Hur lägger jag upp nästa löppass?', 'Visa min pace-trend'] },
+  { kw: ['styrka', 'bänk', 'knäböj', 'marklyft', 'gym', 'reps', 'pr', '1rm', 'e1rm', 'set'], qs: ['Vad kör jag på nästa gympass?', 'Hur går min progressive overload?'] },
+  { kw: ['sömn', 'sov', 'vila', 'återhämt'], qs: ['Hur förbättrar jag min sömn?', 'Påverkar sömnen min prestation?'] },
+  { kw: ['vikt', 'kalori', 'kost', 'protein', 'deff', 'bulk', 'målvikt'], qs: ['Ligger jag rätt mot min målvikt?', 'Vad bör jag äta idag?'] },
+  { kw: ['ekonomi', 'spar', 'inkomst', 'utgift', 'budget', 'pengar', 'kr', 'förmögenhet'], qs: ['Hur ser min sparkvot ut?', 'Var kan jag spara mer?'] },
+  { kw: ['plugg', 'tenta', 'kurs', 'studie', 'mastery', 'ki', 'lärande'], qs: ['Vad ska jag plugga härnäst?', 'Hur ligger jag till inför tentan?'] },
+  { kw: ['stress', 'mår', 'humör', 'energi', 'ångest'], qs: ['Vad kan jag göra för att må bättre?', 'Vilka mönster ser du i mitt mående?'] },
+  { kw: ['resa', 'trip', 'resor', 'äventyr'], qs: ['Hjälp mig planera nästa resa', 'Vilka resor har jag inbokade?'] },
+]
+const DEFAULT_FOLLOWUPS = ['Vad ska jag fokusera på idag?', 'Vad oroar dig mest i min data?', 'Sätt en plan för veckan']
+
+function getFollowUps(messages) {
+  const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && !m.isSeparator)
+  if (!lastAssistant) return []
+  const text = (lastAssistant.content || '').toLowerCase()
+  const picks = []
+  for (const r of FOLLOWUP_RULES) {
+    if (r.kw.some(k => text.includes(k))) picks.push(...r.qs)
+    if (picks.length >= 4) break
+  }
+  return [...new Set([...picks, ...DEFAULT_FOLLOWUPS])].slice(0, 3)
 }
 
 export default function Jarvis() {
@@ -25,6 +50,26 @@ export default function Jarvis() {
   const [showInsights, setShowInsights] = useState(false)
   const [newInsight, setNewInsight] = useState('')
   const [addingInsight, setAddingInsight] = useState(false)
+  const [copiedIdx, setCopiedIdx] = useState(null)
+  const [reveal, setReveal] = useState(null) // { full, shown } — progressive reveal of the latest reply
+  const revealRef = useRef(null)
+
+  useEffect(() => () => clearInterval(revealRef.current), [])
+
+  // Smoothly reveal the newest assistant reply (streaming feel, no backend change).
+  function startReveal(full) {
+    clearInterval(revealRef.current)
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reduce || !full || full.length < 40) { setReveal(null); return }
+    setReveal({ full, shown: '' })
+    let i = 0
+    const step = Math.max(3, Math.round(full.length / 80))
+    revealRef.current = setInterval(() => {
+      i += step
+      if (i >= full.length) { clearInterval(revealRef.current); setReveal(null) }
+      else setReveal(r => (r ? { ...r, shown: full.slice(0, i) } : r))
+    }, 18)
+  }
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
   const contextRef = useRef('')
@@ -43,6 +88,9 @@ export default function Jarvis() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  // Keep pinned to bottom while the reply reveals.
+  useEffect(() => { if (reveal) messagesEndRef.current?.scrollIntoView({ block: 'end' }) }, [reveal])
 
   useEffect(() => { window.__jarvisMessages = messages }, [messages])
 
@@ -143,35 +191,112 @@ export default function Jarvis() {
     setInsights(prev => prev.filter(i => i.id !== id))
   }
 
-  async function sendToJarvis(promptText, visible = true) {
+  async function sendToJarvis(promptText, visible = true, { baseMessages = null, skipUserSave = false } = {}) {
     if (!promptText.trim() || loading) return
     const userMsg = { role: 'user', content: promptText.trim() }
     setLoading(true)
     setInput('')
 
     const freshCtx = await refreshContext()
-    const current = messages.filter(m => !m.isSeparator && !m.isHistoryMarker)
+    const current = (baseMessages || messages).filter(m => !m.isSeparator && !m.isHistoryMarker && !m.isError && !m.streaming)
     const newMessages = [...current, userMsg]
     if (visible) setMessages(prev => [...prev, userMsg])
 
-    const { error: saveUserErr } = await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'user', content: userMsg.content })
-    if (saveUserErr) console.error('Failed to save user message:', saveUserErr)
+    if (!skipUserSave) {
+      const { error: saveUserErr } = await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'user', content: userMsg.content })
+      if (saveUserErr) console.error('Failed to save user message:', saveUserErr)
+    }
+
+    const reqBody = { messages: newMessages, context: freshCtx || contextRef.current }
+    const saveAssistant = async (raw) => {
+      const clean = stripAccidentalActionJson(raw || '') || 'Jag fick inget svar från modellen.'
+      const { error: saveErr } = await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: clean })
+      if (saveErr) console.error('Failed to save assistant message:', saveErr)
+      return clean
+    }
+    const replaceStreaming = (msg) => setMessages(prev => {
+      const n = [...prev]
+      for (let i = n.length - 1; i >= 0; i--) { if (n[i].streaming) { n[i] = msg; return n } }
+      return [...n, msg]
+    })
 
     try {
-      const { data, error } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: newMessages, context: freshCtx || contextRef.current },
-      })
-      if (error) throw error
-      if (data?.error) throw new Error(data.error)
+      try {
+        // Primary path: raw fetch with stream:true. Handles BOTH a streaming
+        // (text/event-stream) response and a plain JSON response from an older
+        // (not-yet-redeployed) function — single round-trip either way.
+        const token = (await supabase.auth.getSession()).data.session?.access_token
+        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jarvis-chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+          body: JSON.stringify({ ...reqBody, stream: true }),
+        })
+        const ctype = resp.headers.get('content-type') || ''
 
-      const content = stripAccidentalActionJson(data?.content || '')
-      const assistantMsg = { role: 'assistant', content: content || 'Jag fick inget svar från modellen.' }
-      setMessages(prev => [...prev, assistantMsg])
-      const { error: saveAsstErr } = await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: assistantMsg.content })
-      if (saveAsstErr) console.error('Failed to save assistant message:', saveAsstErr)
-      if (data?.savedMemory) loadInsights()
+        if (resp.ok && ctype.includes('text/event-stream') && resp.body) {
+          // Real token streaming
+          setMessages(prev => [...prev, { role: 'assistant', content: '', streaming: true }])
+          const updateStreaming = (c) => setMessages(prev => {
+            const n = [...prev]
+            for (let i = n.length - 1; i >= 0; i--) { if (n[i].streaming) { n[i] = { ...n[i], content: c }; break } }
+            return n
+          })
+          const reader = resp.body.getReader()
+          const decoder = new TextDecoder()
+          let buffer = '', acc = '', savedMemory = false, streamErr = null, done = false
+          while (!done) {
+            const { done: rDone, value } = await reader.read()
+            if (rDone) break
+            buffer += decoder.decode(value, { stream: true })
+            let sep
+            while ((sep = buffer.indexOf('\n\n')) >= 0) {
+              const chunk = buffer.slice(0, sep); buffer = buffer.slice(sep + 2)
+              const dataLine = chunk.split('\n').find(l => l.startsWith('data:'))
+              if (!dataLine) continue
+              let ev; try { ev = JSON.parse(dataLine.slice(5).trim()) } catch { continue }
+              if (ev.type === 'text') { acc += ev.text; updateStreaming(acc) }
+              else if (ev.type === 'done') { savedMemory = ev.savedMemory; done = true; break }
+              else if (ev.type === 'error') { streamErr = ev.error || 'Streamingfel'; done = true; break }
+            }
+          }
+          if (streamErr && !acc) throw new Error(streamErr)
+          const clean = await saveAssistant(acc)
+          replaceStreaming({ role: 'assistant', content: clean })
+          if (savedMemory) loadInsights()
+        } else {
+          // JSON response (function without streaming, or non-SSE)
+          const data = await resp.json().catch(() => null)
+          if (!resp.ok || !data || data.error) throw new Error(data?.error || `HTTP ${resp.status}`)
+          const clean = await saveAssistant(data.content)
+          setMessages(prev => [...prev, { role: 'assistant', content: clean }])
+          startReveal(clean)
+          if (data.savedMemory) loadInsights()
+        }
+      } catch (primaryErr) {
+        // Robust fallback: the supabase SDK invoke (handles auth/url internally).
+        setMessages(prev => prev.filter(m => !m.streaming))
+        try {
+          const { data, error } = await supabase.functions.invoke('jarvis-chat', { body: reqBody })
+          if (error) throw error
+          if (data?.error) throw new Error(data.error)
+          const clean = await saveAssistant(data?.content)
+          setMessages(prev => [...prev, { role: 'assistant', content: clean }])
+          startReveal(clean)
+          if (data?.savedMemory) loadInsights()
+        } catch {
+          // Surface the primary error — it carries the real server message
+          // (e.g. Anthropic billing) which the SDK fallback hides as a generic 2xx error.
+          throw primaryErr
+        }
+      }
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `Något gick fel: ${err?.message || 'Okänt fel'}.` }])
+      setMessages(prev => prev.filter(m => !m.streaming))
+      const raw = err?.message || ''
+      const isBilling = /credit balance|too low|billing|quota|insufficient_quota/i.test(raw)
+      const text = isBilling
+        ? 'Jarvis kunde inte svara: **Anthropic API-krediterna är slut.** Fyll på i Anthropic Console → Plans & Billing, så funkar han igen direkt.'
+        : `Jag nådde inte servern just nu${raw ? ` (${raw})` : ''}. Kontrollera anslutningen och tryck **Försök igen** nedan.`
+      setMessages(prev => [...prev, { role: 'assistant', content: text, isError: true, retryPrompt: promptText.trim() }])
     } finally {
       setLoading(false)
       inputRef.current?.focus()
@@ -180,6 +305,28 @@ export default function Jarvis() {
 
   async function sendMessage() {
     await sendToJarvis(input, true)
+  }
+
+  // Re-run the most recent user prompt — drops any trailing assistant/error
+  // bubble and re-requests, without duplicating the user turn or its DB row.
+  // Powers both "Regenerera" and "Försök igen".
+  async function rerunLastUserPrompt() {
+    if (loading) return
+    let ui = -1
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user' && !messages[i].isSeparator) { ui = i; break }
+    }
+    if (ui < 0) return
+    const prompt = messages[ui].content
+    const base = messages.slice(0, ui)
+    setMessages(messages.slice(0, ui + 1))
+    await sendToJarvis(prompt, false, { baseMessages: base, skipUserSave: true })
+  }
+
+  function copyMessage(content, idx) {
+    navigator.clipboard?.writeText(content)
+      .then(() => { setCopiedIdx(idx); setTimeout(() => setCopiedIdx(c => c === idx ? null : c), 1500) })
+      .catch(() => {})
   }
 
   async function generateBrief(type) {
@@ -197,6 +344,13 @@ export default function Jarvis() {
   }
 
   const hour = new Date().getHours()
+  const suggestions = useMemo(() => getFollowUps(messages), [messages])
+  const lastAssistantIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant' && !messages[i].isSeparator && !messages[i].isError) return i
+    }
+    return -1
+  }, [messages])
 
   return (
     <div className="jarvis-container" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'transparent', margin: '-10px', padding: '10px', boxSizing: 'border-box', width: 'calc(100% + 20px)', maxHeight: '100%' }}>
@@ -254,11 +408,27 @@ export default function Jarvis() {
 
         {messages.map((msg, i) => {
           if (msg.isSeparator) return <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 0' }}><div style={{ flex: 1, height: '1px', background: 'var(--border)' }} /><span style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 600, whiteSpace: 'nowrap', letterSpacing: '0.05em' }}>{msg.content}</span><div style={{ flex: 1, height: '1px', background: 'var(--border)' }} /></div>
+          const isRevealing = !!reveal && msg.role === 'assistant' && i === lastAssistantIndex
+          const displayContent = isRevealing ? reveal.shown : msg.content
+          const showActions = msg.role === 'assistant' && !msg.isError && !isRevealing && !msg.streaming
           return (
             <div key={i} style={{ display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', gap: '10px', alignItems: 'flex-end' }}>
               {msg.role === 'assistant' && <div className="jvs-orb" style={{ width: 28, height: 28 }}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></div>}
               <div className={msg.role === 'user' ? 'jvs-bubble-user' : 'jvs-bubble-ai'}>
-                <MarkdownMessage content={msg.content} userMessage={msg.role === 'user'} />
+                <MarkdownMessage content={displayContent} userMessage={msg.role === 'user'} />
+                {(isRevealing || msg.streaming) && <span className="jvs-caret" aria-hidden="true" />}
+                {showActions && (
+                  <div className="jvs-msg-actions">
+                    <button onClick={() => copyMessage(msg.content, i)} title="Kopiera svar">
+                      {copiedIdx === i ? <><Check size={11} /> Kopierat</> : <><Copy size={11} /> Kopiera</>}
+                    </button>
+                    {i === lastAssistantIndex && (
+                      <button onClick={rerunLastUserPrompt} disabled={loading} title="Generera nytt svar">
+                        <RefreshCw size={11} /> Regenerera
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -274,6 +444,26 @@ export default function Jarvis() {
       </div>
 
       <div style={{ padding: '8px 0 0', flexShrink: 0 }} className="jarvis-input-area">
+        {(() => {
+          const last = messages.filter(m => !m.isSeparator).slice(-1)[0]
+          if (loading || !last || last.role !== 'assistant') return null
+          if (last.isError && last.retryPrompt) {
+            return (
+              <div className="jvs-suggest-row">
+                <button className="jvs-suggest jvs-suggest-retry" onClick={rerunLastUserPrompt}>↻ Försök igen</button>
+              </div>
+            )
+          }
+          if (!suggestions.length) return null
+          return (
+            <div className="jvs-suggest-row">
+              <span className="jvs-suggest-lead"><Sparkles size={11} /> Nästa</span>
+              {suggestions.map(s => (
+                <button key={s} className="jvs-suggest" onClick={() => sendToJarvis(s, true)}>{s}</button>
+              ))}
+            </div>
+          )
+        })()}
         <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '8px 8px 8px 16px', boxShadow: 'var(--glass-shadow)', transition: 'border-color 0.15s' }}>
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey} placeholder="Skriv till Jarvis..." disabled={loading} rows={1} style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text)', fontSize: '14px', lineHeight: '1.5', resize: 'none', maxHeight: '120px', overflow: 'auto', padding: '4px 0', fontFamily: 'Inter, sans-serif' }} />
           <button onClick={sendMessage} disabled={loading || !input.trim()} style={{ width: 36, height: 36, borderRadius: '10px', border: 'none', flexShrink: 0, background: input.trim() ? 'var(--accent)' : 'transparent', color: input.trim() ? 'white' : 'var(--muted)', cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', boxShadow: input.trim() ? '0 2px 10px var(--accent-glow)' : 'none' }}><Send size={15} /></button>

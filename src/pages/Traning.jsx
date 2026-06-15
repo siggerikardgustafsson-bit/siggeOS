@@ -9,6 +9,7 @@ import { Plus, X, Save, Loader, Dumbbell, Timer, Footprints, Trophy, TrendingUp,
 import ExerciseModal from '../components/ExerciseModal'
 import RunModal from '../components/RunModal'
 import Modal from '../components/Modal'
+import EmptyState from '../components/EmptyState'
 
 const BASE_EXERCISE_LIBRARY = {
   'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Armhävningar'],
@@ -581,7 +582,7 @@ export default function TraningPage() {
     const { id, date, sessionType, feeling, notes, exercises } = editingSession
     await supabase.from('training_sessions').update({ date, session_type: sessionType, feeling: feeling ? parseInt(feeling) : null, notes: notes || null }).eq('id', id)
     await supabase.from('training_exercises').delete().eq('session_id', id)
-    const rows = exercises.flatMap((ex, _) => ex.sets.map((s, si) => ({ session_id: id, exercise_id: findLibraryExerciseByName(ex.name)?.id || null, exercise_name: ex.name, set_number: si + 1, reps: s.reps ? parseInt(s.reps) : null, weight_kg: s.weight !== '' ? parseFloat(s.weight) : null, is_dropset: s.is_dropset || false }))).filter(r => r.exercise_name)
+    const rows = exercises.flatMap((ex, _) => ex.sets.map((s, si) => ({ user_id: user.id, session_id: id, exercise_id: findLibraryExerciseByName(ex.name)?.id || null, exercise_name: ex.name, set_number: si + 1, reps: s.reps ? parseInt(s.reps) : null, weight_kg: s.weight !== '' ? parseFloat(s.weight) : null, is_dropset: s.is_dropset || false }))).filter(r => r.exercise_name)
     if (rows.length) await supabase.from('training_exercises').insert(rows)
     setEditingSession(null)
     fetchSessions()
@@ -741,6 +742,7 @@ export default function TraningPage() {
       // Save exercises
       const exerciseRows = exercises.flatMap(ex =>
         ex.sets.map((s, setIdx) => ({
+          user_id: user.id,
           session_id: session.id,
           exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
           exercise_name: ex.name,
@@ -1407,10 +1409,9 @@ export default function TraningPage() {
           <div>
             <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '500', marginBottom: '12px' }}>SENASTE PASS</div>
             {recentSessions.length === 0 ? (
-              <div className="card" style={{ textAlign: 'center', padding: '40px', color: 'var(--muted)' }}>
-                <Dumbbell size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                <div>Inga pass loggade ännu</div>
-              </div>
+              <EmptyState icon={Dumbbell} title="Inga pass loggade ännu"
+                text="Logga ditt första pass så börjar din styrke- och konditionstrend byggas upp."
+                action={{ label: 'Logga pass', onClick: () => setView('log') }} />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {recentSessions.map(session => {

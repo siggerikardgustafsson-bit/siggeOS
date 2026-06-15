@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { subDays, format } from 'date-fns'
 import { XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
 import { supabase } from '../lib/supabase'
@@ -6,7 +7,11 @@ import { useTilt } from '../hooks/useTilt'
 import DetailModal from '../components/dashboard/DetailModal'
 import TodayWidget from '../components/dashboard/TodayWidget'
 import DashboardConstellation from '../components/dashboard/DashboardConstellation'
-import { CalendarDays, BarChart2 } from 'lucide-react'
+import FocusView from '../components/dashboard/FocusView'
+import KpiTree from '../components/dashboard/KpiTree'
+import WeeklyReview from '../components/WeeklyReview'
+import AchievementsModal from '../components/AchievementsModal'
+import { CalendarDays, BarChart2, Orbit, LayoutGrid, Sparkles, Trophy, Network } from 'lucide-react'
 import { useToast } from '../context/ToastContext'
 import {
   getTier, getStudyTier, getSkillTier, getDecayedValue, calcOverallTier,
@@ -17,6 +22,13 @@ import {
   ENERGY_THRESHOLDS, MOOD_THRESHOLDS, STRESS_THRESHOLDS, STEPS_THRESHOLDS,
   TIER_COLORS, TIER_NAMES,
 } from '../components/dashboard/tierUtils'
+import { getUserContext } from '../lib/personalization'
+import {
+  calculateStrengthTier, calculateConditioningTier, calculateEconomyTier,
+  calculateHealthTier, calculateStudyTier,
+} from '../lib/tierEngine'
+import { suggestTierProfile, weightsForProfile } from '../lib/tierProfiles'
+import { computeMaxxScoreV2, detectBottlenecksV2, buildWhyThisScore, tierToPercentile, SCORE_VERSION } from '../lib/maxxScore'
 
 const DEFAULT_SUPPLEMENTS = ['Kreatin', 'D-vitamin', 'Omega-3', 'Multivitamin', 'Magnesium']
 
@@ -60,11 +72,15 @@ function parseNumber(value) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function buildMaxxProfile(cats) {
+function buildMaxxProfile(cats, profileId = 'balanced') {
   const rankCats = cats.filter(c => c?.tier?.tier && c.hasData && !['kropp','fardigheter'].includes(c.id))
   if (!rankCats.length) return null
+  const weights = weightsForProfile(profileId)
+  // Maxx Score v2 — profile-weighted percentile blended with the weakest link.
+  // Falls back to the v1 weakest-link tier (Math.min) if v2 can't compute.
+  const scoreV2 = computeMaxxScoreV2(rankCats, weights)
   const tiers = rankCats.map(c => c.tier.tier)
-  const currentTier = Math.min(...tiers)
+  const currentTier = scoreV2?.tier ?? Math.min(...tiers)
   const nextTier = Math.min(currentTier + 1, 8)
   const avgTier = tiers.reduce((sum, t) => sum + t, 0) / tiers.length
   const spread = Math.max(...tiers) - Math.min(...tiers)
@@ -112,6 +128,7 @@ function buildMaxxProfile(cats) {
     details: [
       { label: 'Rankande kategorier', value: String(rankCats.length) },
       { label: 'Snitt-tier', value: avgTier.toFixed(1) },
+      { label: 'Viktad percentil', value: scoreV2?.weightedPercentile != null ? scoreV2.weightedPercentile + '%' : '—' },
       { label: 'Lägsta kategori', value: primary ? `${primary.name} T${primary.tier.tier}` : '—' },
       { label: 'Balansgap', value: spread <= 1 ? 'stabilt' : spread + ' tiers' },
     ],
@@ -132,12 +149,20 @@ function buildMaxxProfile(cats) {
     })),
     chartData: [],
     chartLines: [],
-    contribution: rankCats.map(c => ({ label: c.name, value: `T${c.tier.tier}`, tierInfo: c.tier })),
+    contribution: rankCats.map(c => ({ label: c.name, value: `T${c.tier.tier}`, percentile: tierToPercentile(c.tier.tier), tierInfo: c.tier })),
+    // ── Maxx Score v2 metadata (data layer; existing UI consumes what it needs) ──
+    scoreVersion: SCORE_VERSION,
+    tierProfile: profileId,
+    weightedPercentile: scoreV2?.weightedPercentile ?? null,
+    weightedTier: scoreV2?.weightedTier ?? null,
+    minTier: scoreV2?.minTier ?? Math.min(...tiers),
+    bottlenecksV2: scoreV2 ? detectBottlenecksV2(rankCats, currentTier, weights) : [],
+    whyThisScore: buildWhyThisScore(scoreV2, rankCats),
   }
 }
 
 
-function EvidenceModal({ evidence, onClose }) {
+function EvidenceModal({ evidence, onClose, onNavigate }) {
   if (!evidence) return null
   const rows = evidence.rows || []
   return (
@@ -174,7 +199,7 @@ function EvidenceModal({ evidence, onClose }) {
           </div>
 
           {evidence.navTarget && (
-            <button onClick={() => { window.location.href = evidence.navTarget }} className="btn btn-primary" style={{ width:'100%' }}>
+            <button onClick={() => { onNavigate ? onNavigate(evidence.navTarget) : (window.location.href = evidence.navTarget); onClose?.() }} className="btn btn-primary" style={{ width:'100%' }}>
               Öppna i {evidence.navLabel || 'källa'}
             </button>
           )}
@@ -186,6 +211,7 @@ function EvidenceModal({ evidence, onClose }) {
 
 export default function Dashboard() {
 
+  const navigate = useNavigate()
   const heroTilt = useTilt({ max: 5 })
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -201,6 +227,10 @@ export default function Dashboard() {
   const [activeGraphCats, setActiveGraphCats] = useState(['somn','valmående','plugg'])
   const [rawGraphData, setRawGraphData] = useState({ healthData: [], snapshots: [] })
   const [refreshKey, setRefreshKey] = useState(0)
+  const [viewMode, setViewMode] = useState(() => { try { return localStorage.getItem('maxx_dash_mode') || 'map' } catch { return 'map' } })
+  const setMode = (m) => { setViewMode(m); try { localStorage.setItem('maxx_dash_mode', m) } catch { /* ignore */ } }
+  const [showWeekly, setShowWeekly] = useState(false)
+  const [showAchievements, setShowAchievements] = useState(false)
 
   const todayDate = new Date()
   const todayStr = format(todayDate, 'EEEE d MMMM yyyy')
@@ -272,6 +302,12 @@ export default function Dashboard() {
       setBodyWeight(bw)
       if (userSettings?.display_name) setDisplayName(userSettings.display_name)
 
+      // Phase 7 — profile-aware tier context. Null-safe: if the profile/columns
+      // aren't there (or no profile yet), ctx is null and every Tier Engine call
+      // falls back to the exact current thresholds (no behaviour change).
+      const ctx = await getUserContext(userId)
+      const tierProfileId = suggestTierProfile(ctx)
+
       // Strava best efforts per activity.
       // Important: do NOT estimate 1 km / 5 km / 10 km from whole-run average pace.
       // Dashboard should represent current fitness from actual Strava "Bästa insatser"
@@ -329,11 +365,11 @@ export default function Dashboard() {
       const rHD  = toDecayed(rHActual)
       const rMD  = null
 
-      const r1T  = r1D  ? getTier(r1D.value,  RUN_5K_THRESHOLDS.map(t=>t*0.195), false) : null
-      const r5T  = r5D  ? getTier(r5D.value,  RUN_5K_THRESHOLDS, false) : null
-      const r10T = r10D ? getTier(r10D.value, RUN_10K_THRESHOLDS, false) : null
-      const rHT  = rHD  ? getTier(rHD.value,  RUN_HALF_THRESHOLDS, false) : null
-      const rMT  = rMD  ? getTier(rMD.value,  RUN_MARA_THRESHOLDS, false) : null
+      const r1T  = r1D  ? calculateConditioningTier('1k', r1D.value, ctx) : null
+      const r5T  = r5D  ? calculateConditioningTier('5k', r5D.value, ctx) : null
+      const r10T = r10D ? calculateConditioningTier('10k', r10D.value, ctx) : null
+      const rHT  = rHD  ? calculateConditioningTier('half_marathon', rHD.value, ctx) : null
+      const rMT  = rMD  ? calculateConditioningTier('marathon', rMD.value, ctx) : null
 
       const hasRunData = !!(runPrData?.length || runData?.length)
 
@@ -474,7 +510,7 @@ export default function Dashboard() {
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              window.location.href = evidence.navTarget
+              navigate(evidence.navTarget)
             }}
             title="Öppna källpass"
             style={{
@@ -521,12 +557,12 @@ export default function Dashboard() {
       const puE1RM = getE1RM(['pull-up','pullup','chins','weighted pull'], true)
       const dipE1RM = getE1RM(['dips','dip'], true)
 
-      const bT = bE1RM != null ? getTier(bE1RM/bw, BENCH_THRESHOLDS, true) : null
-      const sT = sE1RM != null ? getTier(sE1RM/bw, SQUAT_THRESHOLDS, true) : null
-      const dlT = dlE1RM != null ? getTier(dlE1RM/bw, DEADLIFT_THRESHOLDS, true) : null
-      const oT = oE1RM != null ? getTier(oE1RM/bw, OHP_THRESHOLDS, true) : null
-      const puT = puE1RM != null ? getTier(puE1RM, PULLUP_THRESHOLDS, true) : null
-      const dipT = dipE1RM != null ? getTier(dipE1RM, PULLUP_THRESHOLDS, true) : null
+      const bT = bE1RM != null ? calculateStrengthTier('bench', { multiple: bE1RM/bw }, ctx) : null
+      const sT = sE1RM != null ? calculateStrengthTier('squat', { multiple: sE1RM/bw }, ctx) : null
+      const dlT = dlE1RM != null ? calculateStrengthTier('deadlift', { multiple: dlE1RM/bw }, ctx) : null
+      const oT = oE1RM != null ? calculateStrengthTier('ohp', { multiple: oE1RM/bw }, ctx) : null
+      const puT = puE1RM != null ? calculateStrengthTier('pullup', { value: puE1RM }, ctx) : null
+      const dipT = dipE1RM != null ? calculateStrengthTier('dip', { value: dipE1RM }, ctx) : null
 
       // Tier = weak link across ALL required exercises
       // Missing an exercise entirely = T1 (can't be above T1 if core lifts aren't logged)
@@ -557,11 +593,11 @@ export default function Dashboard() {
       const s7=format(subDays(todayDate,7),'yyyy-MM-dd')
       const sl7=(healthData||[]).filter(h=>h.sleep_hours&&h.date>=s7)
       const avgSl=sl7.length?Math.round(sl7.reduce((s,h)=>s+h.sleep_hours,0)/sl7.length*10)/10:null
-      const slT=avgSl?getTier(avgSl,SLEEP_DURATION_THRESHOLDS,true):null
+      const slT=avgSl?calculateHealthTier('sleep',avgSl,ctx):null
 
       const aG=(studyData||[]).filter(g=>g.courses?.active)
       const avgM=aG.length?Math.round(aG.reduce((s,g)=>s+(g.mastery||0),0)/aG.length):null
-      const pT=avgM!=null?getStudyTier(avgM):null
+      const pT=avgM!=null?calculateStudyTier(avgM,ctx):null
       const byCourse={}
       aG.forEach(g=>{const cn=g.courses?.name||'Okänd';if(!byCourse[cn])byCourse[cn]=[];byCourse[cn].push(g.mastery||0)})
 
@@ -580,8 +616,8 @@ export default function Dashboard() {
       // Use latest net_worth_history snapshot if available, otherwise sum cash assets
       const { data: nwhData } = await supabase.from('net_worth_history').select('total_sek').eq('user_id', userId).order('date', { ascending: false }).limit(1)
       const sav = nwhData?.[0]?.total_sek || (assetsData||[]).reduce((s,a) => s + (a.type === 'cash' ? (a.manual_price_sek||0) : 0), 0) || null
-      const incT=totPA?getTier(totPA,INCOME_THRESHOLDS,true):null
-      const savT=sav!=null?getTier(sav,SAVINGS_THRESHOLDS,true):null
+      const incT=totPA?calculateEconomyTier('income',totPA,ctx):null
+      const savT=sav!=null?calculateEconomyTier('savings',sav,ctx):null
       // Ekonomi: min of logged metrics — weak link (high income doesn't offset zero savings)
       const eTs=[incT,savT].filter(Boolean)
       const eTop=eTs.length?eTs.reduce((min,t)=>t.tier<min.tier?t:min,eTs[0]):null
@@ -824,6 +860,8 @@ export default function Dashboard() {
           levelUp:wellLevelUp,
           navTarget:'/halsa',navLabel:'Hälsa'},
       ]
+      // Attach profile-aware percentile to each category (data for cards/DetailModal).
+      for (const c of cats) { if (c.tier?.tier) c.percentile = tierToPercentile(c.tier.tier) }
       setCategories(cats)
 
       // ── Save today's tiers as a snapshot ──────────────────────────────
@@ -836,18 +874,19 @@ export default function Dashboard() {
         plugg:     cats.find(c=>c.id==='plugg')?.tier?.tier ?? null,
         ekonomi:   cats.find(c=>c.id==='ekonomi')?.tier?.tier ?? null,
         valmående: cats.find(c=>c.id==='halsa')?.tier?.tier ?? null,
+        score_version: SCORE_VERSION,
       }
       supabase.from('tier_snapshots').upsert(todaySnap, { onConflict: 'user_id,date' })
         .then(() => {}).catch(() => {}) // fire-and-forget, table may not exist yet
 
       // Store raw data for graph — computed reactively via useMemo when graphPeriod changes
       setRawGraphData({ healthData: healthData || [], snapshots: snapshots || [] })
-      const maxx = buildMaxxProfile(cats)
+      const maxx = buildMaxxProfile(cats, tierProfileId)
       setMaxxProfile(maxx)
       setOverallTier(maxx?.tier?.tier || calcOverallTier(cats.filter(c=>c.tier&&c.hasData).map(c=>({tier:c.tier.tier}))))
     } catch(e){ console.error('Dashboard error:',e); toast({ message: 'Kunde inte ladda all dashboarddata', type: 'error' }) }
     finally { setLoading(false) }
-  }, [userId, refreshKey, toast])
+  }, [userId, refreshKey, toast, navigate])
 
   useEffect(() => { fetchAllData() }, [fetchAllData])
 
@@ -875,6 +914,12 @@ export default function Dashboard() {
     }
     return hist
   }, [rawGraphData, graphPeriod])
+
+  // Overall Maxx trend for the Focus-view sparkline — average tier per logged day.
+  const maxxSpark = useMemo(() => tierHistory.map(pt => {
+    const vals = ['kondition','styrka','plugg','ekonomi','somn','valmående'].map(k => pt[k]).filter(v => v != null)
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null
+  }), [tierHistory])
 
   const oColor = overallTier ? (TIER_COLORS[overallTier]||'#6b7280') : '#6b7280'
   const oLabel = overallTier ? TIER_NAMES[overallTier] : '—'
@@ -976,8 +1021,19 @@ export default function Dashboard() {
           <div className="page-header-title">{displayName || 'Dashboard'}</div>
           <div className="page-header-sub">{todayDisplay}{bodyWeight ? ` · ${bodyWeight} kg` : ''}</div>
         </div>
-        {overallTier && (
-          <div className="page-header-actions">
+        <div className="page-header-actions">
+          <button className="btn btn-ghost" onClick={() => setShowWeekly(true)} title="Veckorevy" style={{ gap: 6 }}>
+            <Sparkles size={14} /> Veckorevy
+          </button>
+          <button className="btn btn-ghost" onClick={() => setShowAchievements(true)} title="Utmärkelser" style={{ gap: 6 }}>
+            <Trophy size={14} /> Utmärkelser
+          </button>
+          <div className="dash-mode-toggle" role="tablist" aria-label="Dashboardvy">
+            <button role="tab" aria-selected={viewMode === 'map'} className={viewMode === 'map' ? 'active' : ''} onClick={() => setMode('map')} title="Kartvy — constellation"><Orbit size={14} /> Karta</button>
+            <button role="tab" aria-selected={viewMode === 'focus'} className={viewMode === 'focus' ? 'active' : ''} onClick={() => setMode('focus')} title="Fokusvy — idag först"><LayoutGrid size={14} /> Fokus</button>
+            <button role="tab" aria-selected={viewMode === 'tree'} className={viewMode === 'tree' ? 'active' : ''} onClick={() => setMode('tree')} title="KPI-träd — så byggs Maxx Score"><Network size={14} /> Träd</button>
+          </div>
+          {overallTier && (
             <div style={{
               display:'flex', alignItems:'center', gap:'8px', padding:'6px 14px 6px 11px', borderRadius:'20px',
               background:`linear-gradient(135deg, ${oColor}26 0%, ${oColor}0f 100%)`,
@@ -989,8 +1045,8 @@ export default function Dashboard() {
               <span style={{ width:1, height:11, background: oColor + '40' }} />
               <span style={{ fontSize:'11px', fontWeight:600, color: oColor + 'cc', textTransform:'uppercase', letterSpacing:'0.06em' }}>{oLabel}</span>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="page-content-scroll">
@@ -1000,20 +1056,38 @@ export default function Dashboard() {
           {loading ? (
             <div className="grid-4 dashboard-category-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:'12px' }}>
               {[...Array(6)].map((_,i) => (
-                <div key={i} className="widget" style={{ padding:'18px', minHeight:'120px', animation:`skeleton-pulse 1.4s ${i*0.12}s ease-in-out infinite` }}>
-                  <div style={{ height:10, width:'40%', borderRadius:6, background:'rgba(255,255,255,0.06)', marginBottom:10 }} />
-                  <div style={{ height:28, width:'55%', borderRadius:6, background:'rgba(255,255,255,0.06)', marginBottom:12 }} />
-                  <div style={{ height:8, width:'80%', borderRadius:6, background:'rgba(255,255,255,0.04)' }} />
+                <div key={i} className="widget mx-skel" style={{ padding:'18px', minHeight:'120px' }}>
+                  <div className="mx-skel-bar" style={{ height:10, width:'40%', marginBottom:10 }} />
+                  <div className="mx-skel-bar" style={{ height:28, width:'55%', marginBottom:12 }} />
+                  <div className="mx-skel-bar" style={{ height:8, width:'80%' }} />
                 </div>
               ))}
             </div>
+          ) : viewMode === 'focus' ? (
+            <FocusView
+              categories={categories}
+              maxxProfile={maxxProfile}
+              overallTier={overallTier}
+              userId={userId}
+              maxxSpark={maxxSpark}
+              onSelect={setSelectedCategory}
+              onMetricClick={(evidence) => { if (evidence?.navTarget) navigate(evidence.navTarget); else setSelectedEvidence(evidence) }}
+            />
+          ) : viewMode === 'tree' ? (
+            <KpiTree
+              categories={categories}
+              maxxProfile={maxxProfile}
+              overallTier={overallTier}
+              onSelect={setSelectedCategory}
+              onMetricClick={(evidence) => { if (evidence?.navTarget) navigate(evidence.navTarget); else setSelectedEvidence(evidence) }}
+            />
           ) : (
             <DashboardConstellation
               categories={categories}
               maxxProfile={maxxProfile}
               overallTier={overallTier}
               onSelect={setSelectedCategory}
-              onMetricClick={(evidence) => { if (evidence?.navTarget) window.location.href = evidence.navTarget; else setSelectedEvidence(evidence) }}
+              onMetricClick={(evidence) => { if (evidence?.navTarget) navigate(evidence.navTarget); else setSelectedEvidence(evidence) }}
               corners={dashCorners}
             />
           )}
@@ -1022,7 +1096,9 @@ export default function Dashboard() {
       </div>
 
       {selectedCategory && <DetailModal category={selectedCategory} onClose={()=>setSelectedCategory(null)} />}
-      {selectedEvidence && <EvidenceModal evidence={selectedEvidence} onClose={()=>setSelectedEvidence(null)} />}
+      {selectedEvidence && <EvidenceModal evidence={selectedEvidence} onClose={()=>setSelectedEvidence(null)} onNavigate={navigate} />}
+      {showWeekly && <WeeklyReview userId={userId} onClose={()=>setShowWeekly(false)} />}
+      {showAchievements && <AchievementsModal userId={userId} categories={categories} onClose={()=>setShowAchievements(false)} />}
     </div>
   )
 }

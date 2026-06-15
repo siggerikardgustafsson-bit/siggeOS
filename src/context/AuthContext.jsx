@@ -3,7 +3,11 @@ import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
 
-const DEV_USER = import.meta.env.VITE_DEV_USER
+// DEV_USER is a LOCAL-ONLY auth bypass for development. It is hard-gated behind
+// import.meta.env.DEV, which Vite sets to false in production builds (`vite build`),
+// so it is stripped from any shipped bundle. This removes the multi-user risk of
+// accidentally shipping a hard-coded identity that bypasses authentication.
+const DEV_USER = import.meta.env.DEV && import.meta.env.VITE_DEV_USER
   ? { id: import.meta.env.VITE_DEV_USER, email: 'dev@local', role: 'authenticated' }
   : null
 

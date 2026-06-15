@@ -136,9 +136,9 @@ export default function PluggPage() {
         headers: { Authorization: `Bearer ${session?.access_token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY }
       })
       const data = await res.json()
-      alert(`Synkade ${data.synced || 0} obligatoriska moment`)
+      toast({ message: `Synkade ${data.synced || 0} obligatoriska moment`, type: 'success' })
       await fetchMandatory()
-    } catch(e) { alert('Sync misslyckades') }
+    } catch(e) { toast({ message: 'Sync misslyckades — försök igen', type: 'error' }) }
     setSyncingMandatory(false)
   }
 
@@ -351,7 +351,7 @@ export default function PluggPage() {
       if (deadlineRows.length > 0) await supabase.from('study_task_deadlines').insert(deadlineRows)
     } else if (error) {
       console.error('Kunde inte skapa uppgift', error)
-      alert('Kunde inte skapa uppgift. Har du kört SQL-migrationen för study_tasks?')
+      toast({ message: 'Kunde inte skapa uppgift. Har du kört SQL-migrationen för study_tasks?', type: 'error' })
     }
 
     resetTaskForm()
@@ -775,9 +775,11 @@ export default function PluggPage() {
                           )}
 
                           {(studyTasks[course.id] || []).length === 0 ? (
-                            <div style={{ fontSize: '12px', color: 'var(--muted)', padding: '10px 12px', border: '1px dashed var(--border)', borderRadius: '10px' }}>
-                              Inga uppgifter ännu.
-                            </div>
+                            <button onClick={() => { setShowNewTaskFor(course.id); resetTaskForm() }}
+                              className="evidence-clickable"
+                              style={{ width: '100%', fontSize: '12px', color: 'var(--muted2)', padding: '12px', border: '1px dashed var(--border2)', borderRadius: '10px', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                              <Plus size={13} /> Lägg till första uppgiften
+                            </button>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               {(studyTasks[course.id] || []).map(task => {

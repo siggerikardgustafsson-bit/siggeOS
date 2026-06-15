@@ -1,15 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeaders, unauthorized, getAuthedUser, serviceClient } from '../_shared/auth.ts'
 
 const STRAVA_CLIENT_ID     = Deno.env.get('STRAVA_CLIENT_ID') ?? ''
 const STRAVA_CLIENT_SECRET = Deno.env.get('STRAVA_CLIENT_SECRET') ?? ''
-const SUPABASE_URL         = Deno.env.get('SUPABASE_URL') ?? ''
-const SUPABASE_SERVICE_KEY = Deno.env.get('SERVICE_ROLE_KEY') ?? ''
 
 type RunBestEffortTarget = {
   distanceKey: '1k' | '5k' | '10k' | 'half_marathon'
@@ -102,19 +95,18 @@ async function upsertRunBestEffortsForActivity(
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const cors = corsHeaders(req)
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   const url = new URL(req.url)
   const action = url.searchParams.get('action')
 
-  // Auth header → get user
-  const authHeader = req.headers.get('Authorization') || ''
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-  const anonClient = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
-    global: { headers: { Authorization: authHeader } }
-  })
-  const { data: { user } } = await anonClient.auth.getUser()
-  if (!user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: corsHeaders })
+  // Resolve the authenticated user (rejects anon-key-only / anonymous calls).
+  // Service-role client is required below to read/write the locked-down
+  // strava_tokens table (no client RLS policy) — always scoped by user.id.
+  const { user } = await getAuthedUser(req)
+  if (!user) return unauthorized(req)
+  const supabase = serviceClient()
 
   // ===== EXCHANGE CODE FOR TOKEN =====
   if (action === 'exchange') {
@@ -130,7 +122,7 @@ serve(async (req) => {
       }),
     })
     const data = await res.json()
-    if (!res.ok) return new Response(JSON.stringify({ error: data.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    if (!res.ok) return new Response(JSON.stringify({ error: data.message }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
 
     await supabase.from('strava_tokens').upsert({
       user_id: user.id,
@@ -140,13 +132,13 @@ serve(async (req) => {
       athlete_id: data.athlete?.id,
     }, { onConflict: 'user_id' })
 
-    return new Response(JSON.stringify({ ok: true, athlete: data.athlete }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ ok: true, athlete: data.athlete }), { headers: { ...cors, 'Content-Type': 'application/json' } })
   }
 
   // ===== FETCH PRs FOR EXISTING STRAVA RUNS =====
   if (action === 'fetch_prs') {
     const { data: tokenRow } = await supabase.from('strava_tokens').select('*').eq('user_id', user.id).single()
-    if (!tokenRow) return new Response(JSON.stringify({ error: 'Not connected' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    if (!tokenRow) return new Response(JSON.stringify({ error: 'Not connected' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
 
     let accessToken = tokenRow.access_token
     if (new Date(tokenRow.expires_at) < new Date()) {
@@ -180,7 +172,7 @@ serve(async (req) => {
 
     if (!sessions || sessions.length === 0) {
       return new Response(JSON.stringify({ ok: true, prsUpdated: 0, processed: 0 }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...cors, 'Content-Type': 'application/json' }
       })
     }
 
@@ -208,7 +200,7 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ ok: true, prsUpdated, processed, failed }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
@@ -216,7 +208,7 @@ serve(async (req) => {
   if (action === 'sync') {
     // Get token
     const { data: tokenRow } = await supabase.from('strava_tokens').select('*').eq('user_id', user.id).single()
-    if (!tokenRow) return new Response(JSON.stringify({ error: 'Not connected' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    if (!tokenRow) return new Response(JSON.stringify({ error: 'Not connected' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
 
     // Refresh token if expired
     let accessToken = tokenRow.access_token
@@ -319,7 +311,7 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ ok: true, synced, skipped, total: allActivities.length, prsUpdated }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
@@ -327,15 +319,15 @@ serve(async (req) => {
   if (action === 'status') {
     const { data } = await supabase.from('strava_tokens').select('athlete_id, expires_at').eq('user_id', user.id).single()
     return new Response(JSON.stringify({ connected: !!data, athlete_id: data?.athlete_id }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
   // ===== DISCONNECT =====
   if (action === 'disconnect') {
     await supabase.from('strava_tokens').delete().eq('user_id', user.id)
-    return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } })
   }
 
-  return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: corsHeaders })
+  return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers: cors })
 })

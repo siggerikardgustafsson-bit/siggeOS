@@ -1,10 +1,6 @@
 // supabase/functions/price-fetch/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeaders, unauthorized, getAuthedUser } from '../_shared/auth.ts'
 
 // Simple in-memory cache (lives for the duration of the function instance)
 const cache: Record<string, { price: number; currency: string; ts: number }> = {}
@@ -60,7 +56,13 @@ const CRYPTO_IDS: Record<string, string> = {
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const cors = corsHeaders(req)
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
+
+  // Require an authenticated user (prevents anonymous abuse of the price proxy
+  // and the external Yahoo/Coingecko calls it makes).
+  const { user } = await getAuthedUser(req)
+  if (!user) return unauthorized(req)
 
   try {
     const { assets } = await req.json()
@@ -101,11 +103,11 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ prices: results, usdSek: fxRate }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...cors, 'Content-Type': 'application/json' }
     })
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      status: 500, headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 })
