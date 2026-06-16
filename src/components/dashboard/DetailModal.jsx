@@ -157,6 +157,7 @@ export default function DetailModal({ category, onClose, insightCtx = null, onAs
         [data-theme="light"] .dm-overlay { background:rgba(225,228,238,0.55); }
         @keyframes dmFade { from { opacity:0 } to { opacity:1 } }
         .dm-panel { position:relative; width:100%; max-width:600px; max-height:88vh; overflow-y:auto; overflow-x:hidden;
+          -webkit-overflow-scrolling:touch; overscroll-behavior:contain; padding-bottom:6px;
           border-radius:26px; background:var(--modal-bg); border:1px solid var(--modal-border);
           backdrop-filter:blur(44px) saturate(1.2); -webkit-backdrop-filter:blur(44px) saturate(1.2);
           box-shadow:0 40px 100px -24px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.1) inset;
@@ -194,6 +195,17 @@ export default function DetailModal({ category, onClose, insightCtx = null, onAs
           border-radius:15px; font-size:13.5px; font-weight:800; cursor:pointer; letter-spacing:.01em; color:#fff; border:none;
           transition:transform .16s, box-shadow .16s, filter .16s; }
         .dm-cta:hover { transform:translateY(-2px); filter:brightness(1.06); }
+        /* Mobile — present as a bottom sheet: full-width, safe-area aware, easier scroll/reach */
+        @media (max-width: 640px) {
+          .dm-overlay { padding:0; align-items:flex-end; }
+          .dm-panel { max-width:100%; max-height:94vh; border-radius:24px 24px 0 0;
+            padding-bottom:max(10px, env(safe-area-inset-bottom));
+            animation:dmSheet .4s cubic-bezier(.22,1,.36,1) both; }
+          @keyframes dmSheet { from { opacity:0; transform:translateY(40px) } to { opacity:1; transform:none } }
+          .dm-bar { padding:12px 14px; }
+          .dm-hero { padding:22px 18px 18px; }
+          .dm-section { padding:0 16px 18px; }
+        }
         @media (prefers-reduced-motion: reduce) {
           .dm-overlay,.dm-panel,.dm-prog-fill { animation:none }
           .dm-close:hover { transform:none }

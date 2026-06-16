@@ -32,6 +32,29 @@ export const LIFE_STAGES = [
   { id: 'retired', label: 'Pensionär' },
 ]
 
+// Role types for the optional, multi-role "Livssituation" (additive to life_stage).
+export const ROLE_TYPES = [
+  { id: 'study', label: 'Studie' },
+  { id: 'job', label: 'Jobb' },
+  { id: 'business', label: 'Eget företag' },
+  { id: 'parent', label: 'Förälder' },
+  { id: 'other', label: 'Annat' },
+]
+
+// Normalize the stored life_roles JSONB into a clean array (defensive — the
+// column may be missing on un-migrated rows, or hold legacy/empty values).
+export function normalizeLifeRoles(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((r) => r && typeof r === 'object')
+    .map((r) => ({
+      type: r.type ?? '',
+      label: typeof r.label === 'string' ? r.label : '',
+      description: typeof r.description === 'string' ? r.description : '',
+      active: r.active !== false, // default active
+    }))
+}
+
 export const FOCUS_AREAS = [
   { id: 'fitness', label: 'Träning' },
   { id: 'career', label: 'Karriär' },
@@ -84,6 +107,7 @@ export function buildUserContext(profile) {
     height: profile.height_cm ?? null,
     weight: profile.weight_kg ?? null,
     lifeStage: profile.life_stage ?? null,
+    lifeRoles: normalizeLifeRoles(profile.life_roles),
     occupation: profile.occupation ?? null,
     goals: {
       primary: profile.primary_focus ?? null,

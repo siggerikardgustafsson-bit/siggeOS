@@ -7,11 +7,10 @@ import { useTilt } from '../hooks/useTilt'
 import DetailModal from '../components/dashboard/DetailModal'
 import TodayWidget from '../components/dashboard/TodayWidget'
 import DashboardConstellation from '../components/dashboard/DashboardConstellation'
-import FocusView from '../components/dashboard/FocusView'
 import KpiTree from '../components/dashboard/KpiTree'
 import WeeklyReview from '../components/WeeklyReview'
 import AchievementsModal from '../components/AchievementsModal'
-import { CalendarDays, BarChart2, Orbit, LayoutGrid, Sparkles, Trophy, Network } from 'lucide-react'
+import { CalendarDays, BarChart2, Orbit, Sparkles, Trophy, Network } from 'lucide-react'
 import { useToast } from '../context/ToastContext'
 import {
   getTier, getStudyTier, getSkillTier, getDecayedValue, calcOverallTier,
@@ -244,7 +243,13 @@ export default function Dashboard() {
   const [activeGraphCats, setActiveGraphCats] = useState(['somn','valmående','plugg'])
   const [rawGraphData, setRawGraphData] = useState({ healthData: [], snapshots: [] })
   const [refreshKey, setRefreshKey] = useState(0)
-  const [viewMode, setViewMode] = useState(() => { try { return localStorage.getItem('maxx_dash_mode') || 'map' } catch { return 'map' } })
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      const m = localStorage.getItem('maxx_dash_mode')
+      // 'focus' view was removed — migrate any stored preference to the map view.
+      return (!m || m === 'focus') ? 'map' : m
+    } catch { return 'map' }
+  })
   const setMode = (m) => { setViewMode(m); try { localStorage.setItem('maxx_dash_mode', m) } catch { /* ignore */ } }
   const [showWeekly, setShowWeekly] = useState(false)
   const [showAchievements, setShowAchievements] = useState(false)
@@ -975,12 +980,6 @@ export default function Dashboard() {
     return hist
   }, [rawGraphData, graphPeriod])
 
-  // Overall Maxx trend for the Focus-view sparkline — average tier per logged day.
-  const maxxSpark = useMemo(() => tierHistory.map(pt => {
-    const vals = ['kondition','styrka','plugg','ekonomi','somn','valmående'].map(k => pt[k]).filter(v => v != null)
-    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null
-  }), [tierHistory])
-
   // Phase 12 — Explainability surface. Build the Jarvis projection ONCE (pure;
   // consumes the authoritative maxxProfile + categories). DetailModal reads it to
   // explain tiers/bottlenecks/rank-up/confidence/benchmark. No new scoring.
@@ -1105,7 +1104,6 @@ export default function Dashboard() {
           </button>
           <div className="dash-mode-toggle" role="tablist" aria-label="Dashboardvy">
             <button role="tab" aria-selected={viewMode === 'map'} className={viewMode === 'map' ? 'active' : ''} onClick={() => setMode('map')} title="Kartvy — constellation"><Orbit size={14} /> Karta</button>
-            <button role="tab" aria-selected={viewMode === 'focus'} className={viewMode === 'focus' ? 'active' : ''} onClick={() => setMode('focus')} title="Fokusvy — idag först"><LayoutGrid size={14} /> Fokus</button>
             <button role="tab" aria-selected={viewMode === 'tree'} className={viewMode === 'tree' ? 'active' : ''} onClick={() => setMode('tree')} title="KPI-träd — så byggs Maxx Score"><Network size={14} /> Träd</button>
           </div>
           {overallTier && (
@@ -1157,16 +1155,6 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          ) : viewMode === 'focus' ? (
-            <FocusView
-              categories={categories}
-              maxxProfile={maxxProfile}
-              overallTier={overallTier}
-              userId={userId}
-              maxxSpark={maxxSpark}
-              onSelect={setSelectedCategory}
-              onMetricClick={(evidence) => { if (evidence?.navTarget) navigate(evidence.navTarget); else setSelectedEvidence(evidence) }}
-            />
           ) : viewMode === 'tree' ? (
             <KpiTree
               categories={categories}

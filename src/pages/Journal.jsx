@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../context/ToastContext'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, subMonths, addMonths, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Plus, Save, Loader, X, Edit2, Calendar, Music, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Save, Loader, X, Edit2, Calendar, Music, ChevronDown, ChevronUp, Search, Sparkles } from 'lucide-react'
 
 const JARVIS_JOURNAL_SYSTEM = `Du är Jarvis, Sigges personliga AI. Analysera denna journal-entry djupgående och returnera ENBART ett JSON-objekt utan markdown eller backticks.
 
@@ -83,10 +83,13 @@ export default function JournalPage() {
   const [editingEntry, setEditingEntry] = useState(null) // entry being edited
   const [form, setForm] = useState(EMPTY_FORM)
   const [editDate, setEditDate] = useState('') // for date change on existing entry
+  const [retro, setRetro] = useState({ running: false, done: 0, total: 0 })
+  const [unanalyzedCount, setUnanalyzedCount] = useState(0)
 
   useEffect(() => { if (user) fetchMonthEntries() }, [user, currentMonth])
   useEffect(() => { if (user) fetchRecentEntries() }, [user])
   useEffect(() => { if (user) fetchSelectedEntries() }, [user, selectedDate])
+  useEffect(() => { if (user) refreshUnanalyzedCount() }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchRecentEntries() {
     const { data } = await supabase.from('journal_entries').select('id,date,content,mood,energy,sleep_hours')
@@ -256,39 +259,96 @@ export default function JournalPage() {
     }
   }
 
-  async function runAIAnalysis(entryId, content) {
-    if (!content || content.length < 20) return
-    setAnalyzing(true)
+  // Core analyzer — shared by the live save path and the retroactive batch.
+  // Only writes ai_* fields + (dedup-guarded) social_interactions; NEVER touches
+  // the user-written `content`. Returns 'ok' | 'skip' | 'fail'.
+  async function analyzeEntry({ id, content, date }) {
+    if (!content || content.length < 20) return 'skip'
     try {
       const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: [{ role: 'user', content: `Analysera denna journal-entry från Sigge:\n\n"${content}"` }], context: '', systemPrompt: JARVIS_JOURNAL_SYSTEM },
+        body: { messages: [{ role: 'user', content: `Analysera denna journal-entry:\n\n"${content}"` }], context: '', systemPrompt: JARVIS_JOURNAL_SYSTEM },
       })
-      if (data?.content) {
-        let analysis
-        const raw = data.content.trim()
-        try {
-          analysis = JSON.parse(raw)
-        } catch {
-          const block = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
-          try { analysis = JSON.parse(block ? block[1].trim() : raw.match(/\{[\s\S]*\}/)?.[0] || '{}') }
-          catch { setAnalyzing(false); return }
-        }
-        await supabase.from('journal_entries').update({
-          ai_extracted_people: analysis.people || [], ai_extracted_activities: analysis.activities || [],
-          ai_extracted_keywords: analysis.keywords || [], ai_summary: analysis.jarvis_comment || '',
-        }).eq('id', entryId)
-        if (analysis.people?.length > 0) {
-          const dateStr = format(selectedDate, 'yyyy-MM-dd')
+      if (!data?.content) return 'fail'
+      let analysis
+      const raw = data.content.trim()
+      try {
+        analysis = JSON.parse(raw)
+      } catch {
+        const block = raw.match(/```(?:json)?\s*([\s\S]*?)```/)
+        try { analysis = JSON.parse(block ? block[1].trim() : raw.match(/\{[\s\S]*\}/)?.[0] || '{}') }
+        catch { return 'fail' }
+      }
+      await supabase.from('journal_entries').update({
+        ai_extracted_people: analysis.people || [], ai_extracted_activities: analysis.activities || [],
+        ai_extracted_keywords: analysis.keywords || [], ai_summary: analysis.jarvis_comment || '',
+      }).eq('id', id)
+      if (analysis.people?.length > 0 && date) {
+        // Dedup guard: don't add a second journal_ai interaction for the same day.
+        const { data: existing } = await supabase.from('social_interactions')
+          .select('id').eq('user_id', user.id).eq('date', date).eq('source', 'journal_ai').limit(1)
+        if (!existing?.length) {
           await supabase.from('social_interactions').insert({
-            user_id: user.id, date: dateStr, friend_names: analysis.people,
+            user_id: user.id, date, friend_names: analysis.people,
             activity: analysis.activities?.join(', ') || '', quality: analysis.social_quality || 7,
             source: 'journal_ai', notes: analysis.mood_analysis || '',
           })
         }
-        await fetchSelectedEntries()
       }
-    } catch (err) { console.error('AI analysis failed:', err); toast({ message: 'Jarvis-analys misslyckades', type: 'error' }) }
+      return 'ok'
+    } catch (err) {
+      console.error('AI analysis failed:', err)
+      return 'fail'
+    }
+  }
+
+  async function runAIAnalysis(entryId, content, dateStr = format(selectedDate, 'yyyy-MM-dd')) {
+    if (!content || content.length < 20) return
+    setAnalyzing(true)
+    const result = await analyzeEntry({ id: entryId, content, date: dateStr })
+    if (result === 'fail') toast({ message: 'Jarvis-analys misslyckades', type: 'error' })
+    else if (result === 'ok') await fetchSelectedEntries()
     setAnalyzing(false)
+  }
+
+  // Retroactive: find entries whose AI analysis never ran (missing ai_summary)
+  // and process them one at a time, with progress + graceful per-entry failure.
+  async function analyzeUnanalyzed() {
+    if (retro.running) return
+    const { data, error } = await supabase.from('journal_entries')
+      .select('id,date,content,ai_summary')
+      .eq('user_id', user.id)
+      .or('ai_summary.is.null,ai_summary.eq.')
+      .order('date', { ascending: false })
+    if (error) { toast({ message: 'Kunde inte hämta oanalyserade entries', type: 'error' }); return }
+    const pending = (data || []).filter(e => (e.content || '').length >= 20)
+    if (pending.length === 0) {
+      setUnanalyzedCount(0)
+      toast({ message: 'Inga oanalyserade entries kvar', type: 'success' })
+      return
+    }
+    setRetro({ running: true, done: 0, total: pending.length })
+    let ok = 0, failed = 0
+    for (let i = 0; i < pending.length; i++) {
+      const r = await analyzeEntry({ id: pending[i].id, content: pending[i].content, date: pending[i].date })
+      if (r === 'ok') ok++; else if (r === 'fail') failed++
+      setRetro({ running: true, done: i + 1, total: pending.length })
+    }
+    setRetro({ running: false, done: 0, total: 0 })
+    await fetchSelectedEntries()
+    await fetchRecentEntries()
+    await refreshUnanalyzedCount()
+    toast({
+      message: failed > 0 ? `Analyserade ${ok} av ${pending.length} (${failed} misslyckades)` : `Analyserade ${ok} entries`,
+      type: failed > 0 && ok === 0 ? 'error' : 'success',
+    })
+  }
+
+  async function refreshUnanalyzedCount() {
+    const { count } = await supabase.from('journal_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .or('ai_summary.is.null,ai_summary.eq.')
+    setUnanalyzedCount(count || 0)
   }
 
   function isSameMonth(d1, d2) {
@@ -321,6 +381,17 @@ export default function JournalPage() {
           </div>
         </div>
         <div className="page-header-actions">
+          {retro.running ? (
+            <button className="btn btn-ghost" type="button" disabled style={{ gap: '6px' }}>
+              <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              Analyserar {retro.done}/{retro.total}…
+            </button>
+          ) : unanalyzedCount > 0 ? (
+            <button onClick={analyzeUnanalyzed} className="btn btn-ghost" type="button" title="Kör Jarvis-analys på äldre entries som saknar analys" style={{ gap: '6px' }}>
+              <Sparkles size={14} /> Analysera gamla
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', borderRadius: '999px', padding: '1px 7px' }}>{unanalyzedCount}</span>
+            </button>
+          ) : null}
           <button onClick={openNewForm} className="btn btn-primary">
             <Plus size={14} /> Ny entry
           </button>
