@@ -24,8 +24,15 @@ import {
   SLEEP_DURATION_THRESHOLDS, STEPS_THRESHOLDS,
   INCOME_THRESHOLDS, SAVINGS_THRESHOLDS,
 } from '../components/dashboard/tierUtils'
+import { benchmarkTier, benchmarksEnabled } from './benchmarks'
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x))
+
+// Phase 9 seam: when benchmarks are enabled AND a dataset resolves a tier, use
+// it (value → dataset → percentile → tier); otherwise return null and the caller
+// keeps its existing heuristic path. Default OFF → behaviour byte-identical.
+const tryBench = (category, metric, value, context) =>
+  (benchmarksEnabled() ? benchmarkTier(category, metric, value, context) : null)
 const round = (x) => Math.round(x * 1000) / 1000
 
 // Scale a threshold ladder by a multiplicative factor (factor < 1 lowers the bar).
@@ -96,6 +103,8 @@ export function calculateStrengthTier(lift, input = {}, context = null) {
   } else if (input.weightKg != null && input.bodyweightKg) {
     value = round(input.weightKg / input.bodyweightKg)
   }
+  const bench = tryBench('strength', lift, value, context)
+  if (bench) return bench
   const fallback = (sex == null && age == null)
   return build({ metric: lift, value, base, used, higherIsBetter: true, fallback,
     factors: { sex: fSex, age: fAge },
@@ -114,6 +123,8 @@ function runAgeFactor(age) { return age == null ? 1 : clamp(1 + Math.max(0, age 
 
 export function calculateConditioningTier(metric, value, context = null) {
   const sex = context?.sex, age = context?.age
+  const bench = tryBench('conditioning', metric, value, context)
+  if (bench) return bench
   if (metric === 'vo2max') {
     const fSex = vo2SexFactor(sex), fAge = vo2AgeFactor(age)
     const used = scale(VO2MAX_THRESHOLDS, round(fSex * fAge))
@@ -148,6 +159,8 @@ function econAgeFactor(metric, age) {
 function currencyFactor(currency) { const r = CURRENCY_TO_SEK[currency]; return r ? round(1 / r) : 1 }
 
 export function calculateEconomyTier(metric, value, context = null) {
+  const bench = tryBench('economy', metric, value, context)
+  if (bench) return bench
   const base = ECON_BASE[metric] || INCOME_THRESHOLDS
   const lifeStage = context?.lifeStage, age = context?.age, currency = context?.currency
   const fStage = econLifeStageFactor(metric, lifeStage)
@@ -187,6 +200,8 @@ export function calculateHealthTier(metric, value, context = null) {
     // value may be a precomputed BMI, else derive from context height/weight.
     let bmi = value
     if (bmi == null && height && weight) bmi = round(weight / Math.pow(height / 100, 2))
+    const bench = tryBench('health', 'bmi', bmi, context)
+    if (bench) return bench
     const t = bmiTier(bmi)
     return {
       ...(t || {}), metric: 'bmi', value: bmi, thresholds: null, baseThresholds: null,
@@ -214,6 +229,8 @@ export function calculateHealthTier(metric, value, context = null) {
   }
 
   if (metric === 'sleep') {
+    const bench = tryBench('health', 'sleep', value, context)
+    if (bench) return bench
     const f = sleepAgeFactor(age)
     const used = scale(SLEEP_DURATION_THRESHOLDS, f)
     return build({ metric: 'sleep', value, base: SLEEP_DURATION_THRESHOLDS, used, higherIsBetter: true,
@@ -221,6 +238,8 @@ export function calculateHealthTier(metric, value, context = null) {
   }
 
   if (metric === 'steps') {
+    const bench = tryBench('health', 'steps', value, context)
+    if (bench) return bench
     const f = stepsAgeFactor(age)
     const used = scale(STEPS_THRESHOLDS, f)
     return build({ metric: 'steps', value, base: STEPS_THRESHOLDS, used, higherIsBetter: true,

@@ -16,7 +16,7 @@ const primaryNav = [
 const moreNav = [
   { to: '/journal',       icon: BookOpen,      label: 'Journal' },
   { to: '/ekonomi',       icon: DollarSign,    label: 'Ekonomi' },
-  { to: '/plugg',         icon: GraduationCap, label: 'Plugg' },
+  { to: '/plugg',         icon: GraduationCap, label: 'Studier' },
   { to: '/jobb',          icon: Briefcase,     label: 'Jobb' },
   { to: '/upplevelser',   icon: Compass,       label: 'Upplevelser' },
   { to: '/kalender',      icon: CalendarDays,  label: 'Kalender' },

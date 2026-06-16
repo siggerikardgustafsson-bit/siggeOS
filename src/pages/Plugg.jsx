@@ -537,7 +537,7 @@ export default function PluggPage() {
 
       <div className="page-header">
         <div>
-          <div className="page-header-title">Plugg</div>
+          <div className="page-header-title">Studier</div>
           <div className="page-header-sub">{courses.length} aktiva kurser</div>
         </div>
         <div className="page-header-actions">

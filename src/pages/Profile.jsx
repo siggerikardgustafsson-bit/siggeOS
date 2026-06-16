@@ -9,6 +9,7 @@ import {
   getUserProfile, computeAge,
   SEX_OPTIONS, LIFE_STAGES, FOCUS_AREAS, UNIT_SYSTEMS, CURRENCIES, LANGUAGES,
 } from '../lib/personalization'
+import ProfileQualityCard from '../components/ProfileQualityCard'
 
 function SectionHeader({ icon: Icon, title, subtitle }) {
   return (
@@ -205,6 +206,9 @@ export default function ProfilePage() {
             </button>
           </div>
         </div>
+
+        {/* Profile quality — live completeness + per-category confidence (Phase 8) */}
+        <ProfileQualityCard profile={form} variant="full" onEdit={() => window.scrollTo({ top: 0, behavior: 'smooth' })} />
 
         {/* Identity */}
         <div className="card">

@@ -1,17 +1,35 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { Check, ChevronRight, User, Target, Brain, Zap, LayoutDashboard, MessageSquare, TrendingUp, Plus, Settings, Activity } from 'lucide-react'
+import { Check, ChevronRight, User, Target, Brain, Zap, LayoutDashboard, MessageSquare, TrendingUp, Plus, Settings, Activity, Ruler } from 'lucide-react'
+import { SEX_OPTIONS, LIFE_STAGES, FOCUS_AREAS } from '../lib/personalization'
 
 const STEPS = [
   { id: 'welcome',     Icon: LayoutDashboard, title: 'Välkommen till ditt OS' },
   { id: 'profile',     Icon: User,            title: 'Vem är du?' },
+  { id: 'personalize', Icon: Ruler,           title: 'Anpassa dina tiers' },
   { id: 'goals',       Icon: Target,          title: 'Vad siktar du på?' },
   { id: 'jarvis',      Icon: Brain,           title: 'Konfigurera Jarvis' },
   { id: 'done',        Icon: Zap,             title: 'Allt klart!' },
 ]
 
 const ACCENT = 'var(--accent)'
+
+const numOrNull = (v) => (v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v))
+const strOrNull = (v) => (v && String(v).trim() ? String(v).trim() : null)
+
+function OBSelect({ label, value, onChange, options, hint, placeholder = '— Välj —' }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+      <label style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{label}</label>
+      <select className="input" value={value || ''} onChange={e => onChange(e.target.value)}>
+        <option value="">{placeholder}</option>
+        {options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+      </select>
+      {hint && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '1px' }}>{hint}</div>}
+    </div>
+  )
+}
 
 function StepDot({ active, done, index }) {
   return (
@@ -48,9 +66,21 @@ export default function Onboarding({ onComplete }) {
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
 
-  // Profile
+  // Profile — identity
   const [displayName, setDisplayName] = useState('')
   const [aboutMe, setAboutMe] = useState('')
+  const [sex, setSex] = useState('')
+  const [birthDate, setBirthDate] = useState('')
+  const [country, setCountry] = useState('')
+
+  // Personalize — body + life + focus (feeds Tier Engine v2 / Maxx Score v2)
+  const [heightCm, setHeightCm] = useState('')
+  const [weightKg, setWeightKg] = useState('')
+  const [targetWeightKg, setTargetWeightKg] = useState('')
+  const [lifeStage, setLifeStage] = useState('')
+  const [occupation, setOccupation] = useState('')
+  const [primaryFocus, setPrimaryFocus] = useState('')
+  const [secondaryFocus, setSecondaryFocus] = useState('')
 
   // Goals
   const [oneYear, setOneYear] = useState('')
@@ -90,6 +120,31 @@ export default function Onboarding({ onComplete }) {
       jarvis_personality: jarvisPersonality,
       onboarding_done: true,
     }, { onConflict: 'user_id' })
+
+    // Phase 8 — persist the personalization profile so Tier Engine v2 / Maxx
+    // Score v2 activate immediately. Wrapped + non-blocking: if the Phase-5
+    // `profiles` migration isn't applied yet, onboarding still completes.
+    try {
+      const profilePayload = {
+        id: user.id,
+        display_name: strOrNull(displayName),
+        sex: strOrNull(sex),
+        birth_date: birthDate || null,
+        country: strOrNull(country),
+        height_cm: numOrNull(heightCm),
+        weight_kg: numOrNull(weightKg),
+        target_weight_kg: numOrNull(targetWeightKg),
+        life_stage: strOrNull(lifeStage),
+        occupation: strOrNull(occupation),
+        primary_focus: strOrNull(primaryFocus),
+        secondary_focus: strOrNull(secondaryFocus),
+      }
+      const { error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' })
+      if (error) console.warn('[onboarding] profile save skipped:', error.message)
+    } catch (e) {
+      console.warn('[onboarding] profile save failed:', e?.message || e)
+    }
+
     setSaving(false)
     onComplete()
   }
@@ -190,11 +245,38 @@ export default function Onboarding({ onComplete }) {
                 multiline
                 hint="Jarvis använder detta som sin primära kontext om dig"
               />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <OBSelect label="Kön" value={sex} onChange={setSex} options={SEX_OPTIONS} />
+                <Field label="Födelsedatum" type="date" value={birthDate} onChange={setBirthDate} />
+              </div>
+              <Field label="Land" placeholder="t.ex. Sverige" value={country} onChange={setCountry} hint="Allt är valfritt — men hjälper oss anpassa dina tiers" />
+            </div>
+          )}
+
+          {/* ── PERSONALIZE (body + life + focus → Tier Engine v2) ── */}
+          {step === 2 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.6 }}>
+                Detta aktiverar personaliserade tiers — t.ex. styrka relativt din kroppsvikt och ekonomi-mål för din livsfas. Allt är valfritt.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <Field label="Längd (cm)" type="number" placeholder="180" value={heightCm} onChange={setHeightCm} />
+                <Field label="Vikt (kg)" type="number" placeholder="80" value={weightKg} onChange={setWeightKg} />
+                <Field label="Målvikt (kg)" type="number" placeholder="78" value={targetWeightKg} onChange={setTargetWeightKg} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <OBSelect label="Livsfas" value={lifeStage} onChange={setLifeStage} options={LIFE_STAGES} />
+                <Field label="Sysselsättning" placeholder="t.ex. Student" value={occupation} onChange={setOccupation} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <OBSelect label="Primärt fokus" value={primaryFocus} onChange={setPrimaryFocus} options={FOCUS_AREAS} />
+                <OBSelect label="Sekundärt fokus" value={secondaryFocus} onChange={setSecondaryFocus} options={FOCUS_AREAS} />
+              </div>
             </div>
           )}
 
           {/* ── GOALS ── */}
-          {step === 2 && (
+          {step === 3 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <Field
                 label="1 års mål"
@@ -233,7 +315,7 @@ export default function Onboarding({ onComplete }) {
           )}
 
           {/* ── JARVIS ── */}
-          {step === 3 && (
+          {step === 4 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div>
                 <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '10px' }}>Ärlighetsgrad</div>
@@ -270,7 +352,7 @@ export default function Onboarding({ onComplete }) {
           )}
 
           {/* ── DONE ── */}
-          {step === 4 && (
+          {step === 5 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.7 }}>
                 Du är redo. Börja med att logga dagens hälsadata eller öppna Jarvis och berätta hur det går.

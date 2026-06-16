@@ -63,12 +63,19 @@ end $$;
 -- ── conservative backfill: seed display_name from user_settings if missing ───
 -- (Non-destructive; only fills NULL/empty. Numeric goal fields are NOT cast here
 --  to avoid errors on free-text values — migrate those later if desired.)
-update public.profiles p
-set display_name = us.display_name
-from public.user_settings us
-where us.user_id = p.id
-  and coalesce(p.display_name, '') = ''
-  and coalesce(us.display_name, '') <> '';
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_schema='public' and table_name='user_settings'
+               and column_name='display_name') then
+    update public.profiles p
+    set display_name = us.display_name
+    from public.user_settings us
+    where us.user_id = p.id
+      and coalesce(p.display_name, '') = ''
+      and coalesce(us.display_name, '') <> '';
+  end if;
+end $$;
 
 -- ── avatar storage bucket + policies (for avatar upload) ─────────────────────
 insert into storage.buckets (id, name, public)

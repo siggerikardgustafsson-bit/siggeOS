@@ -218,7 +218,7 @@ export default function InsightsPage() {
       { key: ['energy', 'mood'],  label: 'Energi → Humör' },
       { key: ['train', 'energy'], label: 'Träning → Energi' },
       { key: ['train', 'sleep'],  label: 'Träning → Sömn' },
-      { key: ['study', 'energy'], label: 'Plugg → Energi' },
+      { key: ['study', 'energy'], label: 'Studier → Energi' },
     ]
     const correlations = corrDefs.map(c => {
       const pairs = buildPairs(c.key[0], c.key[1])
@@ -352,7 +352,7 @@ export default function InsightsPage() {
       if (freshData.weightData?.length) lines.push('Vikt senaste veckor: ' + freshData.weightData.slice(-6).map(d => `${d.week}:${d.vikt}kg`).join(', '))
       if (freshData.sleepData?.length) lines.push('Sömn timmar/vecka: ' + freshData.sleepData.slice(-6).map(d => `${d.week}:${d.sömn}h`).join(', '))
       if (freshData.trainingData?.length) lines.push('Träning pass/vecka: ' + freshData.trainingData.slice(-6).map(d => `${d.week}:${d.pass}pass`).join(', '))
-      if (freshData.studyData?.length) lines.push('Plugg timmar/vecka: ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
+      if (freshData.studyData?.length) lines.push('Studier timmar/vecka: ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
 
       const prompt = 'Analysera denna data och returnera EXAKT en JSON-array, inga backticks, inget annat.\n\nData:\n' + (lines.join('\n') || 'Ingen data.') + '\n\nFormat: [{"icon":"emoji","category":"kategori","text":"Kort observation max 20 ord."}]\nKategorier: halsa, traning, plugg, ekonomi, monster, somn. 4-6 observationer.'
 
@@ -512,7 +512,7 @@ export default function InsightsPage() {
       <div className="insights-stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '28px' }}>
         <StatCard label="Vikt nu" value={latestWeight ? `${latestWeight}kg` : '—'} sub={weightDelta ? `${weightDelta > 0 ? '+' : ''}${weightDelta}kg senaste 90d` : null} color={COLORS.blue} trend={weightDelta < 0 ? 'down' : weightDelta > 0 ? 'up' : 'flat'} />
         <StatCard label="Sömn (snitt)" value={avgSleep ? `${avgSleep}h` : '—'} sub="senaste 90 dagarna" color={COLORS.purple} />
-        <StatCard label="Plugg denna vecka" value={`${totalStudyThisWeek}h`} color={COLORS.amber} />
+        <StatCard label="Studier denna vecka" value={`${totalStudyThisWeek}h`} color={COLORS.amber} />
         <StatCard label="PA denna månad" value={`${totalPaThisMonth}h`} color={COLORS.green} />
         <StatCard label="Träning (4 veckor)" value={`${trainingSessions} pass`} color={COLORS.cyan} />
       </div>
@@ -733,7 +733,7 @@ export default function InsightsPage() {
       </div>
 
       {/* ===== PLUGG ===== */}
-      <SectionHeader title="Plugg" color={COLORS.amber} />
+      <SectionHeader title="Studier" color={COLORS.amber} />
       <div className="insights-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '28px' }}>
         {/* Study hours */}
         <div className="card">

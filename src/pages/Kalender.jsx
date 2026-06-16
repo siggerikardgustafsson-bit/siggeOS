@@ -16,7 +16,7 @@ const EVENT_TYPES = {
   pa:         { label: 'PA-pass',      color: '#f97316', Icon: Briefcase },
   exam:       { label: 'Tenta',        color: '#ef4444', Icon: FileText },
   mandatory:  { label: 'Obligatorisk', color: '#8b5cf6', Icon: GraduationCap },
-  study_deadline: { label: 'Pluggdeadline', color: '#a78bfa', Icon: BookOpen },
+  study_deadline: { label: 'Studiedeadline', color: '#a78bfa', Icon: BookOpen },
   journal:    { label: 'Journal',      color: '#06b6d4', Icon: BookOpen },
   health:     { label: 'Hälsa',        color: '#10b981', Icon: Heart },
   erik:       { label: 'Erik',         color: '#f59e0b', Icon: Briefcase },

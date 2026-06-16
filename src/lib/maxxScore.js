@@ -93,15 +93,31 @@ export function detectBottlenecksV2(rankCats, headlineTier, weights = {}) {
  * Why-This-Score — structured, per-category breakdown. thresholdsUsed /
  * profileFactors / fallback / reason come straight from the Tier Engine result
  * (present when the category tier was computed via tierEngine; null otherwise).
+ *
+ * @param personalization (Phase 8, optional) the bundle from
+ *   profileCompleteness.buildPersonalizationSummary — adds completeness,
+ *   personalization status, per-category confidence, missing profile fields and
+ *   fallback usage to the explanation. Omitting it keeps the v7 shape (the field
+ *   is simply absent), so existing callers/tests are unaffected.
  */
-export function buildWhyThisScore(score, rankCats) {
+export function buildWhyThisScore(score, rankCats, personalization = null) {
   if (!score) return null
+  const conf = personalization?.confidences || {}
   return {
     version: SCORE_VERSION,
     model: 'weighted percentile (0.55) blended with weakest-link (0.45)',
-    headline: { tier: score.tier, label: score.label, weightedPercentile: score.weightedPercentile, minTier: score.minTier },
+    headline: {
+      tier: score.tier, label: score.label,
+      weightedPercentile: score.weightedPercentile, minTier: score.minTier,
+      ...(personalization ? {
+        completeness: personalization.completeness,
+        personalizationStatus: personalization.status?.label ?? null,
+        overallConfidence: personalization.overallConfidence ?? null,
+      } : {}),
+    },
     categories: score.contributions.map((c) => {
-      const t = (rankCats || []).find((r) => r.id === c.id)?.tier
+      const cat = (rankCats || []).find((r) => r.id === c.id)
+      const t = cat?.tier
       return {
         id: c.id, name: c.name,
         tier: c.tier, percentile: c.percentile, weight: c.weight, contribution: c.contribution,
@@ -109,7 +125,19 @@ export function buildWhyThisScore(score, rankCats) {
         profileFactors: t?.factors ?? null,
         fallback: t?.fallback ?? null,
         reason: t?.reason ?? null,
+        // Phase 8 additions (null when no personalization bundle supplied):
+        confidence: cat?.confidence ?? conf[c.id] ?? null,
+        usingFallback: cat?.usingFallback ?? null,
       }
     }),
+    ...(personalization ? {
+      personalization: {
+        completeness: personalization.completeness,
+        status: personalization.status?.label ?? null,
+        missingFields: (personalization.missingCritical || []).map((m) => m.label),
+        fallbackCategories: personalization.fallbackCategories || [],
+        overallConfidence: personalization.overallConfidence ?? null,
+      },
+    } : {}),
   }
 }

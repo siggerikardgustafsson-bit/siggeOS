@@ -45,7 +45,7 @@ begin
       select con.conname
       from pg_constraint con
       where con.conrelid = ('public.'||tbl)::regclass and con.contype = 'u'
-        and (select array_agg(att.attname order by att.attname)
+        and (select array_agg(att.attname::text order by att.attname)
              from unnest(con.conkey) k
              join pg_attribute att on att.attrelid = con.conrelid and att.attnum = k)
             = array['google_event_id']
@@ -74,7 +74,7 @@ begin
     if not exists (
       select 1 from pg_constraint con
       where con.conrelid = ('public.'||tbl)::regclass and con.contype = 'u'
-        and (select array_agg(att.attname order by att.attname)
+        and (select array_agg(att.attname::text order by att.attname)
              from unnest(con.conkey) k
              join pg_attribute att on att.attrelid = con.conrelid and att.attnum = k)
             = array['google_event_id','user_id']

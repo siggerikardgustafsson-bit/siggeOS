@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useNavigate } from 'react-router-dom'
 import { X, ArrowUpRight, ChevronDown, Check, Target } from 'lucide-react'
+import InsightSections from './InsightSections'
 
 const TIER_COLORS = {
   0:'rgba(255,255,255,0.18)',1:'rgba(255,255,255,0.75)',2:'#4f8ef7',3:'#a78bfa',
@@ -124,7 +125,7 @@ function RequirementRow({ req, color }) {
   )
 }
 
-export default function DetailModal({ category, onClose }) {
+export default function DetailModal({ category, onClose, insightCtx = null, onAskJarvis = null }) {
   const navigate = useNavigate()
   const [period, setPeriod] = useState('30d')
   const [showAllTiers, setShowAllTiers] = useState(false)
@@ -295,6 +296,9 @@ export default function DetailModal({ category, onClose }) {
             </div>
           </div>
         )}
+
+        {/* Phase 12 — Explainability & Insight Surface (consumes existing engines) */}
+        <InsightSections category={category} ctx={insightCtx} onAskJarvis={onAskJarvis} />
 
         {/* All tiers */}
         {requirements.length > 0 && (

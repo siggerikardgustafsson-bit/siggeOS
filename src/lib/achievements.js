@@ -52,7 +52,7 @@ export function deriveAchievements(stats) {
       steps: [{ t: 25, title: '25 km' }, { t: 100, title: '100 km' }, { t: 250, title: '250 km' }, { t: 500, title: '500 km' }] },
     { base: 'pr', group: 'Rekord', color: '#f472b6', value: prCount, unit: 'PR',
       steps: [{ t: 1, title: 'Första PR:t' }, { t: 5, title: '5 PR' }, { t: 15, title: '15 PR' }, { t: 30, title: '30 PR' }] },
-    { base: 'study', group: 'Plugg', color: '#a78bfa', value: Math.round(studyHours), unit: 'h',
+    { base: 'study', group: 'Studier', color: '#a78bfa', value: Math.round(studyHours), unit: 'h',
       steps: [{ t: 10, title: '10h plugg' }, { t: 50, title: '50h plugg' }, { t: 150, title: '150h plugg' }] },
     { base: 'streak', group: 'Konsistens', color: '#34d399', value: streak, unit: 'dgr',
       steps: [{ t: 3, title: '3 dagars streak' }, { t: 7, title: '7 dagars streak' }, { t: 30, title: '30 dagars streak' }] },

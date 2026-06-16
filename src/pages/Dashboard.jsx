@@ -22,20 +22,27 @@ import {
   ENERGY_THRESHOLDS, MOOD_THRESHOLDS, STRESS_THRESHOLDS, STEPS_THRESHOLDS,
   TIER_COLORS, TIER_NAMES,
 } from '../components/dashboard/tierUtils'
-import { getUserContext } from '../lib/personalization'
+import { getUserProfile, buildUserContext } from '../lib/personalization'
 import {
   calculateStrengthTier, calculateConditioningTier, calculateEconomyTier,
   calculateHealthTier, calculateStudyTier,
 } from '../lib/tierEngine'
 import { suggestTierProfile, weightsForProfile } from '../lib/tierProfiles'
 import { computeMaxxScoreV2, detectBottlenecksV2, buildWhyThisScore, tierToPercentile, SCORE_VERSION } from '../lib/maxxScore'
+import { buildRankUpLayer } from '../lib/rankUp'
+import {
+  buildPersonalizationSummary, calculateTierConfidence, isCategoryFallback, DASH_CATEGORY_MAP,
+} from '../lib/profileCompleteness'
+import ProfileQualityCard from '../components/ProfileQualityCard'
+import { getJarvisUserContext } from '../lib/jarvis'
+import { computeStudiesTier, buildStudiesLevelUp } from '../lib/studies'
 
 const DEFAULT_SUPPLEMENTS = ['Kreatin', 'D-vitamin', 'Omega-3', 'Multivitamin', 'Magnesium']
 
 const GRAPH_CATS = [
   { id:'somn',      label:'Sömn',      color:'#8b5cf6' },
   { id:'valmående', label:'Hälsa', color:'#f472b6' },
-  { id:'plugg',     label:'Plugg',     color:'#34d399' },
+  { id:'plugg',     label:'Studier',   color:'#34d399' },
   { id:'kondition', label:'Kondition', color:'#4f8ef7' },
   { id:'styrka',    label:'Styrka',    color:'#a78bfa' },
   { id:'ekonomi',   label:'Ekonomi',  color:'#22d3ee' },
@@ -72,7 +79,7 @@ function parseNumber(value) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function buildMaxxProfile(cats, profileId = 'balanced') {
+function buildMaxxProfile(cats, profileId = 'balanced', personalization = null) {
   const rankCats = cats.filter(c => c?.tier?.tier && c.hasData && !['kropp','fardigheter'].includes(c.id))
   if (!rankCats.length) return null
   const weights = weightsForProfile(profileId)
@@ -110,6 +117,10 @@ function buildMaxxProfile(cats, profileId = 'balanced') {
   const progressPct = Math.round(requirements.reduce((sum, r) => sum + r.progress, 0) / requirements.length)
   const primary = bottlenecks[0]
   const color = TIER_COLORS[currentTier] || '#6b7280'
+
+  // ── Phase 10 — Rank Up action layer (data only; small indicators consume it) ──
+  const bottlenecksV2 = scoreV2 ? detectBottlenecksV2(rankCats, currentTier, weights) : []
+  const rankUp = buildRankUpLayer(rankCats, { profileId, score: scoreV2, bottlenecksV2 })
 
   return {
     id: 'maxx',
@@ -156,8 +167,12 @@ function buildMaxxProfile(cats, profileId = 'balanced') {
     weightedPercentile: scoreV2?.weightedPercentile ?? null,
     weightedTier: scoreV2?.weightedTier ?? null,
     minTier: scoreV2?.minTier ?? Math.min(...tiers),
-    bottlenecksV2: scoreV2 ? detectBottlenecksV2(rankCats, currentTier, weights) : [],
-    whyThisScore: buildWhyThisScore(scoreV2, rankCats),
+    bottlenecksV2,
+    whyThisScore: buildWhyThisScore(scoreV2, rankCats, personalization),
+    // ── Phase 10 — Rank Up Plans (gaps, opportunities, plans, how-to-improve) ──
+    rankUp,
+    // ── Phase 8 — personalization activation signals (data layer + indicators) ──
+    personalization: personalization || null,
   }
 }
 
@@ -220,6 +235,8 @@ export default function Dashboard() {
   const [categories, setCategories] = useState([])
   const [overallTier, setOverallTier] = useState(null)
   const [maxxProfile, setMaxxProfile] = useState(null)
+  const [profileRow, setProfileRow] = useState(null)
+  const [personalization, setPersonalization] = useState(null)
   const [bodyWeight, setBodyWeight] = useState(null)
   const [displayName, setDisplayName] = useState('')
   const [userId, setUserId] = useState(null)
@@ -305,8 +322,12 @@ export default function Dashboard() {
       // Phase 7 — profile-aware tier context. Null-safe: if the profile/columns
       // aren't there (or no profile yet), ctx is null and every Tier Engine call
       // falls back to the exact current thresholds (no behaviour change).
-      const ctx = await getUserContext(userId)
+      // Phase 8 — fetch the raw profile once so we can derive both the tier
+      // context AND the completeness/confidence signals from a single read.
+      const profile = await getUserProfile(userId)
+      const ctx = buildUserContext(profile)
       const tierProfileId = suggestTierProfile(ctx)
+      setProfileRow(profile)
 
       // Strava best efforts per activity.
       // Important: do NOT estimate 1 km / 5 km / 10 km from whole-run average pace.
@@ -766,6 +787,19 @@ export default function Dashboard() {
         makeReq({ label:'Gitarr', current:gtM, target:skillTargets[nextSkillTier], unit:'min/v' }),
       ], 'T') : null
 
+      // ── Phase 14 — Studier composite (formal studies + skills as ONE category) ──
+      // Folds the already-computed skills tier (skTop) into the study tier via a
+      // profile-aware weighting. Replaces the plugg tier IN PLACE (internal id
+      // stays 'plugg' → Maxx Score / Rank Up / Bottleneck unchanged, still 6 cats).
+      const skillsTierVal = skH ? (skTop?.tier ?? 0) : 0
+      const studies = computeStudiesTier({
+        formalTier: pT?.tier ?? null,
+        skillTier: skillsTierVal,
+        lifeStage: profile?.life_stage ?? null,
+        primaryFocus: profile?.primary_focus ?? null,
+      })
+      const studiesLevelUp = studies ? buildStudiesLevelUp(studies.tier, studyLevelUp, skillLevelUp) : studyLevelUp
+
       const bodyLevelUp = latestW?.weight_kg ? {
         currentTier: null,
         nextTier: null,
@@ -829,10 +863,22 @@ export default function Dashboard() {
           details:[{label:'Sömnsnitt 7d',value:avgSl?avgSl+' timmar':'—',tierInfo:slT}],
           chartData:(healthData||[]).filter(h=>h.sleep_hours).slice(0,14).reverse().map(h=>({date:h.date.slice(5),Sömn:h.sleep_hours})),
           chartLines:[{key:'Sömn',label:'Timmar',color:'#8b5cf6'}],levelUp:sleepLevelUp,navTarget:'/halsa',navLabel:'Hälsa'},
-        {id:'plugg',name:'Plugg',icon:'plugg',tier:pT,hasData:avgM!=null,pct:avgM!=null?avgM:0,decayWarning:false,trend:'neutral',
-          metrics:[{label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',highlight:true},{label:'Aktiva mål',value:aG.length}],
-          details:[{label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',tierInfo:pT},...Object.entries(byCourse).map(([c,v])=>({label:c,value:Math.round(v.reduce((s,x)=>s+x,0)/v.length)+'%'}))],
-          chartData:[],chartLines:[],levelUp:studyLevelUp,navTarget:'/plugg',navLabel:'Plugg'},
+        {id:'plugg',name:'Studier',icon:'plugg',tier:studies ? { tier:studies.tier, label:studies.label, color:studies.color } : pT,hasData:!!studies || avgM!=null,pct:studies?Math.round((studies.tier/8)*100):(avgM!=null?avgM:0),decayWarning:false,trend:'neutral',
+          // Phase 14 — composite Studier: formal studies + skills (sub-dimension), profile-weighted.
+          composite:studies,
+          metrics:[
+            {label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',highlight:true},
+            {label:'Färdigheter',value:skH?`T${skillsTierVal}`:'—'},
+            {label:'Aktiva mål',value:aG.length},
+          ],
+          details:[
+            {label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',tierInfo:pT},
+            {label:'Spanska',value:spM?spM+' min/v':'—',tierInfo:spT?.tier?spT:null},
+            {label:'Serbiska',value:srM?srM+' min/v':'—',tierInfo:srT?.tier?srT:null},
+            {label:'Gitarr',value:gtM?gtM+' min/v':'—',tierInfo:gtT?.tier?gtT:null},
+            ...Object.entries(byCourse).map(([c,v])=>({label:c,value:Math.round(v.reduce((s,x)=>s+x,0)/v.length)+'%'})),
+          ],
+          chartData:[],chartLines:[],levelUp:studiesLevelUp,navTarget:'/plugg',navLabel:'Studier'},
         {id:'ekonomi',name:'Ekonomi',icon:'ekonomi',tier:eTop,hasData:!!(totPA||sav!=null),pct:eTop?Math.round((eTop.tier/8)*100):0,decayWarning:false,trend:'neutral',
           metrics:[{label:'Inkomst/period',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',highlight:true},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—'}],
           details:[{label:'Netto denna period',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',tierInfo:incT},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—',tierInfo:savT}],
@@ -881,7 +927,21 @@ export default function Dashboard() {
 
       // Store raw data for graph — computed reactively via useMemo when graphPeriod changes
       setRawGraphData({ healthData: healthData || [], snapshots: snapshots || [] })
-      const maxx = buildMaxxProfile(cats, tierProfileId)
+      // Phase 8 — tier confidence per category + personalization summary.
+      // Attach confidence/fallback flags to each profile-driven category so the
+      // Why-This-Score layer and any future UI can read them. Tiers untouched.
+      const hasDataMap = {}
+      for (const c of cats) {
+        const catKey = DASH_CATEGORY_MAP[c.id]
+        if (!catKey) continue
+        hasDataMap[catKey] = hasDataMap[catKey] || !!c.hasData
+        c.confidence = calculateTierConfidence(catKey, profile, !!c.hasData)
+        c.usingFallback = isCategoryFallback(catKey, profile)
+      }
+      const personalizationSummary = buildPersonalizationSummary(profile, hasDataMap)
+      setPersonalization(personalizationSummary)
+
+      const maxx = buildMaxxProfile(cats, tierProfileId, personalizationSummary)
       setMaxxProfile(maxx)
       setOverallTier(maxx?.tier?.tier || calcOverallTier(cats.filter(c=>c.tier&&c.hasData).map(c=>({tier:c.tier.tier}))))
     } catch(e){ console.error('Dashboard error:',e); toast({ message: 'Kunde inte ladda all dashboarddata', type: 'error' }) }
@@ -920,6 +980,21 @@ export default function Dashboard() {
     const vals = ['kondition','styrka','plugg','ekonomi','somn','valmående'].map(k => pt[k]).filter(v => v != null)
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null
   }), [tierHistory])
+
+  // Phase 12 — Explainability surface. Build the Jarvis projection ONCE (pure;
+  // consumes the authoritative maxxProfile + categories). DetailModal reads it to
+  // explain tiers/bottlenecks/rank-up/confidence/benchmark. No new scoring.
+  const insightCtx = useMemo(
+    () => (maxxProfile ? getJarvisUserContext({ profile: profileRow, categories, maxxProfile }) : null),
+    [maxxProfile, categories, profileRow],
+  )
+
+  // Jarvis deep link — pass a QUESTION only; Jarvis already holds the grounded
+  // MAXX INTELLIGENS context (Phase 11) and answers from the objective systems.
+  const askJarvis = useCallback((prompt) => {
+    setSelectedCategory(null)
+    navigate('/jarvis', { state: { prompt } })
+  }, [navigate])
 
   const oColor = overallTier ? (TIER_COLORS[overallTier]||'#6b7280') : '#6b7280'
   const oLabel = overallTier ? TIER_NAMES[overallTier] : '—'
@@ -1046,11 +1121,30 @@ export default function Dashboard() {
               <span style={{ fontSize:'11px', fontWeight:600, color: oColor + 'cc', textTransform:'uppercase', letterSpacing:'0.06em' }}>{oLabel}</span>
             </div>
           )}
+          {personalization && personalization.completeness < 100 && (
+            <button
+              onClick={() => navigate('/profil')}
+              title={`Profilkvalitet ${personalization.completeness}% · ${personalization.status?.label}. Klicka för att förbättra.`}
+              style={{
+                display:'flex', alignItems:'center', gap:'7px', padding:'6px 12px', borderRadius:'20px', cursor:'pointer',
+                background:`${personalization.status?.color}14`, border:`1px solid ${personalization.status?.color}40`,
+              }}
+            >
+              <Sparkles size={12} color={personalization.status?.color} />
+              <span style={{ fontSize:'12px', fontWeight:700, color: personalization.status?.color }}>{personalization.completeness}%</span>
+              <span style={{ fontSize:'11px', fontWeight:600, color:'var(--muted)' }}>profil</span>
+            </button>
+          )}
         </div>
       </div>
 
       <div className="page-content-scroll">
         <div className="mx-content-edge" style={{ padding:'12px', display:'flex', flexDirection:'column', gap:'14px', maxWidth:'none', margin:'0', width:'100%' }}>
+
+          {/* Phase 8 — subtle profile-completion nudge (auto-hides at ≥85%) */}
+          {!loading && profileRow !== undefined && (
+            <ProfileQualityCard profile={profileRow} confidences={personalization?.confidences} variant="compact" />
+          )}
 
           {/* CONSTELLATION — mind-map of Maxx core + category nodes */}
           {loading ? (
@@ -1095,7 +1189,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {selectedCategory && <DetailModal category={selectedCategory} onClose={()=>setSelectedCategory(null)} />}
+      {selectedCategory && <DetailModal category={selectedCategory} onClose={()=>setSelectedCategory(null)} insightCtx={insightCtx} onAskJarvis={askJarvis} />}
       {selectedEvidence && <EvidenceModal evidence={selectedEvidence} onClose={()=>setSelectedEvidence(null)} onNavigate={navigate} />}
       {showWeekly && <WeeklyReview userId={userId} onClose={()=>setShowWeekly(false)} />}
       {showAchievements && <AchievementsModal userId={userId} categories={categories} onClose={()=>setShowAchievements(false)} />}

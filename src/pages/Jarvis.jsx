@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp, Plus, Trash2, Sparkles, Copy, RefreshCw, Check } from 'lucide-react'
 import MarkdownMessage from '../components/MarkdownMessage'
+import { loadJarvisContext, buildJarvisContextBlock } from '../lib/jarvis'
+import { getUserProfile } from '../lib/personalization'
 
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
 
@@ -42,6 +45,9 @@ function getFollowUps(messages) {
 
 export default function Jarvis() {
   const { user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const deepLinkRef = useRef(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -88,6 +94,18 @@ export default function Jarvis() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  // Phase 12 — Jarvis deep link. A Dashboard explanation surface can open Jarvis
+  // with a pre-baked QUESTION (state.prompt). We send it once, then clear the
+  // history-state entry so a back/refresh doesn't re-fire it. Jarvis answers from
+  // the grounded MAXX INTELLIGENS context (Phase 11) — only the question travels.
+  useEffect(() => {
+    const prompt = location.state?.prompt
+    if (!user || !prompt || deepLinkRef.current) return
+    deepLinkRef.current = true
+    navigate(location.pathname, { replace: true, state: null })
+    sendToJarvis(prompt, true)
+  }, [user, location.state, location.pathname, navigate])
 
   // Keep pinned to bottom while the reply reveals.
   useEffect(() => { if (reveal) messagesEndRef.current?.scrollIntoView({ block: 'end' }) }, [reveal])
@@ -143,10 +161,21 @@ export default function Jarvis() {
       'PLANERADE RESOR: ' + tripsBlock,
     ].join('\n')
 
-    setContext(ctx)
-    contextRef.current = ctx
+    // Phase 11 — Jarvis Intelligence Layer v2. Append a grounded, self-labeling
+    // MAXX INTELLIGENS block (tiers/bottlenecks/rank-up/benchmark/confidence) built
+    // by CONSUMING the scoring system's persisted output. Best-effort: if it can't
+    // load, Jarvis keeps the lean context above. Jarvis never calculates the score.
+    let fullCtx = ctx
+    try {
+      const jc = await loadJarvisContext({ supabase, userId: user.id, getProfile: getUserProfile })
+      const block = jc ? buildJarvisContextBlock(jc) : ''
+      if (block) fullCtx = ctx + '\n\n' + block
+    } catch { /* best-effort — degrade to lean context */ }
+
+    setContext(fullCtx)
+    contextRef.current = fullCtx
     contextCacheTimeRef.current = Date.now()
-    return ctx
+    return fullCtx
   }, [user])
   async function loadHistory() {
     const { data } = await supabase.from('jarvis_conversations')

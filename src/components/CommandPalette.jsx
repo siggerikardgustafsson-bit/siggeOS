@@ -13,7 +13,7 @@ const COMMANDS = [
   { to: '/traning',      icon: Dumbbell,        label: 'Träning',     keywords: 'gym workout pass' },
   { to: '/halsa',        icon: Heart,           label: 'Hälsa',       keywords: 'health sömn vikt' },
   { to: '/ekonomi',      icon: DollarSign,      label: 'Ekonomi',     keywords: 'pengar budget economy' },
-  { to: '/plugg',        icon: GraduationCap,   label: 'Plugg',       keywords: 'studier skola' },
+  { to: '/plugg',        icon: GraduationCap,   label: 'Studier',       keywords: 'studier skola plugg utbildning' },
   { to: '/jobb',         icon: Briefcase,       label: 'Jobb',        keywords: 'arbete work' },
   { to: '/upplevelser',  icon: Compass,         label: 'Upplevelser', keywords: 'resor adventure' },
   { to: '/kalender',     icon: CalendarDays,    label: 'Kalender',    keywords: 'calendar agenda' },
