@@ -232,7 +232,7 @@ export default function Onboarding({ onComplete }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <Field
                 label="Ditt namn"
-                placeholder="t.ex. Sigge Gustafsson"
+                placeholder="t.ex. Alex Andersson"
                 value={displayName}
                 onChange={setDisplayName}
                 hint="Visas i dashboard-headern"

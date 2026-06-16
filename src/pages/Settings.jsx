@@ -452,7 +452,7 @@ export default function SettingsPage() {
                 <SectionHeader icon={User} title="Om mig" subtitle="Jarvis använder detta som kontext i alla samtal" />
                 <div style={{ marginBottom: '14px' }}>
                   <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>VISNINGSNAMN</label>
-                  <input className="input" type="text" placeholder="t.ex. Sigge Gustafsson" value={displayName} onChange={e => setDisplayName(e.target.value)} />
+                  <input className="input" type="text" placeholder="t.ex. Alex Andersson" value={displayName} onChange={e => setDisplayName(e.target.value)} />
                   <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>Visas i Dashboard-headern</div>
                 </div>
                 <textarea className="input" rows={5} placeholder="Berätta om dig själv — vem du är, vad du jobbar med, vad som driver dig..." value={aboutMe} onChange={e => setAboutMe(e.target.value)} style={{ resize: 'vertical', lineHeight: '1.6' }} />

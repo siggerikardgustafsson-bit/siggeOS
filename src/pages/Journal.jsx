@@ -6,7 +6,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday
 import { sv } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Plus, Save, Loader, X, Edit2, Calendar, Music, ChevronDown, ChevronUp, Search, Sparkles } from 'lucide-react'
 
-const JARVIS_JOURNAL_SYSTEM = `Du är Jarvis, Sigges personliga AI. Analysera denna journal-entry djupgående och returnera ENBART ett JSON-objekt utan markdown eller backticks.
+const JARVIS_JOURNAL_SYSTEM = `Du är Jarvis, användarens personliga AI. Analysera denna journal-entry djupgående och returnera ENBART ett JSON-objekt utan markdown eller backticks.
 
 Extrahera och analysera:
 - people: array med namn på personer nämnda
@@ -15,7 +15,7 @@ Extrahera och analysera:
 - keywords: array med 5-8 nyckelord som fångar essensen
 - mood_analysis: kort analys av stämningen (1-2 meningar)
 - energy_analysis: kort analys av energinivån
-- patterns: eventuella mönster eller kopplingar till Sigges kända beteendemönster
+- patterns: eventuella mönster eller kopplingar till användarens kända beteendemönster
 - social_quality: 1-10 baserat på social interaktion beskriven
 - productivity_score: 1-10 baserat på hur produktiv dagen verkar ha varit
 - health_signals: eventuella hälsosignaler

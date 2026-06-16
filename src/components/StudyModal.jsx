@@ -69,6 +69,9 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   const [uploadingMaterial, setUploadingMaterial] = useState(false)
   const [pendingTentaFile, setPendingTentaFile] = useState(null)
   const [tentaRotationInfo, setTentaRotationInfo] = useState(null)
+  // Phase 16: the tutor adapts to the user's own study program instead of
+  // assuming medicine. Loaded once; empty string keeps the framing generic.
+  const [studyProgram, setStudyProgram] = useState('')
   const { seconds, formatted: timerFormatted } = useTimer(step === 'chat')
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -85,6 +88,13 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
       fetchTentaHistory()
     }
   }, [user, exam])
+
+  useEffect(() => {
+    if (!user) return
+    supabase.from('profiles').select('study_program').eq('id', user.id).maybeSingle()
+      .then(({ data }) => setStudyProgram((data?.study_program || '').trim()))
+      .catch(() => {})
+  }, [user])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -174,16 +184,16 @@ REGLER:
 - Uppdatera OMEDELBART efter att du bedömt svaret — inte i slutet
 - Skala: 0=aldrig sett, 20=hört talas om, 40=delvis, 60=kan förklara, 80=behärskar, 95+=expert
 - Var KONSERVATIV — sätt inte 80+ om svaret hade luckor
-- Om Sigge svarar fel: sänk mastery med 5-15
-- Om Sigge svarar rätt: höj mastery med 10-25 beroende på kvalitet
-- Om Sigge säger "vet ej" eller hoppar: sätt mastery till max 30
+- Om användaren svarar fel: sänk mastery med 5-15
+- Om användaren svarar rätt: höj mastery med 10-25 beroende på kvalitet
+- Om användaren säger "vet ej" eller hoppar: sätt mastery till max 30
 
 VARNING: Om du skriver "du behärskar X" eller "bra svar" i text MEN inte inkluderar {"mastery_update": ...} så registreras INGENTING i databasen. Ord räknas inte — bara JSON räknas.
 
 Mål-IDs (kopiera exakt):
 ` + chosenGoals.map(g => '- ' + g.id + ' → ' + g.description.slice(0, 60)).join('\n')
 
-    const base = 'Du är Jarvis, Sigges personliga medicinstudent-tutor. Examination: "' + exam.name + '".\n\n' +
+    const base = 'Du är Jarvis, användarens personliga studie-tutor' + (studyProgram ? ' inom ' + studyProgram : '') + '. Anpassa dig helt efter lärandemålen och kursmaterialet nedan — anta inget ämnesområde som inte framgår där. Examination: "' + exam.name + '".\n\n' +
       'LÄRANDEMÅL (dessa ska övas/testas):\n' + goalsList + '\n\n' +
       masteryRules + '\n\n' +
       'INNEHÅLLSPRIORITERING: Kursmaterialet (om uppladdad) är absolut sanning.\n\n' +
@@ -193,7 +203,7 @@ Mål-IDs (kopiera exakt):
 
     const tentaInfo = chosenExamFile
       ? 'DU KÖR TENTAMODE MED: "' + chosenExamFile.file_name + '". ' +
-        (isPreviouslyDone && lastDone ? 'Sigge gjorde denna ' + format(parseISO(lastDone.completed_at), 'd MMM yyyy', { locale: sv }) + ' — nämn det.' : 'Första gången.') +
+        (isPreviouslyDone && lastDone ? 'Användaren gjorde denna ' + format(parseISO(lastDone.completed_at), 'd MMM yyyy', { locale: sv }) + ' — nämn det.' : 'Första gången.') +
         ' Kör frågorna EN I TAGET. Tenta-texten finns i kursmaterialet nedan.'
       : 'DU KÖR TENTAMODE. Inga gamla tentor — generera realistiska frågor baserade på kursmaterialet.'
 

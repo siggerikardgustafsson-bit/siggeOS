@@ -407,9 +407,9 @@ export default function InsightsPage() {
     try {
       const { data: rd } = await supabase.functions.invoke('jarvis-chat', {
         body: {
-          messages: [{ role: 'user', content: `Analysera Sigges senaste vecka och ge en veckorapport. Fokusera på: träning, plugg, hälsa, ekonomi och mönster du ser. Var konkret och direkt. Max 300 ord.` }],
+          messages: [{ role: 'user', content: `Analysera min senaste vecka och ge en veckorapport. Fokusera på de områden där jag faktiskt loggat data (t.ex. träning, studier, hälsa, ekonomi) och mönster du ser. Var konkret och direkt. Max 300 ord.` }],
           context: JSON.stringify(data),
-          systemPrompt: 'Du är Jarvis, Sigges personliga AI. Ge en ärlig, direkt veckoanalys på svenska. Inga floskler.',
+          systemPrompt: 'Du är Jarvis, användarens personliga AI. Ge en ärlig, direkt veckoanalys på svenska. Inga floskler.',
         },
       })
       setWeeklyReport(rd?.content || '')

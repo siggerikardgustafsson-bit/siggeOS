@@ -14,6 +14,12 @@
 //   computeAge(birthDate)     -> integer age from a date
 // ============================================================================
 import { supabase } from './supabase'
+import { getProfileCompleteness } from './profileCompleteness'
+
+// Neutral fallback used everywhere a user's name is needed but not yet set.
+// Replaces the old hardcoded "Sigge" so a brand-new user is never addressed as
+// someone else (Phase 16).
+export const DEFAULT_DISPLAY_NAME = 'användaren'
 
 // ── option vocabularies (shared by the Profile UI + future onboarding) ──────
 export const SEX_OPTIONS = [
@@ -162,3 +168,109 @@ export async function getPrimaryGoals(profileOrId) {
 
 // Convenience label lookups for UI.
 export const labelFor = (list, id) => list.find((o) => o.id === id)?.label ?? id ?? '—'
+
+// ============================================================================
+// User Identity Context (Phase 16) — the single source of truth for "who is
+// this user?" that every personalization site (Jarvis, Insights, Journal AI,
+// side-quests, study tutor) reads instead of hardcoding Sigge's biography.
+//
+// Combines the `profiles` row (identity/body/focus/studies/roles) with the
+// `user_settings` row (free-text "about me" + goals). PURE builder + async
+// accessor, mirroring the rest of this module. Degrades gracefully: any
+// missing piece simply becomes null/empty, never throws.
+// ============================================================================
+
+// Pure builder: (profile, settings) -> normalized identity object.
+export function buildIdentityContext(profile, settings) {
+  const p = profile || {}
+  const s = settings || {}
+  const g = s.goals || {}
+  const ctx = buildUserContext(p) || {}
+
+  const displayName =
+    (typeof s.display_name === 'string' && s.display_name.trim()) ||
+    (typeof p.display_name === 'string' && p.display_name.trim()) ||
+    null
+
+  const activeRoles = (ctx.lifeRoles || []).filter((r) => r.active)
+
+  return {
+    displayName,                                  // null when unset (use DEFAULT_DISPLAY_NAME for copy)
+    hasName: !!displayName,
+    aboutMe: (typeof s.about_me === 'string' && s.about_me.trim()) || null,
+    age: ctx.age ?? null,
+    sex: ctx.sex ?? null,
+    country: p.country ?? null,
+    city: p.city ?? null,
+    occupation: p.occupation ?? null,
+    lifeStage: p.life_stage ?? null,
+    lifeRoles: ctx.lifeRoles || [],
+    activeRoles,
+    studies: {
+      program: p.study_program ?? null,
+      institution: p.study_institution ?? null,
+    },
+    goals: {
+      primaryFocus: p.primary_focus ?? null,
+      secondaryFocus: p.secondary_focus ?? null,
+      oneYear: g.one_year ?? null,
+      threeYear: g.three_year ?? null,
+      tenYear: g.ten_year ?? null,
+      monthlyIncome: g.monthly_income_goal ?? null,
+      bodyWeight: g.body_weight_goal ?? g.target_weight ?? null,
+    },
+    currency: ctx.currency ?? 'SEK',
+    completeness: getProfileCompleteness(p).pct,
+  }
+}
+
+// Render the identity as a compact Swedish prompt block that AI prompt sites
+// can interpolate. Only includes lines that have data — a sparse profile yields
+// a short block rather than a wall of "okänt".
+export function identityToPromptLines(identity) {
+  if (!identity) return []
+  const lines = []
+  const name = identity.displayName || DEFAULT_DISPLAY_NAME
+  lines.push(`Namn: ${name}`)
+  if (identity.age) lines.push(`Ålder: ${identity.age}`)
+  if (identity.occupation) lines.push(`Sysselsättning: ${identity.occupation}`)
+  if (identity.lifeStage) lines.push(`Livsfas: ${labelFor(LIFE_STAGES, identity.lifeStage)}`)
+  if (identity.activeRoles?.length) {
+    lines.push('Roller: ' + identity.activeRoles.map((r) => {
+      const type = labelFor(ROLE_TYPES, r.type)
+      return [r.label || type, r.description].filter(Boolean).join(' – ')
+    }).join('; '))
+  }
+  if (identity.studies?.program) {
+    lines.push('Studier: ' + [identity.studies.program, identity.studies.institution].filter(Boolean).join(', '))
+  }
+  if (identity.country) lines.push(`Land: ${identity.country}`)
+  if (identity.goals?.primaryFocus) lines.push(`Primärt fokus: ${labelFor(FOCUS_AREAS, identity.goals.primaryFocus)}`)
+  if (identity.goals?.oneYear) lines.push(`1-årsmål: ${identity.goals.oneYear}`)
+  if (identity.goals?.threeYear) lines.push(`3-årsmål: ${identity.goals.threeYear}`)
+  if (identity.goals?.monthlyIncome) lines.push(`Inkomstmål: ${identity.goals.monthlyIncome} kr/mån`)
+  if (identity.aboutMe) lines.push(`Om: ${identity.aboutMe}`)
+  return lines
+}
+
+export function identityToPrompt(identity) {
+  return identityToPromptLines(identity).join('\n')
+}
+
+// Async accessor: fetches profile + user_settings for the current (or given)
+// user and returns the normalized identity. Never throws — returns a minimal
+// identity ({ displayName: null, ... }) if the tables aren't reachable.
+export async function getUserIdentityContext(userId) {
+  const uid = await resolveUserId(userId)
+  if (!uid) return buildIdentityContext(null, null)
+  try {
+    const [profile, settingsRes] = await Promise.all([
+      getUserProfile(uid),
+      supabase.from('user_settings').select('display_name,about_me,goals').eq('user_id', uid).maybeSingle(),
+    ])
+    return buildIdentityContext(profile, settingsRes?.data || null)
+  } catch (e) {
+    console.warn('[personalization] getUserIdentityContext failed:', e?.message || e)
+    return buildIdentityContext(null, null)
+  }
+}

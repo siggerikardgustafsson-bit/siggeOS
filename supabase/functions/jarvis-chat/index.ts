@@ -146,7 +146,7 @@ const TOOLS = [
   },
   {
     name: 'fetch_chat_history',
-    description: 'Sök i tidigare Jarvis-konversationer. Använd för: "vad sa vi om X?", mönster över tid, fakta Sigge nämnt i gamla chattar, kontinuitet mellan sessioner.',
+    description: 'Sök i tidigare Jarvis-konversationer. Använd för: "vad sa vi om X?", mönster över tid, fakta användaren nämnt i gamla chattar, kontinuitet mellan sessioner.',
     input_schema: {
       type: 'object',
       properties: {
@@ -540,7 +540,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
     if (toolName === 'fetch_memory_goals') {
       const limit = asLimit(input.limit, 100, 300)
       const [settingsRes, insightsRes, friendsRes] = await Promise.all([
-        supabase.from('user_settings').select('about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', userId).single(),
+        supabase.from('user_settings').select('display_name,about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', userId).single(),
         (() => {
           let q = supabase.from('jarvis_insights').select('id,insight,category,confidence,updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit)
           if (input.search_keyword) q = q.ilike('insight', `%${input.search_keyword}%`)
@@ -576,7 +576,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
       const rows = reversed.map((r: any) => {
         const date = r.created_at.slice(0, 10)
         const time = r.created_at.slice(11, 16)
-        const label = r.role === 'user' ? 'Sigge' : 'Jarvis'
+        const label = r.role === 'user' ? 'Användare' : 'Jarvis'
         const text = String(r.content || '').slice(0, 400)
         return `[${date} ${time}] ${label}: ${text}${r.content?.length > 400 ? '…' : ''}`
       }).join('\n')
@@ -820,8 +820,12 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
 function buildSystemPrompt(context: string, settings: any, contentBlock: string, insights: any[] = [], friends: any[] = []): string {
   const s = settings || {}
   const g = s.goals || {}
+  // Phase 16: address the actual user, never a hardcoded "Sigge". Falls back to
+  // a neutral noun when no display_name is set yet.
+  const userName = (typeof s.display_name === 'string' && s.display_name.trim()) ? s.display_name.trim() : 'användaren'
 
   const profileLines = [
+    s.display_name && `Namn: ${s.display_name}`,
     s.about_me && `Profil: ${s.about_me}`,
     g.one_year && `1år: ${g.one_year}`,
     g.three_year && `3år: ${g.three_year}`,
@@ -838,7 +842,7 @@ function buildSystemPrompt(context: string, settings: any, contentBlock: string,
   const insightLines = insights.map((i: any) => `${i.category}: ${i.insight.slice(0, 80)}`).join('\n')
   const friendLines = friends.map((f: any) => `${f.name}${f.relationship ? ' ('+f.relationship+')' : ''}`).join(', ')
 
-  return `Du är Jarvis – Sigges AI-coach/assistent i SiggeOS. Stil: ${style}. Datadriven, konkret, aldrig generisk.${s.jarvis_lang && s.jarvis_lang !== 'auto' ? ' Språk: '+s.jarvis_lang+'.' : ''}
+  return `Du är Jarvis – ${userName}s personliga AI-coach/assistent i MaxxIt. Stil: ${style}. Datadriven, konkret, aldrig generisk. Anta inget om användarens yrke, studier eller livssituation som inte framgår av PROFIL/MINNE/NU nedan.${s.jarvis_lang && s.jarvis_lang !== 'auto' ? ' Språk: '+s.jarvis_lang+'.' : ''}
 
 PROFIL: ${profileLines || '–'}
 
@@ -851,12 +855,12 @@ NU: ${context || '–'}${contentBlock ? '\n'+contentBlock : ''}
 VERKTYG – hämta NÄR data saknas, INTE om svaret ryms ovan. Hämta parallellt vid flera domäner. Ej samma data 2x.
 Brief/kväll/vecka → journal+health+workouts+scores. Mående → fetch_journal(summaries_only=true för trend, full för djup). Pass/styrka/löp → fetch_workouts. PR/rekord → fetch_workouts(include_prs=true). Kosttillskott/medicin/retatrutide → fetch_health. Schema → fetch_calendar. Ekonomi/sparande/nettoförmögenhet/tillgångar → fetch_economy. Resor → fetch_experiences. Tasks → fetch_tasks. Djupare minne/sök minne → fetch_memory_goals(search_keyword). Gammal chatt/"vad sa vi om X" → fetch_chat_history(search_keyword). Journal-sök → fetch_journal(search_keyword).
 
-SPARA TYST (execute_action, nämn ej): faktum om Sigge → save_insight | uppdatera fel insikt → update_insight(id,insight_text) | ta bort inaktuell insikt → delete_insight(id) | väninfo → update_friend | korrigering/ny sanning → update_memory_context(context_area,update_text) | preferens → save_preference. Spara 1-2 insikter/konversation om något viktigt framkommit. Kolla MINNE ovan innan du sparar – spara inte om det redan framgår. Rätta aktivt felaktiga minnen när Sigge korrigerar dig.
+SPARA TYST (execute_action, nämn ej): faktum om användaren → save_insight | uppdatera fel insikt → update_insight(id,insight_text) | ta bort inaktuell insikt → delete_insight(id) | väninfo → update_friend | korrigering/ny sanning → update_memory_context(context_area,update_text) | preferens → save_preference. Spara 1-2 insikter/konversation om något viktigt framkommit. Kolla MINNE ovan innan du sparar – spara inte om det redan framgår. Rätta aktivt felaktiga minnen när användaren korrigerar dig.
 PR/rekord (styrka+löp) → fetch_workouts(include_prs=true) ger all-time PR-tavla.
 
 ÅTGÄRDER: execute_action direkt utan bekräftelse. Saknas ID → hämta först. delete → bekräfta vad raderas.
 
-LÄNKAR: När du hänvisar till en sida, länka med markdown så Sigge kan klicka dit direkt: [Träning](/traning), [Hälsa](/halsa), [Ekonomi](/ekonomi), [Plugg](/plugg), [Jobb](/jobb), [Kalender](/kalender), [Insights](/insights), [Upplevelser](/upplevelser), [Journal](/journal), [Dashboard](/). Max 1–2 länkar/svar, bara när det tillför.
+LÄNKAR: När du hänvisar till en sida, länka med markdown så användaren kan klicka dit direkt: [Träning](/traning), [Hälsa](/halsa), [Ekonomi](/ekonomi), [Plugg](/plugg), [Jobb](/jobb), [Kalender](/kalender), [Insights](/insights), [Upplevelser](/upplevelser), [Journal](/journal), [Dashboard](/). Max 1–2 länkar/svar, bara när det tillför.
 
 Svar på användarens språk. Kort.`
 }
@@ -884,7 +888,7 @@ serve(async (req) => {
 
     // Fetch settings, insights, friends, and optional content in parallel
     const [settingsResult, insightsResult, friendsResult, contentResult] = await Promise.all([
-      user ? supabase.from('user_settings').select('about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', user.id).single() : Promise.resolve({ data: null }),
+      user ? supabase.from('user_settings').select('display_name,about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', user.id).single() : Promise.resolve({ data: null }),
       user ? supabase.from('jarvis_insights').select('insight,category').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(20) : Promise.resolve({ data: [] }),
       user ? supabase.from('friends').select('name,relationship').eq('user_id', user.id).order('created_at', { ascending: false }).limit(15) : Promise.resolve({ data: [] }),
       (async () => {

@@ -47,11 +47,13 @@ function PageFallback() {
 }
 
 function AppRoutes() {
-  const { user } = useAuth()
+  const { user, recovery } = useAuth()
   return (
     <Suspense fallback={<PageFallback />}>
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      {/* During password recovery a session exists, but we must keep the user on
+          /login so they can set a new password (don't bounce them to Dashboard). */}
+      <Route path="/login" element={user && !recovery ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/strava-callback" element={<StravaCallback />} />
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>

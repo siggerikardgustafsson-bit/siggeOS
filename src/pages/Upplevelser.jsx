@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { WORLD_PATHS, COUNTRY_PATHS } from '../lib/worldPaths'
 import EmptyState from '../components/EmptyState'
+import { getUserIdentityContext, identityToPrompt } from '../lib/personalization'
 
 const COUNTRIES = [
   'Sverige','Norge','Danmark','Finland','Island',
@@ -457,7 +458,7 @@ function TripPlannerModal({ trip, onClose, onSave }) {
         return `${cat}: ${item.description || 'ingen info'} → ${hasAmount ? item.amount + ' kr' : 'SAKNAS (estimera)'}`
       }).join('\n')
 
-      const prompt = `Du är Jarvis, Sigges personliga AI-assistent. Analysera denna reseplan och estimera budget.
+      const prompt = `Du är Jarvis, användarens personliga AI-assistent. Analysera denna reseplan och estimera budget.
 
 RESA: ${trip.title}
 LÄNDER: ${tripCountries}
@@ -488,7 +489,7 @@ Svara ENBART med JSON (inga backticks):
         body: {
           messages: [{ role: 'user', content: prompt }],
           context: '',
-          systemPrompt: 'Du är Jarvis, Sigges AI-assistent. Svara bara med JSON utan backticks.',
+          systemPrompt: 'Du är Jarvis, användarens AI-assistent. Svara bara med JSON utan backticks.',
         },
       })
 
@@ -841,11 +842,20 @@ export default function UpplevelserPage() {
     try {
       const completedTrips = trips.filter(t => t.status === 'completed').slice(0, 5).map(t => t.title).join(', ')
       const completedQuests = sideQuests.filter(q => q.status === 'done').map(q => q.title).join(', ')
+      // Phase 16: build the quest prompt from the user's own profile + goals
+      // instead of a hardcoded biography, so quests fit whoever is logged in.
+      const identity = await getUserIdentityContext(user.id)
+      const profileBlock = identityToPrompt(identity)
+      const whoLine = profileBlock
+        ? `Det här vet vi om användaren:\n${profileBlock}`
+        : 'Vi vet ännu lite om användaren — håll questsen brett motiverande och nyfikna.'
       const { data } = await supabase.functions.invoke('jarvis-chat', {
         body: {
-          messages: [{ role: 'user', content: `Generera 5 side quests för Sigge. Han är 21, medicinsstudent i Stockholm/Täby, jobbar natt som PA, har rest till: ${completedTrips}. Gillar: resor, mat, musik (Håkan Hellström/Cornelis), filosofi, träning, spontana äventyr. Drömmål: 100k/mån, bo i Göteborg, resa överallt. Tidigare avklarade quests: ${completedQuests || 'inga ännu'}.
+          messages: [{ role: 'user', content: `Generera 5 personliga side quests. ${whoLine}
+${completedTrips ? `Tidigare resor: ${completedTrips}.` : ''}
+Tidigare avklarade quests: ${completedQuests || 'inga ännu'}.
 
-Quests ska vara konkreta, lite galna, pushande — inte "drick mer vatten". Tänk: spontanresor, sociala utmaningar, kreativa projekt, matäventyr, fysiska utmaningar, intellektuella utmaningar. Var specifik och kreativ.
+Anpassa questsen efter användarens faktiska mål, intressen och livssituation ovan — anta inget som inte står där. Quests ska vara konkreta, lite vågade, pushande — inte "drick mer vatten". Tänk: spontanresor, sociala utmaningar, kreativa projekt, matäventyr, fysiska utmaningar, intellektuella utmaningar. Var specifik och kreativ.
 
 Returnera ENBART JSON utan backticks:
 {"quests": [{"title": "...", "description": "...", "category": "...", "difficulty": "lätt|medel|galen"}]}` }],
