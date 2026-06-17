@@ -873,7 +873,14 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { messages = [], context = '', examFileId, materialIds, stream = false } = await req.json()
+    const { messages = [], context = '', examFileId, materialIds, stream = false, systemPrompt } = await req.json()
+    // A caller-supplied systemPrompt marks a one-shot STRUCTURED-EXTRACTION call
+    // (journal analysis, weekly report, side-quests, trip budget) rather than a
+    // chat turn. In that mode we use the caller's prompt verbatim and disable the
+    // agentic tools/persona so the model returns exactly what was asked for (e.g.
+    // raw JSON) instead of conversational coaching. Fixes journal analyses never
+    // saving because the JSON-only instruction was previously dropped.
+    const overrideSystem = (typeof systemPrompt === 'string' && systemPrompt.trim()) ? systemPrompt.trim() : null
 
     // Per-request JWT/RLS client: every read/write runs AS the authenticated user,
     // so Postgres RLS enforces ownership (defense-in-depth on top of the explicit
@@ -909,7 +916,7 @@ serve(async (req) => {
       })(),
     ])
 
-    const system = buildSystemPrompt(context, settingsResult.data, contentResult, insightsResult.data || [], friendsResult.data || [])
+    const system = overrideSystem || buildSystemPrompt(context, settingsResult.data, contentResult, insightsResult.data || [], friendsResult.data || [])
 
     // Tiered history: recent 6 messages at 2000 chars, older 8 at 600 chars
     const allMsgs = (messages || []).filter((m: any) => m && (m.role === 'user' || m.role === 'assistant'))
@@ -936,6 +943,9 @@ serve(async (req) => {
       i === TOOLS.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t
     )
     const cachedSystem = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
+    // In extraction mode, omit tools entirely so the model can't enter the tool
+    // loop and just answers (JSON). Normal chat keeps the full tool set.
+    const effectiveTools = overrideSystem ? undefined : cachedTools
 
     const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
     const MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-6'
@@ -962,7 +972,7 @@ serve(async (req) => {
                   'anthropic-version': '2023-06-01',
                   'anthropic-beta': 'pdfs-2024-09-25',
                 },
-                body: JSON.stringify({ model: MODEL, max_tokens: 2500, system: cachedSystem, tools: cachedTools, messages: streamMessages, stream: true }),
+                body: JSON.stringify({ model: MODEL, max_tokens: 2500, system: cachedSystem, tools: effectiveTools, messages: streamMessages, stream: true }),
               })
               if (!resp.ok || !resp.body) {
                 const errJson = await resp.json().catch(() => ({}))
@@ -1045,7 +1055,7 @@ serve(async (req) => {
           model: Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-6',
           max_tokens: 2500,
           system: cachedSystem,
-          tools: cachedTools,
+          tools: effectiveTools,
           messages: currentMessages,
         }),
       })
