@@ -162,12 +162,20 @@ export function calculateEconomyTier(metric, value, context = null) {
   const bench = tryBench('economy', metric, value, context)
   if (bench) return bench
   const base = ECON_BASE[metric] || INCOME_THRESHOLDS
-  const lifeStage = context?.lifeStage, age = context?.age, currency = context?.currency
-  const fStage = econLifeStageFactor(metric, lifeStage)
+  const age = context?.age, currency = context?.currency
+  // Life-stage factor now blends across ALL active life stages (multi-role
+  // "Livssituation"), falling back to the single `lifeStage` for legacy profiles.
+  // A legacy profile yields [lifeStage] → identical result, so no score moves.
+  const stages = (context?.lifeStages && context.lifeStages.length)
+    ? context.lifeStages
+    : (context?.lifeStage ? [context.lifeStage] : [])
+  const fStage = stages.length
+    ? stages.reduce((s, st) => s + econLifeStageFactor(metric, st), 0) / stages.length
+    : 1
   const fAge = econAgeFactor(metric, age)
   const fCur = currencyFactor(currency)
   const used = scale(base, round(fStage * fAge * fCur))
-  const fallback = lifeStage == null && age == null && (currency == null || currency === 'SEK')
+  const fallback = stages.length === 0 && age == null && (currency == null || currency === 'SEK')
   return build({ metric, value, base, used, higherIsBetter: true, fallback,
     factors: { lifeStage: fStage, age: fAge, currency: fCur } })
 }

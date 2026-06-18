@@ -130,11 +130,27 @@ const CONFIDENCE_BASE = 55
 // wellbeing / skills) — their tier is fully defined without a profile.
 export const PROFILE_INDEPENDENT_CATEGORIES = ['study', 'plugg', 'wellbeing', 'valmaende', 'skills', 'fardigheter']
 
+// Economic roles in the multi-role "Livssituation" that imply a life stage and
+// therefore personalize the economy tier (mirrors ROLE_TYPE_TO_LIFE_STAGE in
+// personalization.js — kept local to avoid an import cycle).
+const ECONOMIC_ROLE_TYPES = new Set(['study', 'job', 'business', 'parent'])
+export function hasActiveEconomicRole(profile) {
+  const roles = profile?.life_roles
+  return Array.isArray(roles) && roles.some((r) => r && r.active !== false && ECONOMIC_ROLE_TYPES.has(r.type))
+}
+
+// `life_stage` for the economy category is satisfied by EITHER the legacy single
+// field OR an active economic role, since both now personalize the economy tier.
+function isCategoryFieldFilled(profile, category, key) {
+  if (category === 'economy' && key === 'life_stage' && hasActiveEconomicRole(profile)) return true
+  return isFilled(profile, key)
+}
+
 export function calculateTierConfidence(category, profile, hasData = true) {
   if (!hasData) return 0 // no underlying metric → nothing to be confident about
   const fields = CATEGORY_PROFILE_FIELDS[category]
   if (!fields) return 100 // profile-independent category — fully defined w/o profile
-  const filled = fields.filter((k) => isFilled(profile, k)).length
+  const filled = fields.filter((k) => isCategoryFieldFilled(profile, category, k)).length
   const frac = fields.length ? filled / fields.length : 0
   return round(CONFIDENCE_BASE + (100 - CONFIDENCE_BASE) * frac)
 }
@@ -144,7 +160,7 @@ export function calculateTierConfidence(category, profile, hasData = true) {
 export function isCategoryFallback(category, profile) {
   const fields = CATEGORY_PROFILE_FIELDS[category]
   if (!fields) return false
-  return fields.every((k) => !isFilled(profile, k))
+  return fields.every((k) => !isCategoryFieldFilled(profile, category, k))
 }
 
 export function getCategoryConfidences(profile, hasDataMap = {}) {

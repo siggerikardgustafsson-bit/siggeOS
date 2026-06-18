@@ -47,6 +47,32 @@ export const ROLE_TYPES = [
   { id: 'other', label: 'Annat' },
 ]
 
+// Maps a multi-role "Livssituation" role type → a LIFE_STAGES id, so the new
+// role-based input can drive the same profile-aware tier divisions the legacy
+// single `life_stage` field does (economy thresholds + tier-profile weighting).
+// 'other' intentionally maps to nothing (no economic signal).
+export const ROLE_TYPE_TO_LIFE_STAGE = {
+  study: 'student',
+  job: 'professional',
+  business: 'entrepreneur',
+  parent: 'parent',
+}
+
+// Priority when a person has several active roles and a consumer needs ONE
+// life-stage (e.g. tier-profile weighting): most economically-defining first.
+const LIFE_STAGE_PRIORITY = ['entrepreneur', 'professional', 'parent', 'student']
+
+// Derive the distinct, priority-ordered life stages implied by a set of active
+// roles. Returns [] when no role carries an economic signal.
+export function deriveLifeStagesFromRoles(roles) {
+  const stages = (roles || [])
+    .filter((r) => r && r.active !== false)
+    .map((r) => ROLE_TYPE_TO_LIFE_STAGE[r.type])
+    .filter(Boolean)
+  const distinct = [...new Set(stages)]
+  return distinct.sort((a, b) => LIFE_STAGE_PRIORITY.indexOf(a) - LIFE_STAGE_PRIORITY.indexOf(b))
+}
+
 // Normalize the stored life_roles JSONB into a clean array (defensive — the
 // column may be missing on un-migrated rows, or hold legacy/empty values).
 export function normalizeLifeRoles(raw) {
@@ -107,13 +133,23 @@ export function computeAge(birthDate) {
 // Shape is intentionally stable — additive changes only.
 export function buildUserContext(profile) {
   if (!profile) return null
+  const lifeRoles = normalizeLifeRoles(profile.life_roles)
+  // Effective life stage(s) for tier divisions. The explicit legacy `life_stage`
+  // field always wins (so existing users' scores never move); otherwise the new
+  // multi-role "Livssituation" drives it. `lifeStages` (array) lets the economy
+  // tier blend across several roles; `lifeStage` (singular) is the priority pick
+  // consumers that need one value use (e.g. tier-profile weighting).
+  const explicitStage = profile.life_stage ?? null
+  const derivedStages = deriveLifeStagesFromRoles(lifeRoles)
+  const lifeStages = explicitStage ? [explicitStage] : derivedStages
   return {
     age: computeAge(profile.birth_date),
     sex: profile.sex ?? null,
     height: profile.height_cm ?? null,
     weight: profile.weight_kg ?? null,
-    lifeStage: profile.life_stage ?? null,
-    lifeRoles: normalizeLifeRoles(profile.life_roles),
+    lifeStage: lifeStages[0] ?? null,
+    lifeStages,
+    lifeRoles,
     occupation: profile.occupation ?? null,
     goals: {
       primary: profile.primary_focus ?? null,
