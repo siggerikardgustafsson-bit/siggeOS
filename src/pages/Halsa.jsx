@@ -309,12 +309,16 @@ export default function HalsaPage() {
         }
       }
 
-      const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader()
-      let buffer = ''
       const RECORD_RE = /<Record\s[^>]*?>/g
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
+      const canStream = typeof file.stream === 'function' && typeof TextDecoderStream === 'function'
+      let buffer = ''
+      const reader = canStream ? file.stream().pipeThrough(new TextDecoderStream()).getReader() : null
+      // Fallback for older browsers without streaming: one read (still avoids
+      // DOMParser, so far cheaper than the old path).
+      const iterate = reader
+        ? async function* () { for (;;) { const r = await reader.read(); if (r.done) return; yield r.value } }
+        : async function* () { yield await file.text() }
+      for await (const value of iterate()) {
         buffer += value
         let m, lastEnd = 0
         RECORD_RE.lastIndex = 0
