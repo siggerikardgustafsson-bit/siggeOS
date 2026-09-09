@@ -30,6 +30,23 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 **Kräver av dig:** inget / `supabase functions deploy x` / `supabase db push`
 -->
 
+### 8. Bugg: `daily_scores.total_score` är alltid 0
+**Spår:** A (latent bugg i sekundärt system)
+**Varför:** `daily_scores` får bara sina per-domän-kolumner skrivna (från Journal
++ Träning). `total_score` beräknas aldrig → står 0 för varje dag. Jarvis kontext
+sa "SCORE IDAG: total:0" varje dag; WeeklyReview:s score-trend var alltid 0→0.
+Detta är INTE den riktiga Maxx Score (den räknas live i maxxScore.js/tierEngine.js
+och visas på dashboarden) — `daily_scores` är en separat historik-logg.
+**Vad:** Båda läsställena härleder nu ett dagsvärde live = snitt av de domän-
+kolumner som har ett värde den dagen. Jarvis-raden ommärkt så modellen fattar att
+det är 0-100 dagsaktivitet, skilt från tier-systemet i MAXX INTELLIGENS.
+**Filer:** `src/pages/Jarvis.jsx`, `src/components/WeeklyReview.jsx`
+**Verifiering:** live-probe bekräftade total_score=0 på alla rader medan
+score_training=80 m.fl. skrivs. `npm run build` OK.
+**Commit:** `<se git log>` "Fix \"total:0\" everywhere daily_scores.total_score is read"
+**Kräver av dig:** inget. Se även IDEAS.md — den djupare frågan är om
+`daily_scores` ska räknas om av ett nattjobb så luckor fylls.
+
 ### 7. Deterministiska veckosignaler (Insights + Jarvis)
 **Spår:** A
 **Varför:** Insights-underrubriken säger "Mönster, risker och signaler" men det

@@ -75,4 +75,26 @@ FIELD_BOUNDS + i correlate.js (HRV↔träning/sömn vore en stark koppling).
 
 ## Datamodell / arkitektur
 
+### ⭐ Nattjobb som räknar om `daily_scores`
+`daily_scores` skrivs bara styckvis när du öppnar Journal/Träning en viss dag.
+Dagar du inte öppnar appen får ingen rad, och `total_score` skrivs aldrig (fixat
+i läsläge, se WORKLOG #8, men underliggande datan har luckor). Ett schemalagt
+edge-jobb (pg_cron / Supabase scheduled function) skulle varje natt räkna ut
+gårdagens per-domän-scores + total ur källtabellerna.
+**Omfattning:** stor — kräver att score-logiken (idag i `src/lib/maxxScore.js` +
+`tierEngine.js`, ren klient-JS) portas till Deno, ELLER att en enklare
+dagsaktivitets-formel definieras server-side. Risk för att klient- och
+serverberäkningen driftar isär.
+**Beslut du behöver fatta:** ska `daily_scores` vara en trogen historik (kräver
+port) eller räcker en enklare "loggnings-aktivitet 0-100"-formel? Eller lämnar vi
+det som en best-effort-logg och slutar visa trend på den?
+
+### 💭 `metric`-drivna auto-uppdaterande fält generellt
+Både mål-progress (F1) och signaler skulle bli vassare med en central
+"metric → senaste värde"-tjänst (sparat, vikt, 5km-tid, netto/månad, pluggtimmar/
+vecka …). En modul som mappar en metric-nyckel till rätt query. Skulle användas
+av mål, signaler, dashboard-kort och Jarvis.
+**Beslut:** värt att bygga som gemensam grund, eller överkonstruktion? Vilka
+metrics först?
+
 ## Sådant jag valde att INTE bygga trots att det var spår A (och varför)
