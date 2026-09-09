@@ -5,7 +5,8 @@ import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays, startOfWeek, parseISO, differenceInDays, getDay } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity } from 'lucide-react'
+import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity, Link2 } from 'lucide-react'
+import { crossDomainFindings, findingsToPrompt } from '../lib/correlate'
 import {
   Line, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Area, AreaChart, ComposedChart
@@ -124,6 +125,7 @@ export default function InsightsPage() {
     correlations: [],
     weekdayData: [],
     streaks: [],
+    findings: [],
   })
 
   useEffect(() => { if (user) fetchAll() }, [user, period])
@@ -202,6 +204,8 @@ export default function InsightsPage() {
       const lEnergy = l.energy_level ?? l.energy // older rows have only one (B1)
       if (l.sleep_hours > 0 && r.sleep == null) r.sleep = l.sleep_hours
       if (lEnergy && r.energy == null) r.energy = lEnergy
+      if (l.steps > 0) r.steps = l.steps
+      if (l.weight_kg > 0) r.weight = l.weight_kg
     }
     for (const s of studyRes.data || []) {
       const r = touch(s.date)
@@ -211,7 +215,13 @@ export default function InsightsPage() {
       const r = touch(t.date)
       r.train = (r.train || 0) + 1
     }
-    const days = Object.values(daily)
+    for (const p of paRes.data || []) {
+      if (p.date < since90) continue // keep the daily merge inside the chosen period
+      const r = touch(p.date)
+      r.paHours = (r.paHours || 0) + (p.hours_worked || 0)
+      if (p.is_night_shift) r.paNight = 1
+    }
+    const days = Object.entries(daily).map(([date, r]) => ({ date, ...r }))
     const buildPairs = (a, b) => days.filter(d => d[a] != null && d[b] != null).map(d => [d[a], d[b]])
     const corrDefs = [
       { key: ['sleep', 'energy'], label: 'Sömn → Energi' },
@@ -327,9 +337,13 @@ export default function InsightsPage() {
     streaks.push({ icon: 'activity', label: 'Nätter ≥7h sömn', value: `${allSleepEntries.filter(e => e.sleep_hours >= 7).length}`, color: COLORS.purple })
     streaks.push({ icon: 'award', label: 'Bästa pluggvecka', value: `${Math.max(0, ...studyData.map(d => d.timmar))}h`, color: COLORS.amber })
 
-    setData({ weightData, sleepData, stepsData, studyData, trainingData, incomeData, paData, examProgress, prData, sleepEnergyData, correlations, weekdayData, streaks })
+    // Deterministic cross-domain findings — the "insikter jag inte själv skulle
+    // sett" the app exists for. No AI, no cost; each carries a sample size.
+    const findings = crossDomainFindings(days)
+
+    setData({ weightData, sleepData, stepsData, studyData, trainingData, incomeData, paData, examProgress, prData, sleepEnergyData, correlations, weekdayData, streaks, findings })
     setLoading(false)
-    generateObservations({ weightData, sleepData, studyData, trainingData })
+    generateObservations({ weightData, sleepData, studyData, trainingData, findings })
   }
 
   async function generateObservations(freshData, force = false) {
@@ -359,8 +373,10 @@ export default function InsightsPage() {
       if (freshData.sleepData?.length) lines.push('Sömn timmar/vecka: ' + freshData.sleepData.slice(-6).map(d => `${d.week}:${d.sömn}h`).join(', '))
       if (freshData.trainingData?.length) lines.push('Träning pass/vecka: ' + freshData.trainingData.slice(-6).map(d => `${d.week}:${d.pass}pass`).join(', '))
       if (freshData.studyData?.length) lines.push('Studier timmar/vecka: ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
+      const findingsBlock = findingsToPrompt(freshData.findings || [])
+      if (findingsBlock) lines.push(findingsBlock)
 
-      const prompt = 'Analysera denna data och returnera EXAKT en JSON-array, inga backticks, inget annat.\n\nData:\n' + (lines.join('\n') || 'Ingen data.') + '\n\nFormat: [{"icon":"emoji","category":"kategori","text":"Kort observation max 20 ord."}]\nKategorier: halsa, traning, plugg, ekonomi, monster, somn. 4-6 observationer.'
+      const prompt = 'Analysera denna data och returnera EXAKT en JSON-array, inga backticks, inget annat.\n\nData:\n' + (lines.join('\n') || 'Ingen data.') + '\n\nBygg vidare på KOPPLINGAR om de finns — lyft det icke-uppenbara, inte det som redan står. Format: [{"icon":"emoji","category":"kategori","text":"Kort observation max 20 ord."}]\nKategorier: halsa, traning, plugg, ekonomi, monster, somn. 4-6 observationer.'
 
       const { data: rd, error } = await supabase.functions.invoke('jarvis-chat', {
         body: {
@@ -573,6 +589,33 @@ export default function InsightsPage() {
 
       {/* ===== SAMBAND & MÖNSTER ===== */}
       <SectionHeader title="Samband & mönster" color={COLORS.red} />
+
+      {/* Cross-domain findings — computed, not AI. The headline takeaways. */}
+      {data.findings?.length > 0 && (
+        <div className="card" style={{ marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', color: 'var(--muted)', marginBottom: '12px' }}>
+            <Link2 size={13} /> KOPPLINGAR MELLAN DOMÄNER · uträknat ur din historik
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {data.findings.slice(0, 6).map((f) => {
+              const col = f.direction === 'positive' ? COLORS.green : f.direction === 'negative' ? COLORS.red : COLORS.amber
+              return (
+                <div key={f.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <div style={{ width: '3px', alignSelf: 'stretch', borderRadius: '2px', background: col, flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      {f.headline}
+                      {f.tentative && <span style={{ fontSize: '9px', fontWeight: 700, letterSpacing: '0.04em', color: COLORS.amber, border: `1px solid ${COLORS.amber}55`, borderRadius: '4px', padding: '1px 5px' }}>PRELIMINÄR</span>}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px', lineHeight: 1.5 }}>{f.detail}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="insights-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
         {/* Sleep → Energy */}
         <div className="card">
