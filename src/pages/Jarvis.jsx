@@ -9,6 +9,8 @@ import MarkdownMessage from '../components/MarkdownMessage'
 import { loadJarvisContext, buildJarvisContextBlock } from '../lib/jarvis'
 import { getUserProfile } from '../lib/personalization'
 import { TRIP_STATUSES_UPCOMING } from '../lib/constants'
+import { crossDomainFindings, findingsToPrompt } from '../lib/correlate'
+import { subDays } from 'date-fns'
 
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
 
@@ -172,6 +174,30 @@ export default function Jarvis() {
       const block = jc ? buildJarvisContextBlock(jc) : ''
       if (block) fullCtx = ctx + '\n\n' + block
     } catch { /* best-effort — degrade to lean context */ }
+
+    // Best-effort MÖNSTER block — the same deterministic cross-domain findings
+    // Insights shows, so Jarvis coaches from real connections in the history,
+    // not just today's snapshot. Cached with the rest of the context.
+    try {
+      const since = format(subDays(now, 90), 'yyyy-MM-dd')
+      const [h, j, st, tr, pa] = await Promise.all([
+        supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy,energy_level').eq('user_id', user.id).gte('date', since),
+        supabase.from('journal_entries').select('date,energy,mood,sleep_hours').eq('user_id', user.id).gte('date', since),
+        supabase.from('study_sessions').select('date,hours').eq('user_id', user.id).gte('date', since),
+        supabase.from('training_sessions').select('date').eq('user_id', user.id).gte('date', since),
+        supabase.from('pa_shifts').select('date,hours_worked,is_night_shift').eq('user_id', user.id).gte('date', since),
+      ])
+      const daily = {}
+      const touch = (d) => (daily[d] || (daily[d] = {}))
+      for (const e of j.data || []) { const r = touch(e.date); if (e.sleep_hours > 0) r.sleep = e.sleep_hours; if (e.energy) r.energy = e.energy; if (e.mood) r.mood = e.mood }
+      for (const l of h.data || []) { const r = touch(l.date); const en = l.energy_level ?? l.energy; if (l.sleep_hours > 0 && r.sleep == null) r.sleep = l.sleep_hours; if (en && r.energy == null) r.energy = en; if (l.steps > 0) r.steps = l.steps; if (l.weight_kg > 0) r.weight = l.weight_kg }
+      for (const s of st.data || []) { const r = touch(s.date); r.study = (r.study || 0) + (s.hours || 0) }
+      for (const t of tr.data || []) { const r = touch(t.date); r.train = (r.train || 0) + 1 }
+      for (const p of pa.data || []) { const r = touch(p.date); r.paHours = (r.paHours || 0) + (p.hours_worked || 0); if (p.is_night_shift) r.paNight = 1 }
+      const findings = crossDomainFindings(Object.entries(daily).map(([date, r]) => ({ date, ...r })))
+      const mblock = findingsToPrompt(findings.slice(0, 5))
+      if (mblock) fullCtx += '\n\nMÖNSTER (90d):\n' + mblock.replace(/^KOPPLINGAR[^\n]*\n/, '')
+    } catch { /* best-effort */ }
 
     setContext(fullCtx)
     contextRef.current = fullCtx
