@@ -37,7 +37,7 @@ async function fetchCalendarEvents(accessToken: string, monthsBack = 2): Promise
   )
   const calList = await calListResp.json()
   const calendars = calList.items || []
-  console.log('Calendars found:', calendars.map((c: any) => c.summary).join(', '))
+  console.log('Calendars found:', calendars.length)
 
   // Fetch events from all calendars
   const allEvents: any[] = []
@@ -164,24 +164,21 @@ serve(async (req) => {
       }
 
       const events = await fetchCalendarEvents(accessToken)
-      console.log('Total events fetched:', events.length)
       const paEvents = events.filter(isPaShift)
-      console.log('PA events found:', paEvents.length)
-      if (paEvents.length > 0) {
-        console.log('PA event titles:', paEvents.map((e: any) => e.summary).join(', '))
-      }
+      // Log counts only — event titles can contain client names / private
+      // details and function logs have different retention than RLS tables
+      // (AUDIT.md P3-7).
+      console.log(`Calendar sync: ${events.length} events, ${paEvents.length} PA shifts`)
 
-      // Upsert PA shifts
-      let synced = 0
+      // Build the rows first, then one upsert instead of N (AUDIT.md P3-8).
+      const rows = []
       for (const event of paEvents) {
         const parsed = parseShiftHours(event)
         if (!parsed) continue
-
         const date = event.start.dateTime
           ? new Date(event.start.dateTime).toISOString().slice(0, 10)
           : event.start.date
-
-        await supabase.from('pa_shifts').upsert({
+        rows.push({
           user_id: user.id,
           date,
           start_time: parsed.start,
@@ -192,8 +189,14 @@ serve(async (req) => {
           notes: event.description || null,
           google_event_id: event.id,
           synced_from_google: true,
-        }, { onConflict: 'user_id,google_event_id' })
-        synced++
+        })
+      }
+      let synced = 0
+      for (let i = 0; i < rows.length; i += 500) {
+        const chunk = rows.slice(i, i + 500)
+        const { error } = await supabase.from('pa_shifts').upsert(chunk, { onConflict: 'user_id,google_event_id' })
+        if (error) console.warn('pa_shifts upsert failed:', error.message)
+        else synced += chunk.length
       }
 
       return new Response(JSON.stringify({
@@ -234,19 +237,15 @@ serve(async (req) => {
       // Fetch all events from all calendars (12 months back, 12 forward)
       const events = await fetchCalendarEvents(accessToken, 12)
 
-      console.log('Total events fetched:', events.length)
-      console.log('Sample titles:', events.slice(0, 5).map((e: any) => e.summary).join(', '))
-
       // Filter events containing "obligatorisk" anywhere in title or description
       const mandatoryEvents = events.filter((e: any) => {
-        const title = (e.summary || '')
-        const titleLower = title.toLowerCase()
+        const titleLower = (e.summary || '').toLowerCase()
         const desc = (e.description || '').toLowerCase()
         return titleLower.includes('obligatorisk') || desc.includes('obligatorisk')
       })
 
-      console.log('Mandatory events found:', mandatoryEvents.length)
-      console.log('Mandatory titles:', mandatoryEvents.map((e: any) => e.summary).join(', '))
+      // Counts only — no event titles in logs (AUDIT.md P3-7).
+      console.log(`Mandatory sync: ${events.length} events, ${mandatoryEvents.length} mandatory`)
 
       // Fetch user's active courses for matching
       const { data: courses } = await supabase
@@ -271,43 +270,47 @@ serve(async (req) => {
         return null
       }
 
-      let synced = 0
+      // Split into rows that carry a google_event_id (batch-upsertable) and the
+      // rare ones that don't (existence-checked individually).
+      const withId = []
+      const withoutId = []
       for (const event of mandatoryEvents) {
         const startStr = event.start?.dateTime || event.start?.date
         if (!startStr) continue
-
-        const date = startStr.slice(0, 10)
-        const courseId = matchCourse(event.summary || '', event.description || '')
-        const googleEventId = event.id || null
-
         const record = {
           user_id: user.id,
-          google_event_id: googleEventId,
+          google_event_id: event.id || null,
           title: event.summary,
-          date,
+          date: startStr.slice(0, 10),
           start_time: event.start?.dateTime || null,
           end_time: event.end?.dateTime || null,
-          course_id: courseId,
+          course_id: matchCourse(event.summary || '', event.description || ''),
           course_hint: event.description || null,
         }
+        ;(record.google_event_id ? withId : withoutId).push(record)
+      }
 
-        if (googleEventId) {
-          const { error } = await supabase.from('mandatory_sessions').upsert(record, { onConflict: 'user_id,google_event_id' })
-          if (error) console.error('Upsert error:', error.message, error.details)
-        } else {
-          const { data: existing } = await supabase
-            .from('mandatory_sessions')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('title', event.summary)
-            .eq('date', date)
-            .single()
-          if (!existing) {
-            const { error } = await supabase.from('mandatory_sessions').insert(record)
-            if (error) console.error('Insert error:', error.message, error.details)
-          }
+      let synced = 0
+      for (let i = 0; i < withId.length; i += 500) {
+        const chunk = withId.slice(i, i + 500)
+        const { error } = await supabase.from('mandatory_sessions').upsert(chunk, { onConflict: 'user_id,google_event_id' })
+        if (error) console.error('Upsert error:', error.message)
+        else synced += chunk.length
+      }
+      for (const record of withoutId) {
+        // .maybeSingle() — 0 matches is the expected case here, not an error.
+        const { data: existing } = await supabase
+          .from('mandatory_sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('title', record.title)
+          .eq('date', record.date)
+          .maybeSingle()
+        if (!existing) {
+          const { error } = await supabase.from('mandatory_sessions').insert(record)
+          if (error) console.error('Insert error:', error.message)
+          else synced++
         }
-        synced++
       }
 
       return new Response(JSON.stringify({ success: true, synced, total: mandatoryEvents.length }), {

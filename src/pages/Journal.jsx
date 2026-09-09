@@ -254,7 +254,7 @@ export default function JournalPage() {
   useEffect(() => () => {
     for (const [id, t] of pendingDeletes.current) {
       clearTimeout(t)
-      supabase.from('journal_entries').delete().eq('id', id)
+      supabase.from('journal_entries').delete().eq('id', id).eq('user_id', user.id)
     }
     pendingDeletes.current.clear()
   }, [])
@@ -279,7 +279,7 @@ export default function JournalPage() {
     const handle = setTimeout(async () => {
       pendingDeletes.current.delete(entryId)
       if (!undone) {
-        await supabase.from('journal_entries').delete().eq('id', entryId)
+        await supabase.from('journal_entries').delete().eq('id', entryId).eq('user_id', user.id)
         fetchMonthEntries()
       }
     }, 5000)
@@ -291,7 +291,7 @@ export default function JournalPage() {
     const journalScore = Math.min(75 + contentScore, 100)
     const { data: existing } = await supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', dateStr).maybeSingle()
     if (existing) {
-      await supabase.from('daily_scores').update({ score_journal: journalScore, score_health: Math.max(existing.score_health, (formData.energy / 10) * 100) }).eq('id', existing.id)
+      await supabase.from('daily_scores').update({ score_journal: journalScore, score_health: Math.max(existing.score_health, (formData.energy / 10) * 100) }).eq('id', existing.id).eq('user_id', user.id)
     } else {
       await supabase.from('daily_scores').insert({ user_id: user.id, date: dateStr, score_journal: journalScore, score_health: (formData.energy / 10) * 100 })
     }

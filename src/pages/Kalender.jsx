@@ -202,7 +202,7 @@ export default function KalenderPage() {
   }
 
   async function toggleAttended(eventId, current) {
-    await supabase.from('mandatory_sessions').update({ attended: !current }).eq('id', eventId)
+    await supabase.from('mandatory_sessions').update({ attended: !current }).eq('id', eventId).eq('user_id', user.id)
     await fetchAll()
   }
 

@@ -254,8 +254,6 @@ export default function ExportPage() {
           <span>Filerna öppnas i Excel, Google Sheets eller Numbers. Välj "Allt" för en komplett export med alla moduler i separata flikar.</span>
         </div>
       </div>
-
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
     </div>

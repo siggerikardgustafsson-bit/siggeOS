@@ -5,9 +5,8 @@ import { supabase } from '../lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import {
-  Plus, X, Save, Loader, Calendar, Briefcase, ChevronDown,
-  ChevronUp, Check, Clock, DollarSign, FileText, MessageSquare,
-  Tag, AlertTriangle, ExternalLink, FolderKanban, Circle, Edit2, Trash2
+  Plus, X, Save, Loader, Calendar, Briefcase,
+  Check, Clock, AlertTriangle, ExternalLink, FolderKanban, Circle, Trash2
 } from 'lucide-react'
 
 const ERIK_TAGS = [
@@ -489,7 +488,7 @@ export default function JobbPage() {
     })
     setTimeout(async () => {
       if (undone) return
-      await supabase.from('pa_shifts').delete().eq('id', id)
+      await supabase.from('pa_shifts').delete().eq('id', id).eq('user_id', user.id)
     }, 5000)
   }
 
@@ -500,7 +499,7 @@ export default function JobbPage() {
         title: taskForm.title, description: taskForm.description,
         deadline: taskForm.deadline || null, tag: taskForm.tag,
         priority: taskForm.priority, notes: taskForm.notes,
-      }).eq('id', editingTask.id)
+      }).eq('id', editingTask.id).eq('user_id', user.id)
     } else {
       await supabase.from('erik_tasks').insert({
         user_id: user.id, title: taskForm.title, description: taskForm.description,
@@ -517,7 +516,7 @@ export default function JobbPage() {
   }
 
   async function moveTask(id, status) {
-    await supabase.from('erik_tasks').update({ status }).eq('id', id)
+    await supabase.from('erik_tasks').update({ status }).eq('id', id).eq('user_id', user.id)
     await fetchAll()
   }
 

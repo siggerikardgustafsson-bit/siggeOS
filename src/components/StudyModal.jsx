@@ -145,7 +145,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
   }
 
   async function deleteMaterial(id) {
-    await supabase.from('course_materials').delete().eq('id', id)
+    await supabase.from('course_materials').delete().eq('id', id).eq('user_id', user.id)
     await fetchCourseMaterials()
   }
 

@@ -852,8 +852,6 @@ export default function InsightsPage() {
           ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Inga PA-pass registrerade</div>}
         </div>
       </div>
-
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
     </div>

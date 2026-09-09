@@ -240,8 +240,7 @@ export default function TraningPage() {
       .trim()
       .toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      .replace(/å/g, 'a').replace(/ä/g, 'a').replace(/ö/g, 'o')
-      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/[^a-z0-9]+/g, '-') // NFD strip above already handles å/ä/ö
       .replace(/^-+|-+$/g, '')
   }
 
@@ -354,6 +353,7 @@ export default function TraningPage() {
     await supabase
       .from('training_exercises')
       .update({ exercise_id: own.id, exercise_name: own.name })
+      .eq('user_id', user.id) // defense-in-depth over RLS (AUDIT.md P3-10)
       .eq('exercise_id', editor.original_id)
 
     await supabase
@@ -429,10 +429,6 @@ export default function TraningPage() {
 
   async function checkStravaStatus() {
     try {
-      const { data, error } = await supabase.functions.invoke('strava-sync', {
-        body: null, headers: { 'x-action': 'status' }
-      })
-      // Use query param approach instead
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/strava-sync?action=status`, {
         headers: {
           Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
@@ -835,7 +831,7 @@ export default function TraningPage() {
     const distanceKm = parseFloat(runForm.distance)
     const pacePerKm = distanceKm > 0 && totalSeconds > 0 ? Math.round(totalSeconds / distanceKm) : null
 
-    await supabase.from('training_sessions').insert({
+    const { error } = await supabase.from('training_sessions').insert({
       user_id: user.id,
       date: sessionDate,
       session_type: 'run',
@@ -847,6 +843,38 @@ export default function TraningPage() {
       pace_per_km: pacePerKm,
       source: 'manual',
     })
+    if (error) {
+      toast({ message: 'Kunde inte spara löppasset.', type: 'error' })
+      setSaving(false)
+      return
+    }
+
+    // Steps (a run has step count too — parity with "Annat"-passet, P3-11).
+    if (runForm.steps) {
+      await supabase.from('health_logs').upsert(
+        { user_id: user.id, date: sessionDate, steps: parseInt(runForm.steps) },
+        { onConflict: 'user_id,date' },
+      )
+    }
+
+    // Log a run PR when the distance matches a tracked distance (±3%). Manual
+    // runs used to never produce a run-PR — only Strava-synced ones did (P3-11).
+    if (distanceKm > 0 && totalSeconds > 0) {
+      const KEY_BY_LABEL = { '1 km': '1k', '5 km': '5k', '10 km': '10k', 'Halvmaraton': 'half_marathon' }
+      const match = RUN_PR_DISTANCES.find(d => Math.abs(distanceKm * 1000 - d.meters) / d.meters <= 0.03)
+      if (match) {
+        await supabase.from('run_personal_records').insert({
+          user_id: user.id,
+          distance_key: KEY_BY_LABEL[match.label],
+          label: match.label,
+          distance_km: distanceKm,
+          time_seconds: totalSeconds,
+          pace_per_km: pacePerKm,
+          date: sessionDate,
+          source: 'manual',
+        })
+      }
+    }
 
     await updateTrainingScore(sessionDate, runForm.feeling)
     await fetchSessions()
@@ -1911,6 +1939,10 @@ export default function TraningPage() {
                 <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Datum</label>
                 <input className="input" type="date" value={runForm.date} onChange={e => setRunForm(f => ({ ...f, date: e.target.value }))} />
               </div>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Steg (valfritt)</label>
+                <input className="input" type="number" placeholder="t.ex. 8000" value={runForm.steps} onChange={e => setRunForm(f => ({ ...f, steps: e.target.value }))} />
+              </div>
               <input className="input" placeholder="Anteckningar (valfritt)" value={runForm.notes} onChange={e => setRunForm(f => ({ ...f, notes: e.target.value }))} style={{ marginBottom: '16px' }} />
               <button onClick={saveRunSession} className="btn btn-primary" disabled={saving} style={{ width: '100%', justifyContent: 'center', background: '#10b981' }}>
                 {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={14} /> Spara löppass</>}
@@ -2033,9 +2065,6 @@ export default function TraningPage() {
             </div>
         </Modal>
       )}
-
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-
 
       {(showAllPrModal || showStrengthPrModal || showRunPrModal) && (
         <Modal onClose={() => { setShowAllPrModal(false); setShowStrengthPrModal(false); setShowRunPrModal(false) }} maxWidth={1040} bare>

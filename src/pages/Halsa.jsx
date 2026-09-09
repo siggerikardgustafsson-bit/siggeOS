@@ -11,6 +11,12 @@ import { sv } from 'date-fns/locale'
 import { Loader, Apple, X, Plus, Edit2, Check, Scale, Moon, Wine, Syringe, Utensils, Pill } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
+// nicotine_type stores the comma-joined product list; fall back to the legacy
+// boolean (which could only ever mean "some nicotine") — see AUDIT.md P3-11.
+const nicotineFromRow = (row) => row?.nicotine_type
+  ? row.nicotine_type.split(',').filter(Boolean)
+  : (row?.nicotine ? ['snus'] : [])
+
 const NICOTINE_TYPES = [
   { id: 'snus', label: 'Snus' },
   { id: 'vape', label: 'Vape' },
@@ -112,7 +118,7 @@ export default function HalsaPage() {
       setTodayLog(data)
       setWeightForm(f => ({ ...f, weight_kg: data.weight_kg || '' }))
       setSleepForm(f => ({ ...f, sleep_hours: data.sleep_hours || '', sleep_quality: data.sleep_quality || 7 }))
-      setSubstanceForm(f => ({ ...f, alcohol_units: data.alcohol_units || '', nicotine: data.nicotine ? ['snus'] : [] }))
+      setSubstanceForm(f => ({ ...f, alcohol_units: data.alcohol_units || '', nicotine: nicotineFromRow(data) }))
       if (data.retatrutide_dose_mg) setRetForm(f => ({ ...f, retatrutide_injected: true, retatrutide_dose_mg: data.retatrutide_dose_mg }))
     }
 
@@ -220,7 +226,7 @@ export default function HalsaPage() {
       sleep_hours: log.sleep_hours || '',
       sleep_quality: log.sleep_quality || 7,
       alcohol_units: log.alcohol_units || '',
-      nicotine: log.nicotine ? ['snus'] : [],
+      nicotine: nicotineFromRow(log),
       retatrutide_dose_mg: log.retatrutide_dose_mg || '',
       retatrutide_injected: !!log.retatrutide_dose_mg,
       supplements_taken: takenSupplements,
@@ -240,6 +246,7 @@ export default function HalsaPage() {
       sleep_quality: editingLog.sleep_quality,
       alcohol_units: editingLog.alcohol_units ? parseFloat(editingLog.alcohol_units) : null,
       nicotine: editingLog.nicotine?.length > 0,
+      nicotine_type: editingLog.nicotine?.length ? editingLog.nicotine.join(',') : null,
       retatrutide_dose_mg: editingLog.retatrutide_injected ? parseFloat(editingLog.retatrutide_dose_mg) || 2.5 : null,
     }
 
@@ -517,7 +524,7 @@ export default function HalsaPage() {
 
               {/* SUBSTANSER */}
               <Widget title="Alkohol & Nikotin" icon={<Wine size={15} color="#f59e0b" />} color="#f59e0b" delay={140}
-                action={<SaveBtn onClick={() => saveWidget('substance', { date: substanceForm.date, alcohol_units: substanceForm.alcohol_units ? parseFloat(substanceForm.alcohol_units) : null, nicotine: substanceForm.nicotine.length > 0, marijuana: substanceForm.marijuana || false })} saving={savingWidget.substance} saved={savedWidget.substance} />}>
+                action={<SaveBtn onClick={() => saveWidget('substance', { date: substanceForm.date, alcohol_units: substanceForm.alcohol_units ? parseFloat(substanceForm.alcohol_units) : null, nicotine: substanceForm.nicotine.length > 0, nicotine_type: substanceForm.nicotine.length ? substanceForm.nicotine.join(',') : null, marijuana: substanceForm.marijuana || false })} saving={savingWidget.substance} saved={savedWidget.substance} />}>
                 <div style={{ display:'flex', gap:'8px', marginBottom:'12px', alignItems:'center' }}>
                   <input type="date" className="input" value={substanceForm.date} onChange={e => setSubstanceForm(f => ({...f, date:e.target.value}))} style={{ fontSize:'12px', flex:1 }} />
                 </div>
