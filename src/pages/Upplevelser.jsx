@@ -842,10 +842,12 @@ Returnera ENBART JSON utan backticks:
                     </div>
                     <div style={{ display: 'flex', gap: '2px', alignItems: 'center', flexShrink: 0 }}>
                       <button onClick={e => { e.stopPropagation(); setEditingTrip(trip.id); setExpandedTrip(null) }}
+                        title="Redigera resa" aria-label={`Redigera ${trip.title}`}
                         style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: '4px', opacity: 0.6 }}>
                         <Edit2 size={13} />
                       </button>
                       <button onClick={e => { e.stopPropagation(); deleteTrip(trip.id) }}
+                        title="Ta bort resa" aria-label={`Ta bort ${trip.title}`}
                         style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: '4px' }}>
                         <X size={13} />
                       </button>
