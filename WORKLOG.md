@@ -30,6 +30,30 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 **Kräver av dig:** inget / `supabase functions deploy x` / `supabase db push`
 -->
 
+### 10. Bugg: tvärdomän-lag-korrelationer räknade fel dag (tidszon)
+**Spår:** A
+**Varför:** `new Date('2026-09-09T00:00:00')` är lokal midnatt; `.toISOString()`
+läser tillbaka den som 2026-09-08 i Europe/Stockholm (UTC+2). Lag-1-uppslagen
+("nattens sömn → nästa dags energi", "dagen efter nattpass → energi") landade
+alltså på *samma* dag, och veckonycklar hamnade på söndagar.
+**Vad:** All datummatte i `correlate.js` UTC-ankrad (`parseUTC`/`addDaysUTC`/
+`weekKey` med getUTCDay). `signals.js` använder lokal-komponent-formaterare för
+"idag" så den inte hoppar en dag på kvällen.
+**Filer:** `src/lib/correlate.js`, `src/lib/signals.js`
+**Verifiering:** syntetiskt 45-dagarsset i Europe/Stockholm — lag-1 sömn→energi-
+fyndet triggar korrekt på data där energi beror på gårdagens sömn.
+**Commit:** `<se git log>` "correlate/signals: UTC-anchor all date maths"
+**Kräver av dig:** inget
+
+### 9. Veckorapporten grundas i fynd + signaler
+**Spår:** A
+**Vad:** `buildReportSummary()` i Insights skickar nu även de deterministiska
+tvärdomän-fynden och veckans signaler till "Analysera vecka"-prompten, så
+AI-rapporten resonerar från samma uträknade material som sidan visar.
+**Filer:** `src/pages/Insights.jsx`
+**Commit:** `<se git log>` "Insights weekly report: ground it in the findings + signals"
+**Kräver av dig:** inget
+
 ### 8. Bugg: `daily_scores.total_score` är alltid 0
 **Spår:** A (latent bugg i sekundärt system)
 **Varför:** `daily_scores` får bara sina per-domän-kolumner skrivna (från Journal

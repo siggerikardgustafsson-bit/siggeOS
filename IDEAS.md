@@ -52,6 +52,17 @@ först, och ska manuellt satt current_value alltid vinna över auto?
 
 ## Domän-specifikt (träning, hälsa, ekonomi, plugg, resor, jobb)
 
+### 🔥 Resmål ↔ sparande (ekonomi↔resmål, uttryckligt i visionen)
+`trips` har `budget_sek` men ingen känsla av "hur nära jag är att ha råd".
+F1-mål-tabellen har redan `linked_trip_id` — mekaniken finns, UX:en saknas.
+Idé: på en resa i planeringsläge, visa en progress-rad "23 400 / 42 000 kr
+sparat" där "sparat" kommer från antingen (a) ett kopplat sparmål, (b) en
+manuell "avsatt hittills"-siffra, eller (c) en andel av net worth öronmärkt.
+Jarvis skulle då kunna säga "Asienresan är 3 månader bort och du ligger 8 000
+efter takten — lägg 2 700/mån till."
+**Omfattning:** medel. **Beslut:** vilken sparkälla (a/b/c), och var progress-
+raden bor (resekortet, en ny "ekonomi för resor"-vy, eller dashboarden).
+
 ### 🔥 Setup-skärm för Apple Health-Shortcut (F3 backend är byggt)
 `health-ingest`-endpointen + token-hantering finns (`src/lib/healthIngest.js`).
 Kvar: en skärm (troligen i Inställningar → "Anslut Apple Health") som:
