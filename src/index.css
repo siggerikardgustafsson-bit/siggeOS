@@ -1539,22 +1539,8 @@ html, body, #root {
 }
 
 /* Standard page widths: pages can still override maxWidth inline, but this improves defaults. */
-.route-dashboard .page-content-scroll > div,
-.route-traning .page-content-scroll > div,
-.route-kalender .page-content-scroll > div,
-.route-upplevelser .page-content-scroll > div {
-  max-width: var(--mx-content-wide);
-}
-
-.route-journal .page-content-scroll > div,
-.route-halsa .page-content-scroll > div,
-.route-ekonomi .page-content-scroll > div,
-.route-jobb .page-content-scroll > div,
-.route-plugg .page-content-scroll > div,
-.route-insights .page-content-scroll > div,
-.route-export .page-content-scroll > div {
-  max-width: var(--mx-content-default);
-}
+/* (removed dead .route-* .page-content-scroll rules — .page-content-scroll is
+   not rendered anywhere; see AUDIT.md P3-2) */
 
 /* Settings: no nested scroll traps, premium left nav, full page height. */
 .settings-page {
@@ -2370,24 +2356,7 @@ aside,
 }
 
 /* Undo the centered/max-width route rules from earlier layout patches. */
-.route-dashboard .page-content-scroll > div,
-.route-traning .page-content-scroll > div,
-.route-kalender .page-content-scroll > div,
-.route-upplevelser .page-content-scroll > div,
-.route-journal .page-content-scroll > div,
-.route-halsa .page-content-scroll > div,
-.route-ekonomi .page-content-scroll > div,
-.route-jobb .page-content-scroll > div,
-.route-plugg .page-content-scroll > div,
-.route-insights .page-content-scroll > div,
-.route-export .page-content-scroll > div,
-.route-installningar .page-content-scroll > div,
-.page-content-scroll > .mx-content-edge {
-  width: 100% !important;
-  max-width: none !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-}
+/* (removed dead .route-* / .page-content-scroll rules — AUDIT.md P3-2) */
 
 /* The main scroll area should feel like one continuous canvas, not a centered sheet. */
 .sigge-main-scroll {
