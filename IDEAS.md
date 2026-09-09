@@ -52,6 +52,27 @@ först, och ska manuellt satt current_value alltid vinna över auto?
 
 ## Domän-specifikt (träning, hälsa, ekonomi, plugg, resor, jobb)
 
+### 🔥 Setup-skärm för Apple Health-Shortcut (F3 backend är byggt)
+`health-ingest`-endpointen + token-hantering finns (`src/lib/healthIngest.js`).
+Kvar: en skärm (troligen i Inställningar → "Anslut Apple Health") som:
+- genererar token vid första besöket (`getOrCreateIngestToken`)
+- visar endpoint + token att klistra in, med copy-knapp
+- steg-för-steg för Shortcut:en ("Get Contents of URL", POST, headers, body med
+  `Health`-actions för vikt/sömn/steg/vilopuls)
+- "Rotera token" (revoke) och "Stäng av"
+- ev. "senast mottaget"-tid (kräver en `last_ingest_at`-kolumn — inte byggd)
+**Omfattning:** liten–medel. Mest copy/instruktioner. **Beslut:** var bor den
+(egen sida vs Inställningar-sektion), och vill du att jag skriver en färdig
+`.shortcut`-fil att importera eller räcker textinstruktioner?
+
+### ⭐ HRV / aktiv energi i health_logs
+`health_logs` saknar kolumner för HRV och aktiv energi (kcal) — två av de mest
+värdefulla Apple Health-signalerna (HRV ↔ återhämtning ↔ träningsberedskap).
+**Omfattning:** liten migration + fält i Hälsa-formuläret + i `health-ingest`
+FIELD_BOUNDS + i correlate.js (HRV↔träning/sömn vore en stark koppling).
+**Beslut:** vill du ha in dem? Payoff är hög för träning-mot-anestesi-visionen
+(återhämtning under tunga PA-veckor).
+
 ## Datamodell / arkitektur
 
 ## Sådant jag valde att INTE bygga trots att det var spår A (och varför)

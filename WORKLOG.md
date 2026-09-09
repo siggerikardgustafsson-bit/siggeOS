@@ -30,6 +30,30 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 **Kräver av dig:** inget / `supabase functions deploy x` / `supabase db push`
 -->
 
+### 6. F3 — Apple Health via iOS Shortcuts: ingest-endpoint (backend)
+**Spår:** A (backend). Setup-UI → IDEAS.md.
+**Varför:** `export.xml`-importen (200MB–1GB) kraschar fliken (audit P1-7). En
+Shortcut som POST:ar dagens mätvärden är robust och kräver ingen stor fil.
+**Vad:** Ny edge-funktion `health-ingest` — `Bearer <token>` → service-role-
+uppslag till user_id (litar aldrig på user_id i payloaden) → bounds-checkade fält
+→ merge-inte-skriv-över-upsert i `health_logs` (bara skickade fält skrivs; source
+sätts bara vid skapande). 4KB payload-tak. Migration `post_deploy_06` lägger
+`user_settings.health_ingest_token` (uuid, unik partiell index, null tills opt-in).
+`src/lib/healthIngest.js`: getOrCreate/rotate/disable + `ingestSetup()`.
+Godkända fält: weight_kg, body_fat_pct, steps, sleep_hours, resting_hr, caffeine_mg.
+**Filer:** `supabase/functions/health-ingest/index.ts` (ny),
+`supabase/migrations/20260703091000_post_deploy_06_health_ingest_token.sql` (ny),
+`src/lib/healthIngest.js` (ny)
+**Verifiering:** esbuild .ts + .js OK. Logiken granskad rad för rad (kan ej köra
+edge-fn lokalt utan deno/deploy).
+**Commit:** `<se git log>` "F3: Apple Health via iOS Shortcuts — ingest endpoint"
+**Kräver av dig:** **[DEPLOY]**
+`supabase db push` (token-kolumnen) och
+`supabase functions deploy health-ingest --no-verify-jwt`  ← **--no-verify-jwt är
+obligatoriskt**, Shortcut:en skickar en egen bearer, inte en Supabase-JWT.
+`SUPABASE_SERVICE_ROLE_KEY` är redan satt (strava-sync/google-calendar-sync
+använder den).
+
 ### 5. F1 — strukturerade mål: datalager + Jarvis (backend)
 **Spår:** A (backend). UI → IDEAS.md.
 **Varför:** "Mål" är en domän i visionen men finns bara som fritext-blob i
