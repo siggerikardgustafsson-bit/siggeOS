@@ -10,10 +10,13 @@
 // ============================================================================
 
 const DAY = 86400000
-const iso = (d) => d.toISOString().slice(0, 10)
+// Local calendar date of a Date — NOT toISOString(), which is UTC and flips a
+// day late in the evening for anyone east of UTC.
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : null)
 const r1 = (x) => Math.round(x * 10) / 10
 
+// Whole days from date-string `aStr` to Date `b`, both taken at local midnight.
 function daysBetween(aStr, b) {
   return Math.round((b - new Date(aStr + 'T00:00:00')) / DAY)
 }

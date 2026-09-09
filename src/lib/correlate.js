@@ -31,12 +31,23 @@ export function pearson(pairs) {
   return (n * sxy - sx * sy) / den
 }
 
+// All date maths here is UTC-anchored so parsing a 'YYYY-MM-DD' and formatting
+// it back is a no-op regardless of the runtime timezone (a local parse +
+// toISOString() shifts the day for anyone east/west of UTC).
+const parseUTC = (dateStr) => new Date(dateStr + 'T00:00:00Z')
+const fmtUTC = (d) => d.toISOString().slice(0, 10)
+function addDaysUTC(dateStr, n) {
+  const d = parseUTC(dateStr)
+  d.setUTCDate(d.getUTCDate() + n)
+  return fmtUTC(d)
+}
+
 // ISO week key (Mon-anchored) from a 'YYYY-MM-DD' string, no date-fns dep.
 function weekKey(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00')
-  const day = (d.getDay() + 6) % 7 // Mon=0
-  d.setDate(d.getDate() - day)
-  return d.toISOString().slice(0, 10)
+  const d = parseUTC(dateStr)
+  const day = (d.getUTCDay() + 6) % 7 // Mon=0
+  d.setUTCDate(d.getUTCDate() - day)
+  return fmtUTC(d)
 }
 
 // Group `days` into weeks with summed / averaged fields.
@@ -117,8 +128,7 @@ export function crossDomainFindings(days) {
     const pairs = []
     for (const d of days) {
       if (!(d.sleep > 0)) continue
-      const next = new Date(d.date + 'T00:00:00'); next.setDate(next.getDate() + 1)
-      const nd = byDate[next.toISOString().slice(0, 10)]
+      const nd = byDate[addDaysUTC(d.date, 1)]
       if (nd && nd.energy > 0) pairs.push({ sleep: d.sleep, energy: nd.energy })
     }
     const lowE = mean(pairs.filter((p) => p.sleep < 6).map((p) => p.energy))
@@ -200,8 +210,7 @@ export function crossDomainFindings(days) {
     const afterNight = [], baseline = []
     for (const d of days) {
       if (d.energy == null) continue
-      const prev = new Date(d.date + 'T00:00:00'); prev.setDate(prev.getDate() - 1)
-      const pd = byDate[prev.toISOString().slice(0, 10)]
+      const pd = byDate[addDaysUTC(d.date, -1)]
       ;(pd && pd.paNight ? afterNight : baseline).push(d.energy)
     }
     if (afterNight.length >= 3 && baseline.length >= 6) {
