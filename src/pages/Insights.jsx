@@ -7,6 +7,8 @@ import { format, subDays, startOfWeek, parseISO, differenceInDays, getDay } from
 import { sv } from 'date-fns/locale'
 import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity, Link2 } from 'lucide-react'
 import { crossDomainFindings, findingsToPrompt } from '../lib/correlate'
+import { detectSignals } from '../lib/signals'
+import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import {
   Line, BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid, Area, AreaChart, ComposedChart
@@ -126,6 +128,7 @@ export default function InsightsPage() {
     weekdayData: [],
     streaks: [],
     findings: [],
+    signals: [],
   })
 
   useEffect(() => { if (user) fetchAll() }, [user, period])
@@ -135,17 +138,18 @@ export default function InsightsPage() {
     const since90 = format(subDays(new Date(), period), 'yyyy-MM-dd')
     const since180 = format(subDays(new Date(), Math.max(period, 180)), 'yyyy-MM-dd')
 
-    const [healthRes, journalRes, studyRes, trainingRes, incomeRes, expenseRes, paRes, examRes, courseRes, prRes] = await Promise.all([
-      supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy,energy_level').eq('user_id', user.id).gte('date', since90).order('date'),
+    const [healthRes, journalRes, studyRes, trainingRes, incomeRes, expenseRes, paRes, examRes, courseRes, prRes, settingsRes] = await Promise.all([
+      supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy,energy_level,nicotine,alcohol_units').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('journal_entries').select('date,energy,mood,sleep_hours').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('study_sessions').select('date,hours,course_id').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('training_sessions').select('date,session_type,duration_minutes').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('income_logs').select('date,amount,source').eq('user_id', user.id).gte('date', since180).order('date'),
       supabase.from('expense_logs').select('date,amount,category').eq('user_id', user.id).gte('date', since180).order('date'),
       supabase.from('pa_shifts').select('date,hours_worked,is_night_shift').eq('user_id', user.id).gte('date', since180).order('date'),
-      supabase.from('course_exams').select('id,name,grade,course_id').eq('user_id', user.id),
+      supabase.from('course_exams').select('id,name,grade,course_id,exam_date').eq('user_id', user.id),
       supabase.from('courses').select('id,name,term,active').eq('user_id', user.id),
       supabase.from('personal_records').select('*').eq('user_id', user.id).order('date', { ascending: false }),
+      supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle(),
     ])
 
     // Weight trend (weekly avg) — ignore 0 values
@@ -341,7 +345,18 @@ export default function InsightsPage() {
     // sett" the app exists for. No AI, no cost; each carries a sample size.
     const findings = crossDomainFindings(days)
 
-    setData({ weightData, sleepData, stepsData, studyData, trainingData, incomeData, paData, examProgress, prData, sleepEnergyData, correlations, weekdayData, streaks, findings })
+    // Deterministic signals — "risker och signaler" from the page subtitle.
+    const signals = detectSignals({
+      health: healthRes.data || [],
+      training: trainingRes.data || [],
+      exams: examRes.data || [],
+      courses: courseRes.data || [],
+      studySessions: studyRes.data || [],
+      goals: settingsRes.data?.goals || {},
+      today: new Date(),
+    })
+
+    setData({ weightData, sleepData, stepsData, studyData, trainingData, incomeData, paData, examProgress, prData, sleepEnergyData, correlations, weekdayData, streaks, findings, signals })
     setLoading(false)
     generateObservations({ weightData, sleepData, studyData, trainingData, findings })
   }
@@ -512,6 +527,29 @@ export default function InsightsPage() {
 
       <div className="page-content-scroll">
         <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
+
+      {/* Deterministic signals — always present, no AI. "Risker och signaler". */}
+      {data.signals?.length > 0 && (
+        <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {data.signals.map((s) => {
+            const cfg = s.severity === 'warn'
+              ? { c: COLORS.amber, Ic: AlertTriangle }
+              : s.severity === 'good'
+              ? { c: COLORS.green, Ic: CheckCircle2 }
+              : { c: COLORS.blue, Ic: Info }
+            return (
+              <div key={s.id} className="card" style={{ borderColor: cfg.c + '40', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                <cfg.Ic size={16} color={cfg.c} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: 'var(--text)' }}>{s.headline}</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--muted2)', marginTop: '3px', lineHeight: 1.5 }}>{s.detail}</div>
+                  <div style={{ fontSize: '12px', color: cfg.c, marginTop: '6px', fontWeight: 600 }}>→ {s.action}</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Jarvis weekly report */}
       {weeklyReport && (

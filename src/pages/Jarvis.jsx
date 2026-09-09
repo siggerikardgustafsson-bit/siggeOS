@@ -182,17 +182,19 @@ export default function Jarvis() {
       if (block) fullCtx = ctx + '\n\n' + block
     } catch { /* best-effort — degrade to lean context */ }
 
-    // Best-effort MÖNSTER block — the same deterministic cross-domain findings
-    // Insights shows, so Jarvis coaches from real connections in the history,
-    // not just today's snapshot. Cached with the rest of the context.
+    // Best-effort MÖNSTER + SIGNALER blocks — the same deterministic findings
+    // and weekly signals Insights shows, so Jarvis coaches from real patterns
+    // and this-week risks, not just today's snapshot. Cached with the context.
     try {
       const since = format(subDays(now, 90), 'yyyy-MM-dd')
-      const [h, j, st, tr, pa] = await Promise.all([
-        supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy,energy_level').eq('user_id', user.id).gte('date', since),
+      const [h, j, st, tr, pa, ex, co] = await Promise.all([
+        supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy,energy_level,nicotine').eq('user_id', user.id).gte('date', since),
         supabase.from('journal_entries').select('date,energy,mood,sleep_hours').eq('user_id', user.id).gte('date', since),
-        supabase.from('study_sessions').select('date,hours').eq('user_id', user.id).gte('date', since),
+        supabase.from('study_sessions').select('date,hours,course_id').eq('user_id', user.id).gte('date', since),
         supabase.from('training_sessions').select('date').eq('user_id', user.id).gte('date', since),
         supabase.from('pa_shifts').select('date,hours_worked,is_night_shift').eq('user_id', user.id).gte('date', since),
+        supabase.from('course_exams').select('exam_date,name,course_id').eq('user_id', user.id).gte('exam_date', today),
+        supabase.from('courses').select('id,name').eq('user_id', user.id),
       ])
       const daily = {}
       const touch = (d) => (daily[d] || (daily[d] = {}))
@@ -204,6 +206,15 @@ export default function Jarvis() {
       const findings = crossDomainFindings(Object.entries(daily).map(([date, r]) => ({ date, ...r })))
       const mblock = findingsToPrompt(findings.slice(0, 5))
       if (mblock) fullCtx += '\n\nMÖNSTER (90d):\n' + mblock.replace(/^KOPPLINGAR[^\n]*\n/, '')
+
+      const { detectSignals, signalsToPrompt } = await import('../lib/signals')
+      const goalsBlob = (await supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle()).data?.goals || {}
+      const signals = detectSignals({
+        health: h.data || [], training: tr.data || [], exams: ex.data || [],
+        courses: co.data || [], studySessions: st.data || [], goals: goalsBlob, today: now,
+      })
+      const sblock = signalsToPrompt(signals)
+      if (sblock) fullCtx += '\n\n' + sblock
     } catch { /* best-effort */ }
 
     setContext(fullCtx)
