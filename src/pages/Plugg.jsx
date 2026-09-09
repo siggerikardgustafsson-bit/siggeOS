@@ -604,7 +604,12 @@ export default function PluggPage() {
             const daysLeft = course.exam_date ? differenceInDays(parseISO(course.exam_date), new Date()) : null
             const mandatoryForCourse = mandatorySessions[course.id] || []
             const attendedCount = mandatoryForCourse.filter(m => m.attended).length
-            const accentColor = course.term === 'Extrakurrikulär' ? '#a78bfa' : (daysLeft !== null && daysLeft < 14 ? '#ef4444' : daysLeft !== null && daysLeft < 30 ? '#f59e0b' : '#3b82f6')
+            const accentColor = course.term === 'Extrakurrikulär' ? '#a78bfa'
+              : daysLeft === null ? '#3b82f6'
+              : daysLeft < 0 ? '#10b981'        // exam already passed → done, not "urgent"
+              : daysLeft < 14 ? '#ef4444'
+              : daysLeft < 30 ? '#f59e0b'
+              : '#3b82f6'
             const initials = (course.name || '?').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
             const examPct = courseExams.length > 0 ? Math.round((doneExams / courseExams.length) * 100) : null
 

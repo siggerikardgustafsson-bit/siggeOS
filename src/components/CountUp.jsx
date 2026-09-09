@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
  * Renders a tabular-nums span. Use for hero metrics.
  *
  * Props:
- *  - value: target number
+ *  - value: target number (may be negative, and may change after mount as data loads)
  *  - decimals: fixed decimals (default 0)
  *  - duration: ms (default 900)
  *  - prefix / suffix: strings wrapped around the number
@@ -17,13 +17,16 @@ export default function CountUp({
   duration = 900,
   prefix = '',
   suffix = '',
-  separator = ' ',
+  separator = ' ',
   className = '',
   style,
 }) {
-  const [display, setDisplay] = useState(0)
+  const [display, setDisplay] = useState(() => Number(value) || 0)
   const ref = useRef(null)
-  const started = useRef(false)
+  const displayRef = useRef(Number(value) || 0)
+  const visibleRef = useRef(false)
+
+  useEffect(() => { displayRef.current = display }, [display])
 
   useEffect(() => {
     const el = ref.current
@@ -33,33 +36,43 @@ export default function CountUp({
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduce) { setDisplay(target); return }
 
-    const run = () => {
-      if (started.current) return
-      started.current = true
+    let raf = 0
+    const animate = () => {
+      cancelAnimationFrame(raf)
       const start = performance.now()
-      const from = 0
+      const from = displayRef.current
       const tick = (now) => {
         const t = Math.min(1, (now - start) / duration)
         const eased = 1 - Math.pow(1 - t, 3)
         setDisplay(from + (target - from) * eased)
-        if (t < 1) requestAnimationFrame(tick)
+        if (t < 1) raf = requestAnimationFrame(tick)
         else setDisplay(target)
       }
-      requestAnimationFrame(tick)
+      raf = requestAnimationFrame(tick)
     }
 
+    // Already scrolled past / into view — animate straight away, and re-animate
+    // whenever `value` changes (e.g. an async load resolves after mount).
+    if (visibleRef.current) { animate(); return () => cancelAnimationFrame(raf) }
+
     const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) { run(); io.disconnect() }
+      if (entries.some((e) => e.isIntersecting)) {
+        visibleRef.current = true
+        animate()
+        io.disconnect()
+      }
     }, { threshold: 0.3 })
     io.observe(el)
-    return () => io.disconnect()
+    return () => { io.disconnect(); cancelAnimationFrame(raf) }
   }, [value, duration])
 
   const fmt = (n) => {
-    const fixed = Number(n).toFixed(decimals)
+    const num = Number(n)
+    const sign = num < 0 ? '-' : ''
+    const fixed = Math.abs(num).toFixed(decimals)
     const [int, dec] = fixed.split('.')
     const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, separator)
-    return dec ? `${grouped}.${dec}` : grouped
+    return `${sign}${dec ? `${grouped}.${dec}` : grouped}`
   }
 
   return (

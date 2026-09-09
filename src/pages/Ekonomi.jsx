@@ -740,7 +740,9 @@ export default function EkonomiPage() {
         <>
           {/* Balance stat strip — hero balans + inline inkomst/utgifter/CSN */}
           {(() => {
-            const balCol = balance >= 0 ? '#10b981' : '#ef4444'
+            const balZero = Math.abs(balance) < 1
+            const balCol = balZero ? 'var(--muted2)' : balance >= 0 ? '#10b981' : '#ef4444'
+            const balWord = balZero ? 'i balans' : balance >= 0 ? 'överskott' : 'underskott'
             const csnLeft = Math.max(0, Math.round(csnLimit - csnUsage))
             return (
               <div className="hl-strip" style={{ marginBottom: '16px' }}>
@@ -751,7 +753,7 @@ export default function EkonomiPage() {
                       <CountUp value={Math.round(balance)} /><span className="u" style={{ color: 'var(--muted2)' }}>kr</span>
                     </span>
                     <span className="hl-shero-sub" style={{ color: balCol }}>
-                      {balance >= 0 ? 'överskott' : 'underskott'} · netto − utgifter
+                      {balWord} · netto − utgifter
                     </span>
                   </div>
                 </div>
