@@ -4,7 +4,8 @@ import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { format, subDays } from 'date-fns'
 import { Download, Loader, CheckCircle, Dumbbell, Heart, BookOpen, DollarSign, Briefcase, GraduationCap, Zap, Package, Info } from 'lucide-react'
-import * as XLSX from 'xlsx'
+// xlsx is ~290KB — load it only when the user actually exports, not on page view.
+const loadXLSX = () => import('xlsx')
 
 const EXPORTS = [
   {
@@ -134,6 +135,7 @@ export default function ExportPage() {
   async function exportSingle(exp) {
     setLoading(prev => ({ ...prev, [exp.id]: true }))
     try {
+      const XLSX = await loadXLSX()
       const wb = XLSX.utils.book_new()
 
       if (exp.tables) {
@@ -160,6 +162,7 @@ export default function ExportPage() {
   async function exportAll() {
     setLoading(prev => ({ ...prev, all: true }))
     try {
+      const XLSX = await loadXLSX()
       const wb = XLSX.utils.book_new()
       const exports = EXPORTS.filter(e => !e.isAll)
 
