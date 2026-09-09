@@ -462,6 +462,9 @@ export default function InsightsPage() {
     if (data.correlations?.length) L.push('Korrelationer: ' + data.correlations.map(c => `${c.label} r=${c.r} (${c.strength})`).join('; '))
     if (data.weekdayData?.some(d => d.pass || d.energi)) L.push('Per veckodag: ' + data.weekdayData.map(d => `${d.day} ${d.pass}p/energi ${d.energi}`).join(', '))
     if (data.streaks?.length) L.push('Nyckeltal: ' + data.streaks.map(x => `${x.label} ${x.value}`).join(', '))
+    const fb = findingsToPrompt(data.findings || [])
+    if (fb) L.push(fb)
+    if (data.signals?.length) L.push('Signaler denna vecka: ' + data.signals.map(x => `[${x.severity}] ${x.headline} — ${x.detail}`).join(' | '))
     return L.join('\n')
   }
 
