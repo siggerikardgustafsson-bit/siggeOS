@@ -140,12 +140,8 @@ export default function ProfilePage() {
       toast({ message: 'Kunde inte spara profilen — är migrationen körd?', type: 'error' })
       return
     }
-    // Bridge: keep the legacy dashboard greeting (user_settings.display_name) in
-    // sync until profile/settings identity is consolidated (future phase).
-    if (payload.display_name) {
-      await supabase.from('user_settings')
-        .upsert({ user_id: user.id, display_name: payload.display_name }, { onConflict: 'user_id' })
-    }
+    // display_name is now read from profiles everywhere (Dashboard, Settings,
+    // jarvis-chat) — no user_settings mirror to keep in sync.
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)

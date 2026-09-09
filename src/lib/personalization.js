@@ -224,8 +224,8 @@ export function buildIdentityContext(profile, settings) {
   const ctx = buildUserContext(p) || {}
 
   const displayName =
-    (typeof s.display_name === 'string' && s.display_name.trim()) ||
-    (typeof p.display_name === 'string' && p.display_name.trim()) ||
+    (typeof p.display_name === 'string' && p.display_name.trim()) ||   // canonical: profiles
+    (typeof s.display_name === 'string' && s.display_name.trim()) ||   // legacy fallback
     null
 
   const activeRoles = (ctx.lifeRoles || []).filter((r) => r.active)
@@ -302,7 +302,7 @@ export async function getUserIdentityContext(userId) {
   try {
     const [profile, settingsRes] = await Promise.all([
       getUserProfile(uid),
-      supabase.from('user_settings').select('display_name,about_me,goals').eq('user_id', uid).maybeSingle(),
+      supabase.from('user_settings').select('about_me,goals').eq('user_id', uid).maybeSingle(),
     ])
     return buildIdentityContext(profile, settingsRes?.data || null)
   } catch (e) {

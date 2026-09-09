@@ -169,9 +169,13 @@ export default function SettingsPage() {
   }, [user])
 
   async function loadProfile() {
-    const { data } = await supabase.from('user_settings').select('*').eq('user_id', user.id).maybeSingle()
+    const [{ data }, { data: prof }] = await Promise.all([
+      supabase.from('user_settings').select('*').eq('user_id', user.id).maybeSingle(),
+      supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
+    ])
+    // display_name is canonical on profiles; user_settings only mirrors it.
+    setDisplayName(prof?.display_name || data?.display_name || '')
     if (data) {
-      setDisplayName(data.display_name || '')
       setAboutMe(data.about_me || '')
       setGoals(mergeGoals(data.goals))
       setJarvisStyle(data.jarvis_style ?? 70)
@@ -189,20 +193,23 @@ export default function SettingsPage() {
     // custom_exercises added from Hälsa or Träning meanwhile (AUDIT.md P0-5).
     const { data: fresh } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle()
     const mergedGoals = { ...(fresh?.goals || {}), ...goals }
-    const { error } = await supabase.from('user_settings').upsert({
-      user_id: user.id,
-      display_name: displayName,
-      about_me: aboutMe,
-      goals: mergedGoals,
-      jarvis_style: jarvisStyle,
-      jarvis_lang: jarvisLang,
-      jarvis_personality: jarvisPersonality,
-      notif_journal: notifJournal,
-      notif_training: notifTraining,
-    }, { onConflict: 'user_id' })
+    const [settingsRes, profileRes] = await Promise.all([
+      supabase.from('user_settings').upsert({
+        user_id: user.id,
+        about_me: aboutMe,
+        goals: mergedGoals,
+        jarvis_style: jarvisStyle,
+        jarvis_lang: jarvisLang,
+        jarvis_personality: jarvisPersonality,
+        notif_journal: notifJournal,
+        notif_training: notifTraining,
+      }, { onConflict: 'user_id' }),
+      // display_name is canonical on profiles (Phase 16).
+      supabase.from('profiles').upsert({ id: user.id, display_name: displayName || null }, { onConflict: 'id' }),
+    ])
     setSaving(false)
-    if (error) {
-      console.error(error)
+    if (settingsRes.error || profileRes.error) {
+      console.error(settingsRes.error || profileRes.error)
       toast({ message: 'Kunde inte spara inställningarna', type: 'error' })
       return
     }

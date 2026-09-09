@@ -7,6 +7,7 @@ import CommandPalette from './CommandPalette'
 import InteractiveFX from './InteractiveFX'
 import Onboarding from './Onboarding'
 import InstallPrompt from './InstallPrompt'
+import ErrorBoundary from './ErrorBoundary'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -64,7 +65,11 @@ export default function AppLayout() {
         padding: '10px',
         boxSizing: 'border-box',
       }}>
-        <Outlet />
+        {/* Keyed on the route so navigating away auto-clears a page crash;
+            the sidebar / bottom nav stay alive regardless. */}
+        <ErrorBoundary key={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {/* Bottom nav — mobile only */}

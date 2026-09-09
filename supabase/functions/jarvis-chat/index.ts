@@ -579,7 +579,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
     if (toolName === 'fetch_memory_goals') {
       const limit = asLimit(input.limit, 100, 300)
       const [settingsRes, insightsRes, friendsRes] = await Promise.all([
-        supabase.from('user_settings').select('display_name,about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', userId).single(),
+        supabase.from('user_settings').select('about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', userId).maybeSingle(),
         (() => {
           let q = supabase.from('jarvis_insights').select('id,insight,category,confidence,updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit)
           if (input.search_keyword) q = q.ilike('insight', `%${input.search_keyword}%`)
@@ -934,9 +934,11 @@ serve(async (req) => {
     // other functions. Authenticated callers (the only real callers) are unaffected.
     if (!user) return unauthorized(req)
 
-    // Fetch settings, insights, friends, and optional content in parallel
-    const [settingsResult, insightsResult, friendsResult, contentResult] = await Promise.all([
-      user ? supabase.from('user_settings').select('display_name,about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', user.id).single() : Promise.resolve({ data: null }),
+    // Fetch settings, insights, friends, and optional content in parallel.
+    // display_name is canonical on `profiles` (Phase 16) — not user_settings.
+    const [settingsResult, profileResult, insightsResult, friendsResult, contentResult] = await Promise.all([
+      user ? supabase.from('user_settings').select('about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+      user ? supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
       user ? supabase.from('jarvis_insights').select('insight,category').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(20) : Promise.resolve({ data: [] }),
       user ? supabase.from('friends').select('name,relationship').eq('user_id', user.id).order('created_at', { ascending: false }).limit(15) : Promise.resolve({ data: [] }),
       (async () => {
@@ -958,7 +960,8 @@ serve(async (req) => {
       })(),
     ])
 
-    const system = overrideSystem || buildSystemPrompt(context, settingsResult.data, contentResult, insightsResult.data || [], friendsResult.data || [])
+    const mergedSettings = { ...(settingsResult.data || {}), display_name: profileResult.data?.display_name || null }
+    const system = overrideSystem || buildSystemPrompt(context, mergedSettings, contentResult, insightsResult.data || [], friendsResult.data || [])
 
     // Tiered history: recent 6 messages at 2000 chars, older 8 at 600 chars
     const allMsgs = (messages || []).filter((m: any) => m && (m.role === 'user' || m.role === 'assistant'))

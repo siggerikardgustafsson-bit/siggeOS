@@ -273,7 +273,7 @@ export default function Dashboard() {
 
       // Fetch salary_day first to build correct period — shared with Ekonomi
       // via src/lib/salaryPeriod.js so the two views never disagree (P2-5).
-      const { data: settingsQuick } = await supabase.from('user_settings').select('goals,display_name').eq('user_id',userId).maybeSingle()
+      const { data: settingsQuick } = await supabase.from('user_settings').select('goals').eq('user_id',userId).maybeSingle()
       const salaryDay = settingsQuick?.goals?.salary_day || 25
       const { start: periodStart, end: periodEnd } = getSalaryPeriod(todayDate, salaryDay)
 
@@ -322,7 +322,6 @@ export default function Dashboard() {
       const goalWeight = parseNumber(goalWeightRaw)
       const bw = latestW?.weight_kg || null
       setBodyWeight(bw)
-      if (userSettings?.display_name) setDisplayName(userSettings.display_name)
 
       // Phase 7 — profile-aware tier context. Null-safe: if the profile/columns
       // aren't there (or no profile yet), ctx is null and every Tier Engine call
@@ -333,6 +332,9 @@ export default function Dashboard() {
       const ctx = buildUserContext(profile)
       const tierProfileId = suggestTierProfile(ctx)
       setProfileRow(profile)
+      // display_name is canonical on `profiles` (Phase 16) — read it from there,
+      // not from user_settings where it isn't guaranteed to exist.
+      if (profile?.display_name) setDisplayName(profile.display_name)
 
       // Strava best efforts per activity.
       // Important: do NOT estimate 1 km / 5 km / 10 km from whole-run average pace.
