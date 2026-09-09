@@ -3534,7 +3534,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   border-bottom: 1px solid var(--border);
 }
 .mx-modal-head-main { min-width: 0; }
-.mx-modal-title { font-size: 21px; font-weight: 850; letter-spacing: -.03em; color: #fff; }
+.mx-modal-title { font-size: 21px; font-weight: 850; letter-spacing: -.03em; color: var(--text); }
 .mx-modal-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
 .mx-modal-head-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .mx-modal-close {
@@ -3702,7 +3702,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   border: 1px solid color-mix(in srgb, var(--em-c, var(--accent)) 40%, transparent);
   box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--em-c, var(--accent)) 90%, transparent), inset 0 1px 0 rgba(255,255,255,.12);
 }
-.mx-em-title { font-size: clamp(20px, 3vw, 25px); font-weight: 850; letter-spacing: -.035em; color: #fff; line-height: 1.1; }
+.mx-em-title { font-size: clamp(20px, 3vw, 25px); font-weight: 850; letter-spacing: -.035em; color: var(--text); line-height: 1.1; }
 .mx-em-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
 .mx-em-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .mx-em-pill {
@@ -3851,10 +3851,11 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   .hl-shero-num { font-size:36px; }
 }
 
-/* Light theme — the strip is a light glass panel like the cards below it,
-   not a leftover dark slab. */
-[data-theme="light"] .hl-strip {
-  background: linear-gradient(168deg, var(--surface3), var(--surface));
+/* Light theme — these panels hard-code a dark gradient; make them light
+   glass like the cards around them instead of a leftover dark slab. */
+[data-theme="light"] .hl-strip,
+[data-theme="light"] .ek-log {
+  background: linear-gradient(168deg, var(--surface3), var(--surface)) !important;
 }
 [data-theme="light"] .hl-shero-num,
 [data-theme="light"] .hl-sstat-num { color: var(--text); }
@@ -3944,7 +3945,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 /* Donut center */
 .ek-donut-wrap { position:relative; display:flex; align-items:center; justify-content:center; }
 .ek-donut-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
-.ek-donut-total { font-size:18px; font-weight:900; color:#fff; letter-spacing:-.02em; line-height:1; }
+.ek-donut-total { font-size:18px; font-weight:900; color:var(--text); letter-spacing:-.02em; line-height:1; }
 .ek-donut-lab { font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-top:4px; }
 
 /* Category rows with bars */
@@ -4018,7 +4019,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .ek-fx-edit { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); }
 .ek-fx-total { display:flex; justify-content:space-between; align-items:baseline; padding-top:12px; }
 .ek-fx-total span:first-child { font-size:13px; font-weight:700; color:var(--text); }
-.ek-fx-total-val { font-size:15px; font-weight:900; color:#fff; font-variant-numeric:tabular-nums; }
+.ek-fx-total-val { font-size:15px; font-weight:900; color:var(--text); font-variant-numeric:tabular-nums; }
 @media (prefers-reduced-motion: reduce){ .ek-fx-add, .ek-fx-icon { transition:none; } }
 
 /* Donut glow halo */
@@ -4363,7 +4364,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .ek-amount { position:relative; margin-bottom:18px; }
 .ek-amount input { width:100%; box-sizing:border-box; padding:16px 52px 16px 18px; border-radius:14px;
   background:var(--surface3, rgba(255,255,255,.04)); border:1px solid var(--border);
-  color:#fff; font-size:30px; font-weight:900; letter-spacing:-.02em; font-family:Inter, sans-serif;
+  color:var(--text); font-size:30px; font-weight:900; letter-spacing:-.02em; font-family:Inter, sans-serif;
   font-variant-numeric:tabular-nums; outline:none; transition:border-color .2s ease, box-shadow .2s ease, background .2s ease; }
 .ek-amount input::placeholder { color:var(--muted2); font-weight:800; }
 .ek-amount input:focus { border-color:var(--ek-lc, #ef4444);
