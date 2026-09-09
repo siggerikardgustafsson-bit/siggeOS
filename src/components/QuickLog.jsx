@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
@@ -410,6 +411,7 @@ const TABS = [
 export default function QuickLog() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('training')
   const [saving, setSaving] = useState(false)
@@ -555,6 +557,10 @@ export default function QuickLog() {
   }
 
   const activeColor = TABS.find(t => t.id === activeTab)?.color || 'var(--accent)'
+
+  // Jarvis has its own composer pinned to the same corner — the FAB would sit
+  // on top of the send button. Hide it there.
+  if (location.pathname === '/jarvis') return null
 
   return (
     <>

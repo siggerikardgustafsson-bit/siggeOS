@@ -1962,11 +1962,11 @@ html[data-theme="light"] {
   align-items: center !important;
   justify-content: flex-end !important;
   gap: 8px !important;
-  flex-wrap: nowrap !important;
-  flex-shrink: 0 !important;
-  max-width: 54%;
-  overflow-x: auto;
-  scrollbar-width: none;
+  flex-wrap: wrap !important;
+  flex-shrink: 1 !important;
+  min-width: 0 !important;
+  row-gap: 6px !important;
+  overflow: visible;
 }
 
 .page-header-actions::-webkit-scrollbar {
@@ -2210,6 +2210,18 @@ small {
   --maxxit-glass-shadow-hover: 0 24px 70px rgba(0,0,0,0.24), 0 1px 0 rgba(255,255,255,0.08) inset;
 }
 
+/* Light theme: the unified glass layer must be a light frost, not a grey slab.
+   (body.has-bg-image below re-darkens it so glass reads correctly over a photo.) */
+html[data-theme="light"] {
+  --maxxit-glass: rgba(255,255,255,0.72);
+  --maxxit-glass-strong: rgba(255,255,255,0.85);
+  --maxxit-glass-soft: rgba(255,255,255,0.52);
+  --maxxit-glass-border: rgba(255,255,255,0.80);
+  --maxxit-glass-highlight: rgba(255,255,255,0.92);
+  --maxxit-glass-shadow: 0 10px 34px rgba(0,0,0,0.10), 0 1px 0 rgba(255,255,255,0.85) inset;
+  --maxxit-glass-shadow-hover: 0 16px 46px rgba(0,0,0,0.14), 0 1px 0 rgba(255,255,255,1) inset;
+}
+
 body.has-bg-image {
   --surface: var(--maxxit-glass) !important;
   --surface2: var(--maxxit-glass-soft) !important;
@@ -2389,6 +2401,13 @@ aside,
   box-shadow:
     0 14px 42px rgba(0,0,0,0.14),
     0 1px 0 rgba(255,255,255,0.05) inset !important;
+}
+
+/* Light theme — header is a light frost, not a grey slab. */
+html[data-theme="light"] .page-header {
+  border-color: var(--maxxit-glass-border) !important;
+  background: linear-gradient(180deg, var(--maxxit-glass-strong), var(--maxxit-glass)) !important;
+  box-shadow: var(--maxxit-glass-shadow) !important;
 }
 
 /* Remove the visual "outer page border" feeling from overly boxed content. */
@@ -3440,6 +3459,11 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   .quicklog-fab::before { animation: none !important; }
 }
 
+/* Keep the last row of page content clear of the floating FAB (desktop). */
+@media (min-width: 769px) {
+  .sigge-main-scroll { padding-bottom: 88px !important; }
+}
+
 /* ── Premium modal entrance + refined panel ─────────────────────── */
 .mx-modal-overlay {
   animation: mxModalFade 0.3s cubic-bezier(0.22,1,0.36,1) both;
@@ -3792,6 +3816,14 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   .hl-sstats { width:100%; }
   .hl-shero-num { font-size:36px; }
 }
+
+/* Light theme — the strip is a light glass panel like the cards below it,
+   not a leftover dark slab. */
+[data-theme="light"] .hl-strip {
+  background: linear-gradient(168deg, var(--surface3), var(--surface));
+}
+[data-theme="light"] .hl-shero-num,
+[data-theme="light"] .hl-sstat-num { color: var(--text); }
 
 /* ───────────── HÄLSA — grafer + historik (premium) ───────────── */
 /* Period pills */
