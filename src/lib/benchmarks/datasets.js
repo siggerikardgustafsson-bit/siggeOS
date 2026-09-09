@@ -20,6 +20,7 @@ import {
   SLEEP_DURATION_THRESHOLDS, STEPS_THRESHOLDS, INCOME_THRESHOLDS, SAVINGS_THRESHOLDS,
 } from '../../components/dashboard/tierUtils'
 import { anchorsFromThresholds } from './schema'
+import { ECON_LIFE_STAGE } from '../econStages'
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x))
 
@@ -46,13 +47,8 @@ const runSeg = (ctx) => {
   const ageF = ctx?.age == null ? 1 : clamp(1 + Math.max(0, ctx.age - 30) * 0.006, 1, 1.5)
   return sexF * ageF
 }
-const ECON_STAGE = {
-  income:    { student: 0.35, early_career: 0.70, professional: 1.0, entrepreneur: 1.0, parent: 0.90, retired: 0.50 },
-  savings:   { student: 0.30, early_career: 0.60, professional: 1.0, entrepreneur: 1.0, parent: 0.90, retired: 1.30 },
-  net_worth: { student: 0.20, early_career: 0.50, professional: 1.0, entrepreneur: 1.1, parent: 1.00, retired: 1.50 },
-}
 const econSeg = (metric) => (ctx) => {
-  const stageF = ECON_STAGE[metric]?.[ctx?.lifeStage] ?? 1
+  const stageF = ECON_LIFE_STAGE[metric]?.[ctx?.lifeStage] ?? 1
   const ageF = (ctx?.age == null || metric === 'income') ? 1 : clamp(ctx.age / 35, 0.4, 1.4)
   return stageF * ageF
 }

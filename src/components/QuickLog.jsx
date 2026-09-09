@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
+import { BASE_EXERCISE_LIBRARY, isBodyweightName, updatePersonalRecord } from '../lib/exercises'
 import { format } from 'date-fns'
 import { Plus, X, Heart, Dumbbell, DollarSign, TrendingUp, BookOpen, Check, Loader, Trash2 } from 'lucide-react'
 
@@ -15,14 +16,10 @@ const FEELING_OPTS = [
   { v: 7, label: 'Bra' },
   { v: 9, label: 'Grym' },
 ]
-const EXERCISE_LIBRARY = {
-  'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Armhävningar'],
-  'Rygg': ['Marklyft', 'Latsdrag', 'Rodd', 'Pull-ups', 'Weighted pull-up', 'Hyperextensions'],
-  'Ben': ['Knäböj', 'Benpress', 'Utfall', 'Leg curl', 'Leg extension', 'Kalvhävningar'],
-  'Axlar': ['Militärpress', 'Sidolyft', 'Framåtlyft', 'Face pulls', 'Shrugs'],
-  'Armar': ['Bicepscurl', 'Hammercurl', 'Tryckkpress', 'Skullcrusher', 'Kabeldrag'],
-  'Core': ['Plankan', 'Situps', 'Crunches', 'Russian twist', 'Bäckenlyft'],
-}
+// Same catalogue + PR logic as Träning (src/lib/exercises.js) — no local copy.
+const EXERCISE_LIBRARY = Object.fromEntries(
+  Object.entries(BASE_EXERCISE_LIBRARY).filter(([, list]) => list.length),
+)
 
 // ── Shared UI helpers ──────────────────────────────────────────────────────
 
@@ -493,25 +490,17 @@ export default function QuickLog() {
             await supabase.from('training_exercises').insert(exerciseRows)
           }
 
-          // Update PRs
+          // Update PRs — shared logic, honours reps + bodyweight (AUDIT.md P2-2).
           for (const ex of exercises) {
-            const maxWeight = Math.max(...ex.sets.map(s => parseFloat(s.weight) || 0))
-            if (maxWeight > 0 && ex.name) {
-              const { data: existingPR } = await supabase
-                .from('personal_records')
-                .select('weight_kg')
-                .eq('user_id', user.id)
-                .eq('exercise_name', ex.name)
-                .maybeSingle()
-              if (!existingPR || maxWeight > existingPR.weight_kg) {
-                await supabase.from('personal_records').upsert({
-                  user_id: user.id,
-                  exercise_name: ex.name,
-                  weight_kg: maxWeight,
-                  date: today,
-                }, { onConflict: 'user_id,exercise_name' })
-              }
-            }
+            if (!ex.name?.trim()) continue
+            await updatePersonalRecord({
+              supabase,
+              userId: user.id,
+              exerciseName: ex.name,
+              sets: ex.sets,
+              date: today,
+              bodyweight: isBodyweightName(ex.name),
+            })
           }
         }
 

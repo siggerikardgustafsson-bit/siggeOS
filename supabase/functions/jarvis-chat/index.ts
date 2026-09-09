@@ -1,6 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { corsHeaders, getAuthedUser, unauthorized } from '../_shared/auth.ts'
 
+// Anthropic config — one place, so the stream and non-stream branches can't
+// drift apart (AUDIT.md P3-11).
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-6'
+
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
 const asLimit = (value: any, fallback = 50, max = 200) => Math.min(Math.max(Number(value || fallback), 1), max)
@@ -496,7 +501,9 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
       const from = input.date_from || today
       const to = input.date_to || daysAgoISO(-14)
       const [eventsRes, mandatoryRes, shiftsRes] = await Promise.all([
-        supabase.from('schedule_events').select('id,title,event_type,starts_at,ends_at,location').eq('user_id', userId).gte('starts_at', from).lte('starts_at', to).order('starts_at').limit(50),
+        // starts_at is timestamptz — compare against end-of-day or every event
+        // ON the last day of the window is excluded (AUDIT.md P2-13).
+        supabase.from('schedule_events').select('id,title,event_type,starts_at,ends_at,location').eq('user_id', userId).gte('starts_at', from).lte('starts_at', to + 'T23:59:59').order('starts_at').limit(50),
         supabase.from('mandatory_sessions').select('id,title,date,start_time,end_time,attended,course_hint').eq('user_id', userId).gte('date', from).lte('date', to).order('date').limit(50),
         supabase.from('pa_shifts').select('id,date,client_name,start_time,end_time,hours_worked,estimated_pay,shift_type,notes').eq('user_id', userId).gte('date', from).lte('date', to).order('date').limit(50),
       ])
@@ -934,10 +941,11 @@ serve(async (req) => {
       user ? supabase.from('friends').select('name,relationship').eq('user_id', user.id).order('created_at', { ascending: false }).limit(15) : Promise.resolve({ data: [] }),
       (async () => {
         let block = ''
-        // SECURITY: this runs on the SERVICE-ROLE client, which bypasses RLS, so the
-        // user scope MUST be applied explicitly here. Without `.eq('user_id', user.id)`
-        // a client could pass arbitrary ids and read another user's uploaded course
-        // materials / old exams. Also gated on `user` so nothing leaks when unauthenticated.
+        // SECURITY: `supabase` here is the per-request RLS client (getAuthedUser
+        // above), so RLS already scopes these reads to the caller. The explicit
+        // `.eq('user_id', user.id)` is defense-in-depth — it keeps the query
+        // correct even if an RLS policy is ever loosened. Gated on `user` so
+        // nothing runs when unauthenticated.
         if (user && materialIds?.length) {
           const { data: mats } = await supabase.from('course_materials').select('file_name,content').in('id', materialIds).eq('user_id', user.id)
           if (mats?.length) block += '\nKURSMATERIAL:\n' + mats.map((m: any) => `--- ${m.file_name} ---\n${m.content || ''}`).join('\n\n')
@@ -982,8 +990,8 @@ serve(async (req) => {
     // loop and just answers (JSON). Normal chat keeps the full tool set.
     const effectiveTools = overrideSystem ? undefined : cachedTools
 
-    const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
-    const MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-6'
+    const ANTHROPIC_KEY = ANTHROPIC_API_KEY
+    const MODEL = ANTHROPIC_MODEL
     const MEMORY_ACTIONS = ['save_insight', 'update_insight', 'delete_insight', 'save_preference', 'update_memory_context', 'update_friend']
 
     // ── STREAMING PATH (opt-in via body.stream) ──────────────────────────────
@@ -1086,12 +1094,12 @@ serve(async (req) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': Deno.env.get('ANTHROPIC_API_KEY') ?? '',
+          'x-api-key': ANTHROPIC_API_KEY,
           'anthropic-version': '2023-06-01',
           'anthropic-beta': 'pdfs-2024-09-25',
         },
         body: JSON.stringify({
-          model: Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-6',
+          model: ANTHROPIC_MODEL,
           max_tokens: 2500,
           system: cachedSystem,
           tools: effectiveTools,

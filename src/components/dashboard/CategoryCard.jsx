@@ -1,9 +1,5 @@
 import { Check } from 'lucide-react'
-
-const TIER_COLORS = {
-  0:'rgba(255,255,255,0.15)',1:'rgba(255,255,255,0.75)',2:'#4f8ef7',3:'#a78bfa',
-  4:'#fbbf24',5:'#34d399',6:'#22d3ee',7:'#f472b6',8:'#fbbf24',
-}
+import { TIER_COLORS, CAT_PATHS } from './tierUtils'
 
 const NEXT_TIER_SHORT = {
   kondition: ['—','5km < 28:00','5km < 24:00','5km < 22:00','5km < 20:00','5km < 18:30','5km < 17:00','Top 1% ✓'],
@@ -15,18 +11,6 @@ const NEXT_TIER_SHORT = {
   halsa:     ['—','Energi ≥ 5, humör ≥ 5','Energi ≥ 6','Energi ≥ 7, humör ≥ 7','Energi ≥ 8','Energi ≥ 9','Allt toppklass','Top 1% ✓'],
   valmående: ['—','Energi ≥ 5, humör ≥ 5','Energi ≥ 6','Energi ≥ 7, humör ≥ 7','Energi ≥ 8','Energi ≥ 9','Allt toppklass','Top 1% ✓'],
   fardigheter:['—','1–30 min/vecka','30–60 min/vecka','60–120 min/vecka','120–240 min/vecka','240+ min/vecka ✓','',''],
-}
-
-const CAT_PATHS = {
-  kondition:   'M13 10V3L4 14h7v7l9-11h-7z',
-  styrka:      'M6 4v16M18 4v16M3 8h4m10 0h4M3 16h4m10 0h4',
-  kropp:       'M12 3a4 4 0 100 8 4 4 0 000-8zM6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2',
-  somn:        'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z',
-  plugg:       'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
-  ekonomi:     'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-  halsa:       'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
-  valmående:   'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
-  fardigheter: 'M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3',
 }
 
 function Icon({ id, color, size = 14 }) {
@@ -74,7 +58,18 @@ export default function CategoryCard({ category, onClick, onMetricClick }) {
   const tierNum = tier?.tier || 0
   const color = TIER_COLORS[tierNum] || 'var(--accent)'
   const ringPct = pct != null ? pct : 0
-  const nextReq = hasData && tierNum > 0 && tierNum < 8 ? (NEXT_TIER_SHORT[id]?.[tierNum] || null) : null
+  // Prefer the profile-aware target the tier engine already computed
+  // (levelUp.blockers / primaryBottleneck) over the static table, which is only
+  // correct for the default profile (AUDIT.md P2-11).
+  const lu = category.levelUp
+  const luReq = lu && lu.currentTier < lu.maxTier
+    ? (lu.blockers?.[0]?.targetLabel
+        ? `${lu.blockers[0].label} → ${lu.blockers[0].targetLabel}`
+        : (lu.primaryBottleneck && !/Inget blockerar/.test(lu.primaryBottleneck) ? lu.primaryBottleneck : null))
+    : null
+  const nextReq = hasData && tierNum > 0 && tierNum < 8
+    ? (luReq || NEXT_TIER_SHORT[id]?.[tierNum] || null)
+    : null
   const nextColor = TIER_COLORS[tierNum + 1] || color
   const weakLinks = id === 'styrka' && perExercise?.length
     ? perExercise.filter(e => e.tier.tier <= tierNum)

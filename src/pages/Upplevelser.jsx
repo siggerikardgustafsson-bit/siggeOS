@@ -27,7 +27,7 @@ const COUNTRIES = [
   'USA','Kanada','Mexiko','Kuba','Costa Rica','Colombia','Peru','Argentina','Brasilien',
   'Japan','Kina','Sydkorea','Thailand','Vietnam','Indonesien','Indien','Singapore','Malaysia','Filippinerna',
   'Australien','Nya Zeeland',
-  'Sydafrika','Kenya','Etiopien','Tanzania','Marocko',
+  'Sydafrika','Kenya','Etiopien','Tanzania',
 ]
 const FLAGS = {
   'Sverige':'🇸🇪','Norge':'🇳🇴','Danmark':'🇩🇰','Finland':'🇫🇮','Island':'🇮🇸',
@@ -254,7 +254,6 @@ function CountryPicker({ selected, onChange }) {
   const [search, setSearch] = useState('')
   const triggerRef = React.useRef(null)
   const searchRef = React.useRef(null)
-  const [dropRect, setDropRect] = useState(null)
 
   const toggle = (c) => {
     if (selected.includes(c)) onChange(selected.filter(x => x !== c))
@@ -266,10 +265,6 @@ function CountryPicker({ selected, onChange }) {
     : COUNTRIES
 
   function handleOpen() {
-    if (!open && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect()
-      setDropRect(rect)
-    }
     setOpen(o => !o)
     setSearch('')
   }
@@ -293,8 +288,8 @@ function CountryPicker({ selected, onChange }) {
     <div data-country-picker="true" style={{ position: 'relative' }} ref={triggerRef}>
       <button type="button" onClick={handleOpen} style={{
         width: '100%', padding: '10px 12px', borderRadius: '8px',
-        border: '1px solid var(--border)', background: 'rgba(20,24,36,0.95)',
-        color: selected.length ? '#f1f5f9' : 'rgba(148,163,184,0.8)',
+        border: '1px solid var(--border)', background: 'var(--surface)',
+        color: selected.length ? 'var(--text)' : 'var(--muted)',
         cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif',
         fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         gap: 8,
@@ -318,12 +313,12 @@ function CountryPicker({ selected, onChange }) {
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
           marginTop: 6, borderRadius: 12, overflow: 'hidden',
-          background: '#1a2035',
-          border: '1px solid rgba(255,255,255,0.12)',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.8), 0 4px 16px rgba(0,0,0,0.6)',
+          background: 'var(--surface2)',
+          border: '1px solid var(--border)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.45), 0 4px 16px rgba(0,0,0,0.3)',
         }}>
           {/* Search */}
-          <div style={{ padding: '10px 10px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ padding: '10px 10px 6px', borderBottom: '1px solid var(--border)' }}>
             <input
               ref={searchRef}
               placeholder="Sök land..."
@@ -332,9 +327,9 @@ function CountryPicker({ selected, onChange }) {
               style={{
                 width: '100%', boxSizing: 'border-box',
                 padding: '8px 12px', borderRadius: 8,
-                background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: '#f1f5f9', fontSize: '13px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)', fontSize: '13px',
                 fontFamily: 'Inter, sans-serif', outline: 'none',
               }}
             />
@@ -344,7 +339,7 @@ function CountryPicker({ selected, onChange }) {
           {selected.length > 0 && (
             <div style={{
               padding: '8px 10px', display: 'flex', gap: 5, flexWrap: 'wrap',
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              borderBottom: '1px solid var(--border)',
               background: 'rgba(59,130,246,0.06)',
             }}>
               {selected.map(c => (
@@ -364,17 +359,17 @@ function CountryPicker({ selected, onChange }) {
           {/* List */}
           <div style={{ maxHeight: 260, overflowY: 'auto' }}>
             {filtered.length === 0
-              ? <div style={{ padding: 16, textAlign: 'center', color: 'rgba(148,163,184,0.6)', fontSize: '13px' }}>Inga resultat</div>
+              ? <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>Inga resultat</div>
               : filtered.map(c => (
                 <button key={c} onClick={() => toggle(c)} style={{
                   width: '100%', padding: '9px 14px', border: 'none',
                   cursor: 'pointer', textAlign: 'left', fontFamily: 'Inter, sans-serif',
                   fontSize: '13px', display: 'flex', alignItems: 'center', gap: 10,
-                  color: selected.includes(c) ? '#f1f5f9' : 'rgba(203,213,225,0.75)',
+                  color: selected.includes(c) ? 'var(--text)' : 'var(--muted)',
                   background: selected.includes(c) ? 'rgba(59,130,246,0.14)' : 'transparent',
                   transition: 'background 0.08s',
                 }}
-                onMouseEnter={e => { if (!selected.includes(c)) e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+                onMouseEnter={e => { if (!selected.includes(c)) e.currentTarget.style.background = 'var(--surface-hover, rgba(127,127,127,0.12))' }}
                 onMouseLeave={e => { if (!selected.includes(c)) e.currentTarget.style.background = 'transparent' }}
                 >
                   <span style={{ fontSize: 16, lineHeight: 1, flexShrink: 0 }}>{FLAGS[c] || '🌍'}</span>
@@ -387,11 +382,11 @@ function CountryPicker({ selected, onChange }) {
 
           {/* Footer */}
           <div style={{
-            borderTop: '1px solid rgba(255,255,255,0.08)', padding: '8px 12px',
+            borderTop: '1px solid var(--border)', padding: '8px 12px',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            background: 'rgba(0,0,0,0.2)',
+            background: 'var(--surface)',
           }}>
-            <span style={{ fontSize: '12px', color: 'rgba(148,163,184,0.6)' }}>
+            <span style={{ fontSize: '12px', color: 'var(--muted)' }}>
               {filtered.length} länder
             </span>
             <button onClick={() => { setOpen(false); setSearch('') }} style={{

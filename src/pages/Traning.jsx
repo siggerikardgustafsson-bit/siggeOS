@@ -11,26 +11,10 @@ import RunModal from '../components/RunModal'
 import Modal from '../components/Modal'
 import EmptyState from '../components/EmptyState'
 import { patchGoals } from '../lib/userSettings'
+import { BASE_EXERCISE_LIBRARY, BW_EXERCISES, updatePersonalRecord } from '../lib/exercises'
 
-const BASE_EXERCISE_LIBRARY = {
-  'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Armhävningar'],
-  'Rygg': ['Marklyft', 'Latsdrag', 'Rodd', 'Pull-ups', 'Weighted pull-up', 'Hyperextensions'],
-  'Ben': ['Knäböj', 'Benpress', 'Utfall', 'Leg curl', 'Leg extension', 'Kalvhävningar'],
-  'Axlar': ['Militärpress', 'Sidolyft', 'Framåtlyft', 'Face pulls', 'Shrugs'],
-  'Armar': ['Bicepscurl', 'Hammercurl', 'Tryckkpress', 'Skullcrusher', 'Kabeldrag'],
-  'Core': ['Plankan', 'Situps', 'Crunches', 'Russian twist', 'Bäckenlyft'],
-  'Egna': [],
-}
-
-// Exercises where weight_kg = added weight above BW (0 = bodyweight only)
-const BW_EXERCISES = new Set([
-  'pull-ups','pullups','pull up','pull-up','weighted pull-up',
-  'dips','dip',
-  'armhävningar','pushups','push-ups','push ups',
-  'chin-ups','chinups','chins',
-  'muscle up','muscle-up',
-  'ring dips','plankan',
-])
+// BASE_EXERCISE_LIBRARY, BW_EXERCISES and updatePersonalRecord live in
+// src/lib/exercises.js so QuickLog shares the exact same catalogue + PR logic.
 
 const RUN_PR_DISTANCES = [
   { label: '1 km',       meters: 1000 },
@@ -154,6 +138,17 @@ export default function TraningPage() {
   const [fetchingPrs, setFetchingPrs] = useState(false)
   const [csvImporting, setCsvImporting] = useState(false)
   const csvRef = useRef(null)
+
+  // Pending soft-deletes: session id -> timeout handle. Flushed on unmount so
+  // leaving the page inside the 5s undo window still commits (AUDIT.md P2-12).
+  const pendingDeletes = useRef(new Map())
+  useEffect(() => () => {
+    for (const [id, t] of pendingDeletes.current) {
+      clearTimeout(t)
+      supabase.from('training_sessions').delete().eq('id', id)
+    }
+    pendingDeletes.current.clear()
+  }, [])
 
   // Gym form
   const [exercises, setExercises] = useState([
@@ -610,6 +605,16 @@ export default function TraningPage() {
     return libraryExercises.find(e => e.slug === normalized || normalizeSlug(e.name) === normalized)
   }
 
+  // Single source of truth for "is this a bodyweight exercise" (AUDIT.md P2-4):
+  // the DB flag `is_bodyweight` wins; the hardcoded set is only a fallback for
+  // exercises not in the library yet.
+  function isBodyweight(name) {
+    if (!name) return false
+    const lib = findLibraryExerciseByName(name)
+    if (lib && typeof lib.is_bodyweight === 'boolean') return lib.is_bodyweight
+    return BW_EXERCISES.has(String(name).toLowerCase().trim())
+  }
+
   async function saveEditSession() {
     if (!editingSession) return
     const { id, date, sessionType, feeling, notes, exercises } = editingSession
@@ -634,17 +639,24 @@ export default function TraningPage() {
     // Optimistic removal
     setSessions(prev => prev.filter(s => s.id !== id))
     let undone = false
-    const tid = toast({
+    toast({
       message: 'Pass borttaget',
       duration: 5000,
       action: {
         label: 'Ångra',
-        onClick: () => { undone = true; fetchSessions() },
+        onClick: () => {
+          undone = true
+          const t = pendingDeletes.current.get(id)
+          if (t) { clearTimeout(t); pendingDeletes.current.delete(id) }
+          fetchSessions()
+        },
       },
     })
-    setTimeout(() => {
+    const handle = setTimeout(() => {
+      pendingDeletes.current.delete(id)
       if (!undone) supabase.from('training_sessions').delete().eq('id', id)
     }, 5000)
+    pendingDeletes.current.set(id, handle)
   }
 
   async function fetchSessions() {
@@ -790,74 +802,19 @@ export default function TraningPage() {
         await supabase.from('training_exercises').insert(exerciseRows)
       }
 
-      // Check and update PRs
+      // Check and update PRs — shared logic (src/lib/exercises.js), also used
+      // by QuickLog so the two paths can't disagree (AUDIT.md P2-2).
       for (const ex of exercises) {
         if (!ex.name?.trim()) continue
-        const isBWex = BW_EXERCISES.has(ex.name.toLowerCase().trim())
-        const maxReps = Math.max(...ex.sets.map(s => parseInt(s.reps) || 0))
-        const maxWeight = Math.max(...ex.sets.map(s => parseFloat(s.weight) || 0))
-
-        // Always fetch current PR from DB to avoid stale local state
-        const { data: existingRows } = await supabase
-          .from('personal_records')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('exercise_name', ex.name)
-          .limit(1)
-        const existingPR = existingRows?.[0] || null
-
-        if (isBWex && maxReps > 0) {
-          let bestSet = null
-          for (const s of ex.sets) {
-            const w = parseFloat(s.weight) || 0
-            const r = parseInt(s.reps) || 0
-            if (!r) continue
-            if (!bestSet || (r * (1 + w / 30)) > (bestSet.r * (1 + bestSet.w / 30))) {
-              bestSet = { r, w }
-            }
-          }
-          if (!bestSet) continue
-          const existingReps = existingPR?.reps || 0
-          const existingWeight = existingPR?.weight_kg || 0
-          const isNewPR = !existingPR || (bestSet.r * (1 + bestSet.w / 30)) > (existingReps * (1 + existingWeight / 30))
-          if (isNewPR) {
-            const payload = {
-              user_id: user.id,
-              exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
-              exercise_name: ex.name,
-              weight_kg: bestSet.w,
-              reps: bestSet.r,
-              date: sessionDate,
-            }
-            const { error: prError } = existingPR
-              ? await supabase.from('personal_records').update(payload).eq('user_id', user.id).eq('exercise_name', ex.name)
-              : await supabase.from('personal_records').insert(payload)
-            if (prError) console.error('PR save error (BW):', ex.name, prError)
-          }
-        } else if (!isBWex && maxWeight > 0) {
-          const bestSet = ex.sets.reduce((best, s) => {
-            const w = parseFloat(s.weight) || 0
-            const r = parseInt(s.reps) || 1
-            return (w * (1 + r / 30)) > ((parseFloat(best.weight) || 0) * (1 + (parseInt(best.reps) || 1) / 30)) ? s : best
-          }, ex.sets[0])
-          const bestWeight = parseFloat(bestSet?.weight) || 0
-          const bestReps = parseInt(bestSet?.reps) || 1
-          const isNewPR = !existingPR || bestWeight > (existingPR.weight_kg || 0)
-          if (isNewPR) {
-            const payload = {
-              user_id: user.id,
-              exercise_id: findLibraryExerciseByName(ex.name)?.id || null,
-              exercise_name: ex.name,
-              weight_kg: bestWeight,
-              reps: bestReps,
-              date: sessionDate,
-            }
-            const { error: prError } = existingPR
-              ? await supabase.from('personal_records').update(payload).eq('user_id', user.id).eq('exercise_name', ex.name)
-              : await supabase.from('personal_records').insert(payload)
-            if (prError) console.error('PR save error (strength):', ex.name, prError)
-          }
-        }
+        await updatePersonalRecord({
+          supabase,
+          userId: user.id,
+          exerciseName: ex.name,
+          exerciseId: findLibraryExerciseByName(ex.name)?.id || null,
+          sets: ex.sets,
+          date: sessionDate,
+          bodyweight: isBodyweight(ex.name),
+        })
       }
 
       await updateTrainingScore(sessionDate, gymForm.feeling)
@@ -1373,7 +1330,7 @@ export default function TraningPage() {
                       <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '4px' }}>{label}</div>
                       {pr ? (
                         <>
-                          {BW_EXERCISES.has(String(pr.exercise_name || '').toLowerCase().trim()) ? (
+                          {isBodyweight(pr.exercise_name) ? (
                             <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>
                               {pr.reps ?? '—'}<span style={{ fontSize: '11px', color: 'var(--muted)' }}> reps</span>
                               {pr.weight_kg > 0 && <span style={{ fontSize: '13px', color: 'var(--muted)' }}> +{pr.weight_kg}kg</span>}
@@ -1828,7 +1785,7 @@ export default function TraningPage() {
 
                   {/* Sets */}
                   {(() => {
-                    const isBW = BW_EXERCISES.has(ex.name.toLowerCase().trim())
+                    const isBW = isBodyweight(ex.name)
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 32px 28px', gap: '6px', fontSize: '11px', color: 'var(--muted)', padding: '0 4px' }}>
@@ -2387,13 +2344,13 @@ export default function TraningPage() {
                   )}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 24px', gap: '6px', fontSize: '11px', color: 'var(--muted)', padding: '0 2px', marginBottom: '4px' }}>
-                  <span>Set</span><span>Reps</span><span>{BW_EXERCISES.has(ex.name.toLowerCase().trim()) ? '+Kg' : 'Kg'}</span><span></span>
+                  <span>Set</span><span>Reps</span><span>{isBodyweight(ex.name) ? '+Kg' : 'Kg'}</span><span></span>
                 </div>
                 {ex.sets.map((s, si) => (
                   <div key={si} style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 24px', gap: '6px', alignItems: 'center', marginBottom: '5px' }}>
                     <span style={{ fontSize: '12px', color: 'var(--muted)', textAlign: 'center' }}>{si + 1}</span>
                     <input className="input" type="number" placeholder="Reps" value={s.reps} onChange={e => updateEditSet(exIdx, si, 'reps', e.target.value)} style={{ padding: '7px 10px', textAlign: 'center' }} />
-                    <input className="input" type="number" placeholder={BW_EXERCISES.has(ex.name.toLowerCase().trim()) ? '0=BW' : 'Kg'} value={s.weight} onChange={e => updateEditSet(exIdx, si, 'weight', e.target.value)} style={{ padding: '7px 10px', textAlign: 'center' }} />
+                    <input className="input" type="number" placeholder={isBodyweight(ex.name) ? '0=BW' : 'Kg'} value={s.weight} onChange={e => updateEditSet(exIdx, si, 'weight', e.target.value)} style={{ padding: '7px 10px', textAlign: 'center' }} />
                     {ex.sets.length > 1 ? <button onClick={() => removeEditSet(exIdx, si)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}><X size={12} /></button> : <span />}
                   </div>
                 ))}

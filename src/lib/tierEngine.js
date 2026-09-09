@@ -25,6 +25,7 @@ import {
   INCOME_THRESHOLDS, SAVINGS_THRESHOLDS,
 } from '../components/dashboard/tierUtils'
 import { benchmarkTier, benchmarksEnabled } from './benchmarks'
+import { ECON_LIFE_STAGE } from './econStages'
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x))
 
@@ -144,11 +145,6 @@ export function calculateConditioningTier(metric, value, context = null) {
 // and a professional are not held to the same bar. Base ladders are in SEK.
 export const NET_WORTH_THRESHOLDS_SEK = [10000, 50000, 150000, 400000, 1000000, 2500000, 5000000]
 const ECON_BASE = { income: INCOME_THRESHOLDS, savings: SAVINGS_THRESHOLDS, net_worth: NET_WORTH_THRESHOLDS_SEK }
-const ECON_LIFE_STAGE = {
-  income:    { student: 0.35, early_career: 0.70, professional: 1.0, entrepreneur: 1.0, parent: 0.90, retired: 0.50 },
-  savings:   { student: 0.30, early_career: 0.60, professional: 1.0, entrepreneur: 1.0, parent: 0.90, retired: 1.30 },
-  net_worth: { student: 0.20, early_career: 0.50, professional: 1.0, entrepreneur: 1.1, parent: 1.00, retired: 1.50 },
-}
 // Rough SEK-per-unit; replace with real FX / cost-of-living data later.
 export const CURRENCY_TO_SEK = { SEK: 1, EUR: 11.3, USD: 10.5, GBP: 13.5, NOK: 0.95, DKK: 1.52 }
 function econLifeStageFactor(metric, lifeStage) { return ECON_LIFE_STAGE[metric]?.[lifeStage] ?? 1 }

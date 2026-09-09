@@ -38,8 +38,7 @@ import SectionHeader from '../components/ui/SectionHeader'
 import { getJarvisUserContext } from '../lib/jarvis'
 import { getSalaryPeriod } from '../lib/salaryPeriod'
 import { computeStudiesTier, buildStudiesLevelUp } from '../lib/studies'
-
-const DEFAULT_SUPPLEMENTS = ['Kreatin', 'D-vitamin', 'Omega-3', 'Multivitamin', 'Magnesium']
+import { DEFAULT_SUPPLEMENTS } from '../lib/constants'
 
 const GRAPH_CATS = [
   { id:'somn',      label:'Sömn',      color:'#8b5cf6' },

@@ -134,7 +134,7 @@ export default function InsightsPage() {
     const since180 = format(subDays(new Date(), Math.max(period, 180)), 'yyyy-MM-dd')
 
     const [healthRes, journalRes, studyRes, trainingRes, incomeRes, expenseRes, paRes, examRes, courseRes, prRes] = await Promise.all([
-      supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy').eq('user_id', user.id).gte('date', since90).order('date'),
+      supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy,energy_level').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('journal_entries').select('date,energy,mood,sleep_hours').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('study_sessions').select('date,hours,course_id').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('training_sessions').select('date,session_type,duration_minutes').eq('user_id', user.id).gte('date', since90).order('date'),
@@ -199,8 +199,9 @@ export default function InsightsPage() {
     }
     for (const l of healthRes.data || []) {
       const r = touch(l.date)
+      const lEnergy = l.energy_level ?? l.energy // older rows have only one (B1)
       if (l.sleep_hours > 0 && r.sleep == null) r.sleep = l.sleep_hours
-      if (l.energy && r.energy == null) r.energy = l.energy
+      if (lEnergy && r.energy == null) r.energy = lEnergy
     }
     for (const s of studyRes.data || []) {
       const r = touch(s.date)

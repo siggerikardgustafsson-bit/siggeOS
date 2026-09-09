@@ -24,7 +24,7 @@ const EXPORTS = [
     description: 'Vikt, sömn, steg, energi, alkohol och nikotin per dag',
     color: '#10b981',
     table: 'health_logs',
-    select: 'date, weight_kg, sleep_hours, sleep_type, steps, energy, alcohol_units, nicotine',
+    select: 'date, weight_kg, sleep_hours, sleep_type, steps, energy, energy_level, alcohol_units, nicotine',
     orderBy: 'date',
   },
   {
@@ -110,7 +110,15 @@ export default function ExportPage() {
       query = query.gte('date', from)
     }
     const { data } = await query
-    return data || []
+    // Older health_logs rows have only one of energy / energy_level (B1);
+    // coalesce so the export never drops them. Harmless for other tables.
+    return (data || []).map(r => {
+      if (r && 'energy_level' in r) {
+        r.energy = r.energy ?? r.energy_level
+        delete r.energy_level
+      }
+      return r
+    })
   }
 
   function flattenRow(row) {

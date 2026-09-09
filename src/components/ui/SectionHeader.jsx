@@ -4,10 +4,14 @@
 //   <SectionHeader title="Tier-utveckling" />
 //   <SectionHeader kicker label="Tier-utveckling" actions={<.../>} />
 //   <SectionHeader title="Senaste pass" sub="30 dagar" actions={<button/>} />
+//   <SectionHeader icon={Icon} title="Konto" sub="E-post och lösenord" />
 //
 // `kicker` renders the uppercase micro-label style (with accent dot) instead
 // of the full title — for compact panel headers like the Dashboard graph.
-export default function SectionHeader({ title, sub, kicker = false, label, actions, style }) {
+// `icon` is an optional lucide component rendered in a leading badge — lets the
+// page-level headers (Profile, Settings) drop their local copies (AUDIT.md P2-8).
+export default function SectionHeader({ title, sub, subtitle, kicker = false, label, icon: Icon, actions, style }) {
+  const subText = sub ?? subtitle
   return (
     <div className="mx-section" style={style}>
       {kicker ? (
@@ -16,9 +20,12 @@ export default function SectionHeader({ title, sub, kicker = false, label, actio
           {label || title}
         </span>
       ) : (
-        <div className="mx-section-main">
-          {title && <div className="mx-section-title">{title}</div>}
-          {sub && <div className="mx-section-sub">{sub}</div>}
+        <div className="mx-section-main" style={Icon ? { display: 'flex', alignItems: 'center', gap: 12 } : undefined}>
+          {Icon && <span className="mx-section-badge"><Icon size={15} /></span>}
+          <div>
+            {title && <div className="mx-section-title">{title}</div>}
+            {subText && <div className="mx-section-sub">{subText}</div>}
+          </div>
         </div>
       )}
       {actions && <div className="mx-section-actions">{actions}</div>}

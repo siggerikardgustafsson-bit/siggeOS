@@ -16,3 +16,7 @@ export const TRIP_STATUS_IDS = TRIP_STATUSES.map(s => s.id)
 export const TRIP_STATUSES_UPCOMING = ['planned', 'idea']
 export const TRIP_STATUS_COLOR = Object.fromEntries(TRIP_STATUSES.map(s => [s.id, s.color]))
 export const TRIP_STATUS_RANK = { completed: 3, planned: 2, idea: 1 }
+
+// Default supplement list — shown before the user customises it. Was duplicated
+// in Dashboard.jsx and Halsa.jsx (AUDIT.md P2-9).
+export const DEFAULT_SUPPLEMENTS = ['Kreatin', 'D-vitamin', 'Omega-3', 'Multivitamin', 'Magnesium']

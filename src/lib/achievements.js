@@ -1,9 +1,7 @@
 // Pure achievement logic — derived entirely from existing data, no DB writes.
 // Each achievement: { id, title, desc, group, color, value, target, unlocked, progressPct }
 
-const TIER_COLORS = {
-  2:'#4f8ef7', 3:'#a78bfa', 4:'#fbbf24', 5:'#34d399', 6:'#22d3ee', 7:'#f472b6', 8:'#fbbf24',
-}
+import { TIER_COLORS } from '../components/dashboard/tierUtils'
 
 // Longest run of consecutive days ending today (or yesterday) in a set of ISO dates.
 export function currentStreak(dates) {
