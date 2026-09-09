@@ -8,9 +8,8 @@ import { sv } from 'date-fns/locale'
 import CountUp from '../components/CountUp'
 import EmptyState from '../components/EmptyState'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, X, Save, Loader, AlertTriangle, Map, Target, RefreshCw, Edit2, Trash2 } from 'lucide-react'
+import { Plus, X, Save, Loader, AlertTriangle, Target, RefreshCw, Edit2, Trash2 } from 'lucide-react'
 import { getSalaryPeriod } from '../lib/salaryPeriod'
-import { TRIP_STATUSES_UPCOMING } from '../lib/constants'
 
 const EXPENSE_CATEGORIES = [
   { id: 'mat',             label: 'Mat',             color: '#f97316', emoji: '' },
@@ -520,7 +519,6 @@ export default function EkonomiPage() {
   const [incomes, setIncomes] = useState([])
   const [expenses, setExpenses] = useState([])
   const [fixedCosts, setFixedCosts] = useState([])
-  const [trips, setTrips] = useState([])
   const [csnUsage, setCsnUsage] = useState(0)
   const [csnLimit, setCsnLimit] = useState(114500)
   const [saving, setSaving] = useState(false)
@@ -582,11 +580,10 @@ export default function EkonomiPage() {
       : `${now.getFullYear()}-07-01`
     const halfEnd = format(now, 'yyyy-MM-dd')
 
-    const [incomesRes, expensesRes, fixedRes, tripsRes, csnRes, settingsRes] = await Promise.all([
+    const [incomesRes, expensesRes, fixedRes, csnRes, settingsRes] = await Promise.all([
       supabase.from('income_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date', { ascending: false }),
       supabase.from('expense_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date', { ascending: false }),
       supabase.from('fixed_costs').select('*').eq('user_id', user.id).eq('active', true),
-      supabase.from('trips').select('*').eq('user_id', user.id).in('status', TRIP_STATUSES_UPCOMING).order('start_date'),
       supabase.from('income_logs').select('amount').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', halfEnd),
       supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle(),
     ])
@@ -598,7 +595,6 @@ export default function EkonomiPage() {
     setIncomes(incomesRes.data || [])
     setExpenses(expensesRes.data || [])
     setFixedCosts(fixedRes.data || [])
-    setTrips(tripsRes.data || [])
     setCsnUsage(totalCsn)
     setCsnLimit(limit)
   }
@@ -1021,56 +1017,6 @@ export default function EkonomiPage() {
                 {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={15} /> Logga inkomst</>}
               </button>
             </>
-          )}
-        </div>
-      )}
-
-      {/* TRIPS TAB */}
-      {activeTab === 'trips' && (
-        <div>
-          {trips.length === 0 ? (
-            <EmptyState icon={Map} title="Inga planerade resor"
-              text="Resor planeras och budgeteras i Upplevelser-modulen."
-              action={{ label: 'Till Resor', onClick: () => navigate('/upplevelser') }} />
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {trips.map(trip => {
-                const spent = trip.spent_sek || 0
-                const budget = trip.budget_sek || 0
-                const pct = budget > 0 ? (spent / budget) * 100 : 0
-                const daysLeft = trip.start_date ? Math.ceil((new Date(trip.start_date) - new Date()) / 86400000) : null
-                return (
-                  <div key={trip.id} className="card" onClick={() => navigate('/upplevelser')}
-                    title="Öppna resan i Upplevelser" style={{ cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                      <div>
-                        <div style={{ fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>{trip.name} <span style={{ fontSize: '12px', color: 'var(--accent)', opacity: 0.8 }}>↗</span></div>
-                        <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
-                          {trip.destination}
-                          {daysLeft !== null && daysLeft > 0 && <span style={{ color: '#10b981', marginLeft: '8px' }}>om {daysLeft} dagar</span>}
-                        </div>
-                      </div>
-                      {budget > 0 && (
-                        <div style={{ textAlign: 'right' }}>
-                          <div className="mono" style={{ fontSize: '15px', fontWeight: '600' }}>{spent.toLocaleString('sv-SE')} kr</div>
-                          <div style={{ fontSize: '11px', color: 'var(--muted)' }}>av {budget.toLocaleString('sv-SE')} kr</div>
-                        </div>
-                      )}
-                    </div>
-                    {budget > 0 && (
-                      <>
-                        <div style={{ height: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '3px', overflow: 'hidden', marginBottom: '6px' }}>
-                          <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: pct > 90 ? '#ef4444' : '#10b981', borderRadius: '3px' }} />
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
-                          {pct.toFixed(0)}% spenderat · {(budget - spent).toLocaleString('sv-SE')} kr kvar
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
           )}
         </div>
       )}
