@@ -33,3 +33,7 @@ vite.config.*.timestamp-*.mjs
 # Local DB backups (contain personal data — never commit)
 backup_pre_*.sql
 *.dump.sql
+
+# macOS Spotlight
+.metadata_never_index
+supabase/.temp/
