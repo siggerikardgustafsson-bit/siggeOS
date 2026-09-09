@@ -586,7 +586,9 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           return q
         })(),
         input.include_friends ? supabase.from('friends').select('id,name,nickname,relationship,location,notes,last_contact_date').eq('user_id', userId).order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: [], error: null }),
-        supabase.from('goals').select('id,title,category,description,metric,unit,target_value,current_value,direction,deadline,status,pinned').eq('user_id', userId).order('pinned', { ascending: false }).order('sort_order', { ascending: true }).limit(50),
+        // Resilient: the `goals` table gains columns in post-deploy 05 — until
+        // that migration runs this query 400s, and it must not fail the tool.
+        supabase.from('goals').select('id,title,category,description,metric,unit,target_value,current_value,direction,deadline,status,pinned').eq('user_id', userId).order('pinned', { ascending: false }).order('sort_order', { ascending: true }).limit(50).then((r: any) => r, () => ({ data: [], error: null })),
       ])
       const s = settingsRes.data || {}
       const goals = s.goals ? JSON.stringify(s.goals, null, 2) : '{}'
