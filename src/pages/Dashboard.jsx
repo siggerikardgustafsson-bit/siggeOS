@@ -1087,11 +1087,11 @@ export default function Dashboard() {
           <div className="page-header-sub">{todayDisplay}{bodyWeight ? ` · ${bodyWeight} kg` : ''}</div>
         </div>
         <div className="page-header-actions">
-          <button className="btn btn-ghost" onClick={() => setShowWeekly(true)} title="Veckorevy" style={{ gap: 6 }}>
-            <Sparkles size={14} /> Veckorevy
+          <button className="btn btn-ghost btn-icon" onClick={() => setShowWeekly(true)} title="Veckorevy" aria-label="Veckorevy">
+            <Sparkles size={15} />
           </button>
-          <button className="btn btn-ghost" onClick={() => setShowAchievements(true)} title="Utmärkelser" style={{ gap: 6 }}>
-            <Trophy size={14} /> Utmärkelser
+          <button className="btn btn-ghost btn-icon" onClick={() => setShowAchievements(true)} title="Utmärkelser" aria-label="Utmärkelser">
+            <Trophy size={15} />
           </button>
           <div className="dash-mode-toggle" role="tablist" aria-label="Dashboardvy">
             <button role="tab" aria-selected={viewMode === 'map'} className={viewMode === 'map' ? 'active' : ''} onClick={() => setMode('map')} title="Kartvy — constellation"><Orbit size={14} /> Karta</button>

@@ -4572,7 +4572,7 @@ select:focus-visible,
 .kpi-node:hover { transform:translateY(-2px); border-color:color-mix(in srgb, var(--nc) 55%, transparent); box-shadow:0 12px 28px -12px color-mix(in srgb, var(--nc) 60%, transparent); }
 .kpi-node-head { display:flex; align-items:center; gap:8px; }
 .kpi-node-ico { width:26px; height:26px; border-radius:8px; display:grid; place-items:center; flex-shrink:0; background:color-mix(in srgb, var(--nc) 14%, transparent); border:1px solid color-mix(in srgb, var(--nc) 28%, transparent); }
-.kpi-node-name { font-size:12px; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:0.05em; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.kpi-node-name { font-size:11px; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:0.02em; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .kpi-node-tier { font-size:16px; font-weight:950; letter-spacing:-0.02em; }
 .kpi-node-track { height:6px; border-radius:999px; background:var(--surface2); overflow:hidden; margin-top:10px; box-shadow:inset 0 1px 2px rgba(0,0,0,.3); }
 .kpi-node-fill { height:100%; border-radius:999px; box-shadow:0 0 8px -1px var(--nc); }
