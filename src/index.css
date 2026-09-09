@@ -2607,7 +2607,7 @@ body,
     grid-template-columns: 1fr !important;
   }
 
-  /* Dashboard: category cards → 2 columns on mobile */
+  /* Dashboard: category cards → 2 columns on tablet portrait */
   .dashboard-category-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
@@ -2692,6 +2692,15 @@ body,
   }
   .jarvis-input-area {
     padding-bottom: 0 !important;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Dashboard category cards: 1 column on a phone. The ring + 3 metric rows
+     need the width, otherwise every label truncates ("Mastery… 7%",
+     "Spark… 1 805 kr"). Comes after the 768px rule so it wins. */
+  .dashboard-category-grid {
+    grid-template-columns: 1fr !important;
   }
 }
 
