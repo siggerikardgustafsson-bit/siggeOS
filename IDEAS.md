@@ -109,3 +109,18 @@ av mål, signaler, dashboard-kort och Jarvis.
 metrics först?
 
 ## Sådant jag valde att INTE bygga trots att det var spår A (och varför)
+
+- **Nattjobb för `daily_scores`.** Frestande ("bakgrundsjobb som inte kräver UI"),
+  men score-logiken är ~400 rader klient-JS (`maxxScore.js` + `tierEngine.js` +
+  benchmarks). Att porta till Deno = stor risk för tyst drift mellan klient- och
+  serverberäkning — precis det du varnade för. Lade i Datamodell-sektionen ovan
+  som ett beslut istället. Fixade `total_score`-buggen i läsläge (WORKLOG #8).
+- **Mål-auto-progress.** Kräver ett beslut per metric-typ om vilken källa som
+  gäller och om manuellt värde vinner. Byggde datalagret (F1) men lät kopplingen
+  vara. Se "Auto-progress för mål" ovan.
+- **Ekonomi-korrelationer i `correlate.js`.** Ekonomidata är månadsvis, inte
+  daglig — passar inte samma dag/vecka-motor. Skulle behöva en egen liten modell
+  (månad mot månad). Kändes som scope-glidning mitt i natten; hellre att du säger
+  till om du vill ha det.
+- **Fler achievements / gamification.** Visionen nämner "njuta av resan", men
+  vilka achievements som känns bra är en smakfråga. Rörde inte `achievements.js`.
