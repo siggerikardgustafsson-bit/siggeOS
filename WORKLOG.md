@@ -30,6 +30,60 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 **Kräver av dig:** inget / `supabase functions deploy x` / `supabase db push`
 -->
 
+### 4. Jarvis ser kopplingarna (MÖNSTER-block i kontext)
+**Spår:** A
+**Varför:** Jarvis kontext var "lean snapshot" + MAXX INTELLIGENS. Den såg
+dagens siffror men inga mönster över tid — kunde inte säga "dina tunga PA-veckor
+äter träningen" för den datan fanns inte i prompten.
+**Vad:** `refreshContext` kör samma `crossDomainFindings()` som Insights över 90d
+och lägger ett `MÖNSTER (90d)`-block i kontexten. Best-effort, cachas med resten,
+degraderar tyst. Systemprompten (post 3) instruerar Jarvis att bygga vidare på det.
+**Filer:** `src/pages/Jarvis.jsx` (`refreshContext`)
+**Verifiering:** preview — de 5 queries lyckas, merge ger samma fynd som Insights.
+`npm run build` OK.
+**Commit:** `<se git log>` "Jarvis: feed the cross-domain findings into context"
+**Kräver av dig:** inget (frontend). Jarvis-svarens kvalitet syns först när
+Anthropic-krediten fyllts på — 500 i preview beror på tom kreditbalans, inte kod.
+
+### 3. Vassare coaching-metod i Jarvis systemprompt
+**Spår:** A
+**Varför:** Prompten sa "datadriven, konkret, aldrig generisk" men inte HUR man
+coachar. Visionen: Jarvis ska kännas som en coach som känner MIG.
+**Vad:** Nytt COACHNING-block i `buildSystemPrompt`: utgå från hens egna siffror
+och citera dem; koppla domäner (sömn↔tier, ekonomi↔resmål, plugg↔träning↔sömn,
+jobb↔energi) och leta ledande indikatorer; använd MAXX INTELLIGENS som objektivt
+tier-system; skilj fakta/hypotes/gissning; avsluta coaching med EN mätbar nästa
+åtgärd; lyft framsteg, inte bara brister.
+**Filer:** `supabase/functions/jarvis-chat/index.ts` (`buildSystemPrompt`, ren
+sträng-edit i template-literalen)
+**Verifiering:** esbuild-transform av .ts OK (deno ej installerad → ingen
+`deno check`; ändringen är ren text i en befintlig template-literal).
+**Commit:** `<se git log>` "Jarvis: explicit coaching method in the system prompt"
+**Kräver av dig:** **[DEPLOY]** `supabase functions deploy jarvis-chat`
+
+### 2. Deterministiska tvärdomän-kopplingar i Insights
+**Spår:** A
+**Varför:** Visionen: "hittar insikter jag inte själv skulle sett i datan". Den
+befintliga korrelationsmatrisen är daglig och rå (Pearson-r). Den fångar inte
+lag (gårdagens sömn → dagens ork), inte veckoaggregat (PA-timmar/vecka →
+träningsvolym/vecka), och presenterar r-värden, inte slutsatser.
+**Vad:** Ny ren modul `src/lib/correlate.js` — `crossDomainFindings(days)` räknar
+ut nio möjliga fynd på svenska ur användarens egen historik, helt utan AI:
+sömn<6h → nästa dags energi (lag-1); veckosömn → veckans träningsvolym;
+veckans PA-timmar → träningsvolym; veckans pluggtimmar → sömn; träningsdag →
+humör; dag efter nattpass → energi; träningsfrekvens → viktförändring/vecka;
+bästa träningsveckorna → deras sömn; steg → sömn. Varje fynd bär `n`, döljs om
+gruppgapet är för litet, och flaggas "PRELIMINÄR" vid tunt underlag.
+`findingsToPrompt()` matar in samma fynd i AI-observations-prompten så modellen
+bygger vidare på riktigt material.
+**Filer:** `src/lib/correlate.js` (ny), `src/pages/Insights.jsx` (daglig merge
+utökad med steg/vikt/PA, ny "Kopplingar"-panel överst i Samband & mönster)
+**Verifiering:** preview — 90d: "Aktiva dagar ger dig bättre sömn" (steg↔sömn,
+n=20). 1år: "Tunga PA-veckor äter din träning" (0.8 vs 1.8 pass/v, 17 veckor) +
+PRELIMINÄR nattpass↔energi (n=4). `npm run build` OK.
+**Commit:** `<se git log>` "Insights: deterministic cross-domain findings"
+**Kräver av dig:** inget
+
 ### 1. Mobillayout för månadskalendern
 **Spår:** A (uttryckligen efterfrågat)
 **Varför:** 7-kolumnersgriden renderade text-chips i ~50px-celler → varje event
