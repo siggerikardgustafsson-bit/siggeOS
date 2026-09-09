@@ -127,7 +127,7 @@ export default function Jarvis() {
 
     // Lean context — only immediate snapshot. Everything else fetched via tools on demand.
     const [scoreRes, examsRes, projectsRes, tripsRes, todayHealthRes, goalsList] = await Promise.all([
-      supabase.from('daily_scores').select('total_score,score_training,score_health,score_study,score_economy,score_social,peak_mode').eq('user_id', user.id).eq('date', today).maybeSingle(),
+      supabase.from('daily_scores').select('total_score,score_training,score_health,score_study,score_economy,score_social,score_journal,peak_mode').eq('user_id', user.id).eq('date', today).maybeSingle(),
       supabase.from('course_exams').select('exam_date,name').eq('user_id', user.id).gte('exam_date', today).order('exam_date', { ascending: true }).limit(3),
       supabase.from('projects').select('id,name,type,client').eq('user_id', user.id).order('created_at'),
       supabase.from('trips').select('id,title,countries,start_date,end_date,status,budget_sek').eq('user_id', user.id).in('status', TRIP_STATUSES_UPCOMING).order('start_date', { ascending: true }).limit(5),
@@ -136,6 +136,13 @@ export default function Jarvis() {
     ])
 
     const score = scoreRes.data
+    // daily_scores.total_score is never populated (only per-domain scores are
+    // written, from Journal/Träning). Derive it live from the domains that have
+    // a value today so the context line isn't a permanent "total:0".
+    const scoreDomains = score
+      ? [score.score_training, score.score_health, score.score_study, score.score_economy, score.score_social, score.score_journal].filter((v) => v != null && v > 0)
+      : []
+    const scoreTotal = scoreDomains.length ? Math.round(scoreDomains.reduce((s, v) => s + v, 0) / scoreDomains.length) : null
     const todayHealth = todayHealthRes.data
     const energy = todayHealth?.energy_level ?? todayHealth?.energy
 
@@ -163,7 +170,7 @@ export default function Jarvis() {
       : 'Inga aktiva mål satta'
 
     const ctx = [
-      score ? 'SCORE IDAG: total:' + score.total_score + ' tr:' + score.score_training + ' hä:' + score.score_health + ' pl:' + score.score_study + ' ek:' + score.score_economy + ' soc:' + score.score_social + (score.peak_mode ? ' PEAK' : '') : 'SCORE: saknas idag',
+      score ? 'SCORE IDAG (0-100, dagsaktivitet):' + (scoreTotal != null ? ' snitt:' + scoreTotal : '') + ' tr:' + (score.score_training || 0) + ' hä:' + (score.score_health || 0) + ' pl:' + (score.score_study || 0) + ' ek:' + (score.score_economy || 0) + ' soc:' + (score.score_social || 0) + (score.peak_mode ? ' PEAK' : '') : 'SCORE: saknas idag',
       'HÄLSA IDAG: ' + healthLine,
       'AKTIVA MÅL:\n' + goalsBlock,
       'NÄSTA TENTOR: ' + upcomingExams,

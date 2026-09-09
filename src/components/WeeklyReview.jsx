@@ -8,6 +8,13 @@ import { X, Moon, Battery, Smile, Dumbbell, GraduationCap, Gauge, ArrowUp, Arrow
 const avg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null
 const r1 = (n) => n == null ? null : Math.round(n * 10) / 10
 
+// daily_scores.total_score is never populated — derive a day score from the
+// domain columns that have a value that day.
+const dayScore = (s) => {
+  const d = [s.score_training, s.score_health, s.score_study, s.score_economy, s.score_social, s.score_journal].filter((v) => v != null && v > 0)
+  return d.length ? d.reduce((a, b) => a + b, 0) / d.length : null
+}
+
 function Delta({ now, prev, invert = false, unit = '' }) {
   if (now == null || prev == null) return null
   const diff = r1(now - prev)
@@ -54,7 +61,7 @@ export default function WeeklyReview({ userId, onClose }) {
         supabase.from('health_logs').select('date,sleep_hours,energy,energy_level,mood,weight_kg,steps').eq('user_id', userId).gte('date', prevStart).lte('date', todayStr),
         supabase.from('training_sessions').select('date,session_type,distance_km,duration_minutes').eq('user_id', userId).gte('date', prevStart).lte('date', todayStr),
         supabase.from('study_sessions').select('date,hours').eq('user_id', userId).gte('date', prevStart).lte('date', todayStr),
-        supabase.from('daily_scores').select('date,total_score').eq('user_id', userId).gte('date', prevStart).lte('date', todayStr),
+        supabase.from('daily_scores').select('date,total_score,score_training,score_health,score_study,score_economy,score_social,score_journal').eq('user_id', userId).gte('date', prevStart).lte('date', todayStr),
       ])
 
       if (!alive) return
@@ -80,7 +87,7 @@ export default function WeeklyReview({ userId, onClose }) {
         mood: { now: r1(avg(hThis.map(h => h.mood).filter(Boolean))), prev: r1(avg(hPrev.map(h => h.mood).filter(Boolean))) },
         training: { now: tThis.length, prev: tPrev.length },
         study: { now: studyThis, prev: r1(sPrev.reduce((s, r) => s + Number(r.hours || 0), 0)) },
-        score: { now: r1(avg(scThis.map(s => s.total_score).filter(v => v != null))), prev: r1(avg(scPrev.map(s => s.total_score).filter(v => v != null))) },
+        score: { now: r1(avg(scThis.map(dayScore).filter(v => v != null))), prev: r1(avg(scPrev.map(dayScore).filter(v => v != null))) },
         highlights: [
           bestSleep && `Bästa sömnnatten: ${r1(bestSleep)}h`,
           tThis.length ? `${tThis.length} pass loggade${distThis ? ` · ${distThis} km` : ''}` : 'Inga pass loggade denna vecka',
