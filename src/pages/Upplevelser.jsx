@@ -743,7 +743,7 @@ Returnera ENBART JSON utan backticks:
       {/* ===== RESOR ===== */}
       {activeTab === 'resor' && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
+          <div className="mx-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
             {[
               { label: 'Genomförda', value: completedTrips.length, color: '#10b981' },
               { label: 'Länder', value: allCountries.length, color: '#3b82f6' },

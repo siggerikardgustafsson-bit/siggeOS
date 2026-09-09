@@ -254,7 +254,7 @@ export default function KalenderPage() {
       </div>
 
       {/* Month stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
+      <div className="mx-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
         {[
           { label: 'Träningspass', value: trainCount, color: '#3b82f6' },
           { label: 'PA-pass', value: paCount, color: '#f97316' },

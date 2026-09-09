@@ -38,15 +38,15 @@ export default function BottomNav() {
           WebkitBackdropFilter: 'blur(10px)',
         }} onClick={() => setShowMore(false)}>
           <div style={{
-            position: 'absolute', bottom: 'calc(60px + env(safe-area-inset-bottom))',
+            position: 'absolute', bottom: 'calc(64px + env(safe-area-inset-bottom))',
             left: '8px', right: '8px',
-            background: 'var(--surface)',
-            backdropFilter: 'blur(32px)',
-            WebkitBackdropFilter: 'blur(32px)',
-            border: '1px solid var(--glass-border)',
+            background: 'var(--mx-nav-bg)',
+            backdropFilter: 'blur(32px) saturate(1.4)',
+            WebkitBackdropFilter: 'blur(32px) saturate(1.4)',
+            border: '1px solid var(--mx-nav-border)',
             borderRadius: '20px',
             padding: '16px',
-            boxShadow: 'var(--glass-shadow)',
+            boxShadow: '0 -8px 40px rgba(0,0,0,0.45)',
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div style={{ fontSize: '11px', fontWeight: '600', color: 'var(--muted)', letterSpacing: '0.08em' }}>ALLA SIDOR</div>
@@ -75,14 +75,14 @@ export default function BottomNav() {
 
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: 'var(--surface)',
-        backdropFilter: 'blur(32px)',
-        WebkitBackdropFilter: 'blur(32px)',
-        borderTop: '1px solid var(--glass-border)',
+        background: 'var(--mx-nav-bg)',
+        backdropFilter: 'blur(28px) saturate(1.4)',
+        WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+        borderTop: '1px solid var(--mx-nav-border)',
         display: 'flex',
         paddingBottom: 'env(safe-area-inset-bottom)',
         zIndex: 100,
-        boxShadow: '0 -4px 24px rgba(0,0,0,0.25)',
+        boxShadow: '0 -6px 28px rgba(0,0,0,0.35)',
       }}>
         {primaryNav.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} end={to === '/'} style={({ isActive }) => ({

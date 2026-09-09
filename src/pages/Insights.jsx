@@ -545,7 +545,7 @@ export default function InsightsPage() {
         </div>
       )}
 
-      <div className="insights-stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '28px' }}>
+      <div className="insights-stat-grid mx-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '28px' }}>
         <StatCard label="Vikt nu" value={latestWeight ? `${latestWeight}kg` : '—'} sub={weightDelta ? `${weightDelta > 0 ? '+' : ''}${weightDelta}kg senaste 90d` : null} color={COLORS.blue} trend={weightDelta < 0 ? 'down' : weightDelta > 0 ? 'up' : 'flat'} />
         <StatCard label="Sömn (snitt)" value={avgSleep ? `${avgSleep}h` : '—'} sub="senaste 90 dagarna" color={COLORS.purple} />
         <StatCard label="Studier denna vecka" value={`${totalStudyThisWeek}h`} color={COLORS.amber} />
@@ -555,7 +555,7 @@ export default function InsightsPage() {
 
       {/* ===== STREAKS / REKORD ===== */}
       {data.streaks.length > 0 && (
-        <div className="insights-stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '28px' }}>
+        <div className="insights-stat-grid mx-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '28px' }}>
           {data.streaks.map((s, i) => {
             const Ic = s.icon === 'flame' ? Flame : s.icon === 'award' ? Award : Activity
             return (
