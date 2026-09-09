@@ -6,6 +6,19 @@ const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toIS
 const asLimit = (value: any, fallback = 50, max = 200) => Math.min(Math.max(Number(value || fallback), 1), max)
 const clean = (value: any) => value == null || value === '' ? null : value
 
+// Hard cap on a single tool result before it goes onto the message tree.
+// Tool result strings are re-sent on every subsequent agent-loop iteration, so
+// an unbounded fetch_journal/fetch_health payload makes cost grow ~quadratically
+// across the loop (prompt-caching only covers tools+system). See AUDIT.md P1-4.
+const TOOL_RESULT_CAP = 20000
+const capToolResult = (value: any): string => {
+  const s = typeof value === 'string' ? value : String(value ?? '')
+  if (s.length <= TOOL_RESULT_CAP) return s
+  const kept = s.slice(0, TOOL_RESULT_CAP)
+  const omittedLines = (s.slice(TOOL_RESULT_CAP).match(/\n/g) || []).length
+  return `${kept}\n…(trunkerat, ${omittedLines} rader utelämnade — be om ett smalare datumintervall eller lägre limit)`
+}
+
 // training_sessions.session_type uses the canonical English vocabulary
 // 'run' | 'gym' | 'walk' | 'other' (written by the app UI and strava-sync).
 // Jarvis converses in Swedish, so tool calls can arrive with Swedish names;
@@ -951,6 +964,7 @@ serve(async (req) => {
     let currentMessages = [...formattedMessages]
     let finalText = ''
     let savedMemory = false
+    let executedAction = false
     const calledTools = new Set<string>()
 
     // Prompt caching: the static TOOLS array and the per-request system prompt are
@@ -982,6 +996,7 @@ serve(async (req) => {
           const send = (obj: any) => { try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)) } catch (_) { /* closed */ } }
           const streamMessages: any[] = [...formattedMessages]
           let savedMemory = false
+          let executedAction = false
           const called = new Set<string>()
           try {
             for (let it = 0; it < 8; it++) {
@@ -1043,8 +1058,11 @@ serve(async (req) => {
                   if (key && called.has(key)) return { type: 'tool_result', tool_use_id: block.id, content: '(redan hämtat denna session, se tidigare svar)' }
                   if (key) called.add(key)
                   const result = user ? await executeTool(block.name, block.input || {}, supabase, user.id) : 'Ingen användare inloggad.'
-                  if (block.name === 'execute_action' && MEMORY_ACTIONS.includes(block.input?.action)) savedMemory = true
-                  return { type: 'tool_result', tool_use_id: block.id, content: result }
+                  if (block.name === 'execute_action') {
+                    executedAction = true
+                    if (MEMORY_ACTIONS.includes(block.input?.action)) savedMemory = true
+                  }
+                  return { type: 'tool_result', tool_use_id: block.id, content: capToolResult(result) }
                 }))
                 streamMessages.push({ role: 'user', content: toolResults })
                 send({ type: 'tool', names: toolBlocks.map((b: any) => b.name) })
@@ -1052,7 +1070,7 @@ serve(async (req) => {
               }
               break
             }
-            send({ type: 'done', savedMemory })
+            send({ type: 'done', savedMemory, executedAction })
           } catch (err) {
             send({ type: 'error', error: err instanceof Error ? err.message : String(err) })
           } finally {
@@ -1100,8 +1118,11 @@ serve(async (req) => {
           }
           if (dedupeKey) calledTools.add(dedupeKey)
           const result = user ? await executeTool(block.name, block.input || {}, supabase, user.id) : 'Ingen användare inloggad.'
-          if (block.name === 'execute_action' && ['save_insight','update_insight','delete_insight','save_preference','update_memory_context','update_friend'].includes(block.input?.action)) savedMemory = true
-          return { type: 'tool_result', tool_use_id: block.id, content: result }
+          if (block.name === 'execute_action') {
+            executedAction = true
+            if (['save_insight','update_insight','delete_insight','save_preference','update_memory_context','update_friend'].includes(block.input?.action)) savedMemory = true
+          }
+          return { type: 'tool_result', tool_use_id: block.id, content: capToolResult(result) }
         }))
         currentMessages.push({ role: 'user', content: toolResults })
         continue
@@ -1117,7 +1138,7 @@ serve(async (req) => {
       .replace(/<jarvis_actions>[\s\S]*?<\/jarvis_actions>/gi, '')
       .trim()
 
-    return new Response(JSON.stringify({ content: cleaned || 'Inget svar.', actions: [], savedMemory }), {
+    return new Response(JSON.stringify({ content: cleaned || 'Inget svar.', actions: [], savedMemory, executedAction }), {
       headers: { ...cors, 'Content-Type': 'application/json' },
     })
   } catch (err) {

@@ -54,6 +54,36 @@ const SESSION_TYPES = [
   { id: 'other', label: 'Annat', icon: Flame, color: '#ec4899' },
 ]
 
+// Quote-aware CSV parser: one pass over the whole text, so a quoted field can
+// hold commas AND newlines. Handles "" as an escaped quote. Returns string[][]
+// (rows of fields), trailing blank line dropped. See AUDIT.md P1-3.
+function parseCSV(text) {
+  const rows = []
+  let row = []
+  let field = ''
+  let inQuotes = false
+  const src = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') { field += '"'; i++ }
+        else inQuotes = false
+      } else field += ch
+    } else if (ch === '"') {
+      inQuotes = true
+    } else if (ch === ',') {
+      row.push(field); field = ''
+    } else if (ch === '\n') {
+      row.push(field); rows.push(row); row = []; field = ''
+    } else {
+      field += ch
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row) }
+  return rows.filter(r => r.length > 1 || (r.length === 1 && r[0].trim() !== ''))
+}
+
 function formatPace(secondsPerKm) {
   if (!secondsPerKm) return '—'
   const min = Math.floor(secondsPerKm / 60)
@@ -465,102 +495,102 @@ export default function TraningPage() {
     const file = e.target.files[0]
     if (!file) return
     setCsvImporting(true)
-    const text = await file.text()
+    try {
+      const text = await file.text()
 
-    // Robust CSV parser handling quoted fields with commas/newlines
-    function parseCSVLine(line) {
-      const result = []
-      let current = ''
-      let inQuotes = false
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i]
-        if (ch === '"') {
-          inQuotes = !inQuotes
-        } else if (ch === ',' && !inQuotes) {
-          result.push(current)
-          current = ''
-        } else {
-          current += ch
-        }
+      // Quote-aware tokenizer over the WHOLE file — a quoted field may contain
+      // commas AND newlines (Strava's "Activity Description"), so we can't split
+      // on \n first the way the old parser did (AUDIT.md P1-3).
+      const rows = parseCSV(text)
+      if (rows.length < 2) {
+        toast({ message: 'CSV-filen verkar tom eller saknar rader.', type: 'error' })
+        setCsvImporting(false)
+        return
       }
-      result.push(current)
-      return result
-    }
 
-    const lines = text.split('\n').filter(l => l.trim())
-    const headers = parseCSVLine(lines[0])
+      const headers = rows[0]
+      const idx = {}
+      headers.forEach((h, i) => { const k = h.trim(); if (!(k in idx)) idx[k] = i })
+      if (idx['Activity Date'] == null || idx['Activity Type'] == null) {
+        toast({ message: 'Fel filformat — hittar inte kolumnerna "Activity Date"/"Activity Type".', type: 'error' })
+        setCsvImporting(false)
+        return
+      }
 
-    // Find column indices — for duplicates, take FIRST occurrence
-    const idx = {}
-    headers.forEach((h, i) => { if (!(h in idx)) idx[h] = i })
+      const typeMap = {
+        'Run': 'run', 'Trail Run': 'run', 'Virtual Run': 'run',
+        'Ride': 'other', 'Virtual Ride': 'other', 'EBikeRide': 'other',
+        'Swim': 'other', 'Walk': 'walk', 'Hike': 'walk',
+        'Weight Training': 'gym', 'Workout': 'gym', 'CrossFit': 'gym',
+      }
 
-    const typeMap = {
-      'Run': 'run', 'Trail Run': 'run', 'Virtual Run': 'run',
-      'Ride': 'other', 'Virtual Ride': 'other', 'EBikeRide': 'other',
-      'Swim': 'other', 'Walk': 'walk', 'Hike': 'walk',
-      'Weight Training': 'gym', 'Workout': 'gym', 'CrossFit': 'gym',
-    }
+      // Parse + validate EVERYTHING before touching the database.
+      const records = []
+      let skipped = 0
+      for (let i = 1; i < rows.length; i++) {
+        const vals = rows[i]
+        const dateStr = vals[idx['Activity Date']]?.trim() || ''
+        const activityType = vals[idx['Activity Type']]?.trim() || ''
+        if (!dateStr || !activityType) { skipped++; continue }
 
-    // Clear previous bad strava imports
-    await supabase.from('training_sessions')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('source', 'strava')
-
-    let imported = 0
-    let skipped = 0
-
-    for (let i = 1; i < lines.length; i++) {
-      const vals = parseCSVLine(lines[i])
-      if (vals.length < 7) continue
-
-      // Use explicit column indices to avoid duplicate-column confusion
-      const stravaId    = vals[idx['Activity ID']]?.trim() || null
-      const dateStr     = vals[idx['Activity Date']]?.trim() || ''
-      const name        = vals[idx['Activity Name']]?.trim() || ''
-      const activityType = vals[idx['Activity Type']]?.trim() || ''
-      const movingTimeSec = parseInt(vals[idx['Moving Time']] || '0')
-      const distanceKm  = parseFloat(vals[idx['Distance']] || '0') || null  // col 6 = km
-      const elevationM  = parseFloat(vals[idx['Elevation Gain']] || '0') || null
-      const avgHr       = parseFloat(vals[idx['Average Heart Rate']] || '0') || null
-
-      if (!dateStr || !activityType) continue
-
-      const sessionType = typeMap[activityType] || 'other'
-
-      let date
-      try {
         const parsed = new Date(dateStr)
         if (isNaN(parsed.getTime())) { skipped++; continue }
-        date = parsed.toISOString().slice(0, 10)
-      } catch { skipped++; continue }
+        const date = parsed.toISOString().slice(0, 10)
 
-      const durationMin = movingTimeSec > 0 ? Math.round(movingTimeSec / 60) : null
-      const pacePerKm = distanceKm && movingTimeSec ? Math.round(movingTimeSec / distanceKm) : null
+        const movingTimeSec = parseInt(vals[idx['Moving Time']] || '0')
+        const distanceKm = parseFloat(vals[idx['Distance']] || '0') || null
+        const elevationM = parseFloat(vals[idx['Elevation Gain']] || '0') || null
+        const avgHr = parseFloat(vals[idx['Average Heart Rate']] || '0') || null
+        const name = vals[idx['Activity Name']]?.trim() || ''
 
-      const notes = [
-        name,
-        elevationM ? `${Math.round(elevationM)}m↑` : '',
-        avgHr ? `${Math.round(avgHr)}bpm` : ''
-      ].filter(Boolean).join(' · ')
+        records.push({
+          user_id: user.id,
+          date,
+          session_type: typeMap[activityType] || 'other',
+          duration_minutes: movingTimeSec > 0 ? Math.round(movingTimeSec / 60) : null,
+          distance_km: distanceKm,
+          pace_per_km: distanceKm && movingTimeSec ? Math.round(movingTimeSec / distanceKm) : null,
+          notes: [name, elevationM ? `${Math.round(elevationM)}m↑` : '', avgHr ? `${Math.round(avgHr)}bpm` : '']
+            .filter(Boolean).join(' · '),
+          source: 'strava',
+          strava_id: vals[idx['Activity ID']]?.trim() || null,
+        })
+      }
 
-      const { error } = await supabase.from('training_sessions').insert({
-        user_id: user.id,
-        date,
-        session_type: sessionType,
-        duration_minutes: durationMin,
-        distance_km: distanceKm,
-        pace_per_km: pacePerKm,
-        notes,
-        source: 'strava',
-        strava_id: stravaId,
-      })
-      if (!error) imported++
-      else skipped++
+      if (!records.length) {
+        toast({ message: `Inga giltiga rader hittades (${skipped} hoppades över).`, type: 'error' })
+        setCsvImporting(false)
+        return
+      }
+
+      // Only NOW — with a validated set in hand — is it safe to replace history.
+      if (!window.confirm(`Detta ersätter all Strava-importerad träningshistorik med ${records.length} pass från filen. Fortsätt?`)) {
+        setCsvImporting(false)
+        return
+      }
+
+      const { error: delErr } = await supabase.from('training_sessions')
+        .delete().eq('user_id', user.id).eq('source', 'strava')
+      if (delErr) {
+        toast({ message: 'Kunde inte rensa gammal historik — inget importerat.', type: 'error' })
+        setCsvImporting(false)
+        return
+      }
+
+      let imported = 0
+      for (let i = 0; i < records.length; i += 500) {
+        const chunk = records.slice(i, i + 500)
+        const { error } = await supabase.from('training_sessions').insert(chunk)
+        if (error) { console.warn('CSV chunk insert failed:', error.message); skipped += chunk.length }
+        else imported += chunk.length
+      }
+
+      setStravaResult({ synced: imported, skipped, total: rows.length - 1 })
+      if (imported > 0) { await fetchSessions(); await fetchRunPRs() }
+    } catch (err) {
+      console.error('CSV import failed:', err)
+      toast({ message: 'CSV-importen misslyckades.', type: 'error' })
     }
-
-    setStravaResult({ synced: imported, skipped, total: lines.length - 1 })
-    if (imported > 0) { await fetchSessions(); await fetchRunPRs() }
     setCsvImporting(false)
     e.target.value = ''
   }

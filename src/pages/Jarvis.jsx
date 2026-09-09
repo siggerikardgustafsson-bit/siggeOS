@@ -88,7 +88,7 @@ export default function Jarvis() {
   useEffect(() => {
     if (!user) return
     loadHistory()
-    refreshContext()
+    refreshContext(true) // rebuild on entry — catches writes made on other pages (P1-6)
     loadInsights()
   }, [user])
 
@@ -121,7 +121,6 @@ export default function Jarvis() {
     }
     const now = new Date()
     const today = format(now, 'yyyy-MM-dd')
-    const datetime = format(now, "EEEE d MMMM yyyy, HH:mm", { locale: sv })
 
     // Lean context — only immediate snapshot. Everything else fetched via tools on demand.
     const [scoreRes, examsRes, projectsRes, tripsRes, todayHealthRes] = await Promise.all([
@@ -153,8 +152,9 @@ export default function Jarvis() {
       ? [todayHealth.weight_kg && 'vikt ' + todayHealth.weight_kg + 'kg', todayHealth.sleep_hours && 'sömn ' + todayHealth.sleep_hours + 'h', energy && 'energi ' + energy + '/10', todayHealth.mood && 'humör ' + todayHealth.mood + '/10', todayHealth.steps && 'steg ' + todayHealth.steps].filter(Boolean).join(' | ')
       : 'ej loggat idag'
 
+    // NB: no 'TID:' line here — it's prepended fresh at send time so a cached
+    // context never carries a stale timestamp (AUDIT.md P1-6).
     const ctx = [
-      'TID: ' + datetime,
       score ? 'SCORE IDAG: total:' + score.total_score + ' tr:' + score.score_training + ' hä:' + score.score_health + ' pl:' + score.score_study + ' ek:' + score.score_economy + ' soc:' + score.score_social + (score.peak_mode ? ' PEAK' : '') : 'SCORE: saknas idag',
       'HÄLSA IDAG: ' + healthLine,
       'NÄSTA TENTOR: ' + upcomingExams,
@@ -227,7 +227,12 @@ export default function Jarvis() {
     setLoading(true)
     setInput('')
 
-    const freshCtx = await refreshContext()
+    const baseCtx = await refreshContext()
+    // Prepend a per-request timestamp so a 5-min-cached context is never off by
+    // up to 5 minutes (AUDIT.md P1-6).
+    const freshCtx = baseCtx
+      ? 'TID: ' + format(new Date(), "EEEE d MMMM yyyy, HH:mm", { locale: sv }) + '\n' + baseCtx
+      : baseCtx
     const current = (baseMessages || messages).filter(m => !m.isSeparator && !m.isHistoryMarker && !m.isError && !m.streaming)
     const newMessages = [...current, userMsg]
     if (visible) setMessages(prev => [...prev, userMsg])
@@ -273,7 +278,7 @@ export default function Jarvis() {
           })
           const reader = resp.body.getReader()
           const decoder = new TextDecoder()
-          let buffer = '', acc = '', savedMemory = false, streamErr = null, done = false
+          let buffer = '', acc = '', savedMemory = false, executedAction = false, streamErr = null, done = false
           while (!done) {
             const { done: rDone, value } = await reader.read()
             if (rDone) break
@@ -285,13 +290,16 @@ export default function Jarvis() {
               if (!dataLine) continue
               let ev; try { ev = JSON.parse(dataLine.slice(5).trim()) } catch { continue }
               if (ev.type === 'text') { acc += ev.text; updateStreaming(acc) }
-              else if (ev.type === 'done') { savedMemory = ev.savedMemory; done = true; break }
+              else if (ev.type === 'done') { savedMemory = ev.savedMemory; executedAction = ev.executedAction; done = true; break }
               else if (ev.type === 'error') { streamErr = ev.error || 'Streamingfel'; done = true; break }
             }
           }
           if (streamErr && !acc) throw new Error(streamErr)
           const clean = await saveAssistant(acc)
           replaceStreaming({ role: 'assistant', content: clean })
+          // Jarvis just wrote data (memory or a log) — force the next context
+          // build so a follow-up question sees it (AUDIT.md P1-6).
+          if (savedMemory || executedAction) contextCacheTimeRef.current = 0
           if (savedMemory) loadInsights()
         } else {
           // JSON response (function without streaming, or non-SSE)
@@ -300,6 +308,7 @@ export default function Jarvis() {
           const clean = await saveAssistant(data.content)
           setMessages(prev => [...prev, { role: 'assistant', content: clean }])
           startReveal(clean)
+          if (data.savedMemory || data.executedAction) contextCacheTimeRef.current = 0
           if (data.savedMemory) loadInsights()
         }
       } catch (primaryErr) {
@@ -312,6 +321,7 @@ export default function Jarvis() {
           const clean = await saveAssistant(data?.content)
           setMessages(prev => [...prev, { role: 'assistant', content: clean }])
           startReveal(clean)
+          if (data?.savedMemory || data?.executedAction) contextCacheTimeRef.current = 0
           if (data?.savedMemory) loadInsights()
         } catch {
           // Surface the primary error — it carries the real server message

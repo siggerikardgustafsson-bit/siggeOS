@@ -282,26 +282,69 @@ export default function HalsaPage() {
     if (!file) return
     setImporting(true)
     setImportResult(null)
-    const text = await file.text()
-    const xml = new DOMParser().parseFromString(text, 'text/xml')
-    const records = xml.querySelectorAll('Record')
-    const weightMap = {}, stepsMap = {}
-    records.forEach(r => {
-      const type = r.getAttribute('type'), dateStr = r.getAttribute('startDate')?.slice(0,10), value = parseFloat(r.getAttribute('value'))
-      if (!dateStr || isNaN(value)) return
-      if (type === 'HKQuantityTypeIdentifierBodyMass') { const kg = r.getAttribute('unit') === 'lb' ? value * 0.453592 : value; if (!weightMap[dateStr] || kg < weightMap[dateStr]) weightMap[dateStr] = Math.round(kg*10)/10 }
-      if (type === 'HKQuantityTypeIdentifierStepCount') stepsMap[dateStr] = (stepsMap[dateStr]||0) + Math.round(value)
-    })
-    const dates = new Set([...Object.keys(weightMap), ...Object.keys(stepsMap)])
-    let count = 0
-    for (const date of dates) {
-      const update = {}
-      if (weightMap[date]) update.weight_kg = weightMap[date]
-      if (stepsMap[date]) update.steps = stepsMap[date]
-      if (Object.keys(update).length > 0) { await supabase.from('health_logs').upsert({ user_id: user.id, date, ...update, source: 'apple_health' }, { onConflict: 'user_id,date' }); count++ }
+    try {
+      // Apple Health export.xml is routinely 200MB–1GB. Stream it and match
+      // <Record …> tags with a regex over a sliding buffer instead of loading
+      // the whole string + a DOM tree into memory (AUDIT.md P1-7).
+      const weightMap = {}, stepsMap = {}
+      const attr = (s, name) => s.match(new RegExp(`${name}="([^"]*)"`))?.[1]
+      const consume = (tag) => {
+        const type = attr(tag, 'type')
+        if (type !== 'HKQuantityTypeIdentifierBodyMass' && type !== 'HKQuantityTypeIdentifierStepCount') return
+        const dateStr = attr(tag, 'startDate')?.slice(0, 10)
+        const value = parseFloat(attr(tag, 'value'))
+        if (!dateStr || isNaN(value)) return
+        if (type === 'HKQuantityTypeIdentifierBodyMass') {
+          const kg = attr(tag, 'unit') === 'lb' ? value * 0.453592 : value
+          if (!weightMap[dateStr] || kg < weightMap[dateStr]) weightMap[dateStr] = Math.round(kg * 10) / 10
+        } else {
+          stepsMap[dateStr] = (stepsMap[dateStr] || 0) + Math.round(value)
+        }
+      }
+
+      const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader()
+      let buffer = ''
+      const RECORD_RE = /<Record\s[^>]*?>/g
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += value
+        let m, lastEnd = 0
+        RECORD_RE.lastIndex = 0
+        while ((m = RECORD_RE.exec(buffer))) { consume(m[0]); lastEnd = RECORD_RE.lastIndex }
+        // Keep only the possibly-incomplete tail so the buffer can't grow with
+        // the file. A partial "<Record" can straddle a chunk boundary.
+        const tailStart = buffer.lastIndexOf('<Record')
+        if (tailStart > lastEnd) buffer = buffer.slice(tailStart)
+        else if (lastEnd > 0) buffer = buffer.slice(lastEnd)
+        else buffer = buffer.slice(-16) // no records yet (DTD header) — keep a boundary sliver
+      }
+      { let m; RECORD_RE.lastIndex = 0; while ((m = RECORD_RE.exec(buffer))) consume(m[0]) }
+
+      const dates = new Set([...Object.keys(weightMap), ...Object.keys(stepsMap)])
+      const rows = []
+      for (const date of dates) {
+        const row = { user_id: user.id, date, source: 'apple_health' }
+        if (weightMap[date]) row.weight_kg = weightMap[date]
+        if (stepsMap[date]) row.steps = stepsMap[date]
+        if (row.weight_kg != null || row.steps != null) rows.push(row)
+      }
+
+      let saved = 0
+      for (let i = 0; i < rows.length; i += 500) {
+        const chunk = rows.slice(i, i + 500)
+        const { error } = await supabase.from('health_logs').upsert(chunk, { onConflict: 'user_id,date' })
+        if (error) { console.warn('Apple Health chunk failed:', error.message) }
+        else saved += chunk.length
+      }
+
+      await fetchLogs()
+      setImportResult({ weights: Object.keys(weightMap).length, steps: Object.keys(stepsMap).length, saved })
+      if (!saved && rows.length) toast({ message: 'Importen kunde inte sparas.', type: 'error' })
+    } catch (err) {
+      console.error('Apple Health import failed:', err)
+      toast({ message: 'Kunde inte läsa Apple Health-filen.', type: 'error' })
     }
-    await fetchLogs()
-    setImportResult({ weights: Object.keys(weightMap).length, steps: Object.keys(stepsMap).length })
     setImporting(false)
     e.target.value = ''
   }

@@ -5,7 +5,7 @@ import { corsHeaders, unauthorized, getAuthedUser, serviceClient } from '../_sha
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') ?? ''
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') ?? ''
 
-async function refreshAccessToken(refreshToken: string): Promise<string | null> {
+async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; expiresIn: number } | null> {
   const resp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -16,8 +16,13 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
       grant_type: 'refresh_token',
     }),
   })
-  const data = await resp.json()
-  return data.access_token || null
+  const data = await resp.json().catch(() => null)
+  if (!resp.ok || !data?.access_token) {
+    console.warn('Google token refresh failed:', resp.status)
+    return null
+  }
+  // Use the real lifetime instead of assuming 1h (AUDIT.md P1-8).
+  return { accessToken: data.access_token, expiresIn: Number(data.expires_in) || 3600 }
 }
 
 async function fetchCalendarEvents(accessToken: string, monthsBack = 2): Promise<any[]> {
@@ -144,14 +149,16 @@ serve(async (req) => {
 
       let accessToken = tokenRow.access_token
       if (!accessToken || new Date(tokenRow.expires_at) < new Date()) {
-        console.log('Refreshing access token...')
-        accessToken = await refreshAccessToken(tokenRow.refresh_token)
-        console.log('New access token received:', !!accessToken)
-        if (!accessToken) throw new Error('Could not refresh token')
-
+        const refreshed = await refreshAccessToken(tokenRow.refresh_token)
+        if (!refreshed) {
+          return new Response(JSON.stringify({ error: 'reauthorize', message: 'Google Calendar behöver kopplas om.' }), {
+            status: 401, headers: { ...cors, 'Content-Type': 'application/json' }
+          })
+        }
+        accessToken = refreshed.accessToken
         await supabase.from('google_tokens').update({
           access_token: accessToken,
-          expires_at: new Date(Date.now() + 3600000).toISOString(),
+          expires_at: new Date(Date.now() + refreshed.expiresIn * 1000).toISOString(),
           updated_at: new Date().toISOString(),
         }).eq('user_id', user.id)
       }
@@ -214,9 +221,14 @@ serve(async (req) => {
 
       let accessToken = tokenRow.access_token
       if (!accessToken || new Date(tokenRow.expires_at) < new Date()) {
-        accessToken = await refreshAccessToken(tokenRow.refresh_token)
-        if (!accessToken) throw new Error('Could not refresh token')
-        await supabase.from('google_tokens').update({ access_token: accessToken, expires_at: new Date(Date.now() + 3600000).toISOString() }).eq('user_id', user.id)
+        const refreshed = await refreshAccessToken(tokenRow.refresh_token)
+        if (!refreshed) {
+          return new Response(JSON.stringify({ error: 'reauthorize', message: 'Google Calendar behöver kopplas om.' }), {
+            status: 401, headers: { ...cors, 'Content-Type': 'application/json' }
+          })
+        }
+        accessToken = refreshed.accessToken
+        await supabase.from('google_tokens').update({ access_token: accessToken, expires_at: new Date(Date.now() + refreshed.expiresIn * 1000).toISOString() }).eq('user_id', user.id)
       }
 
       // Fetch all events from all calendars (12 months back, 12 forward)
