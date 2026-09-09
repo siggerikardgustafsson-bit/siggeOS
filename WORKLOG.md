@@ -30,6 +30,28 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 **Kräver av dig:** inget / `supabase functions deploy x` / `supabase db push`
 -->
 
+### 7. Deterministiska veckosignaler (Insights + Jarvis)
+**Spår:** A
+**Varför:** Insights-underrubriken säger "Mönster, risker och signaler" men det
+fanns inga signaler — bara AI-observationer (som 500:ar utan kredit).
+**Vad:** Ny `src/lib/signals.js` — `detectSignals()` räknar ut veckans risker/
+möjligheter helt utan AI: sömnunderskott/stark vecka (7d), träningsuppehåll mot
+egen median-kadens/stark vecka, tenta-beredskap (tenta ≤21d + <3h loggad plugg
+på kursen senaste 14d), lucka i hälsologgen, nikotin-slip vecka mot vecka, vikt
+som står still mot ett satt mål + passerad deadline. Positiva signaler ingår.
+Renderas som kort-stack överst i Insights (funkar även när AI-endpointen är nere)
+och läggs som `SIGNALER`-block i Jarvis-kontexten; prompten säger åt Jarvis att
+ta upp de viktigaste oombedd i brief/veckosvar.
+**Filer:** `src/lib/signals.js` (ny), `src/pages/Insights.jsx` (fetch utökad med
+nicotine + goals + exam_date; ny Signaler-sektion), `src/pages/Jarvis.jsx`
+(SIGNALER-block), `supabase/functions/jarvis-chat/index.ts` (prompt-rad)
+**Verifiering:** preview — visar "Hälsologgen har en lucka" (6d) och "Viktmålet:
+deadline passerad, vikten står still" (71.7 vs 67kg, deadline 2026-07-20,
++0kg/3v). Båda korrekta mot verklig data. `npm run build` OK.
+**Commit:** `<se git log>` "Insights + Jarvis: deterministic weekly signals"
+**Kräver av dig:** frontend-delen inget. Prompt-raden → `supabase functions
+deploy jarvis-chat` (samma deploy som post 3).
+
 ### 6. F3 — Apple Health via iOS Shortcuts: ingest-endpoint (backend)
 **Spår:** A (backend). Setup-UI → IDEAS.md.
 **Varför:** `export.xml`-importen (200MB–1GB) kraschar fliken (audit P1-7). En
