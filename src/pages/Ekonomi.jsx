@@ -792,7 +792,7 @@ export default function EkonomiPage() {
           </div>
 
           {/* Donut + categories */}
-          <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', marginBottom: '16px' }}>
+          <div className="ek-donut-row" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '16px', marginBottom: '16px' }}>
             <div className="ek-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
               <div className="ek-donut-wrap">
                 <DonutChart data={expensesByCategory} size={150} />

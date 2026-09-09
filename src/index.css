@@ -2702,6 +2702,10 @@ body,
   .dashboard-category-grid {
     grid-template-columns: 1fr !important;
   }
+  /* Ekonomi donut + category list: stack instead of a cramped 200px | 1fr. */
+  .ek-donut-row {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* ============================================================

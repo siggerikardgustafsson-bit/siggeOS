@@ -1197,11 +1197,11 @@ export default function TraningPage() {
           <input ref={csvRef} type="file" accept=".csv" onChange={handleCsvImport} style={{ display: 'none' }} />
           {stravaConnected ? (
             <>
-            <button onClick={syncStrava} disabled={stravaSyncing} className="btn btn-ghost" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)' }}>
-              {stravaSyncing ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Synkar...</> : <><RefreshCw size={13} /> Strava</>}
+            <button onClick={syncStrava} disabled={stravaSyncing} className="btn btn-ghost btn-icon" title="Synka från Strava" aria-label="Synka från Strava" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)' }}>
+              {stravaSyncing ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={14} />}
             </button>
-            <button onClick={fetchStravaPrs} disabled={fetchingPrs} className="btn btn-ghost" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)', fontSize: '11px' }}>
-              {fetchingPrs ? <><Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> Synkar PBn...</> : '🏅 Synka PBn'}
+            <button onClick={fetchStravaPrs} disabled={fetchingPrs} className="btn btn-ghost btn-icon" title="Synka personliga rekord från Strava" aria-label="Synka personliga rekord" style={{ color: '#fc4c02', borderColor: 'rgba(252,76,2,0.20)', background: 'rgba(252,76,2,0.06)' }}>
+              {fetchingPrs ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Trophy size={14} />}
             </button>
             </>
           ) : (
@@ -1209,14 +1209,14 @@ export default function TraningPage() {
               <Link size={13} /> Koppla Strava
             </button>
           )}
-          <button onClick={() => csvRef.current?.click()} disabled={csvImporting} className="btn btn-ghost">
-            {csvImporting ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Importerar...</> : <><Upload size={13} /> Importera</>}
+          <button onClick={() => csvRef.current?.click()} disabled={csvImporting} className="btn btn-ghost btn-icon" title="Importera CSV" aria-label="Importera CSV">
+            {csvImporting ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={14} />}
           </button>
-          <button onClick={() => setView(view === 'library' ? 'overview' : 'library')} className="btn btn-ghost">
-            <Library size={14} /> {view === 'library' ? 'Översikt' : 'Övningar'}
+          <button onClick={() => setView(view === 'library' ? 'overview' : 'library')} className={`btn btn-icon ${view === 'library' ? 'btn-primary' : 'btn-ghost'}`} title={view === 'library' ? 'Tillbaka till översikt' : 'Övningsbibliotek'} aria-label="Övningsbibliotek">
+            <Library size={15} />
           </button>
-          <button onClick={() => setView(view === 'calendar' ? 'overview' : 'calendar')} className="btn btn-ghost">
-            <Calendar size={14} /> {view === 'calendar' ? 'Översikt' : 'Kalender'}
+          <button onClick={() => setView(view === 'calendar' ? 'overview' : 'calendar')} className={`btn btn-icon ${view === 'calendar' ? 'btn-primary' : 'btn-ghost'}`} title={view === 'calendar' ? 'Tillbaka till översikt' : 'Kalendervy'} aria-label="Kalendervy">
+            <Calendar size={15} />
           </button>
           <button onClick={() => setView(view === 'log' ? 'overview' : 'log')} className="btn btn-primary">
             {view === 'log' ? <><X size={15} /> Avbryt</> : <><Plus size={15} /> Logga pass</>}
