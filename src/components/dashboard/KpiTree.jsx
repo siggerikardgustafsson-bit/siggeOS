@@ -34,6 +34,7 @@ export default function KpiTree({ categories = [], maxxProfile, overallTier, onS
         <div className="kpi-root-glow" style={{ background:`radial-gradient(circle, ${rootColor}33, transparent 70%)` }} />
         <div className="kpi-root-kick">Maxx Score</div>
         <div className="kpi-root-tier" style={{ color:rootColor, textShadow:`0 2px 26px ${rootColor}80` }}>T{rootTier || '—'}</div>
+        {maxxProfile?.tier?.label && <div className="kpi-root-label" style={{ color: rootColor }}>{maxxProfile.tier.label}</div>}
         {maxxProfile?.levelUp && <div className="kpi-root-sub">{maxxProfile.levelUp.progressPct}% → T{maxxProfile.levelUp.nextTier}</div>}
         <span className="kpi-root-hint">Klicka för full detalj</span>
       </button>
@@ -46,7 +47,7 @@ export default function KpiTree({ categories = [], maxxProfile, overallTier, onS
           const nextC = TIER_COLORS[c.levelUp?.nextTier] || color
           const leaves = (c.metrics || []).slice(0, 3)
           return (
-            <div className="kpi-branch" key={c.id} style={{ animationDelay: (i * 0.05) + 's' }}>
+            <div className="kpi-branch" key={c.id} style={{ animationDelay: (i * 0.05) + 's', '--bc': c.hasData && t ? color : undefined }}>
               <button className="kpi-node" onClick={() => onSelect?.(c)} style={{ '--nc': color }}>
                 <div className="kpi-node-head">
                   <span className="kpi-node-ico"><CatIcon id={c.id} color={color} /></span>

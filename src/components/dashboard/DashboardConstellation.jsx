@@ -325,7 +325,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   return (
     <div ref={wrapRef} className="cmap" style={{ position:'relative', width:'100%', minHeight: isExpanded ? '82vh' : 680, padding:'44px 0', transition:'min-height .5s cubic-bezier(.22,1,.36,1)' }}>
       <style>{`
-        .cmap-edge { stroke-dasharray: 5 7; animation: cmapFlow 1.4s linear infinite; }
+        .cmap-edge { stroke-dasharray: 5 7; animation: cmapFlow 2.6s linear infinite; }
         @keyframes cmapFlow { to { stroke-dashoffset: -24; } }
         @keyframes cmapFloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
         .cnode { position:absolute; transform:translate(-50%,-50%); }
@@ -343,12 +343,12 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         /* Living surface — the rim breathes between perfect circle and gentle ovoid, like a bubble under surface tension */
         @keyframes cbubbleMorph {
           0%,100% { border-radius:50% 50% 50% 50% / 50% 50% 50% 50% }
-          30%     { border-radius:53% 47% 49% 51% / 52% 48% 52% 48% }
-          60%     { border-radius:47% 53% 52% 48% / 48% 53% 47% 52% }
+          30%     { border-radius:51.5% 48.5% 49.5% 50.5% / 51% 49% 51% 49% }
+          60%     { border-radius:48.5% 51.5% 51% 49% / 49% 51.5% 48.5% 51% }
         }
         /* Iridescent soap-film that slowly rotates around the rim */
         .cdisc::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
-          mix-blend-mode:screen; opacity:.55;
+          mix-blend-mode:screen; opacity:.34;
           -webkit-mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
           mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
           background:conic-gradient(from 200deg, rgba(120,180,255,.5), rgba(190,130,255,.42), rgba(120,255,225,.4), rgba(255,210,130,.42), rgba(255,140,190,.4), rgba(120,180,255,.5));
@@ -378,7 +378,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           transition:transform .22s cubic-bezier(.34,1.4,.5,1), box-shadow .22s ease;
           animation:cbubbleMorph 9s ease-in-out infinite; }
         .csat-disc::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
-          mix-blend-mode:screen; opacity:.6;
+          mix-blend-mode:screen; opacity:.4;
           -webkit-mask:radial-gradient(farthest-side, transparent 54%, #000 80%, transparent 100%);
           mask:radial-gradient(farthest-side, transparent 54%, #000 80%, transparent 100%);
           background:conic-gradient(from 200deg, rgba(120,180,255,.5), rgba(190,130,255,.42), rgba(120,255,225,.4), rgba(255,210,130,.42), rgba(255,140,190,.4), rgba(120,180,255,.5));
@@ -387,10 +387,13 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           transform:rotate(-20deg); background:radial-gradient(closest-side, rgba(255,255,255,.95), rgba(255,255,255,.15) 48%, rgba(255,255,255,0) 76%);
           pointer-events:none; animation:cglint 8s ease-in-out infinite; }
         .csat:hover .csat-disc { transform:translateZ(0) scale(1.15); animation-play-state:paused; }
-        .csat-l { font-size:9.5px; font-weight:800; color:var(--muted2); max-width:96px; text-align:center; line-height:1.15;
-          text-transform:uppercase; letter-spacing:.04em; transform:translateZ(0); }
+        .csat-l { font-size:10.5px; font-weight:800; color:var(--muted2); max-width:104px; text-align:center; line-height:1.2;
+          text-transform:uppercase; letter-spacing:.04em; transform:translateZ(0);
+          text-shadow:0 1px 3px rgba(0,0,0,.7), 0 0 10px rgba(0,0,0,.5); }
         @keyframes csatIn { from { opacity:0; transform:translate(-50%,-50%) scale(.3) } to { opacity:1; transform:translate(-50%,-50%) scale(1) } }
-        .clabel { font-size:11px; font-weight:800; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-top:9px; text-align:center; transition:opacity .3s; }
+        .clabel { font-size:12px; font-weight:800; color:var(--muted2); letter-spacing:0.07em; text-transform:uppercase; margin-top:10px; text-align:center; transition:opacity .3s;
+          text-shadow:0 1px 3px rgba(0,0,0,.7), 0 0 12px rgba(0,0,0,.45); }
+        [data-theme="light"] .clabel, [data-theme="light"] .csat-l { text-shadow:0 1px 3px rgba(255,255,255,.8), 0 0 12px rgba(255,255,255,.6); }
         .cmetric-in { display:flex; justify-content:space-between; gap:10px; width:100%; font-size:11.5px; padding:3px 0; }
         .cbig-act {
           appearance:none; cursor:pointer; padding:11px 18px; border-radius:12px; font-size:13px; font-weight:800;
@@ -416,9 +419,9 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           transform:translate(-50%,-50%); will-change:transform; animation:cmapSpin 90s linear infinite; }
         .catmos-rings-2 { animation:cmapSpin 130s linear infinite reverse; opacity:.6; }
         @keyframes cmapSpin { to { transform:translate(-50%,-50%) rotate(360deg) } }
-        .catmos-rings circle { fill:none; stroke:rgba(255,255,255,.055); stroke-width:1; vector-effect:non-scaling-stroke; }
-        .catmos-rings .dash { stroke:rgba(255,255,255,.07); stroke-dasharray:2 6; }
-        .catmos-tick { fill:rgba(255,255,255,.18); }
+        .catmos-rings circle { fill:none; stroke:rgba(255,255,255,.04); stroke-width:1; vector-effect:non-scaling-stroke; }
+        .catmos-rings .dash { stroke:rgba(255,255,255,.05); stroke-dasharray:2 6; }
+        .catmos-tick { fill:rgba(255,255,255,.12); }
         /* Corner info bubbles — collapse to a glassy disc, expand to a panel */
         /* One shared background for both states so growing the bubble into a
            panel is a single continuous transform — nothing snaps or cross-cuts.
@@ -441,7 +444,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
             0 0 0 1px color-mix(in srgb, var(--cbc, #4f8ef7) 26%, transparent); }
         /* Soap-film iridescence + drifting glint — only on the COLLAPSED bubble */
         .ccorner-shell.closed.cbub::before { content:''; position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:1;
-          mix-blend-mode:screen; opacity:.5;
+          mix-blend-mode:screen; opacity:.34;
           -webkit-mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
           mask:radial-gradient(farthest-side, transparent 58%, #000 82%, transparent 100%);
           background:conic-gradient(from 200deg, rgba(120,180,255,.5), rgba(190,130,255,.42), rgba(120,255,225,.4), rgba(255,210,130,.42), rgba(255,140,190,.4), rgba(120,180,255,.5));
@@ -454,16 +457,21 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           align-items:center; justify-content:center; gap:3px; text-align:center; pointer-events:none;
           transition:opacity .22s ease; }
         .ccorner-ico { display:flex; }
-        .ccorner-lab { font-size:12px; font-weight:900; color:#fff; letter-spacing:-.01em; }
+        .ccorner-lab { font-size:12px; font-weight:900; color:#fff; letter-spacing:.02em; text-transform:uppercase;
+          text-shadow:0 1px 3px rgba(0,0,0,.6); }
         .ccorner-sub { font-size:17px; font-weight:950; line-height:1; letter-spacing:-.03em; text-shadow:0 0 14px currentColor; }
-        .ccorner-hint { font-size:8px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); opacity:.7; margin-top:2px; }
+        .ccorner-hint { font-size:9px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--muted2); opacity:.75; margin-top:2px; }
         /* Body is anchored top-left and sized to the OPEN panel; while the shell
            is small it's simply clipped, then fades in as the panel finishes
            growing — and fades back out smoothly on close. */
         .ccorner-body { position:absolute; left:0; top:0; z-index:4; overflow-y:auto;
           padding:2px; scrollbar-width:none; transition:opacity .34s ease .2s; }
         .ccorner-body::-webkit-scrollbar { display:none; }
-        @media (prefers-reduced-motion: reduce) { .cmap-edge,.cfloat,.catmos-rings,.catmos-glow { animation:none } }
+        @media (prefers-reduced-motion: reduce) {
+          .cmap-edge,.cfloat,.catmos-rings,.catmos-glow,.cdisc,.csat-disc,.ccorner-shell.closed,.ccore-glow { animation:none }
+          .cdisc::before,.cdisc::after,.csat-disc::before,.csat-disc::after,
+          .ccorner-shell.closed.cbub::before,.ccorner-shell.closed.cbub::after { animation:none }
+        }
       `}</style>
 
       {/* Ambient command-center depth — orbit rings + breathing core halo */}

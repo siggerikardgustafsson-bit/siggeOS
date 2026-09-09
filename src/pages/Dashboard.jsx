@@ -33,6 +33,8 @@ import {
   buildPersonalizationSummary, calculateTierConfidence, isCategoryFallback, DASH_CATEGORY_MAP,
 } from '../lib/profileCompleteness'
 import ProfileQualityCard from '../components/ProfileQualityCard'
+import StatusChip from '../components/ui/StatusChip'
+import SectionHeader from '../components/ui/SectionHeader'
 import { getJarvisUserContext } from '../lib/jarvis'
 import { computeStudiesTier, buildStudiesLevelUp } from '../lib/studies'
 
@@ -1000,43 +1002,29 @@ export default function Dashboard() {
 
   // Tier-statistik panel — rendered inside the bottom-right corner bubble on hover.
   const graphPanel = (
-    <div style={{ padding:'16px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
-        <span style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'11px', fontWeight:700, color:'var(--muted2)', textTransform:'uppercase', letterSpacing:'0.12em' }}>
-          <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', boxShadow:'0 0 8px var(--accent-glow)' }} />
-          Tier-utveckling
-        </span>
-        <div style={{ display:'flex', gap:'2px', padding:'2px', borderRadius:'10px', background:'rgba(255,255,255,0.04)', border:'1px solid var(--border)' }}>
-          {['7d','30d','90d','1år'].map(p=>(
-            <button key={p} onClick={()=>setGraphPeriod(p)} style={{
-              padding:'4px 10px', fontSize:'10px', borderRadius:'8px',
-              background:graphPeriod===p?'linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 78%, #060914))':'transparent',
-              border:'1px solid '+(graphPeriod===p?'var(--accent-border)':'transparent'),
-              color:graphPeriod===p?'#fff':'var(--muted)',
-              boxShadow:graphPeriod===p?'0 4px 12px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.25)':'none',
-              cursor:'pointer', fontWeight:graphPeriod===p?700:500, transition:'all 0.2s cubic-bezier(0.22,1,0.36,1)',
-            }}>{p}</button>
-          ))}
-        </div>
-      </div>
-      <div style={{ display:'flex', gap:'5px', flexWrap:'wrap', marginBottom:'12px' }}>
-        {GRAPH_CATS.map(c=>{
-          const active=activeGraphCats.includes(c.id)
-          return (
-            <button key={c.id} onClick={()=>setActiveGraphCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])} style={{
-              display:'flex', alignItems:'center', gap:'5px',
-              padding:'3px 10px', fontSize:'10px', borderRadius:'20px',
-              background:active?c.color+'1f':'transparent',
-              border:'1px solid '+(active?c.color+'55':'var(--border)'),
-              color:active?c.color:'var(--muted)',
-              boxShadow:active?`0 2px 10px -2px ${c.color}55`:'none',
-              cursor:'pointer', transition:'all 0.2s cubic-bezier(0.22,1,0.36,1)', fontWeight:active?700:500,
-            }}>
-              <div style={{ width:5,height:5,borderRadius:'50%',background:active?c.color:'var(--border)', boxShadow:active?`0 0 6px ${c.color}`:'none' }} />
-              {c.label}
-            </button>
-          )
-        })}
+    <div style={{ padding:'var(--sp-4)' }}>
+      <SectionHeader
+        kicker
+        label="Tier-utveckling"
+        actions={
+          <div className="mx-seg">
+            {['7d','30d','90d','1år'].map(p=>(
+              <button key={p} className={graphPeriod===p?'active':''} onClick={()=>setGraphPeriod(p)}>{p}</button>
+            ))}
+          </div>
+        }
+      />
+      <div style={{ display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'var(--sp-3)' }}>
+        {GRAPH_CATS.map(c=>(
+          <StatusChip
+            key={c.id}
+            color={c.color}
+            label={c.label}
+            off={!activeGraphCats.includes(c.id)}
+            onClick={()=>setActiveGraphCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])}
+            style={{ padding:'3px 10px', fontSize:'11px' }}
+          />
+        ))}
       </div>
       {tierHistory.length > 0 ? (
         <ResponsiveContainer width="100%" height={170}>
@@ -1107,31 +1095,18 @@ export default function Dashboard() {
             <button role="tab" aria-selected={viewMode === 'tree'} className={viewMode === 'tree' ? 'active' : ''} onClick={() => setMode('tree')} title="KPI-träd — så byggs Maxx Score"><Network size={14} /> Träd</button>
           </div>
           {overallTier && (
-            <div style={{
-              display:'flex', alignItems:'center', gap:'8px', padding:'6px 14px 6px 11px', borderRadius:'20px',
-              background:`linear-gradient(135deg, ${oColor}26 0%, ${oColor}0f 100%)`,
-              border:'1px solid ' + oColor + '4d',
-              boxShadow:`0 4px 18px -8px ${oColor}, inset 0 1px 0 rgba(255,255,255,0.12)`,
-            }}>
-              <div style={{ width:7, height:7, borderRadius:'50%', background:oColor, boxShadow:`0 0 8px 1px ${oColor}, 0 0 0 3px ${oColor}22` }} />
-              <span style={{ fontSize:'12.5px', fontWeight:800, color:oColor, letterSpacing:'0.02em' }}>T{overallTier}/8</span>
-              <span style={{ width:1, height:11, background: oColor + '40' }} />
-              <span style={{ fontSize:'11px', fontWeight:600, color: oColor + 'cc', textTransform:'uppercase', letterSpacing:'0.06em' }}>{oLabel}</span>
-            </div>
+            <StatusChip color={oColor} label={`T${overallTier}/8`} sub={oLabel} />
           )}
           {personalization && personalization.completeness < 100 && (
-            <button
+            <StatusChip
+              color={personalization.status?.color}
+              icon={<Sparkles size={12} />}
+              dot={false}
+              label={`${personalization.completeness}%`}
+              sub="profil"
               onClick={() => navigate('/profil')}
               title={`Profilkvalitet ${personalization.completeness}% · ${personalization.status?.label}. Klicka för att förbättra.`}
-              style={{
-                display:'flex', alignItems:'center', gap:'7px', padding:'6px 12px', borderRadius:'20px', cursor:'pointer',
-                background:`${personalization.status?.color}14`, border:`1px solid ${personalization.status?.color}40`,
-              }}
-            >
-              <Sparkles size={12} color={personalization.status?.color} />
-              <span style={{ fontSize:'12px', fontWeight:700, color: personalization.status?.color }}>{personalization.completeness}%</span>
-              <span style={{ fontSize:'11px', fontWeight:600, color:'var(--muted)' }}>profil</span>
-            </button>
+            />
           )}
         </div>
       </div>

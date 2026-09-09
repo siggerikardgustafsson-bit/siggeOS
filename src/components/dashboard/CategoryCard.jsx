@@ -91,64 +91,7 @@ export default function CategoryCard({ category, onClick, onMetricClick }) {
 
   return (
     <div onClick={openCard} className="widget cat-card fade-up"
-      style={{ padding: '12px', minHeight: '140px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <style>{`
-        .metric-source-row {
-          appearance: none;
-          width: 100%;
-          border: 1px solid transparent;
-          background: transparent;
-          border-radius: 9px;
-          padding: 4px 5px;
-          cursor: pointer;
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 6px;
-          align-items: center;
-          text-align: left;
-          position: relative;
-          transition: transform .14s ease, background .14s ease, border-color .14s ease, box-shadow .14s ease;
-        }
-        .metric-source-row:hover {
-          transform: translateY(-1px);
-          background: rgba(79,142,247,.08);
-          border-color: rgba(79,142,247,.22);
-          box-shadow: 0 0 0 3px rgba(79,142,247,.08), 0 6px 18px rgba(0,0,0,.14);
-        }
-        .metric-source-row:active { transform: translateY(0) scale(.99); }
-        .metric-source-row::after {
-          content: 'Öppna källa ↗';
-          position: absolute;
-          right: 6px;
-          top: -24px;
-          opacity: 0;
-          pointer-events: none;
-          padding: 3px 7px;
-          border-radius: 999px;
-          background: rgba(10,14,26,.92);
-          border: 1px solid var(--accent-border);
-          color: var(--accent);
-          font-size: 9px;
-          font-weight: 850;
-          letter-spacing: .04em;
-          white-space: nowrap;
-          transform: translateY(3px) scale(.98);
-          transition: opacity .14s ease, transform .14s ease;
-          box-shadow: 0 8px 22px rgba(0,0,0,.28);
-        }
-        .metric-source-row:hover::after {
-          opacity: 1;
-          transform: translateY(0) scale(1);
-        }
-        .metric-source-value {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          white-space: nowrap;
-          flex-shrink: 0;
-        }
-      `}</style>
-
+      style={{ padding: 'var(--sp-3)', minHeight: '140px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {hasData && tierNum > 0 && (
         <div style={{ position: 'absolute', top: -20, right: -20, width: 70, height: 70, borderRadius: '50%', background: color + '12', filter: 'blur(18px)', pointerEvents: 'none' }} />
       )}
@@ -177,11 +120,8 @@ export default function CategoryCard({ category, onClick, onMetricClick }) {
                   <RowTag key={i}
                     onClick={clickable ? (e) => handleMetricClick(e, m) : undefined}
                     title={clickable ? 'Öppna pass/källa' : undefined}
-                    className={clickable ? 'metric-source-row' : undefined}
-                    style={!clickable ? {
-                      width: '100%', display: 'flex', justifyContent: 'space-between', gap: '4px', alignItems: 'baseline', textAlign: 'left', padding: 0,
-                    } : undefined}>
-                    <span style={{ fontSize: '10px', color: clickable ? 'var(--muted2)' : 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                    className={clickable ? 'metric-source-row' : 'metric-plain-row'}>
+                    <span className="metric-row-label">
                       {m.label}
                     </span>
                     <span className={clickable ? 'metric-source-value' : undefined} style={{ fontSize: i === 0 ? '12px' : '11px', fontWeight: i === 0 ? 800 : 650, color: m.highlight ? color : 'var(--text)' }}>

@@ -6,6 +6,22 @@ const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toIS
 const asLimit = (value: any, fallback = 50, max = 200) => Math.min(Math.max(Number(value || fallback), 1), max)
 const clean = (value: any) => value == null || value === '' ? null : value
 
+// training_sessions.session_type uses the canonical English vocabulary
+// 'run' | 'gym' | 'walk' | 'other' (written by the app UI and strava-sync).
+// Jarvis converses in Swedish, so tool calls can arrive with Swedish names;
+// map both vocabularies to canonical so filters match rows and writes never
+// pollute the table with values the rest of the app doesn't recognize.
+const SESSION_TYPE_MAP: Record<string, string> = {
+  run: 'run', 'löpning': 'run', 'löpa': 'run', springa: 'run', jogging: 'run',
+  gym: 'gym', styrka: 'gym', styrketräning: 'gym',
+  walk: 'walk', promenad: 'walk', 'gång': 'walk', hike: 'walk', vandring: 'walk',
+  other: 'other', 'övrigt': 'other', cykling: 'other', cykel: 'other', simning: 'other',
+}
+const normalizeSessionType = (value: any): string | null => {
+  if (!value || typeof value !== 'string') return null
+  return SESSION_TYPE_MAP[value.trim().toLowerCase()] ?? null
+}
+
 // ─────────────────────────────────────────────
 // TOOLS
 // Sharp, unambiguous descriptions so Jarvis
@@ -18,7 +34,7 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        type: { type: 'string', enum: ['löpning', 'gym', 'cykling', 'simning', 'promenad', 'övrigt', 'all'] },
+        type: { type: 'string', enum: ['run', 'gym', 'walk', 'other', 'all'], description: 'run=löpning, gym=styrka, walk=promenad, other=cykling/simning/övrigt' },
         date_from: { type: 'string', description: 'YYYY-MM-DD' },
         date_to: { type: 'string', description: 'YYYY-MM-DD' },
         limit: { type: 'number', description: 'default 20' },
@@ -193,7 +209,7 @@ const TOOLS = [
         },
         data: {
           type: 'object',
-          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type,duration_minutes?,distance_km?,feeling?,notes?} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,notes?} | create_adventure:{title,description?,date?,location?,category?,rating?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
+          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,notes?} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,notes?} | create_adventure:{title,description?,date?,location?,category?,rating?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
         },
         confirm_message: { type: 'string' },
       },
@@ -217,7 +233,10 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         .eq('user_id', userId)
         .order('date', { ascending: false })
         .limit(asLimit(input.limit, 20, 80))
-      if (input.type && input.type !== 'all') q = q.eq('session_type', input.type)
+      if (input.type && input.type !== 'all') {
+        const t = normalizeSessionType(input.type)
+        if (t) q = q.eq('session_type', t)
+      }
       if (input.date_from) q = q.gte('date', input.date_from)
       if (input.date_to) q = q.lte('date', input.date_to)
 
@@ -650,7 +669,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           break
         }
         case 'log_training': {
-          const { error } = await supabase.from('training_sessions').insert({ user_id: userId, date: d.date || todayISO(), session_type: d.session_type || 'övrigt', duration_minutes: clean(d.duration_minutes), distance_km: clean(d.distance_km), time_seconds: clean(d.time_seconds), pace_per_km: clean(d.pace_per_km), feeling: clean(d.feeling), notes: d.notes || '', source: 'jarvis' })
+          const { error } = await supabase.from('training_sessions').insert({ user_id: userId, date: d.date || todayISO(), session_type: normalizeSessionType(d.session_type) || 'other', duration_minutes: clean(d.duration_minutes), distance_km: clean(d.distance_km), time_seconds: clean(d.time_seconds), pace_per_km: clean(d.pace_per_km), feeling: clean(d.feeling), notes: d.notes || '', source: 'jarvis' })
           if (error) throw error
           result = 'Träningspass loggat.'
           break
@@ -754,7 +773,9 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         }
         case 'update_training': {
           if (!d.id || !d.fields) throw new Error('Saknar id/fields')
-          const { error } = await supabase.from('training_sessions').update(d.fields).eq('id', d.id).eq('user_id', userId)
+          const fields = { ...d.fields }
+          if (fields.session_type) fields.session_type = normalizeSessionType(fields.session_type) || 'other'
+          const { error } = await supabase.from('training_sessions').update(fields).eq('id', d.id).eq('user_id', userId)
           if (error) throw error
           result = 'Träningspass uppdaterat.'
           break
