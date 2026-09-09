@@ -167,7 +167,7 @@ const TOOLS = [
   },
   {
     name: 'fetch_memory_goals',
-    description: 'Fullständiga mål, alla insikter, djupare vänprofiler. Använd om auto-laddat minne inte räcker, eller sök specifikt minne med search_keyword.',
+    description: 'Livsmål (fritext) + strukturerade mål (mål-tabellen med delmål/progress/deadline), alla insikter, djupare vänprofiler. Använd om auto-laddat minne inte räcker, eller sök specifikt minne med search_keyword.',
     input_schema: {
       type: 'object',
       properties: {
@@ -578,7 +578,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
 
     if (toolName === 'fetch_memory_goals') {
       const limit = asLimit(input.limit, 100, 300)
-      const [settingsRes, insightsRes, friendsRes] = await Promise.all([
+      const [settingsRes, insightsRes, friendsRes, structuredGoalsRes] = await Promise.all([
         supabase.from('user_settings').select('about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', userId).maybeSingle(),
         (() => {
           let q = supabase.from('jarvis_insights').select('id,insight,category,confidence,updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit)
@@ -586,12 +586,20 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           return q
         })(),
         input.include_friends ? supabase.from('friends').select('id,name,nickname,relationship,location,notes,last_contact_date').eq('user_id', userId).order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: [], error: null }),
+        supabase.from('goals').select('id,title,category,description,metric,unit,target_value,current_value,direction,deadline,status,pinned').eq('user_id', userId).order('pinned', { ascending: false }).order('sort_order', { ascending: true }).limit(50),
       ])
       const s = settingsRes.data || {}
       const goals = s.goals ? JSON.stringify(s.goals, null, 2) : '{}'
       const insights = (insightsRes.data || []).map((i: any) => `[${i.category} ${i.confidence}%] ${i.insight} [id:${i.id}]`).join('\n')
       const friends = (friendsRes.data || []).map((f: any) => `${f.name}${f.nickname ? '/'+f.nickname : ''} | ${f.relationship || ''}${f.location ? ' | '+f.location : ''}${f.last_contact_date ? ' | senast:'+f.last_contact_date : ''}${f.notes ? ' | '+f.notes.slice(0,120) : ''} [id:${f.id}]`).join('\n')
-      return `PROFIL:\n${s.about_me || '—'}\n\nMÅL:\n${goals}\n\nMINNEN (${insightsRes.data?.length || 0}${input.search_keyword ? `, sök:"${input.search_keyword}"` : ''}):\n${insights || '—'}\n\nVÄNNER:\n${friends || '—'}`
+      const gRows = (structuredGoalsRes.data || [])
+      const structuredGoals = gRows.length
+        ? gRows.map((g: any) => {
+            const cur = g.target_value != null ? ` ${g.current_value ?? '?'}/${g.target_value}${g.unit ? ' ' + g.unit : ''}` : ''
+            return `[${g.status}${g.pinned ? ' ★' : ''}] ${g.title}${g.category ? ' (' + g.category + ')' : ''}${cur}${g.deadline ? ' → ' + g.deadline : ''}${g.description ? ' — ' + g.description : ''} [id:${g.id}]`
+          }).join('\n')
+        : '—'
+      return `PROFIL:\n${s.about_me || '—'}\n\nLIVSMÅL (fritext):\n${goals}\n\nSTRUKTURERADE MÅL (${gRows.length}):\n${structuredGoals}\n\nMINNEN (${insightsRes.data?.length || 0}${input.search_keyword ? `, sök:"${input.search_keyword}"` : ''}):\n${insights || '—'}\n\nVÄNNER:\n${friends || '—'}`
     }
 
     if (toolName === 'fetch_chat_history') {

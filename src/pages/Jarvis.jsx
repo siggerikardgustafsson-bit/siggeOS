@@ -10,6 +10,7 @@ import { loadJarvisContext, buildJarvisContextBlock } from '../lib/jarvis'
 import { getUserProfile } from '../lib/personalization'
 import { TRIP_STATUSES_UPCOMING } from '../lib/constants'
 import { crossDomainFindings, findingsToPrompt } from '../lib/correlate'
+import { listGoals, goalLine } from '../lib/goals'
 import { subDays } from 'date-fns'
 
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
@@ -125,12 +126,13 @@ export default function Jarvis() {
     const today = format(now, 'yyyy-MM-dd')
 
     // Lean context — only immediate snapshot. Everything else fetched via tools on demand.
-    const [scoreRes, examsRes, projectsRes, tripsRes, todayHealthRes] = await Promise.all([
+    const [scoreRes, examsRes, projectsRes, tripsRes, todayHealthRes, goalsList] = await Promise.all([
       supabase.from('daily_scores').select('total_score,score_training,score_health,score_study,score_economy,score_social,peak_mode').eq('user_id', user.id).eq('date', today).maybeSingle(),
       supabase.from('course_exams').select('exam_date,name').eq('user_id', user.id).gte('exam_date', today).order('exam_date', { ascending: true }).limit(3),
       supabase.from('projects').select('id,name,type,client').eq('user_id', user.id).order('created_at'),
       supabase.from('trips').select('id,title,countries,start_date,end_date,status,budget_sek').eq('user_id', user.id).in('status', TRIP_STATUSES_UPCOMING).order('start_date', { ascending: true }).limit(5),
       supabase.from('health_logs').select('weight_kg,sleep_hours,energy,energy_level,mood,steps').eq('user_id', user.id).eq('date', today).maybeSingle(),
+      listGoals(user.id, { status: 'active' }).catch(() => []),
     ])
 
     const score = scoreRes.data
@@ -156,9 +158,14 @@ export default function Jarvis() {
 
     // NB: no 'TID:' line here — it's prepended fresh at send time so a cached
     // context never carries a stale timestamp (AUDIT.md P1-6).
+    const goalsBlock = (goalsList || []).length
+      ? (goalsList || []).slice(0, 8).map(g => '· ' + goalLine(g)).join('\n')
+      : 'Inga aktiva mål satta'
+
     const ctx = [
       score ? 'SCORE IDAG: total:' + score.total_score + ' tr:' + score.score_training + ' hä:' + score.score_health + ' pl:' + score.score_study + ' ek:' + score.score_economy + ' soc:' + score.score_social + (score.peak_mode ? ' PEAK' : '') : 'SCORE: saknas idag',
       'HÄLSA IDAG: ' + healthLine,
+      'AKTIVA MÅL:\n' + goalsBlock,
       'NÄSTA TENTOR: ' + upcomingExams,
       'PROJEKT: ' + projectsBlock,
       'PLANERADE RESOR: ' + tripsBlock,
