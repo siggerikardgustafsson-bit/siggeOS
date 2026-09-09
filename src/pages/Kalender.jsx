@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
@@ -52,6 +52,18 @@ function parseMandTitle(title) {
   return labelParts.join(' · ') || parts[0] || title
 }
 
+// Narrow viewport → the 7-col month grid can't fit text event chips; we fall
+// back to a dot-per-type view and drop the day-detail sidebar below the grid.
+function useIsMobile(bp = 768) {
+  const [m, setM] = useState(typeof window !== 'undefined' && window.innerWidth < bp)
+  useEffect(() => {
+    const on = () => setM(window.innerWidth < bp)
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [bp])
+  return m
+}
+
 function EventDot({ type }) {
   const t = EVENT_TYPES[type] || EVENT_TYPES.training
   const IconComp = t.Icon
@@ -76,6 +88,16 @@ export default function KalenderPage() {
   const [syncing, setSyncing] = useState(false)
   const [selectedDay, setSelectedDay] = useState(null)
   const [filterTypes, setFilterTypes] = useState(new Set(Object.keys(EVENT_TYPES)))
+  const isMobile = useIsMobile()
+  const detailRef = useRef(null)
+
+  // On a phone the day-detail panel sits below the grid — pull it into view
+  // when the user taps a day so the tap doesn't feel like nothing happened.
+  useEffect(() => {
+    if (isMobile && selectedDay && detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [selectedDay, isMobile])
 
   useEffect(() => { if (user) fetchAll() }, [user, month])
 
@@ -290,19 +312,19 @@ export default function KalenderPage() {
         })}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: selectedDay ? '1fr 300px' : '1fr', gap: '16px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: (selectedDay && !isMobile) ? '1fr 300px' : '1fr', gap: '16px', alignItems: 'start' }}>
 
         {/* Calendar grid */}
-        <div className="card kal-cal-card" style={{ padding: '16px' }}>
+        <div className="card kal-cal-card" style={{ padding: isMobile ? '12px 8px' : '16px' }}>
           {/* Day headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '8px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: isMobile ? '2px' : '4px', marginBottom: '8px' }}>
             {dayHeaders.map(d => (
-              <div key={d} style={{ fontSize: '11px', color: 'var(--muted)', textAlign: 'center', fontWeight: '600', padding: '4px 0' }}>{d}</div>
+              <div key={d} style={{ fontSize: isMobile ? '10px' : '11px', color: 'var(--muted)', textAlign: 'center', fontWeight: '600', padding: '4px 0' }}>{isMobile ? d[0] : d}</div>
             ))}
           </div>
 
           {/* Day cells */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: isMobile ? '2px' : '3px' }}>
             {days.map(day => {
               const dateStr = format(day, 'yyyy-MM-dd')
               const dayEvents = filteredEvents(dateStr)
@@ -316,21 +338,34 @@ export default function KalenderPage() {
               const tripEvents = dayEvents.filter(e => e.type === 'trip')
               const nonTripEvents = dayEvents.filter(e => e.type !== 'trip')
               const hasTrip = tripEvents.length > 0
+              // Mobile: one dot per distinct event type present that day.
+              const dotTypes = [...new Set(dayEvents.map(e => e.type))]
 
               return (
                 <div key={dateStr} onClick={() => setSelectedDay(isSelected ? null : dateStr)}
                   className={`kal-cell${today ? ' kal-cell-today' : ''}${isSelected ? ' kal-cell-selected' : ''}`}
                   style={{
-                  minHeight: '84px', padding: '4px', borderRadius: '6px', cursor: 'pointer',
+                  minHeight: isMobile ? '44px' : '84px', padding: isMobile ? '4px 2px' : '4px', borderRadius: '6px', cursor: 'pointer',
                   background: isSelected ? 'var(--accent-soft)' : today ? 'rgba(79,142,247,0.06)' : hasExam ? 'rgba(239,68,68,0.04)' : hasPA ? 'rgba(249,115,22,0.04)' : hasTrip ? 'rgba(232,121,249,0.06)' : hasStudyDeadline ? 'rgba(167,139,250,0.06)' : isWeekend ? 'rgba(255,255,255,0.01)' : 'transparent',
                   border: `1px solid ${isSelected ? 'var(--accent-border)' : today ? 'var(--accent-border)' : hasTrip ? 'rgba(232,121,249,0.25)' : hasStudyDeadline ? 'rgba(167,139,250,0.25)' : dayEvents.length > 0 ? 'var(--border)' : 'transparent'}`,
                   opacity: inMonth ? 1 : 0.3,
                   transition: 'all 0.12s',
                   overflow: 'hidden',
+                  display: isMobile ? 'flex' : 'block', flexDirection: 'column', alignItems: isMobile ? 'center' : 'stretch',
                 }}>
-                  <div style={{ fontSize: '11px', fontWeight: today ? '700' : '400', color: today ? 'var(--accent)' : isWeekend ? 'var(--muted2)' : 'var(--muted)', marginBottom: '3px' }}>
+                  <div style={{ fontSize: isMobile ? '13px' : '11px', fontWeight: today ? '700' : '400', color: today ? 'var(--accent)' : isWeekend ? 'var(--muted2)' : 'var(--muted)', marginBottom: '3px', textAlign: isMobile ? 'center' : 'left' }}>
                     {format(day, 'd')}
                   </div>
+                  {isMobile ? (
+                    dotTypes.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', justifyContent: 'center', maxWidth: '34px' }}>
+                        {dotTypes.slice(0, 4).map(tp => (
+                          <span key={tp} style={{ width: '6px', height: '6px', borderRadius: '50%', background: EVENT_TYPES[tp]?.color || 'var(--muted)' }} />
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                  <>
                   {/* Trip bar */}
                   {tripEvents.length > 0 && (
                     <div style={{
@@ -362,6 +397,8 @@ export default function KalenderPage() {
                       <div className="kal-evt-more">+{nonTripEvents.length - 3} fler</div>
                     )}
                   </div>
+                  </>
+                  )}
                 </div>
               )
             })}
@@ -370,7 +407,7 @@ export default function KalenderPage() {
 
         {/* Day detail panel */}
         {selectedDay && (
-          <div className="card" style={{ position: 'sticky', top: '24px', maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
+          <div ref={detailRef} className="card" style={{ position: isMobile ? 'static' : 'sticky', top: '24px', maxHeight: isMobile ? 'none' : 'calc(100vh - 120px)', overflowY: 'auto', scrollMarginTop: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <div style={{ fontWeight: '600', fontSize: '14px', textTransform: 'capitalize' }}>
                 {format(parseISO(selectedDay), 'EEEE d MMMM', { locale: sv })}
