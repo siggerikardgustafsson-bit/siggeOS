@@ -9,11 +9,35 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 
 ---
 
-## Sammanfattning (fyll på under natten)
+## Sammanfattning
 
-| # | Vad | Spår | Filer | Commit | Kräver |
-|---|-----|------|-------|--------|--------|
-| – | (se poster nedan) | | | | |
+10 poster, alla spår A. Detaljer per post nedan.
+
+| # | Vad | Commit | Kräver av dig |
+|---|-----|--------|---------------|
+| 1 | Mobillayout för månadskalendern (prickar + detaljpanel) | `5f5c7ee` | inget |
+| 2 | `src/lib/correlate.js` — deterministiska tvärdomän-kopplingar i Insights | `5b185c9` | inget |
+| 3 | Vassare coaching-metod i Jarvis systemprompt | `9f6c731` | **`functions deploy jarvis-chat`** |
+| 4 | Jarvis ser kopplingarna (MÖNSTER-block i kontext) | `2347116` | inget (frontend) |
+| 5 | F1 — strukturerade mål: `goals`-tabell + `src/lib/goals.js` + Jarvis | `7c9b161` | **`db push` + `functions deploy jarvis-chat`** |
+| 6 | F3 — Apple Health via Shortcuts: `health-ingest` edge-fn + token | `b23d9f3` | **`db push` + `functions deploy health-ingest --no-verify-jwt`** |
+| 7 | `src/lib/signals.js` — deterministiska veckosignaler (Insights + Jarvis) | `5be23c2` | prompt-raden → samma deploy som #3 |
+| 8 | Bugg: `daily_scores.total_score` alltid 0 → härleds nu i läsläge | `0da8939` | inget |
+| 9 | Veckorapporten ("Analysera vecka") grundas i fynd + signaler | `e70d8e2` | inget |
+| 10 | Bugg: lag-korrelationer räknade fel dag (tidszon) → UTC-ankrat | `1318683` | inget |
+
+**Deploy-lista (kör i denna ordning när du granskat diffen):**
+```
+cd ~/dev/sigge-os
+git checkout audit-fixes            # om du inte redan är här
+supabase db push                    # migrationer: post_deploy_05 (goals), post_deploy_06 (health_ingest_token)
+supabase functions deploy jarvis-chat
+supabase functions deploy health-ingest --no-verify-jwt
+```
+Inget rör `main`. Inget är pushat. Vercel bygger inte förrän du mergar/pushar `audit-fixes` (eller cherry-pickar).
+
+Migrationer är additiva + idempotenta. `goals`-tabellen fanns redan (12 kolumner,
+0 rader, oanvänd) — migration 05 UTÖKAR den, skapar den inte.
 
 ---
 
@@ -42,7 +66,7 @@ alltså på *samma* dag, och veckonycklar hamnade på söndagar.
 **Filer:** `src/lib/correlate.js`, `src/lib/signals.js`
 **Verifiering:** syntetiskt 45-dagarsset i Europe/Stockholm — lag-1 sömn→energi-
 fyndet triggar korrekt på data där energi beror på gårdagens sömn.
-**Commit:** `<se git log>` "correlate/signals: UTC-anchor all date maths"
+**Commit:** `1318683`
 **Kräver av dig:** inget
 
 ### 9. Veckorapporten grundas i fynd + signaler
@@ -51,7 +75,7 @@ fyndet triggar korrekt på data där energi beror på gårdagens sömn.
 tvärdomän-fynden och veckans signaler till "Analysera vecka"-prompten, så
 AI-rapporten resonerar från samma uträknade material som sidan visar.
 **Filer:** `src/pages/Insights.jsx`
-**Commit:** `<se git log>` "Insights weekly report: ground it in the findings + signals"
+**Commit:** `e70d8e2`
 **Kräver av dig:** inget
 
 ### 8. Bugg: `daily_scores.total_score` är alltid 0
@@ -67,7 +91,7 @@ det är 0-100 dagsaktivitet, skilt från tier-systemet i MAXX INTELLIGENS.
 **Filer:** `src/pages/Jarvis.jsx`, `src/components/WeeklyReview.jsx`
 **Verifiering:** live-probe bekräftade total_score=0 på alla rader medan
 score_training=80 m.fl. skrivs. `npm run build` OK.
-**Commit:** `<se git log>` "Fix \"total:0\" everywhere daily_scores.total_score is read"
+**Commit:** `0da8939`
 **Kräver av dig:** inget. Se även IDEAS.md — den djupare frågan är om
 `daily_scores` ska räknas om av ett nattjobb så luckor fylls.
 
@@ -89,7 +113,7 @@ nicotine + goals + exam_date; ny Signaler-sektion), `src/pages/Jarvis.jsx`
 **Verifiering:** preview — visar "Hälsologgen har en lucka" (6d) och "Viktmålet:
 deadline passerad, vikten står still" (71.7 vs 67kg, deadline 2026-07-20,
 +0kg/3v). Båda korrekta mot verklig data. `npm run build` OK.
-**Commit:** `<se git log>` "Insights + Jarvis: deterministic weekly signals"
+**Commit:** `5be23c2`
 **Kräver av dig:** frontend-delen inget. Prompt-raden → `supabase functions
 deploy jarvis-chat` (samma deploy som post 3).
 
@@ -109,7 +133,7 @@ Godkända fält: weight_kg, body_fat_pct, steps, sleep_hours, resting_hr, caffei
 `src/lib/healthIngest.js` (ny)
 **Verifiering:** esbuild .ts + .js OK. Logiken granskad rad för rad (kan ej köra
 edge-fn lokalt utan deno/deploy).
-**Commit:** `<se git log>` "F3: Apple Health via iOS Shortcuts — ingest endpoint"
+**Commit:** `b23d9f3`
 **Kräver av dig:** **[DEPLOY]**
 `supabase db push` (token-kolumnen) och
 `supabase functions deploy health-ingest --no-verify-jwt`  ← **--no-verify-jwt är
@@ -134,7 +158,7 @@ Fritext-livsmålen i user_settings.goals är orörda.
 appen läser den). Pre-migration kastar `listGoals` → Jarvis-kontext degraderar
 till "Inga aktiva mål satta" (verifierat, ingen krasch). `npm run build` OK,
 esbuild .ts-transform OK.
-**Commit:** `<se git log>` "F1: structured goals — data layer + Jarvis integration"
+**Commit:** `7c9b161`
 **Kräver av dig:** **[DEPLOY]** `supabase db push` + `supabase functions deploy jarvis-chat`
 
 ### 4. Jarvis ser kopplingarna (MÖNSTER-block i kontext)
@@ -148,7 +172,7 @@ degraderar tyst. Systemprompten (post 3) instruerar Jarvis att bygga vidare på 
 **Filer:** `src/pages/Jarvis.jsx` (`refreshContext`)
 **Verifiering:** preview — de 5 queries lyckas, merge ger samma fynd som Insights.
 `npm run build` OK.
-**Commit:** `<se git log>` "Jarvis: feed the cross-domain findings into context"
+**Commit:** `2347116`
 **Kräver av dig:** inget (frontend). Jarvis-svarens kvalitet syns först när
 Anthropic-krediten fyllts på — 500 i preview beror på tom kreditbalans, inte kod.
 
@@ -165,7 +189,7 @@ tier-system; skilj fakta/hypotes/gissning; avsluta coaching med EN mätbar näst
 sträng-edit i template-literalen)
 **Verifiering:** esbuild-transform av .ts OK (deno ej installerad → ingen
 `deno check`; ändringen är ren text i en befintlig template-literal).
-**Commit:** `<se git log>` "Jarvis: explicit coaching method in the system prompt"
+**Commit:** `9f6c731`
 **Kräver av dig:** **[DEPLOY]** `supabase functions deploy jarvis-chat`
 
 ### 2. Deterministiska tvärdomän-kopplingar i Insights
@@ -188,7 +212,7 @@ utökad med steg/vikt/PA, ny "Kopplingar"-panel överst i Samband & mönster)
 **Verifiering:** preview — 90d: "Aktiva dagar ger dig bättre sömn" (steg↔sömn,
 n=20). 1år: "Tunga PA-veckor äter din träning" (0.8 vs 1.8 pass/v, 17 veckor) +
 PRELIMINÄR nattpass↔energi (n=4). `npm run build` OK.
-**Commit:** `<se git log>` "Insights: deterministic cross-domain findings"
+**Commit:** `5b185c9`
 **Kräver av dig:** inget
 
 ### 1. Mobillayout för månadskalendern
@@ -205,7 +229,7 @@ i cell-render och grid-layout; ingen ny CSS)
 **Verifiering:** preview 375px — griden får plats, prickar visar rätt färger,
 tap på dag 9 öppnar panel med "Gym / Eget arbete / Grupparbete …". Desktop
 oförändrat. esbuild-parse OK.
-**Commit:** `5f5c7ee` "Kalender: usable month grid on mobile (dots + detail sheet)"
+**Commit:** `5f5c7ee`
 **Kräver av dig:** inget
 
 ## Noteringar / observationer för dig
