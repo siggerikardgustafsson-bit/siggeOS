@@ -30,6 +30,26 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 **Kräver av dig:** inget / `supabase functions deploy x` / `supabase db push`
 -->
 
+### 5. F1 — strukturerade mål: datalager + Jarvis (backend)
+**Spår:** A (backend). UI → IDEAS.md.
+**Varför:** "Mål" är en domän i visionen men finns bara som fritext-blob i
+`user_settings.goals`. Det fanns redan en oanvänd `goals`-tabell i databasen.
+**Vad:** Migration `post_deploy_05` UTÖKAR den befintliga tabellen additivt
+(metric, direction, pinned, linked_trip_id, sort_order, completed_at + CHECK +
+updated_at-trigger + kanonisk owner-RLS — `goals` var aldrig med i Phase 1-listan).
+`src/lib/goals.js`: list/create/update/delete + goalProgress/goalDaysLeft/goalLine.
+`category` = domän, `deadline` = måldatum (kolumner som redan fanns). Jarvis
+kontext får ett "AKTIVA MÅL"-block; `fetch_memory_goals` returnerar även dem.
+Fritext-livsmålen i user_settings.goals är orörda.
+**Filer:** `supabase/migrations/20260703090000_post_deploy_05_goals_table.sql` (ny),
+`src/lib/goals.js` (ny), `src/pages/Jarvis.jsx`, `supabase/functions/jarvis-chat/index.ts`
+**Verifiering:** live-tabellen probead (12 befintliga kolumner, 0 rader, inget i
+appen läser den). Pre-migration kastar `listGoals` → Jarvis-kontext degraderar
+till "Inga aktiva mål satta" (verifierat, ingen krasch). `npm run build` OK,
+esbuild .ts-transform OK.
+**Commit:** `<se git log>` "F1: structured goals — data layer + Jarvis integration"
+**Kräver av dig:** **[DEPLOY]** `supabase db push` + `supabase functions deploy jarvis-chat`
+
 ### 4. Jarvis ser kopplingarna (MÖNSTER-block i kontext)
 **Spår:** A
 **Varför:** Jarvis kontext var "lean snapshot" + MAXX INTELLIGENS. Den såg

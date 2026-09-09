@@ -14,7 +14,41 @@ Prioritetsgissning: 🔥 hög värde/låg risk · ⭐ värd att överväga · �
 
 ## Jarvis / insikter
 
+### 💭 Jarvis "veckoplan"-läge
+Nattens jobb gjorde Jarvis coaching-metod vassare och gav den mönster + mål.
+Nästa steg vore ett läge där Jarvis, på söndag, väger ihop kommande veckas
+kalender (tentor, PA-pass, obligatoriska), aktiva mål och senaste mönster till
+en konkret veckoplan ("3 pass, tyngdpunkt tis+lör pga PA ons-fre; 6h djupplugg
+för mikrobiologi; lägg 2000kr mot Asien-buffern"). **Omfattning:** medel — ny
+Jarvis-"mode" + prompt + ev. sparad plan-tabell. **Beslut:** vill du att Jarvis
+ska vara proaktiv (pusha en plan) eller bara svara när du frågar? Var bor planen
+— egen vy, dashboard-kort, eller bara i chatten?
+
 ## Dashboard / navigation / vyer
+
+### 🔥 UI för strukturerade mål (F1 backend är byggt)
+Datalagret finns (`goals`-tabell + `src/lib/goals.js` + Jarvis läser dem). Det
+som saknas är var man skapar/ser/följer mål. Alternativ:
+- **(a) Egen "Mål"-sida** i Mer-menyn — lista per domän, progress-ringar,
+  deadline-sortering, "klarmarkera". Renast, men ett nav-tillägg.
+- **(b) Dashboard-kort** — de 3 pinnade målen med progress överst på dashboarden,
+  klick → detalj. Håller mål "top of mind" men trängs med konstellationen.
+- **(c) Sektion per domänsida** — träningsmål på /traning, sparmål på /ekonomi.
+  Kontextuellt men splittrar överblicken.
+- **(d) Bara i Profil** under "identitet & mål" — lågprofil, men då används de
+  sällan.
+**Rekommendation:** (a) + (b) tillsammans — sidan för att jobba med mål, kortet
+för att inte glömma dem. **Beslut du behöver fatta:** vilken kombination, och om
+"livsmålen" (1/3/10 år, fritext) ska migreras in som mål-rader eller lämnas kvar
+som separat fritext i Profil.
+
+### ⭐ Auto-progress för mål
+Ett sparmål vet inte själv hur mycket du sparat; en 5km-tid vet inte ditt PR.
+Idé: en `metric`-koppling så `current_value` fylls automatiskt från rätt källa
+(sparmål ← net_worth_history/assets, tid ← run_personal_records, vikt ←
+health_logs senaste). **Omfattning:** medel — en mappning metric→query, körd vid
+sidladdning eller i ett nattjobb. **Beslut:** vilka metric-typer ska stödjas
+först, och ska manuellt satt current_value alltid vinna över auto?
 
 ## Domän-specifikt (träning, hälsa, ekonomi, plugg, resor, jobb)
 
