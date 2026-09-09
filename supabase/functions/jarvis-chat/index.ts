@@ -209,7 +209,7 @@ const TOOLS = [
         },
         data: {
           type: 'object',
-          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,notes?} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,notes?} | create_adventure:{title,description?,date?,location?,category?,rating?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
+          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,notes?} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,description?} | create_adventure:{title,description?,date?,location?,category?,rating?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
         },
         confirm_message: { type: 'string' },
       },
@@ -411,12 +411,12 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
 
       if (type === 'income' || type === 'both') {
         const { data, error } = await supabase.from('income_logs')
-          .select('id,date,amount,source,counts_toward_csn,notes')
+          .select('id,date,amount,source,counts_toward_csn,description')
           .eq('user_id', userId).gte('date', from).lte('date', to).order('date', { ascending: false })
         if (error) throw error
         if (data?.length) {
           const total = data.reduce((s: number, r: any) => s + Number(r.amount || 0), 0)
-          results.push(`INKOMSTER (${data.length}, totalt ${Math.round(total).toLocaleString('sv-SE')} kr):\n` + data.map((r: any) => `${r.date} | ${r.amount} kr | ${r.source}${r.notes ? ' | ' + r.notes : ''} [id:${r.id}]`).join('\n'))
+          results.push(`INKOMSTER (${data.length}, totalt ${Math.round(total).toLocaleString('sv-SE')} kr):\n` + data.map((r: any) => `${r.date} | ${r.amount} kr | ${r.source}${r.description ? ' | ' + r.description : ''} [id:${r.id}]`).join('\n'))
         }
       }
 
@@ -693,7 +693,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           break
         }
         case 'log_income': {
-          const { error } = await supabase.from('income_logs').insert({ user_id: userId, date: d.date || todayISO(), amount: Number(d.amount || 0), source: d.source || 'Övrigt', notes: d.notes || '' })
+          const { error } = await supabase.from('income_logs').insert({ user_id: userId, date: d.date || todayISO(), amount: Number(d.amount || 0), source: d.source || 'Övrigt', description: d.description ?? d.notes ?? '' })
           if (error) throw error
           result = `Inkomst ${d.amount} kr loggad.`
           break

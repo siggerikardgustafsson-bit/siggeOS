@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../context/ToastContext'
@@ -140,9 +140,12 @@ export default function JournalPage() {
     setShowForm(true)
   }
 
-  function openEditForm(entry) {
+  async function openEditForm(entry) {
     setEditingEntry(entry)
     setEditDate(entry.date)
+    // Load any skill_logs for that day so editing doesn't blank them (P2-6).
+    const { data: skillRows } = await supabase.from('skill_logs')
+      .select('skill,minutes').eq('user_id', user.id).eq('date', entry.date)
     setForm({
       content: entry.content || '',
       mood: entry.mood || 7,
@@ -152,6 +155,7 @@ export default function JournalPage() {
       sleep_note: entry.sleep_note || '',
       social_score: entry.social_score || 7,
       is_travel_entry: entry.is_travel_entry || false,
+      skills: (skillRows || []).map(r => ({ id: r.skill, minutes: r.minutes })),
     })
     setShowForm(true)
     setViewEntry(null)
@@ -182,11 +186,24 @@ export default function JournalPage() {
             setCurrentMonth(parseISO(editDate))
           }
         }
+        // Persist skill edits — insert branch already does this; the update
+        // branch used to drop them silently (AUDIT.md P2-6).
+        await supabase.from('skill_logs').delete().eq('user_id', user.id).eq('date', editDate)
+        const skillRows = (form.skills || []).filter(s => s.minutes > 0).map(s => ({ user_id: user.id, date: editDate, skill: s.id, minutes: s.minutes }))
+        if (skillRows.length) await supabase.from('skill_logs').insert(skillRows)
+        // Re-run AI analysis when the text actually changed — otherwise a
+        // rewritten entry keeps its stale ai_summary forever (AUDIT.md P2-6).
+        if (form.content !== (editingEntry.content || '')) {
+          await runAIAnalysis(editingEntry.id, form.content, editDate)
+        }
         await fetchSelectedEntries()
         await fetchMonthEntries()
+        await refreshUnanalyzedCount()
         setShowForm(false)
         setEditingEntry(null)
         setForm(EMPTY_FORM)
+      } else {
+        toast({ message: 'Kunde inte spara ändringarna.', type: 'error' })
       }
     } else {
       // INSERT new entry
@@ -213,23 +230,34 @@ export default function JournalPage() {
         }
         await updateJournalScore(dateStr, form)
 
-        // Only run AI analysis if content is new or significantly changed
-        const existingEntry = selectedEntries.find(e => e.date === dateStr)
-        const existingSummary = existingEntry?.ai_summary
-        const existingContent = existingEntry?.content || ''
-        const contentChangedSignificantly = !existingSummary ||
-          Math.abs(form.content.length - existingContent.length) > 30 ||
-          form.content.slice(0, 80) !== existingContent.slice(0, 80)
-        if (contentChangedSignificantly) runAIAnalysis(data.id, form.content)
+        // A brand-new entry has no analysis by definition — always run it.
+        // (The old guard compared against a *different* entry from the same
+        // day and could skip analysis entirely — AUDIT.md P2-6.)
+        runAIAnalysis(data.id, form.content, dateStr)
         await fetchSelectedEntries()
         await fetchMonthEntries()
         await fetchRecentEntries()
+        await refreshUnanalyzedCount()
         setShowForm(false)
         setForm(EMPTY_FORM)
+      } else {
+        toast({ message: 'Kunde inte spara journal-entryn.', type: 'error' })
       }
     }
     setSaving(false)
   }
+
+  // Pending soft-deletes: id -> timeout handle. Flushed on unmount so
+  // navigating away within the 5s window still commits the delete instead of
+  // leaving a ghost row that reappears next visit (AUDIT.md P2-12).
+  const pendingDeletes = useRef(new Map())
+  useEffect(() => () => {
+    for (const [id, t] of pendingDeletes.current) {
+      clearTimeout(t)
+      supabase.from('journal_entries').delete().eq('id', id)
+    }
+    pendingDeletes.current.clear()
+  }, [])
 
   function deleteEntry(entryId) {
     setSelectedEntries(prev => prev.filter(e => e.id !== entryId))
@@ -238,14 +266,24 @@ export default function JournalPage() {
     toast({
       message: 'Journal-entry borttagen',
       duration: 5000,
-      action: { label: 'Ångra', onClick: () => { undone = true; fetchSelectedEntries() } },
+      action: {
+        label: 'Ångra',
+        onClick: () => {
+          undone = true
+          const t = pendingDeletes.current.get(entryId)
+          if (t) { clearTimeout(t); pendingDeletes.current.delete(entryId) }
+          fetchSelectedEntries()
+        },
+      },
     })
-    setTimeout(async () => {
+    const handle = setTimeout(async () => {
+      pendingDeletes.current.delete(entryId)
       if (!undone) {
         await supabase.from('journal_entries').delete().eq('id', entryId)
         fetchMonthEntries()
       }
     }, 5000)
+    pendingDeletes.current.set(entryId, handle)
   }
 
   async function updateJournalScore(dateStr, formData) {

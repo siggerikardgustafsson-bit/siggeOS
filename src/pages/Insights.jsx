@@ -333,9 +333,14 @@ export default function InsightsPage() {
 
   async function generateObservations(freshData, force = false) {
     const OBS_TTL = 30 * 60 * 1000
+    // Key the cache on user + period — a fixed key showed 90-day observations
+    // under a 365-day heading, and leaked one user's observations to the next
+    // login in the same tab. See AUDIT.md P1-5.
+    const obsKey = `insights_obs:${user?.id || 'anon'}:${period}`
+    const obsTimeKey = `${obsKey}:time`
     try {
-      const cached = sessionStorage.getItem('insights_obs')
-      const cachedTime = parseInt(sessionStorage.getItem('insights_obs_time') || '0')
+      const cached = sessionStorage.getItem(obsKey)
+      const cachedTime = parseInt(sessionStorage.getItem(obsTimeKey) || '0')
       if (!force && cached && (Date.now() - cachedTime) < OBS_TTL) {
         const parsed = JSON.parse(cached)
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -373,8 +378,8 @@ export default function InsightsPage() {
         setAiObservations(arr)
         const now = Date.now()
         try {
-          sessionStorage.setItem('insights_obs', JSON.stringify(arr))
-          sessionStorage.setItem('insights_obs_time', String(now))
+          sessionStorage.setItem(obsKey, JSON.stringify(arr))
+          sessionStorage.setItem(obsTimeKey, String(now))
         } catch (_) {}
         setObsLastUpdated(new Date(now))
       }
@@ -401,17 +406,47 @@ export default function InsightsPage() {
     return Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10
   }
 
+  // Compact, bounded text summary of the charted series. Goes in the *message*,
+  // not `context` — the edge function ignores `context` whenever a systemPrompt
+  // is supplied, so the old `context: JSON.stringify(data)` was uploaded and
+  // thrown away, leaving the model with zero datapoints. See AUDIT.md P0-2.
+  function buildReportSummary() {
+    const L = []
+    const tail = (arr, n = 8) => (arr || []).slice(-n)
+    const s = tail(data.sleepData).map(d => `${d.week}:${d.sömn}h`).join(', ')
+    if (s) L.push(`Sömn/vecka: ${s}`)
+    const w = tail(data.weightData).map(d => `${d.week}:${d.vikt}kg`).join(', ')
+    if (w) L.push(`Vikt/vecka: ${w}`)
+    const t = tail(data.trainingData).map(d => `${d.week}:${d.pass}p`).join(', ')
+    if (t) L.push(`Träningspass/vecka: ${t}`)
+    const st = tail(data.studyData).map(d => `${d.week}:${d.timmar}h`).join(', ')
+    if (st) L.push(`Studietimmar/vecka: ${st}`)
+    const steps = tail(data.stepsData).map(d => `${d.week}:${d.steg}`).join(', ')
+    if (steps) L.push(`Steg/vecka: ${steps}`)
+    const inc = tail(data.incomeData).map(d => `${d.month || d.week}:${d.inkomst}kr`).join(', ')
+    if (inc) L.push(`Inkomst: ${inc}`)
+    const pa = tail(data.paData).map(d => `${d.month || d.week}:${d.timmar}h`).join(', ')
+    if (pa) L.push(`PA-timmar: ${pa}`)
+    if (data.correlations?.length) L.push('Korrelationer: ' + data.correlations.map(c => `${c.label} r=${c.r} (${c.strength})`).join('; '))
+    if (data.weekdayData?.some(d => d.pass || d.energi)) L.push('Per veckodag: ' + data.weekdayData.map(d => `${d.day} ${d.pass}p/energi ${d.energi}`).join(', '))
+    if (data.streaks?.length) L.push('Nyckeltal: ' + data.streaks.map(x => `${x.label} ${x.value}`).join(', '))
+    return L.join('\n')
+  }
+
   async function generateWeeklyReport() {
     setGeneratingReport(true)
     setWeeklyReport('')
     try {
-      const { data: rd } = await supabase.functions.invoke('jarvis-chat', {
+      const summary = buildReportSummary()
+      const { data: rd, error } = await supabase.functions.invoke('jarvis-chat', {
         body: {
-          messages: [{ role: 'user', content: `Analysera min senaste vecka och ge en veckorapport. Fokusera på de områden där jag faktiskt loggat data (t.ex. träning, studier, hälsa, ekonomi) och mönster du ser. Var konkret och direkt. Max 300 ord.` }],
-          context: JSON.stringify(data),
+          messages: [{ role: 'user', content:
+            `Analysera min senaste tid och ge en veckorapport. Fokusera på områden där jag faktiskt loggat data och mönster du ser. Var konkret och direkt. Max 300 ord.\n\nData (sammanfattning per vecka/månad):\n${summary || 'Ingen data loggad.'}` }],
+          context: '',
           systemPrompt: 'Du är Jarvis, användarens personliga AI. Ge en ärlig, direkt veckoanalys på svenska. Inga floskler.',
         },
       })
+      if (error) throw new Error(error.message)
       setWeeklyReport(rd?.content || '')
     } catch (err) { console.error(err); toast({ message: 'Kunde inte generera veckorapporten', type: 'error' }) }
     setGeneratingReport(false)

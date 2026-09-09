@@ -10,6 +10,7 @@ import ExerciseModal from '../components/ExerciseModal'
 import RunModal from '../components/RunModal'
 import Modal from '../components/Modal'
 import EmptyState from '../components/EmptyState'
+import { patchGoals } from '../lib/userSettings'
 
 const BASE_EXERCISE_LIBRARY = {
   'Bröst': ['Bänkpress', 'Lutande bänkpress', 'Cables korsning', 'Dips', 'Armhävningar'],
@@ -392,11 +393,13 @@ export default function TraningPage() {
     const existing = data?.goals?.custom_exercises || []
     if (existing.includes(name)) return
     const updated = [...existing, name]
-    await supabase.from('user_settings').upsert({
-      user_id: user.id,
-      goals: { ...(data?.goals || {}), custom_exercises: updated }
-    }, { onConflict: 'user_id' })
-    setExerciseLibrary(prev => ({ ...prev, 'Egna': updated }))
+    try {
+      await patchGoals(user.id, { custom_exercises: updated })
+      setExerciseLibrary(prev => ({ ...prev, 'Egna': updated }))
+    } catch (e) {
+      console.error('saveCustomExercise failed:', e)
+      toast({ message: 'Kunde inte spara den egna övningen.', type: 'error' })
+    }
   }
 
   async function checkStravaStatus() {
@@ -870,7 +873,7 @@ export default function TraningPage() {
     setSaving(true)
     const sessionDate = otherForm.date || format(new Date(), 'yyyy-MM-dd')
 
-    await supabase.from('training_sessions').insert({
+    const { error } = await supabase.from('training_sessions').insert({
       user_id: user.id,
       date: sessionDate,
       session_type: 'other',
@@ -879,13 +882,20 @@ export default function TraningPage() {
       notes: `${otherForm.activity}${otherForm.notes ? ' — ' + otherForm.notes : ''}`,
       source: 'manual',
     })
+    if (error) {
+      console.error('saveOtherSession failed:', error)
+      toast({ message: 'Kunde inte spara passet.', type: 'error' })
+      setSaving(false)
+      return
+    }
 
     if (otherForm.steps) {
-      await supabase.from('health_logs').upsert({
+      const { error: stepErr } = await supabase.from('health_logs').upsert({
         user_id: user.id,
         date: sessionDate,
         steps: parseInt(otherForm.steps),
       }, { onConflict: 'user_id,date' })
+      if (stepErr) toast({ message: 'Passet sparat, men stegen kunde inte sparas.', type: 'error' })
     }
 
     await updateTrainingScore(sessionDate, otherForm.feeling)

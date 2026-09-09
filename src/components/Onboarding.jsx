@@ -105,16 +105,20 @@ export default function Onboarding({ onComplete }) {
 
   async function finish() {
     setSaving(true)
+    // Merge onto any existing goals — normally empty at onboarding, but a
+    // blind write must never be able to drop keys (AUDIT.md P0-5).
+    const { data: fresh } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle()
     await supabase.from('user_settings').upsert({
       user_id: user.id,
       display_name: displayName.trim(),
       about_me: aboutMe.trim(),
       goals: {
+        ...(fresh?.goals || {}),
         one_year: oneYear,
         three_year: threeYear,
         monthly_income_goal: incomeGoal,
         body_weight_goal: weightGoal,
-        csn_fribelopp: 114500,
+        csn_fribelopp: fresh?.goals?.csn_fribelopp ?? 114500,
       },
       jarvis_style: jarvisStyle,
       jarvis_personality: jarvisPersonality,

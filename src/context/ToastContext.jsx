@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo } from 'react'
 
 const ToastContext = createContext(null)
 
@@ -18,8 +18,13 @@ export function ToastProvider({ children }) {
     return id
   }, [dismiss])
 
+  // Memoised — ToastProvider re-renders on every shown/dismissed toast, and a
+  // fresh object literal here would re-render every useToast() consumer
+  // (Dashboard, Träning, …) twice per toast. See AUDIT.md P1-9.
+  const value = useMemo(() => ({ toast, dismiss }), [toast, dismiss])
+
   return (
-    <ToastContext.Provider value={{ toast, dismiss }}>
+    <ToastContext.Provider value={value}>
       {children}
       <div style={{
         position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)',

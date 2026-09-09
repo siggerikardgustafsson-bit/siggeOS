@@ -554,7 +554,7 @@ export default function JobbPage() {
       amount,
       source: 'Erik Norling',
       counts_toward_csn: false,
-      notes: paymentForm.description,
+      description: paymentForm.description,
     })
     await fetchAll()
     setPaymentForm({ date: format(new Date(), 'yyyy-MM-dd'), amount: '', description: '' })

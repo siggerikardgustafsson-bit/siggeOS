@@ -13,12 +13,12 @@ import AchievementsModal from '../components/AchievementsModal'
 import { CalendarDays, BarChart2, Orbit, Sparkles, Trophy, Network } from 'lucide-react'
 import { useToast } from '../context/ToastContext'
 import {
-  getTier, getStudyTier, getSkillTier, getDecayedValue, calcOverallTier,
-  estimateVO2max, formatRunTime,
-  VO2MAX_THRESHOLDS, RUN_5K_THRESHOLDS, RUN_10K_THRESHOLDS, RUN_HALF_THRESHOLDS, RUN_MARA_THRESHOLDS,
+  getTier, getSkillTier, getDecayedValue, calcOverallTier,
+  formatRunTime,
+  RUN_5K_THRESHOLDS, RUN_10K_THRESHOLDS, RUN_HALF_THRESHOLDS,
   BENCH_THRESHOLDS, SQUAT_THRESHOLDS, DEADLIFT_THRESHOLDS, OHP_THRESHOLDS, PULLUP_THRESHOLDS,
   SLEEP_DURATION_THRESHOLDS, INCOME_THRESHOLDS, SAVINGS_THRESHOLDS,
-  ENERGY_THRESHOLDS, MOOD_THRESHOLDS, STRESS_THRESHOLDS, STEPS_THRESHOLDS,
+  ENERGY_THRESHOLDS, MOOD_THRESHOLDS,
   TIER_COLORS, TIER_NAMES,
 } from '../components/dashboard/tierUtils'
 import { getUserProfile, buildUserContext } from '../lib/personalization'
@@ -36,6 +36,7 @@ import ProfileQualityCard from '../components/ProfileQualityCard'
 import StatusChip from '../components/ui/StatusChip'
 import SectionHeader from '../components/ui/SectionHeader'
 import { getJarvisUserContext } from '../lib/jarvis'
+import { getSalaryPeriod } from '../lib/salaryPeriod'
 import { computeStudiesTier, buildStudiesLevelUp } from '../lib/studies'
 
 const DEFAULT_SUPPLEMENTS = ['Kreatin', 'D-vitamin', 'Omega-3', 'Multivitamin', 'Magnesium']
@@ -271,13 +272,11 @@ export default function Dashboard() {
       const since90 = format(subDays(todayDate, 90), 'yyyy-MM-dd')
       const since30 = format(subDays(todayDate, 30), 'yyyy-MM-dd')
 
-      // Fetch salary_day first to build correct period
+      // Fetch salary_day first to build correct period — shared with Ekonomi
+      // via src/lib/salaryPeriod.js so the two views never disagree (P2-5).
       const { data: settingsQuick } = await supabase.from('user_settings').select('goals,display_name').eq('user_id',userId).maybeSingle()
       const salaryDay = settingsQuick?.goals?.salary_day || 25
-      const todayNum = todayDate.getDate()
-      const startMonth = todayNum < salaryDay ? todayDate.getMonth() - 1 : todayDate.getMonth()
-      const periodStart = format(new Date(todayDate.getFullYear(), startMonth, salaryDay), 'yyyy-MM-dd')
-      const periodEnd = format(new Date(todayDate.getFullYear(), startMonth + 1, salaryDay - 1), 'yyyy-MM-dd')
+      const { start: periodStart, end: periodEnd } = getSalaryPeriod(todayDate, salaryDay)
 
       const [
         { data: runData }, { data: runPrData }, { data: prData }, { data: healthData },
@@ -926,11 +925,14 @@ export default function Dashboard() {
         styrka:    cats.find(c=>c.id==='styrka')?.tier?.tier ?? null,
         plugg:     cats.find(c=>c.id==='plugg')?.tier?.tier ?? null,
         ekonomi:   cats.find(c=>c.id==='ekonomi')?.tier?.tier ?? null,
+        somn:      cats.find(c=>c.id==='somn')?.tier?.tier ?? null,
         valmående: cats.find(c=>c.id==='halsa')?.tier?.tier ?? null,
         score_version: SCORE_VERSION,
       }
+      // Fire-and-forget, but surface failures: if this write silently fails,
+      // Jarvis's whole intelligence layer goes blind (AUDIT.md P0-4 / P0-8).
       supabase.from('tier_snapshots').upsert(todaySnap, { onConflict: 'user_id,date' })
-        .then(() => {}).catch(() => {}) // fire-and-forget, table may not exist yet
+        .then(({ error }) => { if (error) console.warn('tier_snapshots upsert failed:', error.message) })
 
       // Store raw data for graph — computed reactively via useMemo when graphPeriod changes
       setRawGraphData({ healthData: healthData || [], snapshots: snapshots || [] })

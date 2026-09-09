@@ -184,11 +184,16 @@ export default function SettingsPage() {
 
   async function saveProfile() {
     setSaving(true)
+    // Merge onto a fresh read of `goals` — Settings loads it at mount and
+    // holds a stale copy, so a blind write here wipes active_supplements /
+    // custom_exercises added from Hälsa or Träning meanwhile (AUDIT.md P0-5).
+    const { data: fresh } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle()
+    const mergedGoals = { ...(fresh?.goals || {}), ...goals }
     const { error } = await supabase.from('user_settings').upsert({
       user_id: user.id,
       display_name: displayName,
       about_me: aboutMe,
-      goals,
+      goals: mergedGoals,
       jarvis_style: jarvisStyle,
       jarvis_lang: jarvisLang,
       jarvis_personality: jarvisPersonality,

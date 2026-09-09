@@ -9,6 +9,7 @@ import {
   Compass, Flame, SkipForward, Edit2, FileText, Sparkles, Trash2
 } from 'lucide-react'
 import { WORLD_PATHS, COUNTRY_PATHS } from '../lib/worldPaths'
+import { TRIP_STATUSES, TRIP_STATUS_COLOR, TRIP_STATUS_RANK } from '../lib/constants'
 import EmptyState from '../components/EmptyState'
 import { getUserIdentityContext, identityToPrompt } from '../lib/personalization'
 
@@ -73,8 +74,9 @@ const COUNTRY_COORDS = {
   'Sydafrika':[25,-29],'Kenya':[38,0],'Etiopien':[40,9],'Tanzania':[35,-6],
 }
 
-const STATUS_RANK = { completed: 3, planned: 2, idea: 1 }
-const STATUS_MAP_COLOR = { completed: 'var(--accent)', planned: '#3b82f6', idea: '#8b5cf6' }
+const STATUS_RANK = TRIP_STATUS_RANK
+// Map view deliberately uses the theme accent for completed trips.
+const STATUS_MAP_COLOR = { completed: 'var(--accent)', planned: TRIP_STATUS_COLOR.planned, idea: TRIP_STATUS_COLOR.idea }
 
 // Världen full-bredd är 360 men datan är mest på norra halvklotet/Europa.
 // Beskär bort Antarktis och tomma poler för bättre fyllnad.
@@ -222,11 +224,7 @@ function WorldMap({ countryStatus }) {
 }
 
 const ADVENTURE_CATEGORIES = ['mat', 'musik', 'natur', 'spontant', 'socialt', 'kultur', 'övrigt']
-const TRIP_STATUSES = [
-  { id: 'completed', label: 'Avklarad', color: '#10b981' },
-  { id: 'planned',   label: 'Planerad', color: '#3b82f6' },
-  { id: 'idea',      label: 'Idé',      color: '#8b5cf6' },
-]
+// TRIP_STATUSES now imported from ../lib/constants (shared with Ekonomi + Jarvis).
 const DIFFICULTIES = [
   { id: 'lätt',  label: 'Lätt',  color: '#10b981' },
   { id: 'medel', label: 'Medel', color: '#f59e0b' },

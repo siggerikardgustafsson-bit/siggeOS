@@ -9,6 +9,8 @@ import CountUp from '../components/CountUp'
 import EmptyState from '../components/EmptyState'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, X, Save, Loader, AlertTriangle, Map, Target, RefreshCw, Edit2, Trash2 } from 'lucide-react'
+import { getSalaryPeriod } from '../lib/salaryPeriod'
+import { TRIP_STATUSES_UPCOMING } from '../lib/constants'
 
 const EXPENSE_CATEGORIES = [
   { id: 'mat',             label: 'Mat',             color: '#f97316', emoji: '' },
@@ -513,6 +515,7 @@ export default function EkonomiPage() {
   const [logType, setLogType] = useState('expense')
   const [selectedMonth, setSelectedMonth] = useState(new Date())
   const [salaryDay, setSalaryDay] = useState(25) // day of month salary arrives
+  const [salaryDayLoaded, setSalaryDayLoaded] = useState(false)
 
   const [incomes, setIncomes] = useState([])
   const [expenses, setExpenses] = useState([])
@@ -524,27 +527,7 @@ export default function EkonomiPage() {
   const [editingFixed, setEditingFixed] = useState(null) // id being edited, or 'new'
   const [fixedForm, setFixedForm] = useState({ name: '', amount: '' })
 
-  // Compute salary period correctly:
-  // The "current" period for a given reference date is:
-  //   start = salaryDay of the PREVIOUS month (if today < salaryDay) OR salaryDay of this month
-  //   end = salaryDay - 1 of the NEXT month after start
-  function getSalaryPeriod(referenceDate, day) {
-    const ref = new Date(referenceDate)
-    const year = ref.getFullYear()
-    const month = ref.getMonth() // 0-indexed
-    const dayOfMonth = ref.getDate()
-
-    // If we're before the salary day this month, the current period started last month
-    const startMonth = dayOfMonth < day ? month - 1 : month
-    const periodStart = new Date(year, startMonth, day)
-    const periodEnd = new Date(year, startMonth + 1, day - 1)
-
-    return {
-      start: format(periodStart, 'yyyy-MM-dd'),
-      end: format(periodEnd, 'yyyy-MM-dd'),
-      label: `${format(periodStart, 'd MMM', { locale: sv })} – ${format(periodEnd, 'd MMM yyyy', { locale: sv })}`,
-    }
-  }
+  // Salary period math lives in src/lib/salaryPeriod.js so Dashboard shares it.
 
   // For navigation: offset in number of salary periods from today
   // selectedMonth holds a representative date within the target period
@@ -567,11 +550,27 @@ export default function EkonomiPage() {
 
   // Forms
   const [expenseForm, setExpenseForm] = useState({ amount: '', category: 'mat', description: '', date: format(new Date(), 'yyyy-MM-dd') })
-  const [incomeForm, setIncomeForm] = useState({ amount: '', source: 'PA-jobb', counts_toward_csn: true, notes: '', date: format(new Date(), 'yyyy-MM-dd') })
+  const [incomeForm, setIncomeForm] = useState({ amount: '', source: 'PA-jobb', counts_toward_csn: true, description: '', date: format(new Date(), 'yyyy-MM-dd') })
+
+  // Load the salary day BEFORE the first fetchAll so the initial render uses
+  // the right period. Otherwise fetchAll ran once with the default 25, then
+  // setSalaryDay re-triggered the whole 6-query fetch. See AUDIT.md P2-5.
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return
+        const d = data?.goals?.salary_day
+        if (d) setSalaryDay(d)
+        setSalaryDayLoaded(true)
+      })
+    return () => { cancelled = true }
+  }, [user])
 
   useEffect(() => {
-    if (user) fetchAll()
-  }, [user, selectedMonth, salaryDay])
+    if (user && salaryDayLoaded) fetchAll()
+  }, [user, salaryDayLoaded, selectedMonth, salaryDay])
 
   async function fetchAll() {
     const { start, end } = getSalaryPeriod(selectedMonth, salaryDay)
@@ -587,15 +586,14 @@ export default function EkonomiPage() {
       supabase.from('income_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date', { ascending: false }),
       supabase.from('expense_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date', { ascending: false }),
       supabase.from('fixed_costs').select('*').eq('user_id', user.id).eq('active', true),
-      supabase.from('trips').select('*').eq('user_id', user.id).in('status', ['planerad', 'pågående']).order('start_date'),
+      supabase.from('trips').select('*').eq('user_id', user.id).in('status', TRIP_STATUSES_UPCOMING).order('start_date'),
       supabase.from('income_logs').select('amount').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', halfEnd),
       supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle(),
     ])
 
     const totalCsn = (csnRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0)
     const limit = settingsRes.data?.goals?.csn_fribelopp || 114500
-    const savedSalaryDay = settingsRes.data?.goals?.salary_day
-    if (savedSalaryDay) setSalaryDay(savedSalaryDay)
+    // salary_day is loaded in its own effect above — not re-read here.
 
     setIncomes(incomesRes.data || [])
     setExpenses(expensesRes.data || [])
@@ -637,12 +635,12 @@ export default function EkonomiPage() {
       amount,
       source: incomeForm.source,
       counts_toward_csn: incomeForm.counts_toward_csn,
-      notes: incomeForm.notes,
+      description: incomeForm.description,
       date: incomeForm.date,
     })
     if (error) { toast({ message: 'Kunde inte spara inkomsten.', type: 'error' }); setSaving(false); return }
     await fetchAll()
-    setIncomeForm({ amount: '', source: 'PA-jobb', counts_toward_csn: true, notes: '', date: format(new Date(), 'yyyy-MM-dd') })
+    setIncomeForm({ amount: '', source: 'PA-jobb', counts_toward_csn: true, description: '', date: format(new Date(), 'yyyy-MM-dd') })
     setSaving(false)
   }
 
@@ -1017,7 +1015,7 @@ export default function EkonomiPage() {
                 <input className="input" type="date" value={incomeForm.date} onChange={e => setIncomeForm(f => ({ ...f, date: e.target.value }))} />
               </div>
               <div className="ek-field">
-                <input className="input" placeholder="Anteckningar (valfritt)" value={incomeForm.notes} onChange={e => setIncomeForm(f => ({ ...f, notes: e.target.value }))} />
+                <input className="input" placeholder="Anteckningar (valfritt)" value={incomeForm.description} onChange={e => setIncomeForm(f => ({ ...f, description: e.target.value }))} />
               </div>
               <button onClick={saveIncome} className="ek-submit" disabled={saving || !incomeForm.amount}>
                 {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar...</> : <><Save size={15} /> Logga inkomst</>}

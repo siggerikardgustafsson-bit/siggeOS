@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../context/ToastContext'
+import { patchGoals } from '../lib/userSettings'
 import { useTilt } from '../hooks/useTilt'
 import CountUp from '../components/CountUp'
 import { format, subDays, parseISO } from 'date-fns'
@@ -140,17 +141,27 @@ export default function HalsaPage() {
 
   async function saveWidget(widget, payload) {
     setSavingWidget(s => ({ ...s, [widget]: true }))
-    await supabase.from('health_logs').upsert({ user_id: user.id, source: 'manual', ...payload }, { onConflict: 'user_id,date' })
-    await fetchLogs()
+    const { error } = await supabase.from('health_logs').upsert({ user_id: user.id, source: 'manual', ...payload }, { onConflict: 'user_id,date' })
     setSavingWidget(s => ({ ...s, [widget]: false }))
+    if (error) {
+      console.error('saveWidget failed:', error)
+      toast({ message: 'Kunde inte spara — försök igen.', type: 'error' })
+      return
+    }
+    await fetchLogs()
     setSavedWidget(s => ({ ...s, [widget]: true }))
     setTimeout(() => setSavedWidget(s => ({ ...s, [widget]: false })), 2000)
   }
 
   async function saveNutrition(payload) {
     setSavingWidget(s => ({ ...s, nutrition: true }))
-    await supabase.from('nutrition_logs').upsert({ user_id: user.id, ...payload }, { onConflict: 'user_id,date' })
+    const { error } = await supabase.from('nutrition_logs').upsert({ user_id: user.id, ...payload }, { onConflict: 'user_id,date' })
     setSavingWidget(s => ({ ...s, nutrition: false }))
+    if (error) {
+      console.error('saveNutrition failed:', error)
+      toast({ message: 'Kunde inte spara näringsloggen.', type: 'error' })
+      return
+    }
     setSavedWidget(s => ({ ...s, nutrition: true }))
     setTimeout(() => setSavedWidget(s => ({ ...s, nutrition: false })), 2000)
   }
@@ -186,13 +197,15 @@ export default function HalsaPage() {
 
   async function saveSupplementList(nextList) {
     setSupplements(nextList)
-    const goals = { ...(userSettings?.goals || {}), active_supplements: nextList }
-    const { data, error } = await supabase
-      .from('user_settings')
-      .upsert({ user_id: user.id, goals, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
-      .select('goals')
-      .single()
-    if (!error) setUserSettings(data || { goals })
+    try {
+      // Merge onto a fresh read so this doesn't clobber custom_exercises /
+      // salary_day written elsewhere (AUDIT.md P0-5).
+      const goals = await patchGoals(user.id, { active_supplements: nextList })
+      setUserSettings(s => ({ ...(s || {}), goals }))
+    } catch (e) {
+      console.error('saveSupplementList failed:', e)
+      toast({ message: 'Kunde inte spara kosttillskottslistan.', type: 'error' })
+    }
   }
 
   async function openEditLog(log) {

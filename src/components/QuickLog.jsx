@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { Plus, X, Heart, Dumbbell, DollarSign, TrendingUp, BookOpen, Check, Loader, Trash2 } from 'lucide-react'
@@ -411,6 +412,7 @@ const TABS = [
 
 export default function QuickLog() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('training')
   const [saving, setSaving] = useState(false)
@@ -439,7 +441,8 @@ export default function QuickLog() {
         if (form.sleep_hours) payload.sleep_hours = parseFloat(form.sleep_hours)
         if (form.energy) { payload.energy = form.energy; payload.energy_level = form.energy }
         if (form.steps) payload.steps = parseInt(form.steps)
-        await supabase.from('health_logs').upsert(payload, { onConflict: 'user_id,date' })
+        const { error } = await supabase.from('health_logs').upsert(payload, { onConflict: 'user_id,date' })
+        if (error) throw error
 
       } else if (activeTab === 'training') {
         const { sessionType, duration, feeling, notes, exercises, runDistance, runMinutes, runSeconds } = form
@@ -514,35 +517,50 @@ export default function QuickLog() {
 
       } else if (activeTab === 'expense') {
         if (!form.amount) { setSaving(false); return }
-        await supabase.from('expense_logs').insert({
+        const { error } = await supabase.from('expense_logs').insert({
           user_id: user.id, date: today,
           amount: parseFloat(form.amount),
           category: form.category || 'Övrigt',
           description: form.description || '',
         })
+        if (error) throw error
 
       } else if (activeTab === 'income') {
         if (!form.amount) { setSaving(false); return }
-        await supabase.from('income_logs').insert({
+        const { error } = await supabase.from('income_logs').insert({
           user_id: user.id, date: today,
           amount: parseFloat(form.amount),
           source: form.source || 'Övrigt',
           description: form.description || '',
         })
+        if (error) throw error
 
       } else if (activeTab === 'journal') {
-        const payload = { user_id: user.id, date: today }
+        // journal_entries allows multiple rows per day (Journal.jsx uses
+        // .insert and renders a list) — so insert, and write the user text to
+        // `content`, the column every reader actually uses. The old code
+        // upserted onto (user_id,date) and wrote dead `highlights`/`notes`
+        // columns while swallowing the error (AUDIT.md P0-6 / P0-7).
+        const parts = []
+        if (form.highlights) parts.push(form.highlights)
+        if (form.notes) parts.push(form.notes)
+        if (!parts.length && !form.mood && !form.energy) {
+          toast({ message: 'Skriv något eller sätt humör/energi först.', type: 'error' })
+          setSaving(false)
+          return
+        }
+        const payload = { user_id: user.id, date: today, content: parts.join('\n\n') }
         if (form.mood) payload.mood = form.mood
         if (form.energy) payload.energy = form.energy
-        if (form.highlights) payload.highlights = form.highlights
-        if (form.notes) payload.notes = form.notes
-        await supabase.from('journal_entries').upsert(payload, { onConflict: 'user_id,date' })
+        const { error } = await supabase.from('journal_entries').insert(payload)
+        if (error) throw error
       }
 
       setSaved(true)
       setTimeout(() => { setSaved(false); setOpen(false) }, 1000)
     } catch (e) {
       console.error('QuickLog save error:', e)
+      toast({ message: 'Kunde inte spara — försök igen.', type: 'error' })
     }
     setSaving(false)
   }

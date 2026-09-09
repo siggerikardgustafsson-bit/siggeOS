@@ -8,6 +8,7 @@ import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp, Plus, Trash2, Spar
 import MarkdownMessage from '../components/MarkdownMessage'
 import { loadJarvisContext, buildJarvisContextBlock } from '../lib/jarvis'
 import { getUserProfile } from '../lib/personalization'
+import { TRIP_STATUSES_UPCOMING } from '../lib/constants'
 
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
 
@@ -127,7 +128,7 @@ export default function Jarvis() {
       supabase.from('daily_scores').select('total_score,score_training,score_health,score_study,score_economy,score_social,peak_mode').eq('user_id', user.id).eq('date', today).maybeSingle(),
       supabase.from('course_exams').select('exam_date,name').eq('user_id', user.id).gte('exam_date', today).order('exam_date', { ascending: true }).limit(3),
       supabase.from('projects').select('id,name,type,client').eq('user_id', user.id).order('created_at'),
-      supabase.from('trips').select('id,title,countries,start_date,end_date,status,budget_sek').eq('user_id', user.id).in('status', ['planned', 'idea']).order('start_date', { ascending: true }).limit(5),
+      supabase.from('trips').select('id,title,countries,start_date,end_date,status,budget_sek').eq('user_id', user.id).in('status', TRIP_STATUSES_UPCOMING).order('start_date', { ascending: true }).limit(5),
       supabase.from('health_logs').select('weight_kg,sleep_hours,energy,energy_level,mood,steps').eq('user_id', user.id).eq('date', today).maybeSingle(),
     ])
 
