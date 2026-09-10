@@ -92,6 +92,17 @@ FIELD_BOUNDS + i correlate.js (HRV↔träning/sömn vore en stark koppling).
 
 ## Datamodell / arkitektur
 
+### 🔥 Fritext-livsmålen → strukturerade mål, eller redigerbara av Jarvis
+`user_settings.goals.one_year / three_year / ten_year / monthly_income_goal /
+target_weight` är fritext i Profil. Jarvis *läser* dem (systemprompten) men har
+ingen action för att ändra dem, och de syns inte i `<GoalsSection>`. Säger du
+"mitt 1-årsmål är X" till Jarvis kan hen spara det som en *insikt* men inte
+uppdatera själva livsmålsfältet. Två vägar: (a) en `update_life_goal`-action som
+`patchGoals`:ar rätt nyckel (merge-säkert, litet); (b) migrera in dem som rader i
+`goals`-tabellen med en egen kategori och sluta använda fritextfälten.
+**Beslut:** vill du ha kvar 1/3/10-års-fritexten som egen grej i Profil, eller
+ska allt vara strukturerade mål?
+
 ### ⭐ Nattjobb som räknar om `daily_scores`
 `daily_scores` skrivs bara styckvis när du öppnar Journal/Träning en viss dag.
 Dagar du inte öppnar appen får ingen rad, och `total_score` skrivs aldrig (fixat

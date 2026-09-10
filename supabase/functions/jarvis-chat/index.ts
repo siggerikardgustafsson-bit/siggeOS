@@ -40,6 +40,25 @@ const normalizeSessionType = (value: any): string | null => {
   return SESSION_TYPE_MAP[value.trim().toLowerCase()] ?? null
 }
 
+// daily_scores is a per-day 0-100 activity log written piecemeal by the app
+// (Träning writes score_training, Journal writes score_journal/score_health).
+// Jarvis writes to the same table with the same formulas so a pass or a
+// journal entry logged through chat moves the same needles the app would.
+// `merge` picks the higher value per key so a later partial write never
+// stomps a domain the app already scored that day.
+async function upsertDailyScore(supabase: any, userId: string, date: string, patch: Record<string, number>) {
+  try {
+    const { data: existing } = await supabase.from('daily_scores').select('*').eq('user_id', userId).eq('date', date).maybeSingle()
+    if (existing?.id) {
+      const merged: Record<string, number> = {}
+      for (const [k, v] of Object.entries(patch)) merged[k] = Math.max(Number(existing[k] || 0), Number(v))
+      await supabase.from('daily_scores').update(merged).eq('id', existing.id)
+    } else {
+      await supabase.from('daily_scores').insert({ user_id: userId, date, ...patch })
+    }
+  } catch (_) { /* daily_scores is best-effort — never fail the write over it */ }
+}
+
 // ─────────────────────────────────────────────
 // TOOLS
 // Sharp, unambiguous descriptions so Jarvis
@@ -233,7 +252,7 @@ const TOOLS = [
         },
         data: {
           type: 'object',
-          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | delete_trip:{id} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,notes?} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,description?} | update_income:{id,fields} | log_nutrition:{date?,total_calories?,protein_g?,water_liters?} | log_supplement:{date?,supplement_name,taken?(default true)} | create_goal:{title,category(traning|halsa|ekonomi|plugg|resor|jobb|livet),description?,target_value?,unit?,current_value?,direction?(up|down),deadline?,metric?,pinned?} | update_goal:{id,fields} | complete_goal:{id} | delete_goal:{id} | log_study:{date?,hours,subject?,course_id?,notes?} | create_course:{name,term?,exam_date?} | add_exam:{course_id,name,exam_date?,notes?} | log_social:{date?,friend_names[],activity?,quality?,notes?} | create_side_quest:{title,description?,category?,difficulty?,status?} | update_side_quest:{id,fields} | create_adventure:{title,description?,date?,location?,category?,rating?} | update_adventure:{id,fields} | delete_adventure:{id} | add_journal_entry:{date?,content,mood?,energy?,sleep_hours?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
+          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | delete_trip:{id} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,steps?,notes?,exercises?:[{name,sets:[{reps,weight_kg}]}] för gympass — ger PR-koll} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,description?} | update_income:{id,fields} | log_nutrition:{date?,total_calories?,protein_g?,water_liters?} | log_supplement:{date?,supplement_name,taken?(default true)} | create_goal:{title,category(traning|halsa|ekonomi|plugg|resor|jobb|livet),description?,target_value?,unit?,current_value?,direction?(up|down),deadline?,metric?,pinned?} | update_goal:{id,fields} | complete_goal:{id} | delete_goal:{id} | log_study:{date?,hours,subject?,course_id?,notes?} | create_course:{name,term?,exam_date?} | add_exam:{course_id,name,exam_date?,notes?} | log_social:{date?,friend_names[],activity?,quality?,notes?} | create_side_quest:{title,description?,category?,difficulty?,status?} | update_side_quest:{id,fields} | create_adventure:{title,description?,date?,location?,category?,rating?} | update_adventure:{id,fields} | delete_adventure:{id} | add_journal_entry:{date?,content,mood?,energy?,sleep_hours?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
         },
         confirm_message: { type: 'string' },
       },
@@ -705,9 +724,52 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           break
         }
         case 'log_training': {
-          const { error } = await supabase.from('training_sessions').insert({ user_id: userId, date: d.date || todayISO(), session_type: normalizeSessionType(d.session_type) || 'other', duration_minutes: clean(d.duration_minutes), distance_km: clean(d.distance_km), time_seconds: clean(d.time_seconds), pace_per_km: clean(d.pace_per_km), feeling: clean(d.feeling), notes: d.notes || '', source: 'jarvis' })
+          const { data: sess, error } = await supabase.from('training_sessions')
+            .insert({ user_id: userId, date: d.date || todayISO(), session_type: normalizeSessionType(d.session_type) || 'other', duration_minutes: clean(d.duration_minutes), distance_km: clean(d.distance_km), time_seconds: clean(d.time_seconds), pace_per_km: clean(d.pace_per_km), feeling: clean(d.feeling), notes: d.notes || '', source: 'jarvis' })
+            .select('id').single()
           if (error) throw error
-          result = 'Träningspass loggat.'
+          const prs: string[] = []
+          // Optional per-exercise detail: [{name, sets:[{reps,weight_kg}]}].
+          // Insert training_exercises so the session shows its lifts in the app,
+          // and bump personal_records for weighted lifts (heaviest weight wins —
+          // the same rule src/lib/exercises.js uses for non-bodyweight moves).
+          if (Array.isArray(d.exercises) && d.exercises.length && sess?.id) {
+            const rows: any[] = []
+            for (const ex of d.exercises) {
+              const name = String(ex?.name || '').trim()
+              if (!name || !Array.isArray(ex.sets)) continue
+              ex.sets.forEach((s: any, i: number) => {
+                rows.push({ user_id: userId, session_id: sess.id, exercise_name: name, set_number: i + 1, reps: clean(s?.reps) != null ? Number(s.reps) : null, weight_kg: clean(s?.weight_kg) != null ? Number(s.weight_kg) : null, is_dropset: !!s?.is_dropset })
+              })
+              const weighted = ex.sets.filter((s: any) => Number(s?.weight_kg) > 0)
+              if (weighted.length) {
+                const bestW = Math.max(...weighted.map((s: any) => Number(s.weight_kg)))
+                const bestSet = weighted.find((s: any) => Number(s.weight_kg) === bestW)
+                const { data: existing } = await supabase.from('personal_records').select('id,weight_kg').eq('user_id', userId).eq('exercise_name', name).limit(1)
+                const prev = existing?.[0]
+                if (!prev || bestW > Number(prev.weight_kg || 0)) {
+                  const payload = { user_id: userId, exercise_name: name, weight_kg: bestW, reps: clean(bestSet?.reps) != null ? Number(bestSet.reps) : null, date: d.date || todayISO() }
+                  if (prev?.id) await supabase.from('personal_records').update(payload).eq('id', prev.id)
+                  else await supabase.from('personal_records').insert(payload)
+                  prs.push(`${name} ${bestW}kg`)
+                }
+              }
+            }
+            if (rows.length) {
+              const { error: exErr } = await supabase.from('training_exercises').insert(rows)
+              if (exErr) throw exErr
+            }
+          }
+          const sessDate = d.date || todayISO()
+          // Mirror steps into health_logs the way the Träning "annat pass" form does.
+          if (clean(d.steps) != null) {
+            await supabase.from('health_logs').upsert({ user_id: userId, date: sessDate, steps: Number(d.steps) }, { onConflict: 'user_id,date' })
+          }
+          // Same score_training formula as src/pages/Traning.jsx updateTrainingScore.
+          if (clean(d.feeling) != null) {
+            await upsertDailyScore(supabase, userId, sessDate, { score_training: Math.min(50 + (Number(d.feeling) / 10) * 50, 100) })
+          }
+          result = `Träningspass loggat.${prs.length ? ` Nytt PR: ${prs.join(', ')}.` : ''}`
           break
         }
         case 'log_health': {
@@ -1017,6 +1079,10 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
             if (d.energy != null) { hf.energy = Number(d.energy); hf.energy_level = Number(d.energy) }
             await supabase.from('health_logs').upsert(hf, { onConflict: 'user_id,date' })
           }
+          // Same score formulas as src/pages/Journal.jsx updateJournalScore.
+          const scorePatch: Record<string, number> = { score_journal: Math.min(75 + Math.min(String(d.content).length / 5, 25), 100) }
+          if (d.energy != null) scorePatch.score_health = (Number(d.energy) / 10) * 100
+          await upsertDailyScore(supabase, userId, date, scorePatch)
           result = `Journalanteckning sparad för ${date}.`
           break
         }

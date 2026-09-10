@@ -9,7 +9,20 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 
 ---
 
-## Sammanfattning
+## Session 2 (2026-09-10) — efter merge till main
+
+Post 1–13 mergades till `main` och pushades till prod 2026-09-10 (FF, `e3327b3..a7ab2a6`).
+Migration 05/06/07 + `jarvis-chat` + `health-ingest` deployade av dig.
+Fortsatt arbete på ny branch `data-sync-jarvis-tools` (av `main`). Poster #14+.
+
+| # | Vad | Commit | Kräver av dig |
+|---|-----|--------|---------------|
+| 14 | jarvis-chat: `execute_action` täcker nästan hela appen (20 nya skriv-actions) | `83867a7` | **`functions deploy jarvis-chat`** |
+| 15 | Datasynk: `log_training` skriver nu `training_exercises` + PR + steg + score; `add_journal_entry` speglar score. Audit-fynd nedan. | `4ecc129` | ingår i samma jarvis-chat-deploy |
+
+---
+
+## Sammanfattning (natt-sessionen)
 
 13 poster, alla spår A. #1–10 = natt-sessionen. #11–13 = uppföljning på din
 begäran (goals-UI + rate limiting + fler mål-metrics). Detaljer per post nedan.
@@ -54,6 +67,74 @@ skapa mål tills efter `db push`.
 ---
 
 ## Poster
+
+### 15. Datasynk-audit + parity för Jarvis-skrivningar
+**Spår:** A (din begäran: "garantera att alla datapunkter överallt är synkade")
+**Vad jag gick igenom:** varje tabell som skrivs från flera håll (app-UI,
+Strava/health-ingest, Jarvis) och varje härledd/speglad yta.
+**Resultat — det som redan stämmer:**
+- **Maxx Score / tiers räknas live ur källtabellerna** (`tierEngine.js` +
+  `Dashboard.jsx` läser `training_sessions`/`health_logs`/… direkt, inte
+  `daily_scores`). Domänsidorna läser samma tabeller → headline-score och
+  siddata kan inte drifta isär. Detta är den viktiga garantin och den håller.
+- `health_logs` har flera skribenter men alla gör *partiella* upserts
+  (`onConflict: user_id,date`) → kolumner som inte skickas rörs inte, de slår
+  inte ut varandra.
+- Strava-sync skriver både `training_sessions` och `run_personal_records` →
+  löp-PR-tavlan och `run_5k`/`run_10k`-målmetrics hålls i synk.
+- Mål-metrics (`goalMetrics.js`) läser kanoniska källtabeller (bänk-PR ur
+  `personal_records`, netto ur income/expense/fixed_costs, …).
+**Resultat — det jag FIXADE (post 15-koden):**
+- `execute_action.log_training` skapade tidigare en naken `training_sessions`-rad:
+  inga `training_exercises`, ingen PR-koll, ingen stegspegling, ingen
+  `daily_scores`. Sa användaren "logga gympass, bänk 130×3 PR" blev passet
+  tomt i appen och PR-tavlan + `bench_pr`-målet stod kvar. Nu tar `log_training`
+  emot `exercises:[{name,sets:[{reps,weight_kg}]}]`, skriver set-raderna, höjer
+  `personal_records` för viktbaserade lyft (tyngsta vikt vinner — samma regel
+  som `src/lib/exercises.js`), speglar `steps` till `health_logs` och skriver
+  `score_training` med Träning-sidans formel.
+- `add_journal_entry` speglar nu `score_journal`/`score_health` med Journal-
+  sidans formler (utöver sömn/energi-spegling till `health_logs` som redan fanns).
+- Ny hjälpare `upsertDailyScore()` i edge-fn: merge-max per nyckel, best-effort
+  (får aldrig fälla själva skrivningen).
+**Resultat — kvar (dina beslut, se IDEAS.md):**
+- `daily_scores` är fortfarande en *partiell* logg: bara `score_training` +
+  `score_journal`/`score_health` skrivs regelbundet; `score_economy/study/social/
+  work` nästan aldrig; `total_score` aldrig (härleds läs-sida, post 8). Ett
+  nattjobb är rätt lösning — ligger i IDEAS.
+- `health_logs.source` kan skrivas över av en senare partiell upsert (bara
+  "varifrån kom datan"-etiketten, kosmetiskt).
+- Fritext-livsmålen (`user_settings.goals.one_year/…`) kan Jarvis inte redigera
+  och de syns inte i GoalsSection — funktionsglapp, i IDEAS.
+**Filer:** `supabase/functions/jarvis-chat/index.ts`
+**Verifiering:** esbuild .ts-transform OK. Kan ej köra edge-fn lokalt (ingen
+deno); varje ny gren följer exakt mönstret från de befintliga ~30 case:en.
+**Commit:** `4ecc129`
+**Kräver av dig:** **[DEPLOY]** `supabase functions deploy jarvis-chat` (samma
+som post 14).
+
+### 14. jarvis-chat: execute_action täcker nästan hela appen
+**Spår:** A (din begäran: "ge Jarvis utförlig möjlighet att redigera/lägga till
+data i alla databaser")
+**Varför:** `execute_action` kunde skriva till ~10 tabeller. Bl.a. kunde Jarvis
+*läsa* de nya strukturerade målen men inte skapa/ändra dem, inte logga plugg,
+inte logga näring/kosttillskott, inte logga socialt.
+**Vad:** 20 nya actions, alla efter samma mönster (RLS-klient, explicit
+`user_id`-filter, `clean()` för valfria fält, defensiva kast):
+- **goals**: create/update/complete/delete (kopplar metric så progress
+  auto-uppdateras)
+- **plugg**: log_study, create_course, add_exam
+- **hälsa-nära**: log_nutrition (upsert), log_supplement (upsert)
+- **upplevelser**: log_social, create/update_side_quest, update/delete_adventure
+- **luckor**: update_income, delete_trip
+- **journal**: add_journal_entry (speglar sömn/energi till health_logs)
+Systemprompten säger nu att skrivytan är bred och att sätta metric på nya mål.
+**Filer:** `supabase/functions/jarvis-chat/index.ts` (TOOLS-enum + data-desc +
+20 switch-case)
+**Verifiering:** esbuild .ts-transform OK. enum ↔ case-paritet verifierad
+(43/43). Varje ny skrivforms kolumner härledda ur appens egna insert-anrop.
+**Commit:** `83867a7` "jarvis-chat: expand execute_action to cover most of the app"
+**Kräver av dig:** **[DEPLOY]** `supabase functions deploy jarvis-chat`
 
 <!-- Ny post överst. Mall:
 ### N. Rubrik
