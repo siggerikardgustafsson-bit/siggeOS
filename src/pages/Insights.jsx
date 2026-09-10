@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
-import { format, subDays, startOfWeek, parseISO, differenceInDays, getDay } from 'date-fns'
+import { format, subDays, startOfWeek, parseISO, getDay } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity, Link2 } from 'lucide-react'
 import PageSkeleton from '../components/Skeleton'
@@ -140,7 +140,7 @@ export default function InsightsPage() {
     const since180 = format(subDays(new Date(), Math.max(period, 180)), 'yyyy-MM-dd')
 
     const [healthRes, journalRes, studyRes, trainingRes, incomeRes, expenseRes, paRes, examRes, courseRes, prRes, settingsRes] = await Promise.all([
-      supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy,energy_level,nicotine,alcohol_units').eq('user_id', user.id).gte('date', since90).order('date'),
+      supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy,energy_level').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('journal_entries').select('date,energy,mood,sleep_hours').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('study_sessions').select('date,hours,course_id').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('training_sessions').select('date,session_type,duration_minutes').eq('user_id', user.id).gte('date', since90).order('date'),
@@ -489,7 +489,6 @@ export default function InsightsPage() {
   }
 
   // Summary stats
-  const last7Days = (arr, field) => arr.filter(d => differenceInDays(new Date(), parseISO(d.date || d.week || new Date().toISOString())) <= 7)
   const totalStudyThisWeek = data.studyData.slice(-1)[0]?.timmar || 0
   const avgSleep = data.sleepData.length ? avg(data.sleepData.map(d => d.sömn)) : 0
   const latestWeight = data.weightData.slice(-1)[0]?.vikt || null
