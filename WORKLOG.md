@@ -44,8 +44,12 @@ Post 19–22: branch `next-ux` → merged + pushed (`1dbbc13..88ef121`).
 | P5 | Profil "Livssituation sparas ej": roller är nu primärmodellen (gamla fält under "Fler detaljer", auto-härledda från aktiva roller), spara-bar med "Osparade ändringar"-indikator | `8de3d8e` | inget |
 | P6 | Laddnings-skeletons: ny `src/components/Skeleton.jsx` + Insights (full) / Dashboard (score-hero) / Kalender / Ekonomi | `470f1f7` | inget |
 | P7 | Kalender: rensad layout — bort med "Kommande"-rutan + redundant månadstitel + 5 stat-kort (räkningen ligger i filter-chipsen); lugnare celler, idag = fylld cirkel | `4d509a4` | inget |
-| P8 | Upplevelser-karta: `react-simple-maps` + d3-geo + city-gazetteer (`src/lib/cityCoords.js`) → städer som markörer istället för länder. Raderade `worldPaths.js` (1.6MB). Chunk 419KB→80KB gz. Zoom/pan, hover-tooltip, pulserande markörer | `ca26af9` | inget |
+| P8 | Upplevelser-karta: `react-simple-maps` + d3-geo + city-gazetteer → städer som markörer istället för länder. Raderade `worldPaths.js` (1.6MB). Zoom/pan, hover-tooltip, pulserande markörer | `ca26af9` | inget |
 | P9 | Dashboard Karta-vyn ryms på en skärm (`.cmap` → `clamp(480px, 100dvh-210px, 720px)`); pinnade mål bara i Träd-vyn. Bubbelkollision verifierad: 0 överlapp | `ef78de4` | inget |
+| P10 | Karta: full stads-gazetteer ~24 000 städer (`scripts/gen-cities.mjs` → `src/lib/cityData.js`, 257KB gz i egen chunk som strömmar in EFTER kartan). n-gram-matchning på titlar ("Barcelona NYE" → Barcelona). Alla resor med lokaliserbar stad är nu markörer. | `8ce5d00` | inget |
+
+Alla P1–P10 mergade till `main` + pushade 2026-09-10 (`88ef121..8ce5d00`).
+**Kvar för dig:** `supabase functions deploy jarvis-chat` + `supabase functions deploy strava-sync`.
 
 ---
 
