@@ -402,7 +402,7 @@ export default function HalsaPage() {
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding:'12px 12px 0', maxWidth:'960px', margin:'0 auto' }}>
+        <div style={{ padding:'12px 12px 0' }}>
 
           {/* Cohesive stat strip — weight hero + sparkline + inline stats */}
           {(() => {

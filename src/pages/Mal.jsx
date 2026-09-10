@@ -88,7 +88,7 @@ export default function MalPage() {
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding: '16px 16px 0', maxWidth: '820px', margin: '0 auto' }}>
+        <div style={{ padding: '16px 16px 0' }}>
 
           {!unavailable && summary && summary.activeCount > 0 && (
             <div className="card" style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center' }}>

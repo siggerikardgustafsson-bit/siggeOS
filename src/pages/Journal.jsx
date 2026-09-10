@@ -437,7 +437,7 @@ export default function JournalPage() {
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding: '12px 12px 0', maxWidth: '1000px', margin: '0 auto' }}>
+        <div style={{ padding: '12px 12px 0' }}>
           <div className="journal-layout" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '12px', alignItems: 'stretch' }}>
 
             {/* ── LEFT: Calendar + stats ── */}

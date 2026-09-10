@@ -278,7 +278,7 @@ export default function KalenderPage() {
         </div>
       </div>
       <div className="page-content-scroll">
-        <div style={{ padding: "16px 16px 0", maxWidth: "1180px", margin: "0 auto" }}>
+        <div style={{ padding: "16px 16px 0" }}>
 
       {/* Slim month summary — a legend that doubles as the counts */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>

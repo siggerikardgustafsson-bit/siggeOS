@@ -545,7 +545,7 @@ export default function PluggPage() {
         </div>
       </div>
       <div className="page-content-scroll">
-        <div style={{ padding: "16px 16px 0", maxWidth: "1000px", margin: "0 auto" }}>
+        <div style={{ padding: "16px 16px 0" }}>
 
       <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px' }}>
         {[{ id: 'aktiva', label: 'Aktiva kurser', icon: GraduationCap }, { id: 'arkiv', label: 'Arkiv', icon: Archive }, { id: 'session', label: 'Studielogg', icon: BookOpen }].map(tab => {

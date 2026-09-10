@@ -500,7 +500,7 @@ export default function InsightsPage() {
   if (loading) return (
     <div className="page-wrap">
       <div className="page-content-scroll">
-        <div style={{ padding: '16px 16px 0', maxWidth: 1000, margin: '0 auto' }}>
+        <div style={{ padding: '16px 16px 0' }}>
           <PageSkeleton stats={3} cards={4} />
         </div>
       </div>
@@ -533,7 +533,7 @@ export default function InsightsPage() {
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
+        <div style={{ padding: '16px 16px 0' }}>
 
       {/* Deterministic signals — always present, no AI. "Risker och signaler". */}
       {data.signals?.length > 0 && (

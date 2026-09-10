@@ -700,7 +700,7 @@ export default function JobbPage() {
         </div>
       </div>
       <div className="page-content-scroll">
-        <div style={{ padding: "16px 16px 0", maxWidth: "1000px", margin: "0 auto" }}>
+        <div style={{ padding: "16px 16px 0" }}>
 
       {/* Month label */}
       <div style={{ fontSize: '13px', color: 'var(--muted)', marginBottom: '16px', textTransform: 'capitalize' }}>

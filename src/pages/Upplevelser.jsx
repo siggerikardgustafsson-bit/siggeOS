@@ -914,7 +914,7 @@ Returnera ENBART JSON utan backticks:
       </div>
 
       <div className="page-content-scroll">
-        <div className="upp-shell" style={{ padding: '16px 16px 0' }}>
+        <div style={{ padding: '16px 16px 0' }}>
 
       <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px' }}>
         {tabs.map(tab => {
@@ -960,16 +960,12 @@ Returnera ENBART JSON utan backticks:
               crammed into the narrow trip column. */}
           <div id="trip-edit-form">
             {showNewTrip && !editingTrip && (
-              <div style={{ maxWidth: '660px', margin: '0 auto' }}>
-                <TripForm initial={EMPTY_TRIP} onSave={saveTrip} onCancel={() => setShowNewTrip(false)} saving={saving} />
-              </div>
+              <TripForm initial={EMPTY_TRIP} onSave={saveTrip} onCancel={() => setShowNewTrip(false)} saving={saving} />
             )}
             {editingTrip && (() => {
               const t = trips.find(x => x.id === editingTrip)
               return t ? (
-                <div style={{ maxWidth: '660px', margin: '0 auto' }}>
-                  <TripForm key={t.id} initial={tripFormInitial(t)} onSave={saveTrip} onCancel={() => setEditingTrip(null)} saving={saving} />
-                </div>
+                <TripForm key={t.id} initial={tripFormInitial(t)} onSave={saveTrip} onCancel={() => setEditingTrip(null)} saving={saving} />
               ) : null
             })()}
           </div>
@@ -1117,7 +1113,7 @@ Returnera ENBART JSON utan backticks:
 
       {/* ===== ÄVENTYR ===== */}
       {activeTab === 'aventyr' && (
-        <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+        <div>
           <button onClick={() => setShowNewAdventure(true)} className="btn btn-primary" style={{ marginBottom: '16px' }}>
             <Plus size={14} /> Nytt äventyr
           </button>
@@ -1192,7 +1188,7 @@ Returnera ENBART JSON utan backticks:
 
       {/* ===== SIDE QUESTS ===== */}
       {activeTab === 'quests' && (
-        <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+        <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{activeQuests.length} aktiva · {doneQuests.length} avklarade</div>
             <button onClick={generateSideQuests} disabled={generatingQuests} style={{
