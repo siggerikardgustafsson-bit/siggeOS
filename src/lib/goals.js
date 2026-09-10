@@ -28,25 +28,44 @@ const SELECT_V5 = 'id,title,category,description,metric,unit,target_value,curren
 const SELECT_LEGACY = 'id,title,category,description,unit,target_value,current_value,deadline,status,created_at,updated_at'
 const TIERS = [SELECT_FULL, SELECT_V5, SELECT_LEGACY]
 
-// Remembered for the session once we learn how far the table's migrated, so we
-// don't fire a doomed full-column query on every page load. 0 = FULL.
+// Which tier this deploy's `goals` table is at. Probed ONCE per session via a
+// shared in-flight promise so concurrent callers never race the counter (that
+// raced some page loads onto the legacy shape and dropped metric/pin). 0 = FULL.
 let schemaTier = 0
 const cols = () => TIERS[schemaTier]
+let tierProbe = null
+function ensureTier() {
+  if (!tierProbe) {
+    tierProbe = (async () => {
+      for (; schemaTier < TIERS.length - 1; schemaTier++) {
+        const { error } = await supabase.from('goals').select(cols()).limit(1)
+        if (!isMissingColumnError(error)) break
+      }
+    })().catch(() => { /* leave schemaTier where it got to */ })
+  }
+  return tierProbe
+}
+
+async function runTiered(attempt) {
+  await ensureTier()
+  let { data, error } = await attempt(cols())
+  // Very rare: schema changed under us (08 deployed mid-session). Walk down once.
+  while (isMissingColumnError(error) && schemaTier < TIERS.length - 1) {
+    schemaTier++
+    ;({ data, error } = await attempt(cols()))
+  }
+  if (error) throw error
+  return data
+}
 
 export async function listGoals(userId, { status = 'active' } = {}) {
-  const run = (c) => {
+  const data = await runTiered((c) => {
     let q = supabase.from('goals').select(c).eq('user_id', userId)
     if (status && status !== 'all') q = q.eq('status', status)
     q = q.order('created_at', { ascending: true })
     if (c !== SELECT_LEGACY) q = q.order('pinned', { ascending: false }).order('sort_order', { ascending: true })
     return q
-  }
-  let { data, error } = await run(cols())
-  while (isMissingColumnError(error) && schemaTier < TIERS.length - 1) {
-    schemaTier++
-    ;({ data, error } = await run(cols()))
-  }
-  if (error) throw error
+  })
   return data || []
 }
 
@@ -95,14 +114,8 @@ function stripForCols(obj, c) {
   allowed.add('user_id')
   return Object.fromEntries(Object.entries(obj).filter(([k]) => allowed.has(k)))
 }
-async function writeWithFallback(run) {
-  let { data, error } = await run(cols())
-  while (isMissingColumnError(error) && schemaTier < TIERS.length - 1) {
-    schemaTier++
-    ;({ data, error } = await run(cols()))
-  }
-  if (error) throw error
-  return data
+function writeWithFallback(run) {
+  return runTiered(run)
 }
 
 // PostgREST reports an unknown column differently on read vs write:

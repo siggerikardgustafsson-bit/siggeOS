@@ -241,7 +241,7 @@ const TOOLS = [
             'log_expense', 'update_expense', 'delete_expense',
             'log_income', 'update_income', 'delete_income',
             'log_nutrition', 'log_supplement',
-            'create_goal', 'update_goal', 'complete_goal', 'delete_goal',
+            'create_goal', 'update_goal', 'complete_goal', 'delete_goal', 'update_life_goal',
             'log_study', 'create_course', 'add_exam',
             'log_social', 'create_side_quest', 'update_side_quest',
             'create_adventure', 'update_adventure', 'delete_adventure',
@@ -252,7 +252,7 @@ const TOOLS = [
         },
         data: {
           type: 'object',
-          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | delete_trip:{id} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,steps?,notes?,exercises?:[{name,sets:[{reps,weight_kg}]}] för gympass — ger PR-koll} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,description?} | update_income:{id,fields} | log_nutrition:{date?,total_calories?,protein_g?,water_liters?} | log_supplement:{date?,supplement_name,taken?(default true)} | create_goal:{title,category(traning|halsa|ekonomi|plugg|resor|jobb|livet),description?,target_value?,unit?,current_value?,start_value?(nuläget när målet sätts — progress mäts härifrån, ej från 0),direction?(up|down),deadline?,metric?,pinned?} | update_goal:{id,fields} | complete_goal:{id} | delete_goal:{id} | log_study:{date?,hours,subject?,course_id?,notes?} | create_course:{name,term?,exam_date?} | add_exam:{course_id,name,exam_date?,notes?} | log_social:{date?,friend_names[],activity?,quality?,notes?} | create_side_quest:{title,description?,category?,difficulty?,status?} | update_side_quest:{id,fields} | create_adventure:{title,description?,date?,location?,category?,rating?} | update_adventure:{id,fields} | delete_adventure:{id} | add_journal_entry:{date?,content,mood?,energy?,sleep_hours?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
+          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | delete_trip:{id} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,steps?,notes?,exercises?:[{name,sets:[{reps,weight_kg}]}] för gympass — ger PR-koll} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,description?} | update_income:{id,fields} | log_nutrition:{date?,total_calories?,protein_g?,water_liters?} | log_supplement:{date?,supplement_name,taken?(default true)} | create_goal:{title,category(traning|halsa|ekonomi|plugg|resor|jobb|livet),description?,target_value?,unit?,current_value?,start_value?(nuläget när målet sätts — progress mäts härifrån, ej från 0),direction?(up|down),deadline?,metric?,pinned?} | update_goal:{id,fields} | complete_goal:{id} | delete_goal:{id} | update_life_goal:{key(one_year|three_year|ten_year|monthly_income_goal|target_weight),value} — fritext-livsmålen i profilen | log_study:{date?,hours,subject?,course_id?,notes?} | create_course:{name,term?,exam_date?} | add_exam:{course_id,name,exam_date?,notes?} | log_social:{date?,friend_names[],activity?,quality?,notes?} | create_side_quest:{title,description?,category?,difficulty?,status?} | update_side_quest:{id,fields} | create_adventure:{title,description?,date?,location?,category?,rating?} | update_adventure:{id,fields} | delete_adventure:{id} | add_journal_entry:{date?,content,mood?,energy?,sleep_hours?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
         },
         confirm_message: { type: 'string' },
       },
@@ -999,6 +999,20 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           const { error } = await supabase.from('goals').delete().eq('id', d.id).eq('user_id', userId)
           if (error) throw error
           result = 'Mål raderat.'
+          break
+        }
+        case 'update_life_goal': {
+          const ALLOWED = ['one_year', 'three_year', 'ten_year', 'monthly_income_goal', 'target_weight']
+          if (!ALLOWED.includes(d.key)) throw new Error('Okänd livsmåls-nyckel — använd one_year/three_year/ten_year/monthly_income_goal/target_weight')
+          if (d.value == null || d.value === '') throw new Error('Saknar value')
+          // user_settings.goals is a shared JSONB blob — merge onto a fresh read
+          // so this doesn't wipe another screen's keys (AUDIT P0-5).
+          const { data: row } = await supabase.from('user_settings').select('goals').eq('user_id', userId).maybeSingle()
+          const goals = { ...(row?.goals || {}), [d.key]: d.value }
+          const { error } = await supabase.from('user_settings')
+            .upsert({ user_id: userId, goals, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+          if (error) throw error
+          result = `Livsmål (${d.key}) uppdaterat.`
           break
         }
         case 'log_study': {

@@ -1,9 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Target } from 'lucide-react'
+import { useToast } from '../context/ToastContext'
+import { Target, Pencil, Check, X } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { patchGoals } from '../lib/userSettings'
 import GoalsSection from '../components/GoalsSection'
 import { listGoals, goalProgress, goalDaysLeft, GOAL_DOMAINS, GOAL_DOMAIN_LABEL } from '../lib/goals'
 import { resolveGoalsProgress } from '../lib/goalMetrics'
+
+const LIFE_HORIZONS = [
+  { key: 'one_year', label: 'Om 1 år' },
+  { key: 'three_year', label: 'Om 3 år' },
+  { key: 'ten_year', label: 'Om 10 år' },
+]
 
 const DOMAIN_COLOR = {
   traning: '#3b82f6', halsa: '#10b981', ekonomi: '#f59e0b', plugg: '#a78bfa',
@@ -16,9 +25,24 @@ const DOMAIN_COLOR = {
 // comparison make sense.
 export default function MalPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [filter, setFilter] = useState('alla')
   const [summary, setSummary] = useState(null)
   const [unavailable, setUnavailable] = useState(false)
+  const [lifeGoals, setLifeGoals] = useState(null)
+
+  useEffect(() => {
+    if (!user) return
+    supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => setLifeGoals(data?.goals || {}))
+  }, [user])
+
+  async function saveLifeGoal(key, value) {
+    try {
+      const merged = await patchGoals(user.id, { [key]: value })
+      setLifeGoals(merged)
+    } catch { toast({ message: 'Kunde inte spara', type: 'error' }) }
+  }
 
   const loadSummary = useCallback(async () => {
     if (!user) return
@@ -121,8 +145,58 @@ export default function MalPage() {
               Inga mål satta ännu. Lägg till ett ovan, eller be Jarvis: "sätt ett mål att…".
             </div>
           )}
+
+          {/* Life goals — the bigger picture. Free text, edited here or by Jarvis. */}
+          {lifeGoals && (
+            <div className="card" style={{ marginTop: 20, marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted2)', marginBottom: 12 }}>
+                Livsmål
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {LIFE_HORIZONS.map((h) => (
+                  <LifeGoalCard key={h.key} label={h.label} value={lifeGoals[h.key] || ''} onSave={(v) => saveLifeGoal(h.key, v)} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function LifeGoalCard({ label, value, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  useEffect(() => { setDraft(value) }, [value])
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span>
+        {!editing && (
+          <button onClick={() => setEditing(true)} title="Redigera" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: 2, display: 'flex' }}>
+            <Pencil size={12} />
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <textarea className="input" rows={3} value={draft} autoFocus onChange={(e) => setDraft(e.target.value)} style={{ resize: 'vertical', fontSize: 13 }} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-primary" style={{ fontSize: 12, gap: 5 }} onClick={() => { onSave(draft.trim()); setEditing(false) }}>
+              <Check size={13} /> Spara
+            </button>
+            <button className="btn btn-ghost" style={{ fontSize: 12, gap: 5 }} onClick={() => { setDraft(value); setEditing(false) }}>
+              <X size={13} /> Avbryt
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, color: value ? 'var(--text)' : 'var(--muted)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+          {value || 'Inte satt än — klicka pennan eller be Jarvis.'}
+        </div>
+      )}
     </div>
   )
 }
