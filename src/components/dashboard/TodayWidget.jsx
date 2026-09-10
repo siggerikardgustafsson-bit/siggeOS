@@ -1,28 +1,49 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { format } from 'date-fns'
+import { format, differenceInCalendarDays, parseISO } from 'date-fns'
 import { supabase } from '../../lib/supabase'
-import { Dumbbell, Briefcase, FileText, Stethoscope, CheckSquare, Clock, ChevronRight } from 'lucide-react'
+import { Dumbbell, Briefcase, FileText, Stethoscope, CheckSquare, Clock, ChevronRight, CalendarClock } from 'lucide-react'
 
 const EVENT_TYPES = {
-  training:  { color: '#4f8ef7', Icon: Dumbbell,     label: 'Träning',     nav: '/traning'  },
-  pa_shift:  { color: '#34d399', Icon: Briefcase,    label: 'PA-pass',     nav: '/kalender' },
-  exam:      { color: '#f87171', Icon: FileText,      label: 'Tenta',       nav: '/plugg'    },
+  training:  { color: '#4f8ef7', Icon: Dumbbell,     label: 'Träning',      nav: '/traning'  },
+  pa_shift:  { color: '#34d399', Icon: Briefcase,    label: 'PA-pass',      nav: '/kalender' },
+  exam:      { color: '#f87171', Icon: FileText,      label: 'Tenta',        nav: '/plugg'    },
   mandatory: { color: '#a78bfa', Icon: Stethoscope,  label: 'Obligatorisk', nav: '/kalender' },
-  task:      { color: '#fbbf24', Icon: CheckSquare,  label: 'Uppgift',     nav: '/jobb'     },
+  task:      { color: '#fbbf24', Icon: CheckSquare,  label: 'Uppgift',      nav: '/jobb'     },
+}
+
+// Trim "KOD. Kursnamn, …, Obligatorisk" down to the meaningful bit — same as
+// the Kalender/Plugg pages so the widget doesn't show raw import titles.
+function cleanMandTitle(title) {
+  if (!title) return 'Obligatoriskt moment'
+  const parts = title.split(',').map(s => s.trim()).filter(Boolean)
+  const rest = parts.slice(1).filter(p => !/^l[äa]rare:/i.test(p) && p.toLowerCase() !== 'obligatorisk')
+  return rest.join(' · ') || parts[0] || title
+}
+
+// "om 3d" / "imorgon" / "idag" for a YYYY-MM-DD string, relative to today.
+function relDays(dateStr) {
+  const d = differenceInCalendarDays(parseISO(dateStr), new Date())
+  if (d <= 0) return 'idag'
+  if (d === 1) return 'imorgon'
+  return `om ${d}d`
 }
 
 export default function TodayWidget({ userId }) {
   const navigate = useNavigate()
   const [events, setEvents] = useState([])
+  const [upcoming, setUpcoming] = useState([])
   const [loading, setLoading] = useState(true)
   const today = format(new Date(), 'yyyy-MM-dd')
+  const horizon = format(new Date(Date.now() + 14 * 86400000), 'yyyy-MM-dd')
   const todayDisplay = format(new Date(), 'EEEE d MMM').charAt(0).toUpperCase() + format(new Date(), 'EEEE d MMM').slice(1)
 
   useEffect(() => {
     if (!userId) return
-    async function fetch() {
+    async function fetchDay() {
       setLoading(true)
+      // Today + the next 14 days in one pass, so the widget can look ahead when
+      // today is quiet (and always surface an imminent exam).
       const [
         { data: training },
         { data: shifts },
@@ -31,55 +52,123 @@ export default function TodayWidget({ userId }) {
         { data: tasks },
       ] = await Promise.all([
         supabase.from('training_sessions').select('date,session_type,distance_km,duration_minutes').eq('user_id', userId).eq('date', today),
-        supabase.from('pa_shifts').select('date,start_time,end_time,hours_worked,shift_type').eq('user_id', userId).eq('date', today),
-        supabase.from('course_exams').select('exam_date,name,courses(name)').eq('user_id', userId).eq('exam_date', today),
-        supabase.from('mandatory_sessions').select('date,title,start_time,end_time,attended').eq('user_id', userId).eq('date', today),
-        supabase.from('erik_tasks').select('deadline,title,tag').eq('user_id', userId).eq('deadline', today),
+        supabase.from('pa_shifts').select('date,start_time,end_time,hours_worked,shift_type').eq('user_id', userId).gte('date', today).lte('date', horizon),
+        supabase.from('course_exams').select('exam_date,name,courses(name)').eq('user_id', userId).gte('exam_date', today).lte('exam_date', horizon),
+        supabase.from('mandatory_sessions').select('date,title,start_time,end_time,attended').eq('user_id', userId).gte('date', today).lte('date', horizon),
+        supabase.from('erik_tasks').select('deadline,title,tag').eq('user_id', userId).gte('deadline', today).lte('deadline', horizon),
       ])
 
-      const all = []
-      ;(training || []).forEach(t => all.push({
+      const todayRows = []
+      const aheadRows = []
+      const push = (date, row) => { (date === today ? todayRows : aheadRows).push({ ...row, date }) }
+
+      ;(training || []).forEach(t => push(t.date, {
         type: 'training',
         title: t.session_type || 'Träning',
         sub: t.distance_km ? t.distance_km + ' km' : t.duration_minutes ? t.duration_minutes + ' min' : '',
         time: null,
       }))
-      ;(shifts || []).forEach(s => all.push({
+      ;(shifts || []).forEach(s => push(s.date, {
         type: 'pa_shift',
         title: 'PA-pass' + (s.shift_type ? ' · ' + s.shift_type : ''),
         sub: s.hours_worked ? s.hours_worked + ' timmar' : '',
-        time: s.start_time ? s.start_time.slice(0,5) : null,
+        time: s.start_time ? s.start_time.slice(0, 5) : null,
       }))
-      ;(exams || []).forEach(e => all.push({
+      ;(exams || []).forEach(e => push(e.exam_date, {
         type: 'exam',
         title: e.name,
         sub: e.courses?.name || '',
         time: null,
       }))
-      ;(mandatory || []).forEach(m => all.push({
+      ;(mandatory || []).forEach(m => push(m.date, {
         type: 'mandatory',
-        title: m.title,
+        title: cleanMandTitle(m.title),
         sub: m.attended ? 'Närvaro bekräftad' : '',
-        time: m.start_time ? m.start_time.slice(0,5) : null,
+        time: m.start_time ? m.start_time.slice(0, 5) : null,
       }))
-      ;(tasks || []).forEach(t => all.push({
+      ;(tasks || []).forEach(t => push(t.deadline, {
         type: 'task',
         title: t.title,
         sub: t.tag || '',
         time: null,
       }))
 
-      all.sort((a, b) => {
+      const byTime = (a, b) => {
         if (!a.time) return 1
         if (!b.time) return -1
         return a.time.localeCompare(b.time)
+      }
+      todayRows.sort(byTime)
+
+      // Upcoming: soonest first, collapse same day+type+title, keep it short.
+      aheadRows.sort((a, b) => a.date.localeCompare(b.date) || byTime(a, b))
+      const seen = new Set()
+      const deduped = aheadRows.filter(r => {
+        const k = r.date + r.type + r.title
+        if (seen.has(k)) return false
+        seen.add(k)
+        return true
       })
 
-      setEvents(all)
+      setEvents(todayRows)
+      setUpcoming(deduped)
       setLoading(false)
     }
-    fetch()
-  }, [userId, today])
+    fetchDay()
+  }, [userId, today, horizon])
+
+  // An exam in the next 14 days always gets a callout, even on a busy day.
+  const nextExam = upcoming.find(e => e.type === 'exam')
+  // How many upcoming rows to show depends on how full today is.
+  const upcomingToShow = upcoming
+    .filter(e => e !== nextExam)
+    .slice(0, events.length === 0 ? 4 : events.length <= 2 ? 2 : 0)
+
+  const Row = ({ ev, showRel }) => {
+    const cfg = EVENT_TYPES[ev.type]
+    const IconComp = cfg.Icon
+    return (
+      <button type="button"
+        onClick={() => cfg.nav && navigate(cfg.nav)}
+        title={cfg.nav ? `Öppna ${cfg.label}` : undefined}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          padding: '9px 12px', width: '100%', textAlign: 'left',
+          background: cfg.color + '0d',
+          border: '1px solid ' + cfg.color + '22',
+          borderRadius: '10px',
+          borderLeft: '2px solid ' + cfg.color,
+          cursor: cfg.nav ? 'pointer' : 'default',
+          fontFamily: 'inherit',
+          transition: 'background 0.16s, border-color 0.16s, transform 0.16s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = cfg.color + '1c'; e.currentTarget.style.borderColor = cfg.color + '4d'; e.currentTarget.style.transform = 'translateX(2px)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = cfg.color + '0d'; e.currentTarget.style.borderColor = cfg.color + '22'; e.currentTarget.style.transform = 'none' }}>
+        <span style={{ color: cfg.color, flexShrink: 0, display: 'flex' }}>
+          <IconComp size={14} />
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {ev.title}
+          </div>
+          {ev.sub && (
+            <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '1px' }}>{ev.sub}</div>
+          )}
+        </div>
+        {showRel && (
+          <span style={{ fontSize: '10.5px', fontWeight: 700, color: cfg.color, flexShrink: 0, textTransform: 'capitalize' }}>
+            {relDays(ev.date)}
+          </span>
+        )}
+        {ev.time && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: 600, color: cfg.color, flexShrink: 0 }}>
+            <Clock size={10} /> {ev.time}
+          </span>
+        )}
+        <ChevronRight size={13} style={{ color: cfg.color, opacity: 0.5, flexShrink: 0 }} />
+      </button>
+    )
+  }
 
   return (
     <div style={{
@@ -117,56 +206,54 @@ export default function TodayWidget({ userId }) {
 
       {loading ? (
         <div style={{ color: 'var(--muted)', fontSize: '12px', padding: '12px 0', textAlign: 'center' }}>Laddar...</div>
-      ) : events.length === 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '20px 0', textAlign: 'center' }}>
-          <div style={{ width: '38px', height: '38px', borderRadius: '12px', display: 'grid', placeItems: 'center', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.28)' }}>
-            <CheckSquare size={18} color="#34d399" />
-          </div>
-          <div style={{ color: 'var(--muted2)', fontSize: '12px', fontWeight: 600 }}>Allt klart idag</div>
-          <div style={{ color: 'var(--muted)', fontSize: '10.5px' }}>Inga schemalagda händelser</div>
-        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {events.map((ev, i) => {
-            const cfg = EVENT_TYPES[ev.type]
-            const IconComp = cfg.Icon
-            return (
-              <button key={i} type="button"
-                onClick={() => cfg.nav && navigate(cfg.nav)}
-                title={cfg.nav ? `Öppna ${cfg.label}` : undefined}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '10px',
-                  padding: '9px 12px', width: '100%', textAlign: 'left',
-                  background: cfg.color + '0d',
-                  border: '1px solid ' + cfg.color + '22',
-                  borderRadius: '10px',
-                  borderLeft: '2px solid ' + cfg.color,
-                  cursor: cfg.nav ? 'pointer' : 'default',
-                  fontFamily: 'inherit',
-                  transition: 'background 0.16s, border-color 0.16s, transform 0.16s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = cfg.color + '1c'; e.currentTarget.style.borderColor = cfg.color + '4d'; e.currentTarget.style.transform = 'translateX(2px)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = cfg.color + '0d'; e.currentTarget.style.borderColor = cfg.color + '22'; e.currentTarget.style.transform = 'none' }}>
-                <span style={{ color: cfg.color, flexShrink: 0, display: 'flex' }}>
-                  <IconComp size={14} />
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {ev.title}
-                  </div>
-                  {ev.sub && (
-                    <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '1px' }}>{ev.sub}</div>
-                  )}
+
+          {/* Imminent exam — always visible when within 14 days */}
+          {nextExam && (
+            <button type="button" onClick={() => navigate('/plugg')} title="Öppna Plugg"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', width: '100%', textAlign: 'left',
+                background: '#f8717118', border: '1px solid #f8717145', borderRadius: '10px', borderLeft: '3px solid #f87171',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+              <CalendarClock size={15} style={{ color: '#f87171', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {nextExam.title}
                 </div>
-                {ev.time && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: 600, color: cfg.color, flexShrink: 0 }}>
-                    <Clock size={10} /> {ev.time}
-                  </span>
-                )}
-                <ChevronRight size={13} style={{ color: cfg.color, opacity: 0.5, flexShrink: 0, marginLeft: ev.time ? 0 : 'auto' }} />
-              </button>
-            )
-          })}
+                <div style={{ fontSize: '10px', color: 'var(--muted)', marginTop: '1px' }}>
+                  {nextExam.sub ? nextExam.sub + ' · ' : ''}{format(parseISO(nextExam.date), 'd MMM')}
+                </div>
+              </div>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#f87171', flexShrink: 0, textTransform: 'capitalize' }}>
+                {relDays(nextExam.date)}
+              </span>
+            </button>
+          )}
+
+          {/* Today */}
+          {events.map((ev, i) => <Row key={'t' + i} ev={ev} />)}
+
+          {events.length === 0 && !nextExam && upcomingToShow.length === 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '20px 0', textAlign: 'center' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '12px', display: 'grid', placeItems: 'center', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.28)' }}>
+                <CheckSquare size={18} color="#34d399" />
+              </div>
+              <div style={{ color: 'var(--muted2)', fontSize: '12px', fontWeight: 600 }}>Allt lugnt</div>
+              <div style={{ color: 'var(--muted)', fontSize: '10.5px' }}>Inget schemalagt de närmaste två veckorna</div>
+            </div>
+          )}
+
+          {/* Upcoming */}
+          {upcomingToShow.length > 0 && (
+            <>
+              <div style={{ fontSize: '9.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: events.length ? '8px 0 2px' : '2px 0' }}>
+                {events.length ? 'Härnäst' : 'Kommande'}
+              </div>
+              {upcomingToShow.map((ev, i) => <Row key={'u' + i} ev={ev} showRel />)}
+            </>
+          )}
         </div>
       )}
     </div>
