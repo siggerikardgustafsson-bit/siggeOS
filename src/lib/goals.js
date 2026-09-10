@@ -18,31 +18,33 @@ export const GOAL_DOMAIN_LABEL = {
   resor: 'Resor', jobb: 'Jobb', livet: 'Livet',
 }
 
-const SELECT = 'id,title,category,description,metric,unit,target_value,current_value,direction,deadline,status,pinned,linked_trip_id,sort_order,created_at,updated_at,completed_at'
-// Columns that exist on the table before post-deploy 05 adds the rest.
+// Three column tiers, newest first — the table has been extended twice by
+// migration and a given deploy may sit at any tier:
+//   FULL  — post-deploy 08 (adds start_value / baseline_date)
+//   V5    — post-deploy 05 (metric / direction / pinned / …)
+//   LEGACY— the original table
+const SELECT_FULL = 'id,title,category,description,metric,unit,target_value,current_value,start_value,baseline_date,direction,deadline,status,pinned,linked_trip_id,sort_order,created_at,updated_at,completed_at'
+const SELECT_V5 = 'id,title,category,description,metric,unit,target_value,current_value,direction,deadline,status,pinned,linked_trip_id,sort_order,created_at,updated_at,completed_at'
 const SELECT_LEGACY = 'id,title,category,description,unit,target_value,current_value,deadline,status,created_at,updated_at'
+const TIERS = [SELECT_FULL, SELECT_V5, SELECT_LEGACY]
 
-// Remembered for the session once we learn the table is pre-migration, so we
-// don't fire a doomed full-column query on every page load.
-let legacySchema = false
+// Remembered for the session once we learn how far the table's migrated, so we
+// don't fire a doomed full-column query on every page load. 0 = FULL.
+let schemaTier = 0
+const cols = () => TIERS[schemaTier]
 
 export async function listGoals(userId, { status = 'active' } = {}) {
-  const run = (cols, ordered) => {
-    let q = supabase.from('goals').select(cols).eq('user_id', userId)
+  const run = (c) => {
+    let q = supabase.from('goals').select(c).eq('user_id', userId)
     if (status && status !== 'all') q = q.eq('status', status)
     q = q.order('created_at', { ascending: true })
-    if (ordered) q = q.order('pinned', { ascending: false }).order('sort_order', { ascending: true })
+    if (c !== SELECT_LEGACY) q = q.order('pinned', { ascending: false }).order('sort_order', { ascending: true })
     return q
   }
-  if (legacySchema) {
-    const { data, error } = await run(SELECT_LEGACY, false)
-    if (error) throw error
-    return data || []
-  }
-  let { data, error } = await run(SELECT, true)
-  if (isMissingColumnError(error)) {
-    legacySchema = true
-    ;({ data, error } = await run(SELECT_LEGACY, false))
+  let { data, error } = await run(cols())
+  while (isMissingColumnError(error) && schemaTier < TIERS.length - 1) {
+    schemaTier++
+    ;({ data, error } = await run(cols()))
   }
   if (error) throw error
   return data || []
@@ -58,6 +60,10 @@ export async function createGoal(userId, fields) {
     unit: fields.unit || null,
     target_value: numOrNull(fields.target_value),
     current_value: numOrNull(fields.current_value),
+    // Baseline: progress is measured from here, not from zero. Callers pass the
+    // resolved metric value (or the entered current) captured at creation.
+    start_value: numOrNull(fields.start_value),
+    baseline_date: fields.baseline_date || (numOrNull(fields.start_value) != null ? new Date().toISOString().slice(0, 10) : null),
     direction: fields.direction === 'down' ? 'down' : 'up',
     deadline: fields.deadline || fields.target_date || null,
     status: fields.status || 'active',
@@ -65,7 +71,7 @@ export async function createGoal(userId, fields) {
     linked_trip_id: fields.linked_trip_id || null,
     sort_order: Number.isFinite(fields.sort_order) ? fields.sort_order : 0,
   }
-  return writeWithFallback((cols) => supabase.from('goals').insert(stripForCols(row, cols)).select(cols).single())
+  return writeWithFallback((c) => supabase.from('goals').insert(stripForCols(row, c)).select(c).single())
 }
 
 export async function updateGoal(id, patch) {
@@ -75,29 +81,25 @@ export async function updateGoal(id, patch) {
   if ('target_date' in clean) { clean.deadline = clean.target_date; delete clean.target_date }
   if ('target_value' in clean) clean.target_value = numOrNull(clean.target_value)
   if ('current_value' in clean) clean.current_value = numOrNull(clean.current_value)
+  if ('start_value' in clean) clean.start_value = numOrNull(clean.start_value)
   // Stamp / clear completed_at as status flips to and from 'done'.
   if (clean.status === 'done' && !('completed_at' in clean)) clean.completed_at = new Date().toISOString()
   if (clean.status && clean.status !== 'done') clean.completed_at = null
-  return writeWithFallback((cols) => supabase.from('goals').update(stripForCols(clean, cols)).eq('id', id).select(cols).single())
+  return writeWithFallback((c) => supabase.from('goals').update(stripForCols(clean, c)).eq('id', id).select(c).single())
 }
 
-// Pre-migration the new columns don't exist — retry the write with only the
-// legacy set on a "column ... does not exist" error.
-const LEGACY_COLS = new Set(SELECT_LEGACY.split(','))
-function stripForCols(obj, cols) {
-  if (cols === SELECT) return obj
-  return Object.fromEntries(Object.entries(obj).filter(([k]) => LEGACY_COLS.has(k) || k === 'user_id'))
+// Keep a write's fields to the columns the given tier actually has.
+function stripForCols(obj, c) {
+  if (c === SELECT_FULL) return obj
+  const allowed = new Set(c.split(','))
+  allowed.add('user_id')
+  return Object.fromEntries(Object.entries(obj).filter(([k]) => allowed.has(k)))
 }
 async function writeWithFallback(run) {
-  if (legacySchema) {
-    const { data, error } = await run(SELECT_LEGACY)
-    if (error) throw error
-    return data
-  }
-  let { data, error } = await run(SELECT)
-  if (isMissingColumnError(error)) {
-    legacySchema = true
-    ;({ data, error } = await run(SELECT_LEGACY))
+  let { data, error } = await run(cols())
+  while (isMissingColumnError(error) && schemaTier < TIERS.length - 1) {
+    schemaTier++
+    ;({ data, error } = await run(cols()))
   }
   if (error) throw error
   return data
@@ -117,18 +119,43 @@ export async function deleteGoal(id) {
   if (error) throw error
 }
 
-// 0..1 progress toward target. Handles both directions.
+const clamp01 = (x) => Math.max(0, Math.min(1, x))
+
+// 0..1 progress toward target, measured from the goal's baseline (start_value)
+// rather than from zero: at bench 80kg with a 100kg goal set when you could do
+// 75, you're (80-75)/(100-75) = 20% there, not 80%.
+// Falls back to the old zero-based ratio when no baseline is recorded yet.
 export function goalProgress(goal) {
   if (goal == null || goal.target_value == null || goal.current_value == null) return null
   const t = Number(goal.target_value)
   const c = Number(goal.current_value)
   if (!Number.isFinite(t) || !Number.isFinite(c)) return null
-  if (goal.direction === 'down') {
+  const down = goal.direction === 'down'
+  const s = goal.start_value == null ? null : Number(goal.start_value)
+  const hasBaseline = s != null && Number.isFinite(s)
+
+  if (down) {
     if (c <= t) return 1
-    return Math.max(0, Math.min(1, t / c)) // crude but bounded: →1 as c approaches t
+    if (!hasBaseline) return clamp01(t / c) // legacy: bounded, →1 as c approaches t
+    const span = s - t
+    if (span <= 0) return c <= t ? 1 : 0 // baseline already at/under target
+    return clamp01((s - c) / span)
   }
-  if (t === 0) return c >= 0 ? 1 : 0
-  return Math.max(0, Math.min(1, c / t))
+  if (c >= t) return 1
+  if (!hasBaseline) return t === 0 ? (c >= 0 ? 1 : 0) : clamp01(c / t)
+  const span = t - s
+  if (span <= 0) return c >= t ? 1 : 0
+  return clamp01((c - s) / span)
+}
+
+// A metric-linked (or manual-with-current) goal that predates the baseline
+// column — the UI backfills start_value once so progress reads sensibly.
+export function goalNeedsBaseline(goal) {
+  return goal != null
+    && goal.status === 'active'
+    && goal.target_value != null
+    && goal.start_value == null
+    && 'start_value' in goal // schema tier actually has the column
 }
 
 // Days until the deadline (negative = overdue), or null.

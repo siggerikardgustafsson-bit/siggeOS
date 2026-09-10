@@ -4,16 +4,16 @@ import { useToast } from '../context/ToastContext'
 import { Target, Plus, Check, Edit2, Trash2, X, Save, RotateCcw, Pin } from 'lucide-react'
 import {
   listGoals, createGoal, updateGoal, deleteGoal,
-  goalProgress, goalDaysLeft, GOAL_DOMAIN_LABEL,
+  goalProgress, goalDaysLeft, goalNeedsBaseline, GOAL_DOMAIN_LABEL,
 } from '../lib/goals'
-import { metricsForDomain, GOAL_METRICS, resolveGoalsProgress, formatMetricValue } from '../lib/goalMetrics'
+import { metricsForDomain, GOAL_METRICS, resolveGoalCurrent, resolveGoalsProgress, formatMetricValue } from '../lib/goalMetrics'
 
 const DOMAIN_COLOR = {
   traning: '#3b82f6', halsa: '#10b981', ekonomi: '#f59e0b', plugg: '#a78bfa',
   resor: '#e879f9', jobb: '#f97316', livet: '#22d3ee',
 }
 
-const EMPTY_FORM = { title: '', metric: '', target_value: '', current_value: '', unit: '', deadline: '', direction: 'up' }
+const EMPTY_FORM = { title: '', metric: '', target_value: '', current_value: '', start_value: '', unit: '', deadline: '', direction: 'up' }
 
 // `domain` null → show every goal (Profil). Otherwise only that domain's goals.
 export default function GoalsSection({ domain = null, title = 'Mål' }) {
@@ -34,8 +34,26 @@ export default function GoalsSection({ domain = null, title = 'Mål' }) {
     try {
       const all = await listGoals(user.id, { status: 'all' })
       const shown = domain ? all.filter((g) => (g.category || g.domain) === domain) : all
-      setGoals(shown)
-      setProgress(await resolveGoalsProgress(user.id, shown.filter((g) => g.status === 'active')))
+      const live = await resolveGoalsProgress(user.id, shown.filter((g) => g.status === 'active'))
+
+      // One-time baseline backfill: goals created before post-deploy 08 have no
+      // start_value, so progress would read from zero. Snapshot it now — the
+      // live metric value, or the manual current_value.
+      const backfills = shown
+        .filter(goalNeedsBaseline)
+        .map((g) => {
+          const base = g.metric ? live[g.id]?.value : g.current_value
+          return base != null && Number.isFinite(Number(base)) ? updateGoal(g.id, { start_value: base }) : null
+        })
+        .filter(Boolean)
+      if (backfills.length) {
+        await Promise.allSettled(backfills)
+        const refetched = await listGoals(user.id, { status: 'all' })
+        setGoals(domain ? refetched.filter((g) => (g.category || g.domain) === domain) : refetched)
+      } else {
+        setGoals(shown)
+      }
+      setProgress(live)
       setUnavailable(false)
     } catch {
       setUnavailable(true) // `goals` table not migrated yet (post_deploy_05)
@@ -61,6 +79,7 @@ export default function GoalsSection({ domain = null, title = 'Mål' }) {
       metric: g.metric || '',
       target_value: g.target_value ?? '',
       current_value: g.current_value ?? '',
+      start_value: g.start_value ?? '',
       unit: g.unit || '',
       deadline: g.deadline || '',
       direction: g.direction || 'up',
@@ -82,18 +101,30 @@ export default function GoalsSection({ domain = null, title = 'Mål' }) {
     if (!form.title.trim()) { toast({ message: 'Målet behöver en titel', type: 'error' }); return }
     setSaving(true)
     try {
+      const manualCurrent = form.current_value === '' ? null : Number(form.current_value)
+      const typedStart = form.start_value === '' ? null : Number(form.start_value)
       const payload = {
         title: form.title.trim(),
         category: domain || null,
         metric: form.metric || null,
         unit: form.unit || null,
         target_value: form.target_value === '' ? null : Number(form.target_value),
-        current_value: form.metric ? null : (form.current_value === '' ? null : Number(form.current_value)),
+        current_value: form.metric ? null : manualCurrent,
         direction: form.direction,
         deadline: form.deadline || null,
       }
-      if (editingId) await updateGoal(editingId, payload)
-      else await createGoal(user.id, payload)
+      if (editingId) {
+        await updateGoal(editingId, { ...payload, start_value: typedStart })
+      } else {
+        // Baseline: an explicit typed start wins; else the live metric value or
+        // the manual current at creation. Progress is measured from here.
+        let startValue = typedStart ?? manualCurrent
+        if (startValue == null && form.metric) {
+          const live = await resolveGoalCurrent(user.id, form.metric)
+          startValue = live?.value ?? null
+        }
+        await createGoal(user.id, { ...payload, start_value: startValue })
+      }
       setShowForm(false)
       setForm({ ...EMPTY_FORM })
       await load()
@@ -232,7 +263,10 @@ function GoalRow({ g, live, onEdit, onDone, onRemove, onPin, showDomain }) {
           <div style={{ marginTop: 5 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--muted)', marginBottom: 3 }}>
               <span>
-                {current != null ? formatMetricValue(current, g.unit) : '—'} / {formatMetricValue(g.target_value, g.unit)}
+                {g.start_value != null && (
+                  <span style={{ opacity: 0.6 }}>{formatMetricValue(g.start_value, g.unit)} → </span>
+                )}
+                <span style={{ color: 'var(--text)', fontWeight: 600 }}>{current != null ? formatMetricValue(current, g.unit) : '—'}</span> / {formatMetricValue(g.target_value, g.unit)}
                 {g.metric && <span style={{ marginLeft: 5, opacity: 0.7 }}>· auto{live?.asOf ? ` (${live.asOf})` : ''}</span>}
               </span>
               {pct != null && <span style={{ fontWeight: 700, color: col }}>{Math.round(pct * 100)}%</span>}
@@ -283,6 +317,13 @@ function GoalForm({ form, setForm, pickMetric, metricOptions, domain, saving, on
         {!form.metric && (
           <input className="input" type="number" placeholder="Nuläge" value={form.current_value} onChange={(e) => f('current_value', e.target.value)} style={{ flex: '1 1 110px' }} />
         )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input className="input" type="number" placeholder="Startvärde" value={form.start_value} onChange={(e) => f('start_value', e.target.value)} style={{ flex: '0 1 120px' }} />
+        <span style={{ fontSize: 11, color: 'var(--muted)', flex: '1 1 160px' }}>
+          Nuläget när målet sätts — progress mäts härifrån. Lämna tomt så tas det automatiskt.
+        </span>
       </div>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

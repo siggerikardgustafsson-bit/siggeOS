@@ -28,21 +28,36 @@ async function avgHealth(userId, field, days) {
   return { value: round1(vals.reduce((a, b) => a + b, 0) / vals.length), asOf: `snitt ${days}d` }
 }
 
+// RECENT_STRENGTH_DAYS / RECENT_RUN_DAYS — goals are about what you can do NOW,
+// so a strength/run "current value" comes from recent training, not a lifetime
+// PR that might be years stale. If there's no recent data the metric is
+// genuinely unknown → return null (the goal shows "—").
+const RECENT_STRENGTH_DAYS = 120
+const RECENT_RUN_DAYS = 180
+
 async function strengthPR(userId, matchers) {
-  const { data } = await supabase.from('personal_records').select('exercise_name,weight_kg,date')
-    .eq('user_id', userId).gt('weight_kg', 0)
-  const hits = (data || []).filter((r) => {
+  const since = daysAgoISO(RECENT_STRENGTH_DAYS)
+  const { data: sessions } = await supabase.from('training_sessions')
+    .select('id,date').eq('user_id', userId).gte('date', since)
+  if (!sessions?.length) return null
+  const dateById = Object.fromEntries(sessions.map((s) => [s.id, s.date]))
+  const { data: ex } = await supabase.from('training_exercises')
+    .select('exercise_name,weight_kg,session_id').eq('user_id', userId).gt('weight_kg', 0)
+    .in('session_id', sessions.map((s) => s.id))
+  const hits = (ex || []).filter((r) => {
     const n = String(r.exercise_name || '').toLowerCase()
     return matchers.some((m) => n.includes(m))
   })
   if (!hits.length) return null
   const best = hits.reduce((a, b) => (Number(b.weight_kg) > Number(a.weight_kg) ? b : a))
-  return { value: Number(best.weight_kg), asOf: best.date }
+  return { value: Number(best.weight_kg), asOf: dateById[best.session_id] || `senaste ${RECENT_STRENGTH_DAYS}d` }
 }
 
 async function runPR(userId, distanceKey) {
+  const since = daysAgoISO(RECENT_RUN_DAYS)
   const { data } = await supabase.from('run_personal_records').select('time_seconds,date')
     .eq('user_id', userId).eq('distance_key', distanceKey).not('time_seconds', 'is', null)
+    .gte('date', since)
     .order('time_seconds', { ascending: true }).limit(1)
   const row = data?.[0]
   return row ? { value: Number(row.time_seconds), asOf: row.date } : null
