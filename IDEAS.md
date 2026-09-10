@@ -50,16 +50,16 @@ progress-över-tid-graf per mål.
 
 ## Domän-specifikt (träning, hälsa, ekonomi, plugg, resor, jobb)
 
-### 🔥 Resmål ↔ sparande (ekonomi↔resmål, uttryckligt i visionen)
-`trips` har `budget_sek` men ingen känsla av "hur nära jag är att ha råd".
-F1-mål-tabellen har redan `linked_trip_id` — mekaniken finns, UX:en saknas.
-Idé: på en resa i planeringsläge, visa en progress-rad "23 400 / 42 000 kr
-sparat" där "sparat" kommer från antingen (a) ett kopplat sparmål, (b) en
-manuell "avsatt hittills"-siffra, eller (c) en andel av net worth öronmärkt.
-Jarvis skulle då kunna säga "Asienresan är 3 månader bort och du ligger 8 000
-efter takten — lägg 2 700/mån till."
-**Omfattning:** medel. **Beslut:** vilken sparkälla (a/b/c), och var progress-
-raden bor (resekortet, en ny "ekonomi för resor"-vy, eller dashboarden).
+### ✅ MESTA BYGGT — Resmål ↔ sparande
+**Byggt** (#22): `trips.saved_sek` (manuell "avsatt hittills") + SPARAT-progressbar
+på planerade/idé-resor + takt-hint + Jarvis-medvetenhet. Källa = alt. (b).
+**Kvar (dina beslut):**
+- Alt. (a): koppla ett *sparmål* till resan via `goals.linked_trip_id` (kolumnen
+  finns) så "sparat" auto-uppdateras från målets current_value istället för en
+  manuell siffra. Kräver UI för att sätta kopplingen + att TripSavings läser
+  målet. Alt. (c) (öronmärkt andel av net worth) — troligen överkonstruktion.
+- Var bor progress-raden förutom resekortet? Ett litet kort på dashboarden eller
+  i /ekonomi Sparande-fliken?
 
 ### ✅ Rate limiting på health-ingest — BYGGT
 30s per-token 429-spärr (WORKLOG #11). Kvar av din säkerhetsgranskning:
@@ -89,16 +89,11 @@ FIELD_BOUNDS + i correlate.js (HRV↔träning/sömn vore en stark koppling).
 
 ## Datamodell / arkitektur
 
-### 🔥 Fritext-livsmålen → strukturerade mål, eller redigerbara av Jarvis
-`user_settings.goals.one_year / three_year / ten_year / monthly_income_goal /
-target_weight` är fritext i Profil. Jarvis *läser* dem (systemprompten) men har
-ingen action för att ändra dem, och de syns inte i `<GoalsSection>`. Säger du
-"mitt 1-årsmål är X" till Jarvis kan hen spara det som en *insikt* men inte
-uppdatera själva livsmålsfältet. Två vägar: (a) en `update_life_goal`-action som
-`patchGoals`:ar rätt nyckel (merge-säkert, litet); (b) migrera in dem som rader i
-`goals`-tabellen med en egen kategori och sluta använda fritextfälten.
-**Beslut:** vill du ha kvar 1/3/10-års-fritexten som egen grej i Profil, eller
-ska allt vara strukturerade mål?
+### ✅ BYGGT — Fritext-livsmålen redigerbara
+`update_life_goal`-action byggd (#20, väg a). Livsmålen visas & redigeras nu på
+`/mal` (Livsmål-sektionen) och i Settings. Kvar (om du vill): migrera in dem som
+strukturerade `goals`-rader (väg b) och sluta med fritextfälten — men fritext
+funkar bra för luddiga 3/10-årsvisioner, så förmodligen inte värt det.
 
 ### ⭐ Nattjobb som räknar om `daily_scores`
 `daily_scores` skrivs bara styckvis när du öppnar Journal/Träning en viss dag.

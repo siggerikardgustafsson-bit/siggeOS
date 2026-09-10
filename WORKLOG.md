@@ -22,9 +22,16 @@ Fortsatt arbete på ny branch `data-sync-jarvis-tools` (av `main`). Poster #14+.
 | 16 | Kalender: "Kommande"-strip (14 dgr), filter sparas mellan besök, trip-status-bugg (`idé`→`idea`) | `e4ebe73` | inget (frontend) |
 | 17 | Dashboard `TodayWidget` blickar framåt (nästa 14 dgr + tenta-nedräkning) istället för bara idag | `bf5671a` | inget (frontend) |
 | 18 | Ny sida `/mal` — alla mål på ett ställe (domänfilter + sammanfattning); pin-knapp i GoalsSection; nav överallt | `3d3a917` | jarvis-chat-raden → samma deploy som #14 |
+| 19 | Mål-metrics: nuvärden från senaste 120/180 dgr (ej PR från 2022) + progress från baslinje (ej från 0) | `b5c9e52` | **`db push`** (post_deploy_08) |
+| 20 | Livsmål (1/3/10 år) på `/mal`, redigerbara + `update_life_goal`-action; fixat schema-probe-race i goals.js | `2cc760a` | jarvis-chat-deploy |
+| 21 | Dashboard: "Fästa mål"-remsa under score-vyn (aktiverar pin) | `5cc14d7` | inget (frontend) |
+| 22 | Resmål ↔ sparande: `trips.saved_sek` + SPARAT-progressbar + takt-hint; Jarvis ser det | `8a99ca7` | **`db push`** (post_deploy_09) + jarvis-chat-deploy |
 
 Post 14–16 mergades till main + pushades 2026-09-10 (`a7ab2a6..d1e602f`).
-Post 17–18 på branch `ux-cohesion` (av `main`@`d1e602f`).
+Post 17–18: branch `ux-cohesion` → merged + pushed (`d1e602f..1dbbc13`).
+Post 19–22: branch `next-ux` (av `main`@`1dbbc13`).
+
+**Nya migrationer att köra (`supabase db push`):** post_deploy_08 (goals.start_value/baseline_date), post_deploy_09 (trips.saved_sek). Additiva, idempotenta. Frontend degraderar tills de körs (goals.js 3-tier-fallback; trip-sparfältet inert).
 
 ---
 
@@ -73,6 +80,79 @@ skapa mål tills efter `db push`.
 ---
 
 ## Poster
+
+### 22. Resmål ↔ sparande
+**Spår:** A (ditt förslag 2)
+**Vad:** `trips.saved_sek` (migration post_deploy_09) — manuell "avsatt hittills".
+På planerade/idé-resor med budget visar Upplevelser en **SPARAT**-progressbar
+("3 500 / 10 000 kr · 35%"), inline-redigerbar, plus takt-hint från avresedatum
+("Lägg 2 700 kr/mån för att hinna"). Jarvis: `fetch_experiences` tar med saved_sek
++ månadstakten, `update_trip` accepterar `saved_sek`.
+**Filer:** `supabase/migrations/20260703094000_post_deploy_09_trip_saved.sql` (ny),
+`src/pages/Upplevelser.jsx` (TripSavings-komponent + updateTripSaved),
+`supabase/functions/jarvis-chat/index.ts`
+**Verifiering:** preview /upplevelser — SPARAT-raden renderar på "Bestiga
+Kebnekaise" (0/10 000, 0%), inline-edit öppnar. Skrivning 400:ar tills
+post_deploy_09 körs (optimistisk lokal uppdatering + toast vid fel).
+`npm run build` OK.
+**Commit:** `8a99ca7`
+**Kräver av dig:** **[DEPLOY]** `supabase db push` + jarvis-chat-deploy.
+Alternativ sparkälla (kopplat sparmål via `goals.linked_trip_id`) → IDEAS.
+
+### 21. Dashboard: "Fästa mål"-remsa
+**Spår:** A (ditt förslag 1)
+**Vad:** Pin-knappen (#18) hade ingen effekt utanför /mal. Ny `PinnedGoals`
+renderar aktiva fästa mål direkt under score-vyn (både Karta och Träd) — titel,
+baslinje→nu/mål, progressbar, dagar kvar — och länkar till /mal. Visar inget när
+inget är fäst.
+**Filer:** `src/components/dashboard/PinnedGoals.jsx` (ny), `src/pages/Dashboard.jsx`
+**Verifiering:** preview / — "FÄSTA MÅL: Bänk 110 · 59% · 65→110 kg" efter att
+målet fästs. `npm run build` OK.
+**Commit:** `5cc14d7`
+**Kräver av dig:** inget (frontend).
+
+### 20. Livsmål på /mal + fix schema-probe-race
+**Spår:** A (ditt förslag 3)
+**Vad:** `/mal` fick en **Livsmål**-sektion: 1/3/10-års-fritextmålen från
+`user_settings.goals`, inline-redigerbara → /mal är nu enda hemmet för alla
+sorters mål. `jarvis-chat`: `update_life_goal`-action (merge-säker patch av den
+delade goals-JSONB:n). **Bugg fixad:** goals.js 3-tier-kolumnprob kördes per
+anropare som race:ade räknaren förbi V5 till LEGACY under samtidiga anrop
+(Mal-summering + GoalsSection, dubblat av StrictMode) → tappade metric/pin,
+/mal sa "Mål-tabellen är inte redo än". Nu en enda probe via delad in-flight-promise.
+**Filer:** `src/pages/Mal.jsx`, `src/lib/goals.js`,
+`supabase/functions/jarvis-chat/index.ts`
+**Verifiering:** preview /mal — Livsmål visas & sparas; "1 aktiva · 0 uppnådda"
+konsekvent (ingen race); en probe-request istället för ~5. `npm run build` OK.
+**Commit:** `2cc760a`
+**Kräver av dig:** jarvis-chat-deploy för `update_life_goal`.
+
+### 19. Mål-metrics: senaste data + baslinje
+**Spår:** A (din felrapport på de nya mål-elementen)
+**Två problem du flaggade:**
+1. Styrke-/löp-nuvärden kom från all-time-PR-tabellerna — en bänk-PR från 2022
+   är inte din bänk idag. `strengthPR` läser nu tyngsta matchande set ur
+   `training_exercises` senaste 120 dgr (`runPR`: bästa tid senaste 180 dgr).
+   Ingen färsk data → null, inte en gammal siffra. Live: bänkmålet visar nu
+   65 kg (2026-06-15) istället för 120 kg (2022-12-01).
+2. Progress räknades från 0 — bänk 80 mot mål 100 = "80%", men man börjar inte
+   på tom stång. Nya `goals.start_value` + `baseline_date` (migration
+   post_deploy_08): progress = (nu − start) / (mål − start), klämd till 0–1.
+   Fångas vid skapande (löst metric-värde eller inmatat nuläge), redigerbart i
+   formuläret ("Startvärde"), och lat-backfillas en gång för äldre mål. Faller
+   tillbaka på gamla kvoten tills baslinje finns.
+`goals.js` gör nu 3-tier-kolumnfallback (FULL/V5/LEGACY) så ett deploy mellan
+migrationer ändå laddar mål med metric+pin. `jarvis-chat` create_goal fångar
+start_value.
+**Filer:** `src/lib/goalMetrics.js`, `src/lib/goals.js`,
+`src/components/GoalsSection.jsx`, `src/pages/Mal.jsx`,
+`supabase/functions/jarvis-chat/index.ts`,
+`supabase/migrations/20260703093000_post_deploy_08_goal_baseline.sql` (ny)
+**Verifiering:** preview /mal — bänkmålet 65→110 kg, 59% (baslinje aktiveras
+efter post_deploy_08); "Startvärde"-fält i formuläret; recent-window-resolvern
+verifierad mot verklig data. `npm run build` OK.
+**Commit:** `b5c9e52`
+**Kräver av dig:** **[DEPLOY]** `supabase db push` (post_deploy_08).
 
 ### 18. Ny sida /mal + pin
 **Spår:** A (din begäran: mer sammanflätat/användbart — IDEAS-item "egen Mål-sida")
