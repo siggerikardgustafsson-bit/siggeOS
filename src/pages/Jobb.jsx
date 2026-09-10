@@ -341,10 +341,7 @@ export default function JobbPage() {
   const [showNewPayment, setShowNewPayment] = useState(false)
   const [showNewContact, setShowNewContact] = useState(false)
   const [editingTask, setEditingTask] = useState(null)
-  const [expandedContact, setExpandedContact] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [notes, setNotes] = useState('')
-  const [savingNotes, setSavingNotes] = useState(false)
 
   // Projekt state
   const [projects, setProjects] = useState([])
