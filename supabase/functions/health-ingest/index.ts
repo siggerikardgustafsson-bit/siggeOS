@@ -55,10 +55,20 @@ serve(async (req) => {
   const svc = serviceClient()
 
   const { data: settings, error: lookupErr } = await svc
-    .from('user_settings').select('user_id').eq('health_ingest_token', token).maybeSingle()
+    .from('user_settings').select('user_id,last_ingest_at').eq('health_ingest_token', token).maybeSingle()
   if (lookupErr) return jsonResponse({ ok: false, error: 'lookup failed' }, 500, req)
   if (!settings?.user_id) return jsonResponse({ error: 'unknown ingest token' }, 401, req)
   const userId = settings.user_id as string
+
+  // Per-token rate limit: reject if this token's last SUCCESSFUL write was
+  // under 30s ago. last_ingest_at is only stamped on a successful upsert
+  // (below), so rejected requests never move the window.
+  if (settings.last_ingest_at) {
+    const sinceMs = Date.now() - new Date(settings.last_ingest_at).getTime()
+    if (sinceMs >= 0 && sinceMs < 30_000) {
+      return jsonResponse({ ok: false, error: 'rate limited', retry_after_s: Math.ceil((30_000 - sinceMs) / 1000) }, 429, req)
+    }
+  }
 
   const date = typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date)
     ? body.date
@@ -86,6 +96,9 @@ serve(async (req) => {
 
   const { error } = await svc.from('health_logs').upsert(row, { onConflict: 'user_id,date' })
   if (error) return jsonResponse({ ok: false, error: error.message }, 500, req)
+
+  // Stamp the rate-limit window only now that the write actually landed.
+  await svc.from('user_settings').update({ last_ingest_at: new Date().toISOString() }).eq('health_ingest_token', token)
 
   return jsonResponse({ ok: true, date, updated: existing ? 'merged' : 'created', fields: accepted, rejected }, 200, req)
 })
