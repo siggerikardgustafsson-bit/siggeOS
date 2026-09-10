@@ -13,9 +13,6 @@ export function getDecayedValue(value, date, decayDays) {
 // thresholds = [t50, t30, t20, t10, t5, t2_5, t1] = values required to REACH that tier
 export function getTier(value, thresholds, higherIsBetter = true) {
   if (value == null) return null
-  const labels = ['Botten 50%', 'Top 50%', 'Top 30%', 'Top 20%', 'Top 10%', 'Top 5%', 'Top 2.5%', 'Top 1%']
-  const colors = ['#6b7280', '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#06b6d4', '#ec4899', '#f59e0b']
-  const glow = [false, false, false, false, false, false, false, true]
 
   let tier = 1
   for (let i = 0; i < thresholds.length; i++) {
@@ -23,13 +20,16 @@ export function getTier(value, thresholds, higherIsBetter = true) {
     if (reached) tier = i + 2
   }
 
+  // Label + colour come from the canonical maps (TIER_NAMES / TIER_COLORS) —
+  // getTier used to carry its own drifting copies, so a T4 energy chip rendered
+  // amber while the T4 category colour was yellow (AUDIT.md P2-9, last inline copy).
   return {
     tier,
-    label: labels[tier - 1],
-    color: colors[tier - 1],
-    glow: glow[tier - 1],
+    label: TIER_NAMES[tier],
+    color: TIER_COLORS[tier] || '#6b7280',
+    glow: tier >= 8,
     nextThreshold: tier < 8 ? thresholds[tier - 1] : null,
-    nextLabel: tier < 8 ? labels[tier] : null,
+    nextLabel: tier < 8 ? TIER_NAMES[tier + 1] : null,
   }
 }
 
