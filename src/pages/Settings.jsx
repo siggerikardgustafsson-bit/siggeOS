@@ -753,15 +753,17 @@ export default function SettingsPage() {
           {/* ===== NOTISER ===== */}
           {activeSection === 'notiser' && (
             <div className="card">
-              <SectionHeader icon={Bell} title="Påminnelser" subtitle="Kräver att du tillåter notiser i webbläsaren" />
-              <SettingRow label="Journal-påminnelse" sub="Påminn mig att logga journal varje kväll">
-                <Toggle value={notifJournal} onChange={v => { setNotifJournal(v); saveProfile() }} />
-              </SettingRow>
-              <SettingRow label="Tränings-påminnelse" sub="Påminn mig om jag inte tränat på 3 dagar">
-                <Toggle value={notifTraining} onChange={v => { setNotifTraining(v); saveProfile() }} />
-              </SettingRow>
+              <SectionHeader icon={Bell} title="Påminnelser" subtitle="Kommer snart — push-notiser är inte aktiverade än" />
+              <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
+                <SettingRow label="Journal-påminnelse" sub="Påminn mig att logga journal varje kväll">
+                  <Toggle value={notifJournal} onChange={() => {}} />
+                </SettingRow>
+                <SettingRow label="Tränings-påminnelse" sub="Påminn mig om jag inte tränat på 3 dagar">
+                  <Toggle value={notifTraining} onChange={() => {}} />
+                </SettingRow>
+              </div>
               <div style={{ marginTop: '14px', padding: '12px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '8px', fontSize: '12px', color: 'var(--amber)' }}>
-                Notiser kräver att MaxxIt är öppen i webbläsaren. Native notiser kräver en installerad app.
+                Påminnelser är inte igång än — det kräver push-infrastruktur (service worker + schemalagt utskick) som inte är byggd. Växlarna sparar din preferens tills det finns på plats.
               </div>
             </div>
           )}
