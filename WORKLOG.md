@@ -29,9 +29,26 @@ Fortsatt arbete på ny branch `data-sync-jarvis-tools` (av `main`). Poster #14+.
 
 Post 14–16 mergades till main + pushades 2026-09-10 (`a7ab2a6..d1e602f`).
 Post 17–18: branch `ux-cohesion` → merged + pushed (`d1e602f..1dbbc13`).
-Post 19–22: branch `next-ux` (av `main`@`1dbbc13`).
+Post 19–22: branch `next-ux` → merged + pushed (`1dbbc13..88ef121`).
 
 **Nya migrationer att köra (`supabase db push`):** post_deploy_08 (goals.start_value/baseline_date), post_deploy_09 (trips.saved_sek). Additiva, idempotenta. Frontend degraderar tills de körs (goals.js 3-tier-fallback; trip-sparfältet inert).
+
+## Polish-batch (branch `polish-batch`, av `main`@`88ef121`, PUSHAD men ej mergad) — din bugg/förbättrings-lista
+
+| # | Vad | Commit | Kräver av dig |
+|---|-----|--------|---------------|
+| P1 | Jarvis datum-bugg: gammal chatt lästes som "idag" → historik dagtaggas `[ÅÅÅÅ-MM-DD]` innan den skickas till modellen | `52888ea` | **jarvis-chat-deploy** |
+| P2 | Strava-synk: fel visades som "✓ Analyserade undefined pass"; nu riktig felruta (+ koppla-om-länk) + 401/429-hantering + 4×100 aktiviteter | `52888ea` | **strava-sync-deploy** |
+| P3 | Modals fastnade mid-skärm efter scroll: `pageRise`-animationen (`fill:both` som rör transform/filter) gjorde `.page-wrap` + varje `.card` till containing block för alla `position:fixed`. Fixat i CSS (`fill:backwards`, keyframe `filter:none`, `will-change`→`:hover`) + portalerar DetailModal/EvidenceModal till body | `8de3d8e` | inget (frontend) |
+| P4 | DetailModal (Maxx Score) omstylad till appens panel-tokens — 82px→64px tier-siffra, `blur(44px)`-glas → vanlig panel, enhetlig | `8de3d8e` | inget |
+| P5 | Profil "Livssituation sparas ej": roller är nu primärmodellen (gamla fält under "Fler detaljer", auto-härledda från aktiva roller), spara-bar med "Osparade ändringar"-indikator | `8de3d8e` | inget |
+| P6 | Laddnings-skeletons: ny `src/components/Skeleton.jsx` + Insights (full) / Dashboard (score-hero) / Kalender / Ekonomi | `470f1f7` | inget |
+
+**Kvar på din lista (ej påbörjat):**
+- Dashboard utan scroll (allt på startskärmen) — stor layout-ändring
+- Konstellations-bubblor krockar/klipps ur bild; starkare liquid-hover
+- Fortsätt kalendern
+- Upplevelser-kartan: markera besökta städer istället för hela länder
 
 ---
 
