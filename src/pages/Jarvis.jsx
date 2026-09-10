@@ -247,7 +247,7 @@ export default function Jarvis() {
         msgs.push({ role: 'separator', content: isToday ? 'Idag' : format(new Date(day + 'T12:00:00'), 'd MMMM', { locale: sv }), isSeparator: true })
         lastDay = day
       }
-      msgs.push({ role: row.role, content: stripAccidentalActionJson(row.content) })
+      msgs.push({ role: row.role, content: stripAccidentalActionJson(row.content), created_at: row.created_at })
     }
     setMessages(msgs)
   }
@@ -293,7 +293,16 @@ export default function Jarvis() {
       if (saveUserErr) console.error('Failed to save user message:', saveUserErr)
     }
 
-    const reqBody = { messages: newMessages, context: freshCtx || contextRef.current }
+    // Date-tag history from earlier days so Jarvis never reads a message written
+    // yesterday as if it were sent today ("imorgon" in an old message ≠ tomorrow).
+    const tag = todayISO()
+    const taggedMessages = newMessages.map((m) => {
+      const day = typeof m.created_at === 'string' ? m.created_at.slice(0, 10) : null
+      return day && day !== tag
+        ? { role: m.role, content: `[${day}] ${m.content}` }
+        : { role: m.role, content: m.content }
+    })
+    const reqBody = { messages: taggedMessages, context: freshCtx || contextRef.current }
     const saveAssistant = async (raw) => {
       const clean = stripAccidentalActionJson(raw || '') || 'Jag fick inget svar från modellen.'
       const { error: saveErr } = await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: clean })

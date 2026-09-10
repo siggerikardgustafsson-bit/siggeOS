@@ -459,10 +459,17 @@ export default function TraningPage() {
           apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
         }
       })
-      const json = await res.json()
-      setStravaResult(json)
-      if (json.synced > 0) await fetchSessions()
-    } catch (e) { console.error(e) }
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json || json.error) {
+        setStravaResult({ error: json?.detail || json?.error || `Kunde inte synka (HTTP ${res.status})` })
+      } else {
+        setStravaResult(json)
+        if (json.synced > 0 || json.prsUpdated > 0) { await fetchSessions(); await fetchRunPRs() }
+      }
+    } catch (e) {
+      console.error(e)
+      setStravaResult({ error: 'Synk misslyckades — ingen kontakt med servern.' })
+    }
     setStravaSyncing(false)
   }
 
@@ -476,9 +483,17 @@ export default function TraningPage() {
           apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
         }
       })
-      const json = await res.json()
-      setStravaResult({ ...json, synced: 0, skipped: 0, total: json.processed, prsUpdated: json.prsUpdated })
-    } catch (e) { console.error(e) }
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json || json.error) {
+        setStravaResult({ error: json?.detail || json?.error || `Kunde inte hämta PR (HTTP ${res.status})` })
+      } else {
+        setStravaResult({ ...json, synced: 0, skipped: 0, total: json.processed, prsUpdated: json.prsUpdated })
+        if (json.prsUpdated > 0) await fetchRunPRs()
+      }
+    } catch (e) {
+      console.error(e)
+      setStravaResult({ error: 'Kunde inte hämta PR — ingen kontakt med servern.' })
+    }
     setFetchingPrs(false)
   }
 
@@ -1231,11 +1246,33 @@ export default function TraningPage() {
 
       {/* Strava result */}
       {stravaResult && (
-        <div style={{ padding: '12px 16px', background: 'rgba(252,76,2,0.08)', border: '1px solid rgba(252,76,2,0.2)', borderRadius: '10px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '13px', color: '#fc4c02' }}>
-            ✓ {stravaResult.synced > 0 ? `Importerade ${stravaResult.synced} pass (${stravaResult.skipped} redan synkade av ${stravaResult.total} totalt)` : `Analyserade ${stravaResult.total} pass`}{stravaResult.prsUpdated > 0 ? ` · ${stravaResult.prsUpdated} PRs uppdaterade` : ''}
+        <div style={{ padding: '12px 16px', background: stravaResult.error ? 'rgba(239,68,68,0.08)' : 'rgba(252,76,2,0.08)', border: `1px solid ${stravaResult.error ? 'rgba(239,68,68,0.28)' : 'rgba(252,76,2,0.2)'}`, borderRadius: '10px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '13px', color: stravaResult.error ? 'var(--red)' : '#fc4c02' }}>
+            {stravaResult.error ? (
+              <>
+                {stravaResult.error}
+                {/reauthorize|kopplas om/i.test(stravaResult.error) && <> — <button onClick={connectStrava} style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', cursor: 'pointer', padding: 0, fontSize: 'inherit' }}>koppla om Strava</button></>}
+              </>
+            ) : (
+              <>
+                ✓ {stravaResult.synced > 0
+                  ? `Importerade ${stravaResult.synced} nya pass (${stravaResult.skipped} redan inne)`
+                  : stravaResult.total != null
+                    ? `Inget nytt — ${stravaResult.skipped ?? stravaResult.total} pass redan synkade`
+                    : 'Klart'}
+                {stravaResult.prsUpdated > 0 ? ` · ${stravaResult.prsUpdated} PR uppdaterade` : ''}
+                {stravaResult.rateLimited && (
+                  <span style={{ color: 'var(--amber)' }}>{' · '}Stravas gräns nådd — vänta ~15 min och kör igen</span>
+                )}
+                {!stravaResult.rateLimited && (stravaResult.detailDeferred > 0 || stravaResult.failed > 0) && (
+                  <span style={{ color: 'var(--amber)' }}>
+                    {' · '}{stravaResult.detailDeferred || stravaResult.failed} pass väntar på PR-analys (kör igen om en stund)
+                  </span>
+                )}
+              </>
+            )}
           </span>
-          <button onClick={() => setStravaResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)' }}><X size={14} /></button>
+          <button onClick={() => setStravaResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0 }}><X size={14} /></button>
         </div>
       )}
 

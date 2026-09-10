@@ -83,9 +83,10 @@ async function upsertRunBestEffortsForActivity(
   const detailRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}?include_all_efforts=true`, {
     headers: { Authorization: `Bearer ${accessToken}` }
   })
-  const detail = await detailRes.json()
-  if (!detailRes.ok) {
-    console.warn(`Strava activity detail failed for ${activityId}:`, detail)
+  if (detailRes.status === 429) throw new Error('rate_limited')
+  const detail = await detailRes.json().catch(() => null)
+  if (!detailRes.ok || !detail) {
+    console.warn(`Strava activity detail failed for ${activityId}:`, detailRes.status)
     return 0
   }
   if (!Array.isArray(detail.best_efforts)) return 0
@@ -181,8 +182,8 @@ serve(async (req) => {
 
   // ===== FETCH PRs FOR EXISTING STRAVA RUNS =====
   if (action === 'fetch_prs') {
-    const { data: tokenRow } = await supabase.from('strava_tokens').select('*').eq('user_id', user.id).single()
-    if (!tokenRow) return new Response(JSON.stringify({ error: 'Not connected' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
+    const { data: tokenRow } = await supabase.from('strava_tokens').select('*').eq('user_id', user.id).maybeSingle()
+    if (!tokenRow) return new Response(JSON.stringify({ error: 'reauthorize', detail: 'Strava är inte kopplat.' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
 
     const tok = await getValidStravaToken(supabase, tokenRow, user.id, cors)
     if (tok.errorResponse) return tok.errorResponse
@@ -210,6 +211,7 @@ serve(async (req) => {
     let prsUpdated = 0
     let processed = 0
     let failed = 0
+    let rateLimited = false
 
     for (const session of sessions) {
       if (!session.strava_id) continue
@@ -225,12 +227,13 @@ serve(async (req) => {
         // Small delay to avoid rate limiting
         await new Promise(r => setTimeout(r, 120))
       } catch (e) {
+        if (e instanceof Error && e.message === 'rate_limited') { rateLimited = true; break }
         failed++
         console.warn(`Best-efforts fetch failed for ${session.strava_id}:`, e)
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, prsUpdated, processed, failed }), {
+    return new Response(JSON.stringify({ ok: true, prsUpdated, processed, failed, rateLimited }), {
       headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
@@ -238,22 +241,32 @@ serve(async (req) => {
   // ===== SYNC ACTIVITIES =====
   if (action === 'sync') {
     // Get token
-    const { data: tokenRow } = await supabase.from('strava_tokens').select('*').eq('user_id', user.id).single()
-    if (!tokenRow) return new Response(JSON.stringify({ error: 'Not connected' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
+    const { data: tokenRow } = await supabase.from('strava_tokens').select('*').eq('user_id', user.id).maybeSingle()
+    if (!tokenRow) return new Response(JSON.stringify({ error: 'reauthorize', detail: 'Strava är inte kopplat.' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } })
 
     // Refresh token if expired
     const tok = await getValidStravaToken(supabase, tokenRow, user.id, cors)
     if (tok.errorResponse) return tok.errorResponse
     const accessToken = tok.accessToken!
 
-    // Fetch activities — up to 200 per page, max 2 pages
+    // Fetch activities — 100 per page, up to 4 pages (400 most recent).
     let allActivities: any[] = []
-    for (let page = 1; page <= 2; page++) {
+    let rateLimited = false
+    for (let page = 1; page <= 4; page++) {
       const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=100&page=${page}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       })
-      const acts = await res.json()
-      if (!Array.isArray(acts) || acts.length === 0) break
+      if (res.status === 429) { rateLimited = true; break }
+      if (res.status === 401) {
+        return new Response(JSON.stringify({ error: 'reauthorize', detail: 'Strava-anslutningen behöver kopplas om.' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
+      }
+      const acts = await res.json().catch(() => null)
+      if (!res.ok || !Array.isArray(acts)) {
+        // Nothing fetched at all → surface it; partial pages → keep what we have.
+        if (page === 1) return new Response(JSON.stringify({ error: 'Strava svarade oväntat vid hämtning av aktiviteter.' }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } })
+        break
+      }
+      if (acts.length === 0) break
       allActivities = [...allActivities, ...acts]
     }
 
@@ -330,18 +343,19 @@ serve(async (req) => {
         prsUpdated += await upsertRunBestEffortsForActivity(supabase, user.id, accessToken, run.id, run.date)
         await new Promise(r => setTimeout(r, 150))
       } catch (e) {
+        if (e instanceof Error && e.message === 'rate_limited') { rateLimited = true; detailDeferred += (newRunActs.length - detailCalls); break }
         console.warn(`best_efforts fetch failed for activity ${run.id}:`, e)
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, synced, skipped, total: allActivities.length, prsUpdated, detailDeferred }), {
+    return new Response(JSON.stringify({ ok: true, synced, skipped, total: allActivities.length, prsUpdated, detailDeferred, rateLimited }), {
       headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
 
   // ===== CHECK CONNECTION STATUS =====
   if (action === 'status') {
-    const { data } = await supabase.from('strava_tokens').select('athlete_id, expires_at').eq('user_id', user.id).single()
+    const { data } = await supabase.from('strava_tokens').select('athlete_id, expires_at').eq('user_id', user.id).maybeSingle()
     return new Response(JSON.stringify({ connected: !!data, athlete_id: data?.athlete_id }), {
       headers: { ...cors, 'Content-Type': 'application/json' }
     })

@@ -1178,6 +1178,8 @@ VÄNNER: ${friendLines || '–'}
 
 NU: ${context || '–'}${contentBlock ? '\n'+contentBlock : ''}
 
+DATUM: "TID:" överst i NU är exakt nu. Meddelanden i historiken som börjar med [ÅÅÅÅ-MM-DD] skrevs det datumet, inte idag – räkna "imorgon", "nästa vecka", "om 3 dagar" osv från när meddelandet skrevs, inte från idag, om inget annat sägs. Utan datumtagg = idag.
+
 VERKTYG – hämta NÄR data saknas, INTE om svaret ryms ovan. Hämta parallellt vid flera domäner. Ej samma data 2x.
 Brief/kväll/vecka → journal+health+workouts+scores. Mående → fetch_journal(summaries_only=true för trend, full för djup). Pass/styrka/löp → fetch_workouts. PR/rekord → fetch_workouts(include_prs=true). Kosttillskott/medicin/retatrutide → fetch_health. Schema → fetch_calendar. Ekonomi/sparande/nettoförmögenhet/tillgångar → fetch_economy. Resor → fetch_experiences. Tasks → fetch_tasks. Djupare minne/sök minne → fetch_memory_goals(search_keyword). Gammal chatt/"vad sa vi om X" → fetch_chat_history(search_keyword). Journal-sök → fetch_journal(search_keyword).
 
