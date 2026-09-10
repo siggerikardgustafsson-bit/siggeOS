@@ -118,7 +118,7 @@ export default function HalsaPage() {
       setTodayLog(data)
       setWeightForm(f => ({ ...f, weight_kg: data.weight_kg || '' }))
       setSleepForm(f => ({ ...f, sleep_hours: data.sleep_hours || '', sleep_quality: data.sleep_quality || 7 }))
-      setSubstanceForm(f => ({ ...f, alcohol_units: data.alcohol_units || '', nicotine: nicotineFromRow(data) }))
+      setSubstanceForm(f => ({ ...f, alcohol_units: data.alcohol_units || '', nicotine: nicotineFromRow(data), marijuana: !!data.marijuana }))
       if (data.retatrutide_dose_mg) setRetForm(f => ({ ...f, retatrutide_injected: true, retatrutide_dose_mg: data.retatrutide_dose_mg }))
     }
 
@@ -227,6 +227,7 @@ export default function HalsaPage() {
       sleep_quality: log.sleep_quality || 7,
       alcohol_units: log.alcohol_units || '',
       nicotine: nicotineFromRow(log),
+      marijuana: !!log.marijuana,
       retatrutide_dose_mg: log.retatrutide_dose_mg || '',
       retatrutide_injected: !!log.retatrutide_dose_mg,
       supplements_taken: takenSupplements,
@@ -247,6 +248,7 @@ export default function HalsaPage() {
       alcohol_units: editingLog.alcohol_units ? parseFloat(editingLog.alcohol_units) : null,
       nicotine: editingLog.nicotine?.length > 0,
       nicotine_type: editingLog.nicotine?.length ? editingLog.nicotine.join(',') : null,
+      marijuana: !!editingLog.marijuana,
       retatrutide_dose_mg: editingLog.retatrutide_injected ? parseFloat(editingLog.retatrutide_dose_mg) || 2.5 : null,
     }
 
@@ -762,7 +764,7 @@ export default function HalsaPage() {
                 case 'sleep':  return !!log.sleep_hours
                 case 'steps':  return !!log.steps
                 case 'supps':  return supplementLogs.some(s => s.date === log.date && s.taken)
-                case 'subst':  return log.alcohol_units > 0 || log.nicotine
+                case 'subst':  return log.alcohol_units > 0 || log.nicotine || log.marijuana
                 case 'ret':    return !!log.retatrutide_dose_mg
                 default:       return true
               }
@@ -800,6 +802,7 @@ export default function HalsaPage() {
                         </span>
                       )}
                       {log.nicotine && <span className="hl-chip" style={{ '--hl-cc':'#f59e0b' }}>nikotin</span>}
+                      {log.marijuana && <span className="hl-chip" style={{ '--hl-cc':'#10b981' }}>🌿</span>}
                       {log.retatrutide_dose_mg && <span className="hl-chip" style={{ '--hl-cc':'#a78bfa' }}>💉 {log.retatrutide_dose_mg}mg</span>}
                     </div>
                     <button onClick={() => openEditLog(log)} className="hl-hist-edit">
@@ -849,6 +852,7 @@ export default function HalsaPage() {
                   const active = editingLog.nicotine?.includes(n.id)
                   return <button key={n.id} onClick={() => setEditingLog(l => ({ ...l, nicotine: active ? l.nicotine.filter(x=>x!==n.id) : [...(l.nicotine||[]),n.id] }))} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid '+(active?'#f59e0b':'var(--border)'), background: active?'rgba(245,158,11,0.12)':'var(--surface2)', color: active?'#f59e0b':'var(--muted)', fontSize:'12px', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>{n.label}</button>
                 })}
+                <button onClick={() => setEditingLog(l => ({ ...l, marijuana: !l.marijuana }))} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid '+(editingLog.marijuana?'#10b981':'var(--border)'), background: editingLog.marijuana?'rgba(16,185,129,0.12)':'var(--surface2)', color: editingLog.marijuana?'#10b981':'var(--muted)', fontSize:'12px', cursor:'pointer', fontFamily:'DM Sans, sans-serif' }}>Marijuana</button>
               </div>
             </div>
             <div style={{ marginBottom:'18px' }}>

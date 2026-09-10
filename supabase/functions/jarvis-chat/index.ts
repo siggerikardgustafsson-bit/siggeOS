@@ -357,7 +357,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
 
     if (toolName === 'fetch_health') {
       const { data, error } = await supabase.from('health_logs')
-        .select('id,date,weight_kg,body_fat_pct,steps,sleep_hours,sleep_quality,sleep_type,sleep_note,resting_hr,screen_time_minutes,alcohol_units,nicotine,caffeine_mg,energy,energy_level,stress_level,mood,retatrutide_dose_mg,source')
+        .select('id,date,weight_kg,body_fat_pct,steps,sleep_hours,sleep_quality,sleep_type,sleep_note,resting_hr,screen_time_minutes,alcohol_units,nicotine,marijuana,caffeine_mg,energy,energy_level,stress_level,mood,retatrutide_dose_mg,source')
         .eq('user_id', userId)
         .gte('date', input.date_from || thirtyDaysAgo)
         .lte('date', input.date_to || today)
@@ -377,6 +377,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         if (r.stress_level) parts.push(`stress ${r.stress_level}/10`)
         if (r.alcohol_units) parts.push(`alkohol ${r.alcohol_units}`)
         if (r.nicotine) parts.push('nikotin')
+        if (r.marijuana) parts.push('marijuana')
         if (r.caffeine_mg) parts.push(`koffein ${r.caffeine_mg}mg`)
         if (r.body_fat_pct) parts.push(`fett ${r.body_fat_pct}%`)
         if (r.resting_hr) parts.push(`vilopuls ${r.resting_hr}`)
@@ -787,7 +788,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         case 'log_health': {
           const date = d.date || todayISO()
           const hf: any = {}
-          for (const k of ['weight_kg','sleep_hours','energy','energy_level','steps','alcohol_units','nicotine','mood','stress_level','sleep_quality','caffeine_mg']) if (d[k] != null) hf[k] = d[k]
+          for (const k of ['weight_kg','sleep_hours','energy','energy_level','steps','alcohol_units','nicotine','marijuana','mood','stress_level','sleep_quality','caffeine_mg']) if (d[k] != null) hf[k] = d[k]
           if (hf.energy != null && hf.energy_level == null) hf.energy_level = hf.energy
           if (hf.energy_level != null && hf.energy == null) hf.energy = hf.energy_level
           const { data: existing } = await supabase.from('health_logs').select('id').eq('user_id', userId).eq('date', date).limit(1).maybeSingle()
