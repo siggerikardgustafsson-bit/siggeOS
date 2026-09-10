@@ -99,6 +99,31 @@ skapa mål tills efter `db push`.
 
 ## Poster
 
+### 24. Strava-synk: visa det verkliga felet + härdning
+**Spår:** A (du: "strava synken funkar ej")
+**Symptom:** `?action=sync` returnerade platt 502 "Strava svarade oväntat vid
+hämtning av aktiviteter." `?action=status` funkar (connected, athlete 110767412),
+så token-raden finns och token-refresh går igenom → `/athlete/activities` failar
+med något som varken är 401 eller 429. Gammal kod slukade Stravas svar.
+**Trolig rotorsak:** Strava ligger bakom Cloudflare och har börjat servera en
+bot-challenge (403 HTML) mot Denos default-User-Agent → `res.json()` kastar →
+`acts=null` → 502.
+**Vad:** alla Strava-GET går nu via `stravaGet()` — explicit `User-Agent` +
+`Accept: application/json`, en retry på 5xx/nätverksblipp, returnerar rå status
++ body-snutt. `sync` sid-1-fel returnerar `{stravaStatus, stravaBody}` och
+Träning-bannern visar det. `isStravaAuthError()` fångar token-fel som kommer som
+200/4xx-body → "koppla om" istf 502. `getValidStravaToken` refreshar 2 min
+tidigt + rapporterar saknade `STRAVA_CLIENT_*` som config-fel. Nytt
+`?action=debug` (inga hemligheter): token-state + live 1-aktivitets-probe.
+**Filer:** `supabase/functions/strava-sync/index.ts`, `src/pages/Traning.jsx`
+**Verifiering:** esbuild-transform OK, `npm run build` OK. Kan inte se Stravas
+faktiska svar utan deploy (ingen deno lokalt).
+**Commit:** `858026b` (mergad → main, pushad)
+**Kräver av dig:** **[DEPLOY]** `supabase functions deploy strava-sync` — sen
+öppna Träning och kör synken igen. Om den fortf. failar: gå till
+`…/functions/v1/strava-sync?action=debug` (inloggad) eller kör synken och
+läs `stravaStatus`/`stravaBody` i bannern, klistra hit så finjusterar jag.
+
 ### 23. Apple Health — setup-skärm (F3 frontend)
 **Spår:** A (ditt val efter polish-batchen)
 **Vad:** Ny sektion "Apple Health" i Inställningar. Opt-in: ingen token skapas
