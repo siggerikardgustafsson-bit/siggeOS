@@ -40,9 +40,9 @@ const SV_EN = {
   'Etiopien': 'Ethiopia', 'Tanzania': 'Tanzania',
 }
 
-const DEFAULT_VIEW = { coordinates: [18, 30], zoom: 1.4 }
+const DEFAULT_VIEW = { coordinates: [16, 28], zoom: 1.5 }
 
-export default function WorldMap({ trips = [], tripFilter = 'all', highlightTripId = null }) {
+export default function WorldMap({ trips = [], tripFilter = 'all', highlightTripId = null, onFixCities }) {
   const [hover, setHover] = useState(null)
   const [view, setView] = useState(DEFAULT_VIEW)
   const [gazReady, setGazReady] = useState(false)
@@ -50,15 +50,21 @@ export default function WorldMap({ trips = [], tripFilter = 'all', highlightTrip
   // The gazetteer streams in as its own chunk; re-resolve once it lands.
   useEffect(() => { loadGazetteer().then(() => setGazReady(true)) }, [])
 
-  const { markers, routes, visitedEN, cityCount, countryCount } = useMemo(() => {
+  const { markers, routes, visitedEN, cityCount, noCity, firstNoCityId } = useMemo(() => {
     const filtered = tripFilter === 'all' ? trips : trips.filter(t => t.status === tripFilter)
     const byPoint = new Map()
     const rts = []
-    const visited = new Set()
+    const visited = new Map()          // EN name -> best status (completed > planned > idea)
+    const bumpVisited = (en, st) => {
+      const cur = visited.get(en)
+      if (!cur || STATUS_RANK[st] > STATUS_RANK[cur]) visited.set(en, st)
+    }
+    let noCity = 0
+    let firstNoCityId = null
     for (const t of filtered) {
       const st = t.status || 'idea'
       const cs = t.countries?.length ? t.countries : (t.country ? [t.country] : [])
-      for (const c of cs) if (SV_EN[c]) visited.add(SV_EN[c])
+      for (const c of cs) if (SV_EN[c]) bumpVisited(SV_EN[c], st)
       const pts = tripToPoints(t)
       for (const p of pts) {
         const key = p.coord.join(',')
@@ -69,15 +75,17 @@ export default function WorldMap({ trips = [], tripFilter = 'all', highlightTrip
       }
       const cityPts = pts.filter(p => p.kind === 'city')
       if (cityPts.length >= 2) rts.push({ id: t.id, status: st, coords: cityPts.map(p => p.coord) })
+      if (cs.length && cityPts.length === 0) { noCity++; if (!firstNoCityId) firstNoCityId = t.id }
     }
-    if (tripFilter === 'all' || tripFilter === 'completed') visited.add('Sweden')
+    if (tripFilter === 'all' || tripFilter === 'completed') bumpVisited('Sweden', 'completed')
     const m = [...byPoint.values()].sort((a, b) => b.trips.length - a.trips.length)
     return {
       markers: m,
       routes: rts,
       visitedEN: visited,
       cityCount: m.filter(p => p.kind === 'city').length,
-      countryCount: visited.size,
+      noCity,
+      firstNoCityId,
     }
   }, [trips, tripFilter, gazReady])
 
@@ -97,19 +105,16 @@ export default function WorldMap({ trips = [], tripFilter = 'all', highlightTrip
             <Geographies geography={worldTopo}>
               {({ geographies }) =>
                 geographies.map((geo) => {
-                  const isVisited = visitedEN.has(geo.properties.name)
+                  const vs = visitedEN.get(geo.properties.name)
+                  const fill = vs === 'completed' ? 'var(--upp-land-done)'
+                    : vs ? 'var(--upp-land-plan)' : 'var(--upp-land)'
                   return (
                     <Geography
                       key={geo.rsmKey}
                       geography={geo}
                       style={{
-                        default: {
-                          fill: isVisited ? 'var(--upp-land-on)' : 'var(--upp-land)',
-                          stroke: 'var(--upp-border)',
-                          strokeWidth: 0.3,
-                          outline: 'none',
-                        },
-                        hover: { fill: isVisited ? 'var(--upp-land-on)' : 'var(--upp-land)', outline: 'none' },
+                        default: { fill, stroke: 'var(--upp-border)', strokeWidth: 0.3, outline: 'none' },
+                        hover: { fill, outline: 'none' },
                         pressed: { outline: 'none' },
                       }}
                     />
@@ -190,7 +195,12 @@ export default function WorldMap({ trips = [], tripFilter = 'all', highlightTrip
             {STATUS_LABEL[k]}
           </span>
         ))}
-        <span className="upp-map-leg-count">{cityCount} städer · {countryCount} länder</span>
+        {noCity > 0 && onFixCities && (
+          <button type="button" className="upp-map-nudge" onClick={() => onFixCities(firstNoCityId)}>
+            {noCity} {noCity === 1 ? 'resa' : 'resor'} utan stad — fyll i
+          </button>
+        )}
+        <span className="upp-map-leg-count">{cityCount} {cityCount === 1 ? 'stad' : 'städer'} på kartan</span>
       </div>
     </div>
   )

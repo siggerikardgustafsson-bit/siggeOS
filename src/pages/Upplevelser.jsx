@@ -897,9 +897,9 @@ Returnera ENBART JSON utan backticks:
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding: '16px 16px 0', maxWidth: activeTab === 'resor' ? '1120px' : '900px', margin: '0 auto', transition: 'max-width .2s' }}>
+        <div style={{ padding: '16px 16px 0', maxWidth: '1080px', margin: '0 auto' }}>
 
-      <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px', maxWidth: activeTab === 'resor' ? '900px' : 'none' }}>
+      <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px' }}>
         {tabs.map(tab => {
           const TabIcon = tab.icon
           return (
@@ -946,7 +946,11 @@ Returnera ENBART JSON utan backticks:
           <div className="upp-resor-layout">
           <div className="upp-map-col">
             <Suspense fallback={<div className="upp-map-panel" style={{ minHeight: 260, display: 'grid', placeItems: 'center', color: 'var(--muted)', fontSize: 12 }}>Laddar karta…</div>}>
-              <WorldMap trips={trips} tripFilter={tripFilter} highlightTripId={hoverTripId} />
+              <WorldMap trips={trips} tripFilter={tripFilter} highlightTripId={hoverTripId}
+                onFixCities={(id) => {
+                  setEditingTrip(id); setExpandedTrip(null); setShowNewTrip(false)
+                  requestAnimationFrame(() => document.getElementById(`trip-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+                }} />
             </Suspense>
           </div>
           <div className="upp-trips-scroll" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -969,18 +973,19 @@ Returnera ENBART JSON utan backticks:
 
               if (isEditing) {
                 return (
-                  <TripForm
-                    key={trip.id}
-                    initial={{ ...trip, budget_sek: trip.budget_sek || '', countries: tripCountries, cities: Array.isArray(trip.cities) ? trip.cities : [], rating: trip.rating || 0 }}
-                    onSave={saveTrip}
-                    onCancel={() => setEditingTrip(null)}
-                    saving={saving}
-                  />
+                  <div key={trip.id} id={`trip-${trip.id}`}>
+                    <TripForm
+                      initial={{ ...trip, budget_sek: trip.budget_sek || '', countries: tripCountries, cities: Array.isArray(trip.cities) ? trip.cities : [], rating: trip.rating || 0 }}
+                      onSave={saveTrip}
+                      onCancel={() => setEditingTrip(null)}
+                      saving={saving}
+                    />
+                  </div>
                 )
               }
 
               return (
-                <div key={trip.id} className="card" style={{
+                <div key={trip.id} id={`trip-${trip.id}`} className="card" style={{
                   borderColor: hoverTripId === trip.id ? 'var(--accent)'
                     : trip.status === 'planned' ? 'rgba(59,130,246,0.3)' : trip.status === 'idea' ? 'rgba(139,92,246,0.2)' : 'var(--border)',
                   transition: 'border-color .15s',
@@ -994,9 +999,9 @@ Returnera ENBART JSON utan backticks:
                         {tripCountries.length > 3 && <span style={{ fontSize: '10px', color: 'var(--muted)' }}>+{tripCountries.length - 3}</span>}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                          <div style={{ fontSize: '14.5px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{trip.title}</div>
-                          <span style={{ flexShrink: 0, fontSize: '10px', padding: '2px 8px', borderRadius: '999px',
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', minWidth: 0, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '14px', fontWeight: '700', lineHeight: 1.3, overflowWrap: 'anywhere' }}>{trip.title}</div>
+                          <span style={{ flexShrink: 0, fontSize: '10px', padding: '2px 8px', borderRadius: '999px', marginTop: '1px',
                             background: status?.color + '20', color: status?.color, fontWeight: '700' }}>
                             {status?.label}
                           </span>
@@ -1093,7 +1098,7 @@ Returnera ENBART JSON utan backticks:
 
       {/* ===== ÄVENTYR ===== */}
       {activeTab === 'aventyr' && (
-        <>
+        <div style={{ maxWidth: '720px', margin: '0 auto' }}>
           <button onClick={() => setShowNewAdventure(true)} className="btn btn-primary" style={{ marginBottom: '16px' }}>
             <Plus size={14} /> Nytt äventyr
           </button>
@@ -1163,12 +1168,12 @@ Returnera ENBART JSON utan backticks:
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* ===== SIDE QUESTS ===== */}
       {activeTab === 'quests' && (
-        <>
+        <div style={{ maxWidth: '720px', margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ fontSize: '13px', color: 'var(--muted)' }}>{activeQuests.length} aktiva · {doneQuests.length} avklarade</div>
             <button onClick={generateSideQuests} disabled={generatingQuests} style={{
@@ -1235,7 +1240,7 @@ Returnera ENBART JSON utan backticks:
               text="Låt Jarvis föreslå nya spontana utmaningar baserat på dina mål."
               action={{ label: generatingQuests ? 'Genererar…' : 'Generera quests', onClick: generateSideQuests }} />
           )}
-        </>
+        </div>
       )}
 
       {planningTrip && (
