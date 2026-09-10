@@ -11,7 +11,7 @@ import {
 import { TRIP_STATUSES } from '../lib/constants'
 import EmptyState from '../components/EmptyState'
 import { getUserIdentityContext, identityToPrompt } from '../lib/personalization'
-import { loadGazetteer, searchCities, resolveCity } from '../lib/cityCoords'
+import { loadGazetteer, searchCities, resolveCity, tripToPoints } from '../lib/cityCoords'
 
 // Heavy (1.6MB of SVG geometry) — split into its own chunk, loaded when the
 // Resor tab renders. See project_build_verification.
@@ -145,7 +145,7 @@ function CountryPicker({ selected, onChange }) {
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
           marginTop: 6, borderRadius: 12, overflow: 'hidden',
-          background: 'var(--surface2)',
+          background: 'var(--mx-nav-bg)',
           border: '1px solid var(--border)',
           boxShadow: '0 20px 60px rgba(0,0,0,0.45), 0 4px 16px rgba(0,0,0,0.3)',
         }}>
@@ -718,6 +718,20 @@ export default function UpplevelserPage() {
   })
 
   useEffect(() => { if (user) { fetchAll(); seedHistoricalTrips() } }, [user])
+  // Warm the gazetteer so the city picker + parsed-city prefill are ready by
+  // the time the user opens a trip to edit.
+  useEffect(() => { loadGazetteer() }, [])
+
+  // What the trip form opens with. If the trip has no explicit `cities` yet
+  // (pre-migration, or never filled), prefill from the parsed map points so the
+  // user can correct them — remove wrong ones, add missing ones.
+  function tripFormInitial(trip) {
+    const tripCountries = trip.countries?.length ? trip.countries : (trip.country ? [trip.country] : [])
+    const cities = Array.isArray(trip.cities) && trip.cities.length
+      ? trip.cities
+      : tripToPoints(trip).filter(p => p.kind === 'city').map(p => ({ name: p.name, lng: p.coord[0], lat: p.coord[1] }))
+    return { ...trip, budget_sek: trip.budget_sek || '', countries: tripCountries, cities, rating: trip.rating || 0 }
+  }
 
   async function fetchAll() {
     const [tripsRes, advRes, sqRes] = await Promise.all([
@@ -897,7 +911,7 @@ Returnera ENBART JSON utan backticks:
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding: '16px 16px 0', maxWidth: '1080px', margin: '0 auto' }}>
+        <div className="upp-shell" style={{ padding: '16px 16px 0' }}>
 
       <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px' }}>
         {tabs.map(tab => {
@@ -939,9 +953,23 @@ Returnera ENBART JSON utan backticks:
             })}
           </div>
 
-          {(showNewTrip && !editingTrip) && (
-            <TripForm initial={EMPTY_TRIP} onSave={saveTrip} onCancel={() => setShowNewTrip(false)} saving={saving} />
-          )}
+          {/* New / edit trip form — full width above the map so it isn't
+              crammed into the narrow trip column. */}
+          <div id="trip-edit-form">
+            {showNewTrip && !editingTrip && (
+              <div style={{ maxWidth: '660px', margin: '0 auto' }}>
+                <TripForm initial={EMPTY_TRIP} onSave={saveTrip} onCancel={() => setShowNewTrip(false)} saving={saving} />
+              </div>
+            )}
+            {editingTrip && (() => {
+              const t = trips.find(x => x.id === editingTrip)
+              return t ? (
+                <div style={{ maxWidth: '660px', margin: '0 auto' }}>
+                  <TripForm key={t.id} initial={tripFormInitial(t)} onSave={saveTrip} onCancel={() => setEditingTrip(null)} saving={saving} />
+                </div>
+              ) : null
+            })()}
+          </div>
 
           <div className="upp-resor-layout">
           <div className="upp-map-col">
@@ -949,7 +977,7 @@ Returnera ENBART JSON utan backticks:
               <WorldMap trips={trips} tripFilter={tripFilter} highlightTripId={hoverTripId}
                 onFixCities={(id) => {
                   setEditingTrip(id); setExpandedTrip(null); setShowNewTrip(false)
-                  requestAnimationFrame(() => document.getElementById(`trip-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+                  requestAnimationFrame(() => document.getElementById('trip-edit-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
                 }} />
             </Suspense>
           </div>
@@ -971,24 +999,12 @@ Returnera ENBART JSON utan backticks:
                 ? differenceInDays(parseISO(trip.start_date), new Date())
                 : null
 
-              if (isEditing) {
-                return (
-                  <div key={trip.id} id={`trip-${trip.id}`}>
-                    <TripForm
-                      initial={{ ...trip, budget_sek: trip.budget_sek || '', countries: tripCountries, cities: Array.isArray(trip.cities) ? trip.cities : [], rating: trip.rating || 0 }}
-                      onSave={saveTrip}
-                      onCancel={() => setEditingTrip(null)}
-                      saving={saving}
-                    />
-                  </div>
-                )
-              }
-
               return (
                 <div key={trip.id} id={`trip-${trip.id}`} className="card" style={{
-                  borderColor: hoverTripId === trip.id ? 'var(--accent)'
+                  borderColor: isEditing || hoverTripId === trip.id ? 'var(--accent)'
                     : trip.status === 'planned' ? 'rgba(59,130,246,0.3)' : trip.status === 'idea' ? 'rgba(139,92,246,0.2)' : 'var(--border)',
-                  transition: 'border-color .15s',
+                  opacity: isEditing ? 0.6 : 1,
+                  transition: 'border-color .15s, opacity .15s',
                 }}
                   onMouseEnter={() => setHoverTripId(trip.id)} onMouseLeave={() => setHoverTripId(null)}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }}

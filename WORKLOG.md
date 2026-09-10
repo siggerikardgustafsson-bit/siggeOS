@@ -130,8 +130,21 @@ stadsräknaren → förvirrande), nu "N städer på kartan" + knapp "N resor uta
 stad — fyll i" som öppnar första sådana resans formulär; planerade/idé-länder
 tintas lila (inte guld); stat-remsan = en delad rad med statusprick per cell;
 kartpanel platt bakgrund; hela sidan 1080px för alla flikar; resetitlar radbryts.
+**Feedback-runda 2:** rutt-linjerna borttagna (skräpigt); fritext-parsning
+delad — `city`-fältet (medveten lista) matchas mot hela gazetteern, titeln bara
+mot kurerat (så "Polen"/"Bestiga X" inte träffar pyttbyar); +Kołobrzeg, Gdańsk,
+Rovinj, Makarska, Prijepolje, Zadar m.fl.
+**Feedback-runda 3:** redigeringsformuläret renderas nu i **full bredd överst**
+(var hopklämt i den 348px smala kolumnen — fält överlappade); land-/stads-
+dropdowns fick `--mx-nav-bg` (var `--surface2` = genomskinlig → allt bakom
+syntes igenom); sidan tvingas centrerad 1180px (`.upp-shell !important`, appen
+har en blanket-override som annars sträcker allt kant-till-kant); CityPicker
+**förifylls med de parsade städerna** när man redigerar en resa → ta bort fel,
+lägg till saknade, `‹ ›` ändrar ordning. Städerna sparas till `trip.city`-
+strängen även utan migration 10.
 **Kräver av dig:** **[DEPLOY]** `supabase db push` (post_deploy_10, additiv).
-Utan den: kartan använder fritext-parsning som förr, CityPicker sparar inte.
+Utan den: strukturerad `cities` lagras ej, men `trip.city`-strängen uppdateras
+så redigeringen funkar ändå.
 Befintliga fler-stads-resor (Balkanroad, Malmö→Kroatien, Asien 2027) får rätt
 prickar när du öppnar dem och fyller i städerna.
 

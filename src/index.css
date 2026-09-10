@@ -4116,6 +4116,11 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .pg-goals-scroll::-webkit-scrollbar-thumb:hover { background:color-mix(in srgb, var(--accent) 70%, transparent); }
 
 /* ───────────── UPPLEVELSER — världskarta ───────────── */
+/* The app forces page content full-width (see the blanket override ~L2540);
+   this page reads better centred at a bound width. */
+.route-upplevelser .page-content-scroll .upp-shell {
+  max-width:1180px !important; margin-left:auto !important; margin-right:auto !important; width:auto !important; }
+
 .upp-resor-layout { display:grid; grid-template-columns:minmax(0,1fr) 348px; gap:18px; align-items:start; }
 .upp-map-col { position:sticky; top:8px; min-width:0; }
 .upp-resor-layout > .upp-trips-scroll { min-width:0; }
@@ -4177,7 +4182,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 .upp-city-chip button { background:none; border:none; cursor:pointer; color:var(--muted2); padding:0 1px; font-size:13px; line-height:1; display:inline-flex; align-items:center; }
 .upp-city-chip button:disabled { cursor:default; }
 .upp-city-menu { position:absolute; z-index:9999; left:0; right:0; top:calc(100% + 4px);
-  background:var(--surface2); border:1px solid var(--border); border-radius:11px;
+  background:var(--mx-nav-bg); border:1px solid var(--border); border-radius:11px;
   box-shadow:0 22px 55px -18px rgba(0,0,0,.5); max-height:240px; overflow-y:auto; }
 .upp-city-opt { width:100%; display:flex; justify-content:space-between; align-items:center; gap:10px;
   padding:9px 13px; border:none; background:transparent; cursor:pointer; text-align:left;
