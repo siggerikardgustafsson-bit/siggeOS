@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup, Sphere, Graticule } from 'react-simple-maps'
 import worldTopo from 'world-atlas/countries-110m.json'
-import { tripToPoints } from '../../lib/cityCoords'
+import { tripToPoints, loadGazetteer } from '../../lib/cityCoords'
 import { TRIP_STATUS_COLOR } from '../../lib/constants'
 
 // A projected world map (react-simple-maps + d3-geo). Trips are plotted as
@@ -40,7 +40,12 @@ const SV_EN = {
 export default function WorldMap({ trips = [], tripFilter = 'all' }) {
   const [hover, setHover] = useState(null)
   const [zoom, setZoom] = useState({ k: 1.35 })
+  const [gazReady, setGazReady] = useState(false)
   const bumpZoom = (f) => setZoom((s) => ({ k: Math.max(1, Math.min(14, s.k * f)) }))
+
+  // Full ~24k-city gazetteer streams in as a separate chunk; the map paints
+  // immediately with the curated set and re-resolves once it lands.
+  useEffect(() => { loadGazetteer().then(() => setGazReady(true)) }, [])
 
   const { markers, visitedEN, cityCount, countryCount } = useMemo(() => {
     const filtered = tripFilter === 'all' ? trips : trips.filter(t => t.status === tripFilter)
@@ -67,7 +72,7 @@ export default function WorldMap({ trips = [], tripFilter = 'all' }) {
       cityCount: m.filter(p => p.kind === 'city').length,
       countryCount: visited.size,
     }
-  }, [trips, tripFilter])
+  }, [trips, tripFilter, gazReady])
 
   return (
     <div className="upp-map-panel">
