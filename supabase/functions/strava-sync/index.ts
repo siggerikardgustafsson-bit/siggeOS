@@ -4,6 +4,60 @@ import { corsHeaders, unauthorized, getAuthedUser, serviceClient } from '../_sha
 const STRAVA_CLIENT_ID     = Deno.env.get('STRAVA_CLIENT_ID') ?? ''
 const STRAVA_CLIENT_SECRET = Deno.env.get('STRAVA_CLIENT_SECRET') ?? ''
 
+// Strava's edge/WAF is happier with an explicit UA than Deno's default.
+const STRAVA_UA = 'MaxxIt/1.0 (+https://maxxit.app)'
+
+// A Strava error body can be 200-with-object or non-2xx. Detect the ones that
+// mean "the token/grant is dead" so we can tell the user to reconnect instead
+// of showing a generic 502.
+function isStravaAuthError(status: number, body: any): boolean {
+  if (status === 401) return true
+  const errs = body && typeof body === 'object' ? body.errors : null
+  if (Array.isArray(errs)) {
+    return errs.some((e: any) =>
+      /token|auth/i.test(String(e?.field || '')) ||
+      /token|auth/i.test(String(e?.resource || '')) ||
+      ['invalid', 'missing'].includes(String(e?.code || '')))
+  }
+  return /authorization error/i.test(String(body?.message || ''))
+}
+
+// GET a Strava endpoint with one retry on 5xx / network blip. Returns the parsed
+// body plus the raw status + a text snippet so callers can surface what actually
+// went wrong (the old code swallowed all of this into a flat 502).
+async function stravaGet(pathAndQuery: string, accessToken: string): Promise<{
+  ok: boolean; status: number; body: any; snippet: string
+}> {
+  let lastStatus = 0
+  let lastSnippet = ''
+  let lastBody: any = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1200))
+    let res: Response
+    try {
+      res = await fetch(`https://www.strava.com/api/v3${pathAndQuery}`, {
+        headers: { Authorization: `Bearer ${accessToken}`, 'User-Agent': STRAVA_UA, Accept: 'application/json' },
+      })
+    } catch (e) {
+      lastStatus = 0
+      lastSnippet = `fetch threw: ${e instanceof Error ? e.message : String(e)}`
+      continue
+    }
+    const text = await res.text()
+    let body: any = null
+    try { body = text ? JSON.parse(text) : null } catch { /* HTML / empty */ }
+    lastStatus = res.status
+    lastSnippet = text.slice(0, 300)
+    lastBody = body
+    if (res.ok || res.status === 401 || res.status === 429) {
+      return { ok: res.ok, status: res.status, body, snippet: lastSnippet }
+    }
+    // 4xx (non-auth, non-rate) won't get better on retry.
+    if (res.status >= 400 && res.status < 500) break
+  }
+  return { ok: false, status: lastStatus, body: lastBody, snippet: lastSnippet }
+}
+
 type RunBestEffortTarget = {
   distanceKey: '1k' | '5k' | '10k' | 'half_marathon'
   label: string
@@ -39,12 +93,24 @@ async function getValidStravaToken(
   userId: string,
   cors: Record<string, string>,
 ): Promise<{ accessToken?: string; errorResponse?: Response }> {
-  if (new Date(tokenRow.expires_at) >= new Date()) {
+  // Refresh a bit early — a long sync can outlive a token that's seconds from
+  // expiring, and an Invalid/absent expires_at parses to NaN (→ refresh).
+  const expMs = new Date(tokenRow.expires_at).getTime()
+  if (Number.isFinite(expMs) && expMs - Date.now() > 120_000) {
     return { accessToken: tokenRow.access_token }
+  }
+  if (!STRAVA_CLIENT_ID || !STRAVA_CLIENT_SECRET) {
+    console.error('Strava refresh: STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET not set on the function')
+    return {
+      errorResponse: new Response(
+        JSON.stringify({ error: 'config', detail: 'Strava-integrationen är felkonfigurerad på servern (saknar nycklar).' }),
+        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } },
+      ),
+    }
   }
   const res = await fetch('https://www.strava.com/oauth/token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'User-Agent': STRAVA_UA },
     body: JSON.stringify({
       client_id: STRAVA_CLIENT_ID,
       client_secret: STRAVA_CLIENT_SECRET,
@@ -54,7 +120,7 @@ async function getValidStravaToken(
   })
   const refreshed = await res.json().catch(() => null)
   if (!res.ok || !refreshed?.access_token) {
-    console.warn('Strava token refresh failed:', res.status)
+    console.error('Strava token refresh failed:', res.status, JSON.stringify(refreshed)?.slice(0, 200))
     return {
       errorResponse: new Response(
         JSON.stringify({ error: 'reauthorize', detail: 'Strava-anslutningen behöver kopplas om.' }),
@@ -80,11 +146,9 @@ async function upsertRunBestEffortsForActivity(
   activityId: string | number,
   fallbackDate: string | null,
 ) {
-  const detailRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}?include_all_efforts=true`, {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  })
+  const detailRes = await stravaGet(`/activities/${activityId}?include_all_efforts=true`, accessToken)
   if (detailRes.status === 429) throw new Error('rate_limited')
-  const detail = await detailRes.json().catch(() => null)
+  const detail = detailRes.body
   if (!detailRes.ok || !detail) {
     console.warn(`Strava activity detail failed for ${activityId}:`, detailRes.status)
     return 0
@@ -253,21 +317,25 @@ serve(async (req) => {
     let allActivities: any[] = []
     let rateLimited = false
     for (let page = 1; page <= 4; page++) {
-      const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=100&page=${page}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      })
-      if (res.status === 429) { rateLimited = true; break }
-      if (res.status === 401) {
+      const r = await stravaGet(`/athlete/activities?per_page=100&page=${page}`, accessToken)
+      if (r.status === 429) { rateLimited = true; break }
+      if (isStravaAuthError(r.status, r.body)) {
         return new Response(JSON.stringify({ error: 'reauthorize', detail: 'Strava-anslutningen behöver kopplas om.' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
-      const acts = await res.json().catch(() => null)
-      if (!res.ok || !Array.isArray(acts)) {
-        // Nothing fetched at all → surface it; partial pages → keep what we have.
-        if (page === 1) return new Response(JSON.stringify({ error: 'Strava svarade oväntat vid hämtning av aktiviteter.' }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } })
+      if (!r.ok || !Array.isArray(r.body)) {
+        // Nothing fetched at all → surface the real reason; partial pages → keep what we have.
+        if (page === 1) {
+          console.error('Strava activities fetch failed', { status: r.status, snippet: r.snippet })
+          return new Response(JSON.stringify({
+            error: `Strava svarade med HTTP ${r.status || 'okänt'} vid hämtning av aktiviteter.`,
+            stravaStatus: r.status,
+            stravaBody: r.snippet || null,
+          }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } })
+        }
         break
       }
-      if (acts.length === 0) break
-      allActivities = [...allActivities, ...acts]
+      if (r.body.length === 0) break
+      allActivities = [...allActivities, ...r.body]
     }
 
     // Map Strava activity types to our session types
@@ -359,6 +427,34 @@ serve(async (req) => {
     return new Response(JSON.stringify({ connected: !!data, athlete_id: data?.athlete_id }), {
       headers: { ...cors, 'Content-Type': 'application/json' }
     })
+  }
+
+  // ===== DEBUG — no secrets, shows exactly why a sync fails =====
+  if (action === 'debug') {
+    const { data: tokenRow } = await supabase.from('strava_tokens').select('*').eq('user_id', user.id).maybeSingle()
+    const out: Record<string, unknown> = {
+      hasTokenRow: !!tokenRow,
+      athlete_id: tokenRow?.athlete_id ?? null,
+      expires_at: tokenRow?.expires_at ?? null,
+      expired: tokenRow ? !(new Date(tokenRow.expires_at).getTime() - Date.now() > 120_000) : null,
+      hasRefreshToken: !!tokenRow?.refresh_token,
+      clientKeysSet: !!STRAVA_CLIENT_ID && !!STRAVA_CLIENT_SECRET,
+    }
+    if (tokenRow) {
+      const tok = await getValidStravaToken(supabase, tokenRow, user.id, cors)
+      out.tokenRefresh = tok.errorResponse ? 'failed' : 'ok'
+      if (!tok.errorResponse) {
+        const probe = await stravaGet('/athlete/activities?per_page=1&page=1', tok.accessToken!)
+        out.activitiesProbe = {
+          status: probe.status,
+          ok: probe.ok,
+          isArray: Array.isArray(probe.body),
+          count: Array.isArray(probe.body) ? probe.body.length : null,
+          bodySnippet: probe.ok ? null : probe.snippet,
+        }
+      }
+    }
+    return new Response(JSON.stringify(out, null, 2), { headers: { ...cors, 'Content-Type': 'application/json' } })
   }
 
   // ===== DISCONNECT =====

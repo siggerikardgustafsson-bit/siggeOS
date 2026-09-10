@@ -461,7 +461,9 @@ export default function TraningPage() {
       })
       const json = await res.json().catch(() => null)
       if (!res.ok || !json || json.error) {
-        setStravaResult({ error: json?.detail || json?.error || `Kunde inte synka (HTTP ${res.status})` })
+        const base = json?.detail || json?.error || `Kunde inte synka (HTTP ${res.status})`
+        const extra = json?.stravaBody ? ` (Strava: ${String(json.stravaBody).slice(0, 160)})` : ''
+        setStravaResult({ error: base + extra })
       } else {
         setStravaResult(json)
         if (json.synced > 0 || json.prsUpdated > 0) { await fetchSessions(); await fetchRunPRs() }
