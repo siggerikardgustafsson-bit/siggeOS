@@ -13,18 +13,7 @@ import {
 } from '../lib/personalization'
 import ProfileQualityCard from '../components/ProfileQualityCard'
 import GoalsSection from '../components/GoalsSection'
-
-function SectionHeader({ icon: Icon, title, subtitle }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
-      <div className="set-badge"><Icon size={15} color="var(--accent)" /></div>
-      <div>
-        <div style={{ fontWeight: '600', fontSize: '15px' }}>{title}</div>
-        {subtitle && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '1px' }}>{subtitle}</div>}
-      </div>
-    </div>
-  )
-}
+import SectionHeader from '../components/ui/SectionHeader'
 
 const LABEL = { fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }
 

@@ -7,6 +7,7 @@ import { format, subDays, startOfWeek, parseISO, getDay } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity, Link2 } from 'lucide-react'
 import PageSkeleton from '../components/Skeleton'
+import SectionHeader from '../components/ui/SectionHeader'
 import { crossDomainFindings, findingsToPrompt } from '../lib/correlate'
 import { detectSignals } from '../lib/signals'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
@@ -37,15 +38,6 @@ function StatCard({ label, value, sub, color = COLORS.blue, trend }) {
           {sub}
         </div>
       )}
-    </div>
-  )
-}
-
-function SectionHeader({ title, color }) {
-  return (
-    <div className="ins-section" style={{ '--ins-c': color }}>
-      <div className="ins-section-bar" />
-      <div className="ins-section-title">{title}</div>
     </div>
   )
 }

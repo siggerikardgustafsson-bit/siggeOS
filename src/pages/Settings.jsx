@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { usePwaInstall } from '../hooks/usePwaInstall'
 import { getIngestStatus, getOrCreateIngestToken, rotateIngestToken, disableIngest, ingestSetup } from '../lib/healthIngest'
+import SectionHeader from '../components/ui/SectionHeader'
 
 const ACCENTS = [
   { id: 'blue',   label: 'Blå',    color: '#4f8ef7' },
@@ -64,20 +65,6 @@ function formatFileSize(bytes = 0) {
   if (!bytes) return '0 KB'
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function SectionHeader({ icon: Icon, title, subtitle }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
-      <div className="set-badge">
-        <Icon size={15} color="var(--accent)" />
-      </div>
-      <div>
-        <div style={{ fontWeight: '600', fontSize: '15px' }}>{title}</div>
-        {subtitle && <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '1px' }}>{subtitle}</div>}
-      </div>
-    </div>
-  )
 }
 
 function Toggle({ value, onChange }) {
