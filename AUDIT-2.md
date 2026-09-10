@@ -20,6 +20,7 @@
 | 4 | ~30 mutationer i `Ekonomi, Jobb, Plugg, Traning, StudyModal` | `update`/`delete` filtrerade bara på `.eq('id', …)` och lutade sig helt på RLS för ägarskap (AUDIT.md P3-10, tidigare bara delvis fixad). RLS (`phase1_01`, `WITH CHECK`) blockerar cross-user, så inget aktivt hål — men enda försvarslagret. | Låg (härdning) | `.eq('user_id', user.id)` tillagt överallt. Ingen beteendeförändring. · `5b3d3b2` |
 | 5 | `Settings.jsx:754` | Notiser-fliken: `notif_journal` / `notif_training` sparas men **ingen kod skickar någonsin en påminnelse** — ingen service worker, inget schemalagt jobb. Fliktexten hintade om det men växlarna såg funktionella ut. | Medel (UI utan backend) | Växlarna gråas ut + ärlig "kommer snart"-text. Preferensen sparas fortfarande. (Ditt val: "behåll som kommer snart".) · `dbf3c7d` |
 | 6 | `Halsa.jsx:531` → ingenstans | "Marijuana"-knappen skrev `health_logs.marijuana` men värdet lästes **aldrig** — inte i redigera-modalen, inte i historik, inte i Jarvis. Orphan-write. | Medel (tyst dataförlust — data sparas men försvinner) | Kopplat in: redigerbar i redigera-modalen, chip i historik + Substanser-filtret, `jarvis-chat` `fetch_health`/`log_health` inkluderar den. (Ditt val: "koppla in ordentligt".) · `69e5537` — **kräver `supabase functions deploy jarvis-chat`** |
+| 7 | `Profile.jsx:17`, `Settings.jsx:69`, `Insights.jsx:44` + `ui/SectionHeader.jsx` | `SectionHeader` i 4 parallella versioner (P2-8). | Låg (duplicering) | Alla lokala kopior borttagna, en delad komponent täcker alla 4 stilar. Ingen visuell förändring. (Ditt val + motivering nedan.) · `c531678` |
 
 ### Väntar på beslut (frågor ställda under passet)
 
@@ -28,18 +29,58 @@ Alla fyra besvarade via mobilen och åtgärdade ovan (#5, #6) eller nedan:
 | Fråga | Ditt svar | Följd |
 |---|---|---|
 | Marijuana-logg: ta bort eller koppla in? | Koppla in ordentligt | Gjort · `69e5537` |
-| Kost-widgeten (`nutrition_logs`) visas aldrig i UI, bara Jarvis ser den | "För nu räcker det att Jarvis får den — kanske en snygg vy i framtiden" | Ingen ändring. **Öppet:** en kalori/protein/vatten-graf på Hälsa-sidan (framtida). |
+| Kost-widgeten (`nutrition_logs`) visas aldrig i UI, bara Jarvis ser den | Lämnas orört tills vidare — ingen vy byggs nu | Ingen ändring. Frågan avförd. |
 | Notiser-fliken (växlar utan effekt) | Behåll som "kommer snart" | Gjort · `dbf3c7d` |
 | Formulär stretchas fullbredd på stora skärmar | Allt fullbredd | Gjort — inga formulärbreddskap kvar · `316938d` |
+| SectionHeader (P2-8): vilken av 4 varianter blir standard? | Välj den som passar glas-systemet bäst, byt ut alla lokala | Gjort · `c531678` (se #7 nedan) |
 
 ### Ej löst / medvetet hoppat över
 
 | # | Vad | Varför |
 |---|---|---|
 | A | **AUDIT.md P3-1** — CSS: 294 döda deklarationer, `.page-header` definieras om i 12 block. | Hög risk. Kräver visuell verifiering sida för sida på 1440px, en selektor i taget. Inte en punktinsats — bör vara en egen session. Orörd. |
-| B | **P2-8** — `SectionHeader` finns i 4 versioner (delad `ui/` + lokala kopior i `Profile`, `Settings`, `Insights`). | Den delade komponenten har nu `icon`-prop, MEN dess markup (`.mx-section*`-klasser) skiljer sig visuellt från de lokala (inline-stilar, border-bottom). Ett byte ÄR en designförändring, inte en identisk swap → kräver per-sida-verifiering. Inte "entydigt". |
-| C | `nutrition_logs` utan egen vy | Ditt beslut: Jarvis-only för nu. |
 | D | `deleteTrip` saknade bekräftelse (Upplevelser) | Redan fixat tidigare i sessionen · `faf9bea` (`window.confirm` + felkontroll). |
+
+*(P2-8 och `nutrition_logs` flyttade härifrån till "Åtgärdat" respektive avförda efter dina beslut under passet.)*
+
+---
+
+## FAS 2, forts. — SectionHeader-konsolidering (P2-8) · `c531678`
+
+**Beslut från dig:** välj den variant som passar glasmorfism-systemet bäst, gör den till standard i den delade komponenten, byt ut alla lokala kopior. En commit, ingen väntan på godkännande.
+
+**Läget innan:** fyra `SectionHeader` samexisterade.
+
+| Var | Stil | Antal anrop |
+|---|---|---|
+| `components/ui/SectionHeader.jsx` (delad) | `.mx-section` flexrad, `kicker`-läge med versal punkt-etikett | 1 (Dashboard) |
+| `Profile.jsx` (lokal) | glas-badge (`.set-badge`) + 15px/600 titel + underrubrik + `border-bottom` | 5 |
+| `Settings.jsx` (lokal) | **byte-identisk** med Profile | 13 |
+| `Insights.jsx` (lokal) | 4px färgad stapel + 13px/700 titel, färg per analyskategori | 5 |
+
+**Vald standard:** Profile/Settings-varianten (glas-badge + underrubrik + avdelare).
+Motiv: 18 av 24 icke-Dashboard-anrop använde redan den; `.set-badge` (radiell
+gradient, accentkant, inre ljusstrimma, glow) är den mest glas-systemnativa ytan
+av de fyra; avdelaren under raden läser som ett riktigt sektionsbrott på de långa
+Inställningar/Profil-sidorna. Den delade komponenten hade dessutom redan en
+`icon`-prop tillagd för just P2-8 — men aldrig den matchande stilen.
+
+**Vad ändrades i koden:**
+- `components/ui/SectionHeader.jsx` — ett läge till: `icon` → glas-badge-raden,
+  `color` → Insights färgstapel-raden, `kicker` → oförändrad. `subtitle` som alias
+  för `sub` (Profile använde `subtitle`).
+- `Profile.jsx` / `Settings.jsx` / `Insights.jsx` — lokala definitioner borttagna,
+  importerar den delade.
+- `index.css` — badge-/stapelstilen bakad in i de befintliga `.mx-section--*`-reglerna
+  (redigerade på plats, inget nytt block). Döda `.set-badge` + `.ins-section*` borttagna.
+
+**Visuell skillnad (verifierat i preview, mörkt + ljust läge):**
+Ingen. "Tema", "Bakgrundsbild" m.fl. på Inställningar renderar med samma
+accent-glas-badge, 15px titel, 12px grå underrubrik och 1px `--border`-avdelare
+som tidigare. "Identitet"/"Kropp" m.fl. på Profil likaså. Insights kategori-
+rubriker ("Samband & mönster" osv.) har kvar sin 4px färgade stapel med glow och
+13px/700 titel — pixel-likvärdigt med `.ins-section`. Dashboard-grafens
+`kicker`-rubrik orörd. `npm run build` grön (4m 28s).
 
 ### Verifierat rent (kontrollerat, inget fynd)
 
