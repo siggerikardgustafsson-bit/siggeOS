@@ -121,6 +121,27 @@ function buildMaxxProfile(cats, profileId = 'balanced', personalization = null) 
   const primary = bottlenecks[0]
   const color = TIER_COLORS[currentTier] || '#6b7280'
 
+  // ── How the headline number is actually built — plain enough for the
+  // DetailModal to render as a sentence, straight from computeMaxxScoreV2's model
+  // (0.55·weighted-tier + 0.45·weakest-link). Lets Sigge see WHY it's T3 and not
+  // T4, and that empty life-areas are silently excluded. ──────────────────────
+  const minTierVal = scoreV2?.minTier ?? Math.min(...tiers)
+  const weakestCat = rankCats.reduce((lo, c) => (c.tier.tier < lo.tier.tier ? c : lo), rankCats[0])
+  const rankedIds = new Set(rankCats.map(c => c.id))
+  const composition = {
+    headlineTier: currentTier,
+    weightedTier: scoreV2?.weightedTier ?? null,
+    weightedPercentile: scoreV2?.weightedPercentile ?? null,
+    minTier: minTierVal,
+    weakest: weakestCat ? { name: weakestCat.name, tier: weakestCat.tier.tier } : null,
+    blendWeighted: 55,
+    blendWeakest: 45,
+    isBlend: scoreV2 != null,
+    rankedCount: rankCats.length,
+    totalCategories: cats.length,
+    missing: cats.filter(c => !rankedIds.has(c.id)).map(c => c.name),
+  }
+
   // ── Phase 10 — Rank Up action layer (data only; small indicators consume it) ──
   const bottlenecksV2 = scoreV2 ? detectBottlenecksV2(rankCats, currentTier, weights) : []
   const rankUp = buildRankUpLayer(rankCats, { profileId, score: scoreV2, bottlenecksV2 })
@@ -170,6 +191,7 @@ function buildMaxxProfile(cats, profileId = 'balanced', personalization = null) 
     weightedPercentile: scoreV2?.weightedPercentile ?? null,
     weightedTier: scoreV2?.weightedTier ?? null,
     minTier: scoreV2?.minTier ?? Math.min(...tiers),
+    composition,
     bottlenecksV2,
     whyThisScore: buildWhyThisScore(scoreV2, rankCats, personalization),
     // ── Phase 10 — Rank Up Plans (gaps, opportunities, plans, how-to-improve) ──

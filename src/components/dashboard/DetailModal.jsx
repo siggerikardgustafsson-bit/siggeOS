@@ -123,7 +123,7 @@ export default function DetailModal({ category, onClose, insightCtx = null, onAs
   }, [category, onClose])
   if (!category) return null
 
-  const { name, tier, metrics, details, chartData, chartLines, navTarget, navLabel, id, levelUp, contribution } = category
+  const { name, tier, metrics, details, chartData, chartLines, navTarget, navLabel, id, levelUp, contribution, composition } = category
   const tierNum = tier?.tier || 0
   const tierColor = TIER_COLORS[tierNum] || '#6b7280'
   const nextColor = TIER_COLORS[levelUp?.nextTier || tierNum + 1] || tierColor
@@ -282,6 +282,29 @@ export default function DetailModal({ category, onClose, insightCtx = null, onAs
                   </div>
                 )
               })}
+            </div>
+          </div>
+        )}
+
+        {/* How the Maxx Score headline is derived — the blend made legible */}
+        {id === 'maxx' && composition && (
+          <div className="dm-section">
+            <SectionLabel color={heroColor}>Så räknas Maxx Score ut</SectionLabel>
+            <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
+              {composition.isBlend && [
+                { k:'Vägt snitt av kategorierna', v:`T${composition.weightedTier}`, s: composition.weightedPercentile != null ? `percentil ${composition.weightedPercentile}` : null },
+                { k:'Svagaste kategori — väger tyngst', v: composition.weakest ? `${composition.weakest.name} · T${composition.weakest.tier}` : `T${composition.minTier}` },
+                { k:`Blandning ${composition.blendWeighted}% snitt / ${composition.blendWeakest}% svagast`, v:`T${composition.headlineTier}`, hi:true },
+              ].map((r, i) => (
+                <div key={i} style={{ display:'flex', justifyContent:'space-between', gap:10, alignItems:'center', padding:'11px 13px', borderRadius:13, background: r.hi ? heroColor + '14' : 'var(--surface2)', border:'1px solid ' + (r.hi ? heroColor + '44' : 'var(--border)') }}>
+                  <span style={{ fontSize:12, color:'var(--muted2)', fontWeight:600 }}>{r.k}</span>
+                  <span style={{ fontSize:13, fontWeight:900, color: r.hi ? heroColor : 'var(--text)', whiteSpace:'nowrap' }}>{r.v}{r.s && <span style={{ fontSize:10.5, color:'var(--muted)', fontWeight:600, marginLeft:6 }}>{r.s}</span>}</span>
+                </div>
+              ))}
+              <div style={{ fontSize:12, color:'var(--muted2)', lineHeight:1.5, padding:'3px 3px 0' }}>
+                Baserad på <b style={{ color:'var(--text)' }}>{composition.rankedCount} av {composition.totalCategories}</b> kategorier
+                {composition.missing.length > 0 && <> — saknar data för <b style={{ color:'#fbbf24' }}>{composition.missing.join(', ')}</b></>}.
+              </div>
             </div>
           </div>
         )}
