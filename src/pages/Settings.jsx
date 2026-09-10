@@ -6,9 +6,10 @@ import { supabase } from '../lib/supabase'
 import {
   Sun, Moon, Palette, Image, Layout, Bell, Shield,
   Download, Trash2, Save, Loader, Upload, X, Check,
-  User, Target, Brain, Share, Smartphone
+  User, Target, Brain, Share, Smartphone, Activity, Copy, RefreshCw, Power
 } from 'lucide-react'
 import { usePwaInstall } from '../hooks/usePwaInstall'
+import { getIngestStatus, getOrCreateIngestToken, rotateIngestToken, disableIngest, ingestSetup } from '../lib/healthIngest'
 
 const ACCENTS = [
   { id: 'blue',   label: 'Blå',    color: '#4f8ef7' },
@@ -138,6 +139,174 @@ function ContextFileUpload({ field, files = [], onUpload, onRemove }) {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+function relIngest(iso) {
+  if (!iso) return null
+  const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 0) return 'nyss'
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return 'nyss'
+  if (min < 60) return `${min} min sedan`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `${h} h sedan`
+  const d = Math.floor(h / 24)
+  return d === 1 ? 'igår' : `${d} dagar sedan`
+}
+
+function CopyField({ label, value, mono = true, secret = false }) {
+  const [shown, setShown] = useState(!secret)
+  const [copied, setCopied] = useState(false)
+  const display = shown ? value : '•'.repeat(Math.min(value.length, 32))
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch { /* clipboard blocked — user can select manually */ }
+  }
+  return (
+    <div style={{ marginBottom: '12px' }}>
+      <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.05em', marginBottom: '5px' }}>{label}</div>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'stretch' }}>
+        <div style={{
+          flex: 1, minWidth: 0, padding: '9px 11px', borderRadius: '9px', background: 'var(--surface2)',
+          border: '1px solid var(--border)', fontSize: '12px', color: 'var(--text)',
+          fontFamily: mono ? 'ui-monospace, SFMono-Regular, Menlo, monospace' : 'inherit',
+          whiteSpace: 'nowrap', overflow: 'auto', display: 'flex', alignItems: 'center',
+        }}>{display}</div>
+        {secret && (
+          <button type="button" onClick={() => setShown(s => !s)} className="btn btn-ghost" style={{ fontSize: '12px', padding: '0 10px' }}>
+            {shown ? 'Dölj' : 'Visa'}
+          </button>
+        )}
+        <button type="button" onClick={copy} className="btn btn-ghost" style={{ fontSize: '12px', padding: '0 10px', color: copied ? 'var(--green)' : undefined }}>
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AppleHealthPanel({ userId, toast }) {
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [token, setToken] = useState(null)
+  const [lastIngestAt, setLastIngestAt] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    getIngestStatus(userId)
+      .then(s => { if (alive) { setToken(s.token); setLastIngestAt(s.lastIngestAt) } })
+      .catch(() => {})
+      .finally(() => { if (alive) setLoading(false) })
+    return () => { alive = false }
+  }, [userId])
+
+  async function activate() {
+    setBusy(true)
+    try {
+      const t = await getOrCreateIngestToken(userId)
+      setToken(t)
+    } catch { toast({ message: 'Kunde inte skapa token', type: 'error' }) }
+    setBusy(false)
+  }
+
+  async function rotate() {
+    if (!confirm('Rotera token? Den gamla slutar fungera direkt — du måste uppdatera din Shortcut med den nya.')) return
+    setBusy(true)
+    try {
+      const t = await rotateIngestToken(userId)
+      setToken(t)
+      toast({ message: 'Ny token skapad — uppdatera din Shortcut', type: 'success' })
+    } catch { toast({ message: 'Kunde inte rotera token', type: 'error' }) }
+    setBusy(false)
+  }
+
+  async function turnOff() {
+    if (!confirm('Stäng av Apple Health-kopplingen? Endpointen slutar ta emot data tills du aktiverar igen.')) return
+    setBusy(true)
+    try {
+      await disableIngest(userId)
+      setToken(null)
+      setLastIngestAt(null)
+    } catch { toast({ message: 'Kunde inte stänga av', type: 'error' }) }
+    setBusy(false)
+  }
+
+  const setup = token ? ingestSetup(token) : null
+  const exampleJson = setup ? JSON.stringify(setup.exampleBody, null, 2) : ''
+
+  return (
+    <div className="card">
+      <SectionHeader icon={Activity} title="Apple Health" subtitle="Skicka dagens hälsosiffror från iPhone automatiskt" />
+
+      <p style={{ fontSize: '13px', color: 'var(--muted)', lineHeight: 1.6, marginBottom: '16px' }}>
+        En genväg (Shortcut) på din iPhone skickar vikt, sömn, steg, vilopuls och kroppsfett hit varje
+        morgon — inget behov av att importera en flera hundra MB stor <code>export.xml</code>. Bara fälten du
+        skickar skrivs; resten av dagens rad rörs inte.
+      </p>
+
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--muted)' }}>
+          <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Laddar…
+        </div>
+      ) : !token ? (
+        <button type="button" onClick={activate} disabled={busy} className="btn btn-primary" style={{ justifyContent: 'center', padding: '11px 16px' }}>
+          {busy ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Skapar…</> : <><Activity size={14} /> Aktivera Apple Health-koppling</>}
+        </button>
+      ) : (
+        <>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', marginBottom: '16px',
+            borderRadius: '9px', fontSize: '12px', fontWeight: 500,
+            background: lastIngestAt ? 'rgba(52,211,153,0.1)' : 'var(--surface2)',
+            border: `1px solid ${lastIngestAt ? 'rgba(52,211,153,0.25)' : 'var(--border)'}`,
+            color: lastIngestAt ? 'var(--green)' : 'var(--muted2)',
+          }}>
+            {lastIngestAt ? <Check size={14} /> : <Bell size={14} />}
+            {lastIngestAt ? `Senaste mottagna data: ${relIngest(lastIngestAt)}` : 'Ingen data mottagen än — kör din Shortcut en gång för att testa.'}
+          </div>
+
+          <CopyField label="ENDPOINT (URL)" value={setup.endpoint} />
+          <CopyField label="TOKEN (BEARER)" value={setup.token} secret />
+
+          <div style={{ marginTop: '18px', marginBottom: '10px', fontSize: '12px', color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.05em' }}>
+            SÅ HÄR SÄTTER DU UPP GENVÄGEN
+          </div>
+          <ol style={{ fontSize: '13px', color: 'var(--muted2)', lineHeight: 1.75, paddingLeft: '20px', margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <li>Öppna <strong>Genvägar</strong> på iPhone → ny genväg.</li>
+            <li>Lägg till en <strong>Hämta hälsoprov</strong>-åtgärd per mätvärde du vill skicka (Vikt, Sömnanalys, Steg, Vilopuls, Kroppsfett). Sätt varje till <em>senaste</em> provet och spara i en variabel.</li>
+            <li>Lägg till <strong>Hämta innehåll från URL</strong>:
+              <ul style={{ paddingLeft: '18px', marginTop: '2px' }}>
+                <li>URL = endpointen ovan</li>
+                <li>Metod = <strong>POST</strong></li>
+                <li>Rubriker: <code>Authorization</code> = <code>Bearer …token…</code>, <code>Content-Type</code> = <code>application/json</code></li>
+                <li>Begärandekropp = <strong>JSON</strong> med nycklarna nedan (utelämna dem du inte har)</li>
+              </ul>
+            </li>
+            <li>Skapa en <strong>Automation</strong> (Personlig automation → Tid på dagen → varje morgon) som kör genvägen. Slå av "Fråga innan körning".</li>
+          </ol>
+
+          <div style={{ marginTop: '14px' }}>
+            <CopyField label="EXEMPEL PÅ JSON-KROPP" value={exampleJson} />
+            <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '-4px' }}>
+              Fält som tas emot: {setup.acceptedFields.join(', ')}. <code>date</code> är valfritt (default = idag).
+            </div>
+          </div>
+
+          <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button type="button" onClick={rotate} disabled={busy} className="btn btn-ghost" style={{ fontSize: '12px' }}>
+              <RefreshCw size={13} /> Rotera token
+            </button>
+            <button type="button" onClick={turnOff} disabled={busy} className="btn btn-danger" style={{ fontSize: '12px' }}>
+              <Power size={13} /> Stäng av
+            </button>
+          </div>
+        </>
       )}
     </div>
   )
@@ -299,6 +468,7 @@ export default function SettingsPage() {
     { id: 'jarvis', label: 'Jarvis AI', icon: Brain },
     { id: 'notiser', label: 'Notiser', icon: Bell },
     { id: 'app', label: 'Appen', icon: Smartphone },
+    { id: 'health', label: 'Apple Health', icon: Activity },
     { id: 'data', label: 'Data & integritet', icon: Shield },
   ]
 
@@ -635,6 +805,11 @@ export default function SettingsPage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* ===== APPLE HEALTH ===== */}
+          {activeSection === 'health' && (
+            <AppleHealthPanel userId={user.id} toast={toast} />
           )}
 
           {/* ===== DATA & INTEGRITET ===== */}

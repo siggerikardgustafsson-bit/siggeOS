@@ -26,6 +26,16 @@ export async function getIngestToken(userId) {
   return data?.health_ingest_token || null
 }
 
+// Token + when the endpoint last received a successful write (for the setup UI).
+export async function getIngestStatus(userId) {
+  const { data } = await supabase.from('user_settings')
+    .select('health_ingest_token,last_ingest_at').eq('user_id', userId).maybeSingle()
+  return {
+    token: data?.health_ingest_token || null,
+    lastIngestAt: data?.last_ingest_at || null,
+  }
+}
+
 // Returns the existing token, or generates and stores a new one.
 export async function getOrCreateIngestToken(userId) {
   const existing = await getIngestToken(userId)
