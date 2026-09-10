@@ -272,7 +272,7 @@ function NetWorthTab({ user }) {
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>Totalt net worth</div>
             {loading
-              ? <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--muted)' }}>Laddar...</div>
+              ? <div className="mx-skel mx-skel-bar" style={{ width: 150, height: 34, borderRadius: 8, margin: '2px 0' }} />
               : <div style={{ fontSize: 36, fontWeight: 800, color: '#10b981', letterSpacing: '-1px' }}>{fmt(totalValue)}</div>
             }
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>USD/SEK: {usdSek.toFixed(2)}</div>
@@ -421,7 +421,9 @@ function NetWorthTab({ user }) {
 
         {/* Asset rows */}
         {loading ? (
-          <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>Laddar tillgångar...</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 0' }}>
+            {[0, 1, 2].map(i => <div key={i} className="mx-skel mx-skel-bar" style={{ height: 44, borderRadius: 10, width: `${100 - i * 6}%` }} />)}
+          </div>
         ) : assets.length === 0 ? (
           <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
             Inga tillgångar ännu — lägg till din första ovan

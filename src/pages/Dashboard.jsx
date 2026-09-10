@@ -1135,14 +1135,22 @@ export default function Dashboard() {
 
           {/* CONSTELLATION — mind-map of Maxx core + category nodes */}
           {loading ? (
-            <div className="grid-4 dashboard-category-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:'12px' }}>
-              {[...Array(6)].map((_,i) => (
-                <div key={i} className="widget mx-skel" style={{ padding:'18px', minHeight:'120px' }}>
-                  <div className="mx-skel-bar" style={{ height:10, width:'40%', marginBottom:10 }} />
-                  <div className="mx-skel-bar" style={{ height:28, width:'55%', marginBottom:12 }} />
-                  <div className="mx-skel-bar" style={{ height:8, width:'80%' }} />
-                </div>
-              ))}
+            <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+              {/* Maxx score hero */}
+              <div className="widget mx-skel" style={{ padding:'22px', display:'flex', flexDirection:'column', alignItems:'center', gap:'12px', minHeight:'150px' }}>
+                <div className="mx-skel-bar" style={{ height:9, width:'90px' }} />
+                <div className="mx-skel-bar" style={{ height:44, width:'110px', borderRadius:'14px' }} />
+                <div className="mx-skel-bar" style={{ height:8, width:'160px' }} />
+              </div>
+              <div className="grid-4 dashboard-category-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:'12px' }}>
+                {[...Array(6)].map((_,i) => (
+                  <div key={i} className="widget mx-skel" style={{ padding:'18px', minHeight:'118px' }}>
+                    <div className="mx-skel-bar" style={{ height:10, width:'42%', marginBottom:12 }} />
+                    <div className="mx-skel-bar" style={{ height:26, width:'50%', marginBottom:14 }} />
+                    <div className="mx-skel-bar" style={{ height:8, width:'78%' }} />
+                  </div>
+                ))}
+              </div>
             </div>
           ) : viewMode === 'tree' ? (
             <KpiTree

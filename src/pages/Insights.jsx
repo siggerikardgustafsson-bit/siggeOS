@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { format, subDays, startOfWeek, parseISO, differenceInDays, getDay } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity, Link2 } from 'lucide-react'
+import PageSkeleton from '../components/Skeleton'
 import { crossDomainFindings, findingsToPrompt } from '../lib/correlate'
 import { detectSignals } from '../lib/signals'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
@@ -498,8 +499,12 @@ export default function InsightsPage() {
   const trainingSessions = data.trainingData.slice(-4).reduce((sum, w) => sum + w.pass, 0)
 
   if (loading) return (
-    <div style={{ padding: '40px', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--muted)' }}>
-      <Loader size={18} style={{ animation: 'spin 1s linear infinite' }} /> Laddar insights...
+    <div className="page-wrap">
+      <div className="page-content-scroll">
+        <div style={{ padding: '16px 16px 0', maxWidth: 1000, margin: '0 auto' }}>
+          <PageSkeleton stats={3} cards={4} />
+        </div>
+      </div>
     </div>
   )
 

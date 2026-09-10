@@ -339,7 +339,11 @@ export default function KalenderPage() {
         ].map(({ label, value, color }) => (
           <div key={label} className="pg-stat" style={{ '--pg-c': color }}>
             <div className="pg-stat-cap">{label}</div>
-            <div className="pg-stat-num mono">{value}</div>
+            <div className="pg-stat-num mono">
+              {loading && allEvents.length === 0
+                ? <span className="mx-skel mx-skel-bar" style={{ display: 'inline-block', width: 22, height: 20, borderRadius: 5, verticalAlign: 'middle' }} />
+                : value}
+            </div>
           </div>
         ))}
       </div>
