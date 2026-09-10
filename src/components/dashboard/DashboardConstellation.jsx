@@ -307,7 +307,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   }
 
   return (
-    <div ref={wrapRef} className="cmap" style={{ position:'relative', width:'100%', minHeight: isExpanded ? '82vh' : 680, padding:'44px 0', transition:'min-height .5s cubic-bezier(.22,1,.36,1)' }}>
+    <div ref={wrapRef} className="cmap" style={{ position:'relative', width:'100%', minHeight: isExpanded ? '82vh' : 'clamp(480px, calc(100dvh - 210px), 720px)', padding:'26px 0', transition:'min-height .5s cubic-bezier(.22,1,.36,1)' }}>
       <style>{`
         .cmap-edge { stroke-dasharray: 5 7; animation: cmapFlow 2.6s linear infinite; }
         @keyframes cmapFlow { to { stroke-dashoffset: -24; } }

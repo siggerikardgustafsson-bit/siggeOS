@@ -1171,7 +1171,9 @@ export default function Dashboard() {
             />
           )}
 
-          {!loading && <PinnedGoals userId={userId} />}
+          {/* Karta is sized to fill the screen — pinned goals live in the Träd
+              view (and on /mal) so the map view stays scroll-free. */}
+          {!loading && viewMode === 'tree' && <PinnedGoals userId={userId} />}
 
         </div>
       </div>
