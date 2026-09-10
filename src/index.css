@@ -2725,8 +2725,10 @@ body,
   position: relative;
   transition: border-color 0.25s ease, box-shadow 0.3s ease,
               background 0.25s ease, transform 0.3s cubic-bezier(0.22,1,0.36,1);
-  will-change: transform;
 }
+/* will-change only while hovering — a persistent one makes every card a
+   containing block for position:fixed, which broke modals rendered inside. */
+.card:hover, .card-sm:hover { will-change: transform; }
 .card::after, .card-sm::after {
   content: '';
   position: absolute;
@@ -2954,8 +2956,8 @@ body,
 .widget {
   transition: border-color 0.25s ease, box-shadow 0.3s ease,
               transform 0.3s cubic-bezier(0.22,1,0.36,1) !important;
-  will-change: transform;
 }
+.widget:hover { will-change: transform; }
 .widget::after {
   content: '';
   position: absolute;
@@ -3033,14 +3035,21 @@ body,
 }
 
 /* --- Per-route page entrance: content focuses in (rise + scale + de-blur) --- */
+/* fill-mode is `backwards`, NOT `both`: a forwards-filling animation that
+   touches `transform`/`filter` keeps the element a containing block for every
+   position:fixed descendant *forever* (Chrome keeps an identity matrix), which
+   made modals rendered inside a page anchor to the scrolled wrapper instead of
+   the viewport. `backwards` still shows the `from` state during any delay, and
+   the end state (opacity 1 / no transform) equals the natural style so there's
+   no flash when the fill releases. */
 .sigge-main-scroll > * {
-  animation: pageRise 0.58s cubic-bezier(0.22,1,0.36,1) both;
+  animation: pageRise 0.58s cubic-bezier(0.22,1,0.36,1) backwards;
   transform-origin: 50% 0;
 }
 @keyframes pageRise {
   from { opacity: 0; transform: translateY(20px) scale(0.985); filter: blur(7px); }
   60%  { filter: blur(0); }
-  to   { opacity: 1; transform: none; filter: blur(0); }
+  to   { opacity: 1; transform: none; filter: none; }
 }
 
 /* Stagger immediate children of a page grid so cards cascade in */
@@ -3048,7 +3057,7 @@ body,
 .sigge-main-scroll > * > * > .widget,
 .sigge-main-scroll > * > .card,
 .sigge-main-scroll > * > * > .card {
-  animation: pageRise 0.55s cubic-bezier(0.22,1,0.36,1) both;
+  animation: pageRise 0.55s cubic-bezier(0.22,1,0.36,1) backwards;
 }
 .sigge-main-scroll .widget:nth-child(1),
 .sigge-main-scroll .card:nth-child(1) { animation-delay: 0.02s; }
@@ -3571,7 +3580,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 @keyframes mxModalRise {
   from { opacity: 0; transform: translateY(26px) scale(0.955); filter: blur(7px); }
   60%  { filter: blur(0); }
-  to   { opacity: 1; transform: none; filter: blur(0); }
+  to   { opacity: 1; transform: none; filter: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mx-modal-overlay, .mx-modal-panel { animation: none !important; }

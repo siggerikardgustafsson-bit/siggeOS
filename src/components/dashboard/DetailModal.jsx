@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { useNavigate } from 'react-router-dom'
 import { X, ArrowUpRight, ChevronDown, Check, Target } from 'lucide-react'
@@ -112,6 +113,14 @@ export default function DetailModal({ category, onClose, insightCtx = null, onAs
   const navigate = useNavigate()
   const [period, setPeriod] = useState('30d')
   const [showAllTiers, setShowAllTiers] = useState(false)
+  useEffect(() => {
+    if (!category) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
+  }, [category, onClose])
   if (!category) return null
 
   const { name, tier, metrics, details, chartData, chartLines, navTarget, navLabel, id, levelUp, contribution } = category
@@ -131,26 +140,26 @@ export default function DetailModal({ category, onClose, insightCtx = null, onAs
     navigate(target)
   }
 
-  return (
+  return createPortal(
     <div onClick={onClose} className="dm-overlay">
       <style>{`
-        .dm-overlay { position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center;
-          padding:20px; background:rgba(4,6,12,0.62); backdrop-filter:blur(10px) saturate(1.05); -webkit-backdrop-filter:blur(10px) saturate(1.05);
+        .dm-overlay { position:fixed; inset:0; z-index:1200; display:flex; align-items:center; justify-content:center;
+          padding:clamp(10px,3vw,28px); background:radial-gradient(120% 120% at 50% 0%, rgba(10,14,24,.62), rgba(6,9,16,.8));
+          backdrop-filter:blur(12px) saturate(1.1); -webkit-backdrop-filter:blur(12px) saturate(1.1);
           animation:dmFade .28s ease both; }
-        [data-theme="light"] .dm-overlay { background:rgba(225,228,238,0.55); }
+        [data-theme="light"] .dm-overlay { background:radial-gradient(120% 120% at 50% 0%, rgba(210,216,230,.6), rgba(225,228,238,.78)); }
         @keyframes dmFade { from { opacity:0 } to { opacity:1 } }
-        .dm-panel { position:relative; width:100%; max-width:600px; max-height:88vh; overflow-y:auto; overflow-x:hidden;
+        .dm-panel { position:relative; width:100%; max-width:560px; max-height:88vh; overflow-y:auto; overflow-x:hidden;
           -webkit-overflow-scrolling:touch; overscroll-behavior:contain; padding-bottom:6px;
-          border-radius:26px; background:var(--modal-bg); border:1px solid var(--modal-border);
-          backdrop-filter:blur(44px) saturate(1.2); -webkit-backdrop-filter:blur(44px) saturate(1.2);
-          box-shadow:0 40px 100px -24px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.1) inset;
+          border-radius:20px; background:var(--mx-panel-bg, var(--surface)); border:1px solid var(--border);
+          box-shadow:0 24px 70px -20px rgba(0,0,0,0.55);
           scrollbar-width:none; animation:dmRise .42s cubic-bezier(.22,1,.36,1) both; }
         .dm-panel::-webkit-scrollbar { display:none; }
         @keyframes dmRise { from { opacity:0; transform:translateY(18px) scale(.97) } to { opacity:1; transform:none } }
         /* sticky slim bar */
         .dm-bar { position:sticky; top:0; z-index:12; display:flex; align-items:center; justify-content:space-between; gap:12px;
-          padding:13px 16px 13px 18px; background:color-mix(in srgb, var(--modal-bg) 86%, transparent);
-          backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-bottom:1px solid var(--border); }
+          padding:13px 16px 13px 18px; background:var(--mx-panel-bg, var(--surface));
+          border-bottom:1px solid var(--border); }
         .dm-close { width:34px; height:34px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
           border-radius:11px; background:var(--surface2); border:1px solid var(--border); color:var(--muted2); cursor:pointer;
           transition:background .16s, color .16s, transform .16s, border-color .16s; }
@@ -160,8 +169,8 @@ export default function DetailModal({ category, onClose, insightCtx = null, onAs
         .dm-hero-aura { position:absolute; left:50%; top:-40%; width:140%; height:150%; transform:translateX(-50%);
           pointer-events:none; filter:blur(34px); opacity:.7; border-radius:50%; }
         .dm-orb { position:relative; width:64px; height:64px; border-radius:22px; margin:0 auto 12px; display:grid; place-items:center; z-index:1; }
-        .dm-tier { position:relative; z-index:1; font-weight:950; line-height:.92; letter-spacing:-0.05em;
-          font-size:clamp(54px,12vw,82px); }
+        .dm-tier { position:relative; z-index:1; font-weight:900; line-height:.92; letter-spacing:-0.04em;
+          font-size:clamp(44px,10vw,64px); }
         .dm-prog-track { height:9px; border-radius:999px; background:var(--surface2); overflow:hidden; box-shadow:inset 0 1px 2px rgba(0,0,0,0.4); }
         .dm-prog-fill { height:100%; border-radius:999px; animation:dmGrow 1s cubic-bezier(.22,1,.36,1) both; }
         @keyframes dmGrow { from { width:0 !important } }
@@ -220,7 +229,7 @@ export default function DetailModal({ category, onClose, insightCtx = null, onAs
             <CatIcon id={id} color="#fff" size={26} />
           </div>
           <div style={{ fontSize:11, fontWeight:800, letterSpacing:'0.18em', textTransform:'uppercase', color:'var(--muted)' }}>{name}</div>
-          <div className="dm-tier" style={{ color:'var(--text)', textShadow:`0 2px 34px ${heroColor}99` }}>{tierNum > 0 ? 'T' + tierNum : '—'}</div>
+          <div className="dm-tier" style={{ color:'var(--text)', textShadow:`0 2px 22px ${heroColor}55` }}>{tierNum > 0 ? 'T' + tierNum : '—'}</div>
           {(tier?.label || levelUp?.title) && (
             <div style={{ fontSize:12.5, fontWeight:800, letterSpacing:'0.04em', textTransform:'uppercase', color:heroColor, marginTop:2 }}>{tier?.label || levelUp?.title}</div>
           )}
@@ -358,6 +367,7 @@ export default function DetailModal({ category, onClose, insightCtx = null, onAs
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

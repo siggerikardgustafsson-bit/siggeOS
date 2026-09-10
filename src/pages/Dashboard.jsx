@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { subDays, format } from 'date-fns'
 import { XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts'
@@ -180,10 +181,18 @@ function buildMaxxProfile(cats, profileId = 'balanced', personalization = null) 
 
 
 function EvidenceModal({ evidence, onClose, onNavigate }) {
+  useEffect(() => {
+    if (!evidence) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev }
+  }, [evidence, onClose])
   if (!evidence) return null
   const rows = evidence.rows || []
-  return (
-    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:120, background:'rgba(0,0,0,0.58)', backdropFilter:'blur(10px)', display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+  return createPortal(
+    <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:1200, background:'radial-gradient(120% 120% at 50% 0%, rgba(10,14,24,.62), rgba(6,9,16,.8))', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'clamp(10px,3vw,28px)' }}>
       <div onClick={e=>e.stopPropagation()} className="widget" style={{ width:'min(560px, 100%)', maxHeight:'82vh', overflowY:'auto', padding:0, borderRadius:22 }}>
         <div style={{ padding:'18px 20px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', gap:12, alignItems:'flex-start' }}>
           <div>
@@ -222,7 +231,8 @@ function EvidenceModal({ evidence, onClose, onNavigate }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

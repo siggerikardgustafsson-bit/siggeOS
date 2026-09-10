@@ -68,18 +68,19 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [dirty, setDirty] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef()
 
-  const set = (k) => (v) => setForm(f => ({ ...f, [k]: v }))
+  const set = (k) => (v) => { setDirty(true); setForm(f => ({ ...f, [k]: v })) }
 
   // ── life_roles editor helpers (optional, multi-role Livssituation) ──────────
-  const addRole = () => setForm(f => ({ ...f, life_roles: [...(f.life_roles || []), { ...EMPTY_ROLE }] }))
-  const removeRole = (i) => setForm(f => ({ ...f, life_roles: (f.life_roles || []).filter((_, idx) => idx !== i) }))
-  const updateRole = (i, key, val) => setForm(f => ({
+  const addRole = () => { setDirty(true); setForm(f => ({ ...f, life_roles: [...(f.life_roles || []), { ...EMPTY_ROLE }] })) }
+  const removeRole = (i) => { setDirty(true); setForm(f => ({ ...f, life_roles: (f.life_roles || []).filter((_, idx) => idx !== i) })) }
+  const updateRole = (i, key, val) => { setDirty(true); setForm(f => ({
     ...f,
     life_roles: (f.life_roles || []).map((r, idx) => idx === i ? { ...r, [key]: val } : r),
-  }))
+  })) }
 
   useEffect(() => {
     if (!user) return
@@ -94,6 +95,7 @@ export default function ProfilePage() {
           life_roles: normalizeLifeRoles(p.life_roles),
         })
       }
+      setDirty(false)
       setLoading(false)
     })()
     return () => { active = false }
@@ -101,6 +103,12 @@ export default function ProfilePage() {
 
   async function save() {
     setSaving(true)
+    // Keep the legacy single-value fields populated from the roles so Jarvis's
+    // context + tier math still have them without the user typing twice.
+    const roles = (form.life_roles || []).filter(r => (r.type || '').trim() || (r.label || '').trim())
+    const activeRole = (t) => roles.find(r => r.type === t && r.active !== false)?.label?.trim() || null
+    const derivedOccupation = strOrNull(form.occupation) || activeRole('job') || activeRole('business')
+    const derivedProgram = strOrNull(form.study_program) || activeRole('study')
     const payload = {
       id: user.id,
       display_name: strOrNull(form.display_name),
@@ -114,8 +122,8 @@ export default function ProfilePage() {
       weight_kg: numOrNull(form.weight_kg),
       target_weight_kg: numOrNull(form.target_weight_kg),
       life_stage: strOrNull(form.life_stage),
-      occupation: strOrNull(form.occupation),
-      study_program: strOrNull(form.study_program),
+      occupation: derivedOccupation,
+      study_program: derivedProgram,
       study_institution: strOrNull(form.study_institution),
       currency: strOrNull(form.currency),
       unit_system: strOrNull(form.unit_system),
@@ -125,14 +133,12 @@ export default function ProfilePage() {
       secondary_focus: strOrNull(form.secondary_focus),
       avatar_url: strOrNull(form.avatar_url),
       // Only persist roles that have at least a type or a label; trim free text.
-      life_roles: (form.life_roles || [])
-        .filter(r => (r.type || '').trim() || (r.label || '').trim())
-        .map(r => ({
-          type: r.type || 'other',
-          label: (r.label || '').trim(),
-          description: (r.description || '').trim(),
-          active: r.active !== false,
-        })),
+      life_roles: roles.map(r => ({
+        type: r.type || 'other',
+        label: (r.label || '').trim(),
+        description: (r.description || '').trim(),
+        active: r.active !== false,
+      })),
     }
     const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' })
     if (error) {
@@ -141,8 +147,9 @@ export default function ProfilePage() {
       toast({ message: 'Kunde inte spara profilen — är migrationen körd?', type: 'error' })
       return
     }
-    // display_name is now read from profiles everywhere (Dashboard, Settings,
-    // jarvis-chat) — no user_settings mirror to keep in sync.
+    // Reflect any role-derived fields + dropped empty roles back into the form.
+    setForm(f => ({ ...f, occupation: payload.occupation ?? '', study_program: payload.study_program ?? '', life_roles: normalizeLifeRoles(payload.life_roles) }))
+    setDirty(false)
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -261,48 +268,45 @@ export default function ProfilePage() {
           <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '8px' }}>Daglig vikt loggas fortsatt under Hälsa — detta är en valfri profil-baslinje.</div>
         </div>
 
-        {/* Life context */}
+        {/* Life context — role-first */}
         <div className="card">
-          <SectionHeader icon={Briefcase} title="Livssituation" subtitle="Din kontext just nu — allt är valfritt" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <Field label="LIVSFAS" hint="Valfritt — din huvudsakliga fas"><Select value={form.life_stage} onChange={set('life_stage')} options={LIFE_STAGES} /></Field>
-            <Field label="SYSSELSÄTTNING"><input className="input" value={form.occupation} onChange={e => set('occupation')(e.target.value)} placeholder="t.ex. Läkarstudent" /></Field>
-            <Field label="UTBILDNINGSPROGRAM"><input className="input" value={form.study_program} onChange={e => set('study_program')(e.target.value)} placeholder="t.ex. Läkarprogrammet" /></Field>
-            <Field label="LÄROSÄTE"><input className="input" value={form.study_institution} onChange={e => set('study_institution')(e.target.value)} placeholder="t.ex. Karolinska Institutet" /></Field>
+          <SectionHeader icon={Briefcase} title="Livssituation" subtitle="Vad du håller på med just nu — en rad per roll" />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
+              Du kan ha flera samtidigt — studier, jobb, eget företag, förälder. Allt är valfritt.
+            </div>
+            <button onClick={addRole} className="btn btn-ghost" type="button" style={{ fontSize: '12px', gap: '5px', flexShrink: 0 }}>
+              <Plus size={13} /> Lägg till roll
+            </button>
           </div>
 
-          {/* Roles — optional, multiple current life situations */}
-          <div style={{ marginTop: '18px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>Roller</div>
-              <button onClick={addRole} className="btn btn-ghost" type="button" style={{ fontSize: '12px', gap: '5px' }}>
-                <Plus size={13} /> Lägg till roll
-              </button>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--muted)', marginBottom: '12px' }}>
-              Du kan ha flera samtidigt — t.ex. studie, jobb och eget företag. Valfritt.
-            </div>
-
-            {(form.life_roles || []).length === 0 ? (
-              <div style={{
-                fontSize: '12px', color: 'var(--muted)', textAlign: 'center', padding: '16px',
-                borderRadius: '12px', background: 'var(--surface2)', border: '1px dashed var(--border)',
-              }}>
-                Inga roller tillagda än. Lägg till t.ex. <em>Studie: Läkarprogrammet, KI</em> eller <em>Jobb: Personlig assistent</em>.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {form.life_roles.map((role, i) => (
+          {(form.life_roles || []).length === 0 ? (
+            <button onClick={addRole} type="button" style={{
+              width: '100%', fontSize: '12.5px', color: 'var(--muted)', textAlign: 'center', padding: '20px',
+              borderRadius: '12px', background: 'var(--surface2)', border: '1px dashed var(--border)', cursor: 'pointer',
+            }}>
+              Ingen roll tillagd. Klicka för att lägga till — t.ex. <em>Studier · Läkarprogrammet, KI</em> eller <em>Jobb · Personlig assistent</em>.
+            </button>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {form.life_roles.map((role, i) => {
+                const hint = role.type === 'study' ? 'Program, lärosäte, termin — t.ex. Läkarprogrammet, KI, T3'
+                  : role.type === 'job' ? 'Arbetsgivare + omfattning — t.ex. Personlig assistent, ~2 pass/vecka'
+                  : role.type === 'business' ? 'Vad företaget gör, hur mycket tid'
+                  : 'Kort beskrivning (valfritt)'
+                return (
                   <div key={i} style={{
                     padding: '12px', borderRadius: '12px', background: 'var(--surface2)',
-                    border: '1px solid var(--border)', opacity: role.active === false ? 0.6 : 1,
+                    border: `1px solid ${role.active === false ? 'var(--border)' : 'var(--accent-border)'}`,
+                    opacity: role.active === false ? 0.55 : 1,
                   }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr auto', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr auto', gap: '8px', alignItems: 'center' }}>
                       <select className="input" value={role.type || ''} onChange={e => updateRole(i, 'type', e.target.value)} style={{ fontSize: '13px' }}>
                         <option value="">— Typ —</option>
                         {ROLE_TYPES.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                       </select>
-                      <input className="input" value={role.label} onChange={e => updateRole(i, 'label', e.target.value)} placeholder="Namn, t.ex. Läkarprogrammet, KI" style={{ fontSize: '13px' }} />
+                      <input className="input" value={role.label} onChange={e => updateRole(i, 'label', e.target.value)} placeholder="Namn / titel" style={{ fontSize: '13px' }} />
                       <button onClick={() => removeRole(i)} type="button" title="Ta bort roll" style={{
                         width: 32, height: 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
                         borderRadius: '9px', background: 'var(--surface3)', border: '1px solid var(--border)',
@@ -311,16 +315,27 @@ export default function ProfilePage() {
                         <Trash2 size={14} />
                       </button>
                     </div>
-                    <input className="input" value={role.description} onChange={e => updateRole(i, 'description', e.target.value)} placeholder="Kort beskrivning (valfritt)" style={{ fontSize: '12px', marginTop: '8px' }} />
+                    <input className="input" value={role.description} onChange={e => updateRole(i, 'description', e.target.value)} placeholder={hint} style={{ fontSize: '12px', marginTop: '8px' }} />
                     <label style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', marginTop: '10px', fontSize: '12px', color: 'var(--muted2)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={role.active !== false} onChange={e => updateRole(i, 'active', e.target.checked)} style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
-                      Aktiv just nu
+                      Aktiv just nu {role.active === false && '— pausad'}
                     </label>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                )
+              })}
+            </div>
+          )}
+
+          <details style={{ marginTop: '16px' }}>
+            <summary style={{ fontSize: '12px', color: 'var(--muted)', cursor: 'pointer', userSelect: 'none' }}>Fler detaljer (valfritt)</summary>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
+              <Field label="LIVSFAS" hint="Lämna tomt så härleds den från din primära aktiva roll"><Select value={form.life_stage} onChange={set('life_stage')} options={LIFE_STAGES} /></Field>
+              <Field label="LÄROSÄTE"><input className="input" value={form.study_institution} onChange={e => set('study_institution')(e.target.value)} placeholder="t.ex. Karolinska Institutet" /></Field>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '8px' }}>
+              Sysselsättning och utbildningsprogram fylls automatiskt från dina roller.
+            </div>
+          </details>
         </div>
 
         {/* Preferences */}
@@ -348,11 +363,23 @@ export default function ProfilePage() {
         {/* Konkreta, spårbara mål (egen tabell — sparas direkt, inte via knappen nedan) */}
         <GoalsSection title="Mål" />
 
-        <button onClick={save} className="btn btn-primary" disabled={saving} style={{ justifyContent: 'center', padding: '12px' }}>
-          {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar…</> :
-           saved ? <><Check size={14} /> Sparat!</> :
-           <><Save size={14} /> Spara profil</>}
-        </button>
+        {/* Save bar — profil-fälten (inkl. roller) sparas först här. */}
+        <div style={{
+          marginTop: '4px',
+          display: 'flex', alignItems: 'center', gap: '12px',
+          padding: '10px 12px', borderRadius: '12px',
+          background: dirty ? 'var(--accent-soft)' : 'var(--surface2)',
+          border: `1px solid ${dirty ? 'var(--accent-border)' : 'var(--border)'}`,
+        }}>
+          <span style={{ fontSize: '12px', color: dirty ? 'var(--amber)' : 'var(--muted)', flex: 1 }}>
+            {dirty ? 'Osparade ändringar' : saved ? 'Allt sparat' : 'Profil, kropp och roller sparas med knappen →'}
+          </span>
+          <button onClick={save} className="btn btn-primary" disabled={saving || (!dirty && !saved)} style={{ justifyContent: 'center', padding: '10px 18px', flexShrink: 0 }}>
+            {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar…</> :
+             saved ? <><Check size={14} /> Sparat!</> :
+             <><Save size={14} /> Spara profil</>}
+          </button>
+        </div>
       </div>
     </div>
   )
