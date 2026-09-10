@@ -19,6 +19,7 @@ Fortsatt arbete på ny branch `data-sync-jarvis-tools` (av `main`). Poster #14+.
 |---|-----|--------|---------------|
 | 14 | jarvis-chat: `execute_action` täcker nästan hela appen (20 nya skriv-actions) | `83867a7` | **`functions deploy jarvis-chat`** |
 | 15 | Datasynk: `log_training` skriver nu `training_exercises` + PR + steg + score; `add_journal_entry` speglar score. Audit-fynd nedan. | `4ecc129` | ingår i samma jarvis-chat-deploy |
+| 16 | Kalender: "Kommande"-strip (14 dgr), filter sparas mellan besök, trip-status-bugg (`idé`→`idea`) | `164a3be` | inget (frontend) — pusha branchen |
 
 ---
 
@@ -67,6 +68,27 @@ skapa mål tills efter `db push`.
 ---
 
 ## Poster
+
+### 16. Kalender — kommande-strip + kvalitetsfixar
+**Spår:** A (din begäran: "jobba vidare på kalendern och dess funktioner")
+**Vad:**
+- **"Kommande"-strip** ovanför månadsgriden: nästa 14 dagar, alla event-typer
+  (utom passiva journal/hälsa-loggar), en rad per grej med relativ tid
+  ("idag" / "imorgon" / "om 4d"), färgprick + ikon + datum. Tap → öppnar den
+  dagens detaljpanel. Samma dag + samma etikett kollapsas (två "Grupparbete"
+  blir en rad; full detalj ett tap bort). Resor visas en gång, inte per dag.
+  Bara på innevarande månad — `fetchAll` drar då ~3 v extra bortom månadsskiftet.
+- **Filter-chipsen sparas** i localStorage (`maxxit.kalender.filters`) → dina
+  bortvalda typer är kvar nästa besök.
+- **Bugg:** trip-queryn filtrerade `.neq('status','idé')` (svenska) mot engelsk
+  kanon `idea` (AUDIT P0-1) → reseidéer visades på kalendern och detaljpanelen
+  kallade dem "Avklarad resa". Nu `idea` + rätt etikett (Reseidé/Planerad/Avklarad).
+**Filer:** `src/pages/Kalender.jsx` (ingen ny CSS — `.card` + inline)
+**Verifiering:** preview /kalender — strippen visar PA-pass + obligatoriska korrekt
+med rätt relativ tid; tap på "Eget arbete" valde mån 14/9 och panelen visade
+dagens tre moment. `npm run build` OK.
+**Commit:** `164a3be`
+**Kräver av dig:** inget (frontend). Pusha `data-sync-jarvis-tools` / merga till main.
 
 ### 15. Datasynk-audit + parity för Jarvis-skrivningar
 **Spår:** A (din begäran: "garantera att alla datapunkter överallt är synkade")

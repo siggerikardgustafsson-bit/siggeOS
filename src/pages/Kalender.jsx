@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import {
   format, parseISO, startOfMonth, endOfMonth, startOfWeek,
   endOfWeek, eachDayOfInterval, addMonths, subMonths, isSameMonth,
-  differenceInDays, isToday
+  differenceInDays, isToday, addDays, max as maxDate
 } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Loader, RefreshCw, Dumbbell, Timer, Briefcase, FileText, GraduationCap, BookOpen, Heart, Clock, Plane, CheckCircle2, Circle } from 'lucide-react'
@@ -41,6 +41,27 @@ const FLAGS = {
   'Indonesien':'🇮🇩','Indien':'🇮🇳','Singapore':'🇸🇬','Malaysia':'🇲🇾','Filippinerna':'🇵🇭',
   'Australien':'🇦🇺','Nya Zeeland':'🇳🇿',
   'Sydafrika':'🇿🇦','Kenya':'🇰🇪','Etiopien':'🇪🇹','Tanzania':'🇹🇿',
+}
+
+// Human "hur långt bort" for a date string (YYYY-MM-DD), from today.
+function relativeDay(dateStr) {
+  const d = differenceInDays(parseISO(dateStr), new Date().setHours(0, 0, 0, 0))
+  if (d < 0) return { text: `${-d}d sedan`, tone: 'past' }
+  if (d === 0) return { text: 'idag', tone: 'today' }
+  if (d === 1) return { text: 'imorgon', tone: 'soon' }
+  if (d <= 7) return { text: `om ${d}d`, tone: 'soon' }
+  return { text: `om ${d}d`, tone: 'far' }
+}
+
+const FILTER_LS_KEY = 'maxxit.kalender.filters'
+function loadFilters(allKeys) {
+  try {
+    const raw = localStorage.getItem(FILTER_LS_KEY)
+    if (!raw) return new Set(allKeys)
+    const arr = JSON.parse(raw)
+    const valid = arr.filter((k) => allKeys.includes(k))
+    return valid.length ? new Set(valid) : new Set(allKeys)
+  } catch { return new Set(allKeys) }
 }
 
 // Samma logik som Plugg: kapa bort "KOD. Kursnamn" och lärar-info
@@ -87,8 +108,13 @@ export default function KalenderPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [selectedDay, setSelectedDay] = useState(null)
-  const [filterTypes, setFilterTypes] = useState(new Set(Object.keys(EVENT_TYPES)))
+  const [filterTypes, setFilterTypes] = useState(() => loadFilters(Object.keys(EVENT_TYPES)))
   const isMobile = useIsMobile()
+
+  // Remember which event types the user has toggled off between visits.
+  useEffect(() => {
+    try { localStorage.setItem(FILTER_LS_KEY, JSON.stringify([...filterTypes])) } catch { /* private mode */ }
+  }, [filterTypes])
   const detailRef = useRef(null)
 
   // On a phone the day-detail panel sits below the grid — pull it into view
@@ -104,7 +130,13 @@ export default function KalenderPage() {
   async function fetchAll() {
     setLoading(true)
     const start = format(startOfMonth(month), 'yyyy-MM-dd')
-    const end = format(endOfMonth(month), 'yyyy-MM-dd')
+    // When looking at the current month, pull an extra ~3 weeks past month-end so
+    // the "Kommande" strip can show items that spill into next month.
+    const viewingNow = isSameMonth(month, new Date())
+    const end = format(
+      viewingNow ? maxDate([endOfMonth(month), addDays(new Date(), 21)]) : endOfMonth(month),
+      'yyyy-MM-dd',
+    )
 
     const [trainRes, paRes, examRes, mandRes, taskDeadlineRes, journalRes, healthRes, erikRes, tripRes] = await Promise.all([
       supabase.from('training_sessions').select('date, session_type, distance_km, duration_minutes, notes').eq('user_id', user.id).gte('date', start).lte('date', end),
@@ -123,7 +155,7 @@ export default function KalenderPage() {
       supabase.from('journal_entries').select('date, mood, energy').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase.from('health_logs').select('date, weight_kg, steps').eq('user_id', user.id).gte('date', start).lte('date', end),
       supabase.from('erik_tasks').select('deadline, title, tag').eq('user_id', user.id).not('deadline', 'is', null).gte('deadline', start).lte('deadline', end),
-      supabase.from('trips').select('title, countries, city, start_date, end_date, status, rating, highlights').eq('user_id', user.id).neq('status', 'idé').lte('start_date', end).not('start_date', 'is', null),
+      supabase.from('trips').select('title, countries, city, start_date, end_date, status, rating, highlights').eq('user_id', user.id).neq('status', 'idea').lte('start_date', end).not('start_date', 'is', null),
     ])
 
     const map = {}
@@ -248,6 +280,27 @@ export default function KalenderPage() {
   const selectedEvents = selectedDay ? (events[selectedDay] || []).filter(e => filterTypes.has(e.type)) : []
   const filteredEvents = (date) => (events[date] || []).filter(e => filterTypes.has(e.type))
 
+  // "Kommande" — the next 14 days across every type, honouring the filter chips.
+  // Only meaningful on the current month (that's the window fetchAll extends).
+  const showUpcoming = isSameMonth(month, new Date())
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+  const horizonStr = format(addDays(new Date(), 14), 'yyyy-MM-dd')
+  const upcoming = showUpcoming
+    ? Object.entries(events)
+        .filter(([date]) => date >= todayStr && date <= horizonStr)
+        .flatMap(([date, evs]) => evs.filter(e => filterTypes.has(e.type)).map(e => ({ ...e, date })))
+        // passive daily logs (journal/health) aren't "coming up" — drop them here
+        .filter(e => !['journal', 'health'].includes(e.type))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        // collapse repeats: a trip shows once (its earliest day in range); any
+        // other event collapses only when the same label repeats on the same day
+        .filter((e, i, arr) => {
+          if (e.type === 'trip') return arr.findIndex(x => x.type === 'trip' && x.label === e.label) === i
+          return arr.findIndex(x => x.date === e.date && x.type === e.type && x.label === e.label) === i
+        })
+        .slice(0, 10)
+    : []
+
   // Month stats
   const allEvents = Object.values(events).flat()
   const trainCount = allEvents.filter(e => e.type === 'training' || e.type === 'run').length
@@ -311,6 +364,46 @@ export default function KalenderPage() {
           )
         })}
       </div>
+
+      {/* Kommande — nästa 14 dagar */}
+      {upcoming.length > 0 && (
+        <div className="card" style={{ marginBottom: '16px', padding: '12px 14px' }}>
+          <div style={{ fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '10px' }}>
+            Kommande
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            {upcoming.map((ev, i) => {
+              const t = EVENT_TYPES[ev.type] || EVENT_TYPES.training
+              const IconComp = t.Icon
+              const rel = relativeDay(ev.date)
+              const relColor = rel.tone === 'today' ? 'var(--accent)' : rel.tone === 'soon' ? '#f59e0b' : 'var(--muted)'
+              return (
+                <button
+                  key={`${ev.date}-${ev.type}-${i}`}
+                  onClick={() => setSelectedDay(ev.date)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '9px', width: '100%',
+                    padding: '7px 6px', background: selectedDay === ev.date ? 'var(--accent-soft)' : 'transparent',
+                    border: 'none', borderRadius: '7px', cursor: 'pointer', textAlign: 'left',
+                    fontFamily: 'Inter, sans-serif', color: 'var(--text)',
+                  }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: t.color, flexShrink: 0 }} />
+                  <IconComp size={12} style={{ color: t.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: '12.5px', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {ev.label || t.label}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--muted2)', flexShrink: 0, textTransform: 'capitalize' }}>
+                    {format(parseISO(ev.date), 'EEE d/M', { locale: sv })}
+                  </span>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: relColor, flexShrink: 0, minWidth: '52px', textAlign: 'right' }}>
+                    {rel.text}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: (selectedDay && !isMobile) ? '1fr 300px' : '1fr', gap: '16px', alignItems: 'start' }}>
 
@@ -430,7 +523,7 @@ export default function KalenderPage() {
                         <span style={{ color: t.color, display: 'flex' }}><IconComp size={14} /></span>
                         <span style={{ fontSize: '12px', fontWeight: '600', color: t.color }}>
                           {ev.type === 'trip'
-                            ? (ev.status === 'planned' ? 'Planerad resa' : 'Avklarad resa')
+                            ? (ev.status === 'completed' ? 'Avklarad resa' : ev.status === 'planned' ? 'Planerad resa' : 'Reseidé')
                             : t.label}
                         </span>
                         {ev.type === 'mandatory' && (
