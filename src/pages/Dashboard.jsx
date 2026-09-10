@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase'
 import { useTilt } from '../hooks/useTilt'
 import DetailModal from '../components/dashboard/DetailModal'
 import TodayWidget from '../components/dashboard/TodayWidget'
+import PinnedGoals from '../components/dashboard/PinnedGoals'
 import DashboardConstellation from '../components/dashboard/DashboardConstellation'
 import KpiTree from '../components/dashboard/KpiTree'
 import WeeklyReview from '../components/WeeklyReview'
@@ -1151,6 +1152,8 @@ export default function Dashboard() {
               corners={dashCorners}
             />
           )}
+
+          {!loading && <PinnedGoals userId={userId} />}
 
         </div>
       </div>
