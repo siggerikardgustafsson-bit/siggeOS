@@ -431,9 +431,9 @@ Mål-IDs (kopiera exakt):
       await supabase.from('study_sessions').update({
         hours: Math.round(seconds / 360) / 10,
         notes: mode === 'tenta' ? 'Tentamode · ' + timerFormatted : 'Studiesession · ' + timerFormatted,
-      }).eq('id', sessionId)
+      }).eq('id', sessionId).eq('user_id', user.id)
     } else if (sessionId) {
-      await supabase.from('study_sessions').delete().eq('id', sessionId)
+      await supabase.from('study_sessions').delete().eq('id', sessionId).eq('user_id', user.id)
     }
     onMasteryUpdate?.()
     onClose()

@@ -157,7 +157,7 @@ export default function PluggPage() {
   }
 
   async function deleteMandatorySession(id) {
-    await supabase.from('mandatory_sessions').delete().eq('id', id)
+    await supabase.from('mandatory_sessions').delete().eq('id', id).eq('user_id', user.id)
     setMandatorySessions(prev => {
       const next = { ...prev }
       for (const key of Object.keys(next)) {
@@ -170,7 +170,7 @@ export default function PluggPage() {
 
 
   async function toggleMandatoryAttended(id, current) {
-    await supabase.from('mandatory_sessions').update({ attended: !current }).eq('id', id)
+    await supabase.from('mandatory_sessions').update({ attended: !current }).eq('id', id).eq('user_id', user.id)
     await fetchMandatory()
   }
 
@@ -249,12 +249,12 @@ export default function PluggPage() {
   }
 
   async function updateExamGrade(examId, grade) {
-    await supabase.from('course_exams').update({ grade }).eq('id', examId)
+    await supabase.from('course_exams').update({ grade }).eq('id', examId).eq('user_id', user.id)
     await fetchCourses()
   }
 
   async function deleteExam(examId) {
-    await supabase.from('course_exams').delete().eq('id', examId)
+    await supabase.from('course_exams').delete().eq('id', examId).eq('user_id', user.id)
     await fetchCourses()
   }
 
@@ -273,17 +273,17 @@ export default function PluggPage() {
   }
 
   async function deleteGoal(goalId) {
-    await supabase.from('learning_goals').delete().eq('id', goalId)
+    await supabase.from('learning_goals').delete().eq('id', goalId).eq('user_id', user.id)
     await fetchCourses()
   }
 
   async function deleteExamFile(fileId) {
-    await supabase.from('exam_old_files').delete().eq('id', fileId)
+    await supabase.from('exam_old_files').delete().eq('id', fileId).eq('user_id', user.id)
     await fetchCourses()
   }
 
   async function deleteCourseMaterial(id) {
-    await supabase.from('course_materials').delete().eq('id', id)
+    await supabase.from('course_materials').delete().eq('id', id).eq('user_id', user.id)
     await fetchCourses()
   }
 
@@ -362,7 +362,7 @@ export default function PluggPage() {
 
   async function toggleStudyTask(task) {
     const nextStatus = task.status === 'done' ? 'todo' : 'done'
-    await supabase.from('study_tasks').update({ status: nextStatus, updated_at: new Date().toISOString() }).eq('id', task.id)
+    await supabase.from('study_tasks').update({ status: nextStatus, updated_at: new Date().toISOString() }).eq('id', task.id).eq('user_id', user.id)
     await fetchCourses()
   }
 
@@ -370,30 +370,30 @@ export default function PluggPage() {
     await supabase.from('study_task_deadlines').update({
       completed: !deadline.completed,
       completed_at: !deadline.completed ? new Date().toISOString() : null,
-    }).eq('id', deadline.id)
+    }).eq('id', deadline.id).eq('user_id', user.id)
     await fetchCourses()
   }
 
   async function deleteStudyTask(taskId) {
     if (!window.confirm('Ta bort uppgift och alla deadlines?')) return
-    await supabase.from('study_tasks').delete().eq('id', taskId)
+    await supabase.from('study_tasks').delete().eq('id', taskId).eq('user_id', user.id)
     await fetchCourses()
   }
 
   async function archiveCourse(courseId) {
-    await supabase.from('courses').update({ active: false }).eq('id', courseId)
+    await supabase.from('courses').update({ active: false }).eq('id', courseId).eq('user_id', user.id)
     await fetchCourses()
   }
 
   async function deleteCourse(courseId) {
     if (!window.confirm('Ta bort kurs?')) return
-    await supabase.from('courses').delete().eq('id', courseId)
+    await supabase.from('courses').delete().eq('id', courseId).eq('user_id', user.id)
     await fetchCourses()
   }
 
   async function saveEditCourse() {
     setSaving(true)
-    await supabase.from('courses').update(editForm).eq('id', editingCourse)
+    await supabase.from('courses').update(editForm).eq('id', editingCourse).eq('user_id', user.id)
     setEditingCourse(null)
     await fetchCourses()
     setSaving(false)
@@ -407,7 +407,7 @@ export default function PluggPage() {
     const { data } = await supabase.functions.invoke('jarvis-chat', {
       body: { messages: [{ role: 'user', content: `Estimera studietid för "${course?.name}" med ${courseExams.length} examinationer och ${allGoals.length} lärandemål. Ge ett konkret svar i timmar.` }], context: '', systemPrompt: 'Du är studierådgivare. Ge konkret tidsestimering på svenska.' }
     })
-    if (data?.content) { await supabase.from('courses').update({ ai_time_estimate: data.content }).eq('id', courseId); await fetchCourses() }
+    if (data?.content) { await supabase.from('courses').update({ ai_time_estimate: data.content }).eq('id', courseId).eq('user_id', user.id); await fetchCourses() }
     setEstimatingTime(null)
   }
 
@@ -906,7 +906,7 @@ export default function PluggPage() {
                                             <button onClick={async () => {
                                               if (!window.confirm(`Ta bort alla lärandemål från "${fname}"?`)) return
                                               const idsToDelete = examGoalList.filter(g => g.source_file === fname).map(g => g.id)
-                                              for (const id of idsToDelete) await supabase.from('learning_goals').delete().eq('id', id)
+                                              for (const id of idsToDelete) await supabase.from('learning_goals').delete().eq('id', id).eq('user_id', user.id)
                                               await fetchCourses()
                                             }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '2px', opacity: 0.7 }}>
                                               <Trash2 size={11} />
@@ -1317,7 +1317,7 @@ export default function PluggPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div className="mono" style={{ fontSize: '18px', fontWeight: '600', color: '#f59e0b' }}>{session.hours}h</div>
                     <button onClick={async () => {
-                      await supabase.from('study_sessions').delete().eq('id', session.id)
+                      await supabase.from('study_sessions').delete().eq('id', session.id).eq('user_id', user.id)
                       await fetchStudySessions()
                     }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', opacity: 0.5, padding: '4px' }}>
                       <Trash2 size={14} />

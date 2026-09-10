@@ -528,7 +528,7 @@ export default function JobbPage() {
     })
     setTimeout(async () => {
       if (undone) return
-      await supabase.from('erik_tasks').delete().eq('id', id)
+      await supabase.from('erik_tasks').delete().eq('id', id).eq('user_id', user.id)
     }, 5000)
   }
 
@@ -604,7 +604,7 @@ export default function JobbPage() {
   async function saveProjectNotes() {
     if (!selectedProject) return
     setSavingProjectNotes(true)
-    await supabase.from('projects').update({ notes: projectNotes }).eq('id', selectedProject.id)
+    await supabase.from('projects').update({ notes: projectNotes }).eq('id', selectedProject.id).eq('user_id', user.id)
     setSavingProjectNotes(false)
     setProjectNotesSaved(true)
     setTimeout(() => setProjectNotesSaved(false), 2000)
@@ -623,7 +623,7 @@ export default function JobbPage() {
   async function deleteProject(id) {
     if (!window.confirm('Ta bort projektet och alla dess tasks?')) return
     await supabase.from('project_tasks').delete().eq('project_id', id)
-    await supabase.from('projects').delete().eq('id', id)
+    await supabase.from('projects').delete().eq('id', id).eq('user_id', user.id)
     const remaining = projects.filter(p => p.id !== id)
     setProjects(remaining)
     if (selectedProject?.id === id) {
@@ -648,7 +648,7 @@ export default function JobbPage() {
       status: 'ej_påbörjat',
     }
     if (editingProjectTask) {
-      await supabase.from('project_tasks').update(payload).eq('id', editingProjectTask.id)
+      await supabase.from('project_tasks').update(payload).eq('id', editingProjectTask.id).eq('user_id', user.id)
     } else {
       await supabase.from('project_tasks').insert(payload)
     }
@@ -660,12 +660,12 @@ export default function JobbPage() {
   }
 
   async function moveProjectTask(taskId, newStatus) {
-    await supabase.from('project_tasks').update({ status: newStatus }).eq('id', taskId)
+    await supabase.from('project_tasks').update({ status: newStatus }).eq('id', taskId).eq('user_id', user.id)
     setProjectTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
   }
 
   async function deleteProjectTask(taskId) {
-    await supabase.from('project_tasks').delete().eq('id', taskId)
+    await supabase.from('project_tasks').delete().eq('id', taskId).eq('user_id', user.id)
     setProjectTasks(prev => prev.filter(t => t.id !== taskId))
   }
 
@@ -826,7 +826,7 @@ export default function JobbPage() {
                         <button onClick={async () => {
                           const newType = isSov ? 'vaken' : 'sov'
                           const newPay = calculateShiftPay(shift.start_time, shift.end_time, newType)
-                          await supabase.from('pa_shifts').update({ shift_type: newType, estimated_pay: newPay }).eq('id', shift.id)
+                          await supabase.from('pa_shifts').update({ shift_type: newType, estimated_pay: newPay }).eq('id', shift.id).eq('user_id', user.id)
                           await fetchAll()
                         }} style={{
                           fontSize: '10px', padding: '3px 8px', borderRadius: '5px', cursor: 'pointer',

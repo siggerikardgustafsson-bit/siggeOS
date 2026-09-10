@@ -207,7 +207,7 @@ function NetWorthTab({ user }) {
       manual_price_sek: form.type === 'cash' ? parseFloat(form.manual_price_sek) || 0 : null,
     }
     if (editingAsset) {
-      await supabase.from('assets').update(payload).eq('id', editingAsset.id)
+      await supabase.from('assets').update(payload).eq('id', editingAsset.id).eq('user_id', user.id)
     } else {
       await supabase.from('assets').insert(payload)
     }
@@ -229,7 +229,7 @@ function NetWorthTab({ user }) {
     })
     setTimeout(async () => {
       if (undone) return
-      await supabase.from('assets').delete().eq('id', id)
+      await supabase.from('assets').delete().eq('id', id).eq('user_id', user.id)
       setPrices(prev => { const n = {...prev}; delete n[id]; return n })
     }, 5000)
   }
@@ -646,7 +646,7 @@ export default function EkonomiPage() {
   }
 
   async function deleteEntry(table, id) {
-    await supabase.from(table).delete().eq('id', id)
+    await supabase.from(table).delete().eq('id', id).eq('user_id', user.id)
     await fetchAll()
   }
 
@@ -672,7 +672,7 @@ export default function EkonomiPage() {
     if (editingFixed === 'new') {
       ({ error } = await supabase.from('fixed_costs').insert({ user_id: user.id, name, amount, active: true }))
     } else {
-      ({ error } = await supabase.from('fixed_costs').update({ name, amount }).eq('id', editingFixed))
+      ({ error } = await supabase.from('fixed_costs').update({ name, amount }).eq('id', editingFixed).eq('user_id', user.id))
     }
     if (error) { toast({ message: 'Kunde inte spara.', type: 'error' }); setSaving(false); return }
     await fetchAll()
@@ -680,7 +680,7 @@ export default function EkonomiPage() {
     setSaving(false)
   }
   async function deleteFixed(id) {
-    await supabase.from('fixed_costs').delete().eq('id', id)
+    await supabase.from('fixed_costs').delete().eq('id', id).eq('user_id', user.id)
     await fetchAll()
   }
 

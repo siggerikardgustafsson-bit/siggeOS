@@ -146,7 +146,7 @@ export default function TraningPage() {
   useEffect(() => () => {
     for (const [id, t] of pendingDeletes.current) {
       clearTimeout(t)
-      supabase.from('training_sessions').delete().eq('id', id)
+      supabase.from('training_sessions').delete().eq('id', id).eq('user_id', user.id)
     }
     pendingDeletes.current.clear()
   }, [])
