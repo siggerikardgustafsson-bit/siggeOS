@@ -12,6 +12,7 @@ import {
   ROLE_TYPES, normalizeLifeRoles,
 } from '../lib/personalization'
 import ProfileQualityCard from '../components/ProfileQualityCard'
+import GoalsSection from '../components/GoalsSection'
 
 function SectionHeader({ icon: Icon, title, subtitle }) {
   return (
@@ -343,6 +344,9 @@ export default function ProfilePage() {
           </div>
           <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '8px' }}>Detaljerade mål och Jarvis-kontext redigeras fortsatt under Inställningar → Profil & mål.</div>
         </div>
+
+        {/* Konkreta, spårbara mål (egen tabell — sparas direkt, inte via knappen nedan) */}
+        <GoalsSection title="Mål" />
 
         <button onClick={save} className="btn btn-primary" disabled={saving} style={{ justifyContent: 'center', padding: '12px' }}>
           {saving ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Sparar…</> :

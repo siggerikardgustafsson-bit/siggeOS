@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import CountUp from '../components/CountUp'
 import EmptyState from '../components/EmptyState'
+import GoalsSection from '../components/GoalsSection'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, X, Save, Loader, AlertTriangle, Target, RefreshCw, Edit2, Trash2 } from 'lucide-react'
 import { getSalaryPeriod } from '../lib/salaryPeriod'
@@ -322,6 +323,8 @@ function NetWorthTab({ user }) {
           </div>
         )}
       </div>
+
+      <GoalsSection domain="ekonomi" title="Ekonomimål" />
 
       {/* Breakdown by type */}
       {byType.length > 0 && (

@@ -19,14 +19,31 @@ export const GOAL_DOMAIN_LABEL = {
 }
 
 const SELECT = 'id,title,category,description,metric,unit,target_value,current_value,direction,deadline,status,pinned,linked_trip_id,sort_order,created_at,updated_at,completed_at'
+// Columns that exist on the table before post-deploy 05 adds the rest.
+const SELECT_LEGACY = 'id,title,category,description,unit,target_value,current_value,deadline,status,created_at,updated_at'
+
+// Remembered for the session once we learn the table is pre-migration, so we
+// don't fire a doomed full-column query on every page load.
+let legacySchema = false
 
 export async function listGoals(userId, { status = 'active' } = {}) {
-  let q = supabase.from('goals').select(SELECT).eq('user_id', userId)
-  if (status && status !== 'all') q = q.eq('status', status)
-  const { data, error } = await q
-    .order('pinned', { ascending: false })
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true })
+  const run = (cols, ordered) => {
+    let q = supabase.from('goals').select(cols).eq('user_id', userId)
+    if (status && status !== 'all') q = q.eq('status', status)
+    q = q.order('created_at', { ascending: true })
+    if (ordered) q = q.order('pinned', { ascending: false }).order('sort_order', { ascending: true })
+    return q
+  }
+  if (legacySchema) {
+    const { data, error } = await run(SELECT_LEGACY, false)
+    if (error) throw error
+    return data || []
+  }
+  let { data, error } = await run(SELECT, true)
+  if (isMissingColumnError(error)) {
+    legacySchema = true
+    ;({ data, error } = await run(SELECT_LEGACY, false))
+  }
   if (error) throw error
   return data || []
 }
@@ -48,9 +65,7 @@ export async function createGoal(userId, fields) {
     linked_trip_id: fields.linked_trip_id || null,
     sort_order: Number.isFinite(fields.sort_order) ? fields.sort_order : 0,
   }
-  const { data, error } = await supabase.from('goals').insert(row).select(SELECT).single()
-  if (error) throw error
-  return data
+  return writeWithFallback((cols) => supabase.from('goals').insert(stripForCols(row, cols)).select(cols).single())
 }
 
 export async function updateGoal(id, patch) {
@@ -63,9 +78,38 @@ export async function updateGoal(id, patch) {
   // Stamp / clear completed_at as status flips to and from 'done'.
   if (clean.status === 'done' && !('completed_at' in clean)) clean.completed_at = new Date().toISOString()
   if (clean.status && clean.status !== 'done') clean.completed_at = null
-  const { data, error } = await supabase.from('goals').update(clean).eq('id', id).select(SELECT).single()
+  return writeWithFallback((cols) => supabase.from('goals').update(stripForCols(clean, cols)).eq('id', id).select(cols).single())
+}
+
+// Pre-migration the new columns don't exist — retry the write with only the
+// legacy set on a "column ... does not exist" error.
+const LEGACY_COLS = new Set(SELECT_LEGACY.split(','))
+function stripForCols(obj, cols) {
+  if (cols === SELECT) return obj
+  return Object.fromEntries(Object.entries(obj).filter(([k]) => LEGACY_COLS.has(k) || k === 'user_id'))
+}
+async function writeWithFallback(run) {
+  if (legacySchema) {
+    const { data, error } = await run(SELECT_LEGACY)
+    if (error) throw error
+    return data
+  }
+  let { data, error } = await run(SELECT)
+  if (isMissingColumnError(error)) {
+    legacySchema = true
+    ;({ data, error } = await run(SELECT_LEGACY))
+  }
   if (error) throw error
   return data
+}
+
+// PostgREST reports an unknown column differently on read vs write:
+//   read:  { code: '42703', message: 'column goals.metric does not exist' }
+//   write: { code: 'PGRST204', message: "Could not find the 'direction' column ..." }
+function isMissingColumnError(error) {
+  if (!error) return false
+  if (error.code === '42703' || error.code === 'PGRST204') return true
+  return /column .*goals\.|find the '.*' column of 'goals'/i.test(error.message || '')
 }
 
 export async function deleteGoal(id) {

@@ -10,6 +10,7 @@ import ExerciseModal from '../components/ExerciseModal'
 import RunModal from '../components/RunModal'
 import Modal from '../components/Modal'
 import EmptyState from '../components/EmptyState'
+import GoalsSection from '../components/GoalsSection'
 import { patchGoals } from '../lib/userSettings'
 import { BASE_EXERCISE_LIBRARY, BW_EXERCISES, updatePersonalRecord } from '../lib/exercises'
 
@@ -1264,6 +1265,8 @@ export default function TraningPage() {
               </div>
             </div>
           </div>
+
+          <GoalsSection domain="traning" title="Träningsmål" />
 
           {/* Main training analysis layout */}
           <div className="training-v2-grid mob-1col" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(320px, 0.85fr)', gap: '16px', alignItems: 'start', marginBottom: '16px' }}>
