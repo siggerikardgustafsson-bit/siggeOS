@@ -215,19 +215,25 @@ const TOOLS = [
           type: 'string',
           enum: [
             'create_project_task', 'update_project_task', 'delete_project_task',
-            'create_trip', 'update_trip',
+            'create_trip', 'update_trip', 'delete_trip',
             'create_erik_task', 'update_erik_task', 'delete_erik_task',
             'log_training', 'update_training', 'delete_training',
             'log_health', 'update_health', 'delete_health',
             'log_expense', 'update_expense', 'delete_expense',
-            'log_income', 'delete_income',
-            'create_adventure', 'save_insight', 'update_insight', 'delete_insight',
+            'log_income', 'update_income', 'delete_income',
+            'log_nutrition', 'log_supplement',
+            'create_goal', 'update_goal', 'complete_goal', 'delete_goal',
+            'log_study', 'create_course', 'add_exam',
+            'log_social', 'create_side_quest', 'update_side_quest',
+            'create_adventure', 'update_adventure', 'delete_adventure',
+            'add_journal_entry',
+            'save_insight', 'update_insight', 'delete_insight',
             'update_friend', 'save_preference', 'update_memory_context',
           ],
         },
         data: {
           type: 'object',
-          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,notes?} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,description?} | create_adventure:{title,description?,date?,location?,category?,rating?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
+          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} | delete_trip:{id} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,notes?} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,description?} | update_income:{id,fields} | log_nutrition:{date?,total_calories?,protein_g?,water_liters?} | log_supplement:{date?,supplement_name,taken?(default true)} | create_goal:{title,category(traning|halsa|ekonomi|plugg|resor|jobb|livet),description?,target_value?,unit?,current_value?,direction?(up|down),deadline?,metric?,pinned?} | update_goal:{id,fields} | complete_goal:{id} | delete_goal:{id} | log_study:{date?,hours,subject?,course_id?,notes?} | create_course:{name,term?,exam_date?} | add_exam:{course_id,name,exam_date?,notes?} | log_social:{date?,friend_names[],activity?,quality?,notes?} | create_side_quest:{title,description?,category?,difficulty?,status?} | update_side_quest:{id,fields} | create_adventure:{title,description?,date?,location?,category?,rating?} | update_adventure:{id,fields} | delete_adventure:{id} | add_journal_entry:{date?,content,mood?,energy?,sleep_hours?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
         },
         confirm_message: { type: 'string' },
       },
@@ -852,6 +858,168 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           result = 'Inkomst raderad.'
           break
         }
+        case 'update_income': {
+          if (!d.id || !d.fields) throw new Error('Saknar id/fields')
+          const { error } = await supabase.from('income_logs').update(d.fields).eq('id', d.id).eq('user_id', userId)
+          if (error) throw error
+          result = 'Inkomst uppdaterad.'
+          break
+        }
+        case 'delete_trip': {
+          if (!d.id) throw new Error('Saknar id')
+          const { error } = await supabase.from('trips').delete().eq('id', d.id).eq('user_id', userId)
+          if (error) throw error
+          result = 'Resa raderad.'
+          break
+        }
+        case 'log_nutrition': {
+          const date = d.date || todayISO()
+          const nf: any = {}
+          for (const k of ['total_calories', 'protein_g', 'water_liters']) if (d[k] != null) nf[k] = Number(d[k])
+          if (!Object.keys(nf).length) throw new Error('Inget att logga (kalorier/protein/vatten)')
+          const { error } = await supabase.from('nutrition_logs').upsert({ user_id: userId, date, ...nf }, { onConflict: 'user_id,date' })
+          if (error) throw error
+          result = `Näring loggad för ${date}.`
+          break
+        }
+        case 'log_supplement': {
+          if (!d.supplement_name) throw new Error('Saknar supplement_name')
+          const date = d.date || todayISO()
+          const { error } = await supabase.from('supplement_logs').upsert(
+            { user_id: userId, date, supplement_name: d.supplement_name, taken: d.taken !== false, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id,date,supplement_name' },
+          )
+          if (error) throw error
+          result = `${d.supplement_name} markerad som ${d.taken !== false ? 'tagen' : 'ej tagen'} (${date}).`
+          break
+        }
+        case 'create_goal': {
+          if (!d.title) throw new Error('Saknar title')
+          const cats = ['traning', 'halsa', 'ekonomi', 'plugg', 'resor', 'jobb', 'livet']
+          const category = cats.includes(d.category) ? d.category : 'livet'
+          const { error } = await supabase.from('goals').insert({
+            user_id: userId, title: String(d.title).trim(), category,
+            description: d.description || null, metric: d.metric || null, unit: d.unit || null,
+            target_value: clean(d.target_value) != null ? Number(d.target_value) : null,
+            current_value: clean(d.current_value) != null ? Number(d.current_value) : null,
+            direction: d.direction === 'down' ? 'down' : 'up',
+            deadline: clean(d.deadline), status: 'active', pinned: !!d.pinned,
+          })
+          if (error) throw error
+          result = `Mål "${d.title}" skapat (${category}).`
+          break
+        }
+        case 'update_goal': {
+          if (!d.id || !d.fields) throw new Error('Saknar id/fields')
+          const fields = { ...d.fields }
+          if (fields.status === 'done' && !('completed_at' in fields)) fields.completed_at = new Date().toISOString()
+          if (fields.status && fields.status !== 'done') fields.completed_at = null
+          const { error } = await supabase.from('goals').update(fields).eq('id', d.id).eq('user_id', userId)
+          if (error) throw error
+          result = 'Mål uppdaterat.'
+          break
+        }
+        case 'complete_goal': {
+          if (!d.id) throw new Error('Saknar id')
+          const { error } = await supabase.from('goals').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', d.id).eq('user_id', userId)
+          if (error) throw error
+          result = 'Mål markerat som uppnått. 🎯'
+          break
+        }
+        case 'delete_goal': {
+          if (!d.id) throw new Error('Saknar id')
+          const { error } = await supabase.from('goals').delete().eq('id', d.id).eq('user_id', userId)
+          if (error) throw error
+          result = 'Mål raderat.'
+          break
+        }
+        case 'log_study': {
+          if (d.hours == null) throw new Error('Saknar hours')
+          const { error } = await supabase.from('study_sessions').insert({
+            user_id: userId, date: d.date || todayISO(), hours: Number(d.hours),
+            subject: d.subject || null, course_id: clean(d.course_id), notes: d.notes || null,
+          })
+          if (error) throw error
+          result = `${d.hours}h plugg loggat${d.subject ? ' (' + d.subject + ')' : ''}.`
+          break
+        }
+        case 'create_course': {
+          if (!d.name) throw new Error('Saknar name')
+          const { error } = await supabase.from('courses').insert({ user_id: userId, name: d.name, term: d.term || null, exam_date: clean(d.exam_date), active: true })
+          if (error) throw error
+          result = `Kurs "${d.name}" skapad.`
+          break
+        }
+        case 'add_exam': {
+          if (!d.course_id || !d.name) throw new Error('Saknar course_id/name')
+          const { error } = await supabase.from('course_exams').insert({ user_id: userId, course_id: d.course_id, name: d.name, exam_date: clean(d.exam_date), notes: d.notes || null })
+          if (error) throw error
+          result = `Examination "${d.name}" tillagd.`
+          break
+        }
+        case 'log_social': {
+          const { error } = await supabase.from('social_interactions').insert({
+            user_id: userId, date: d.date || todayISO(),
+            friend_names: Array.isArray(d.friend_names) ? d.friend_names : (d.friend_names ? [d.friend_names] : []),
+            activity: d.activity || '', quality: clean(d.quality), notes: d.notes || '', source: 'jarvis',
+          })
+          if (error) throw error
+          result = 'Social interaktion loggad.'
+          break
+        }
+        case 'create_side_quest': {
+          if (!d.title) throw new Error('Saknar title')
+          const row: any = { user_id: userId, title: d.title, description: d.description || '', category: d.category || 'övrigt', difficulty: d.difficulty || null, suggested_by: 'jarvis' }
+          if (d.status) row.status = d.status
+          const { error } = await supabase.from('side_quests').insert(row)
+          if (error) throw error
+          result = `Side quest "${d.title}" skapad.`
+          break
+        }
+        case 'update_side_quest': {
+          if (!d.id || !d.fields) throw new Error('Saknar id/fields')
+          const fields = { ...d.fields }
+          if (fields.status === 'done' && !('completed_at' in fields)) fields.completed_at = new Date().toISOString()
+          const { error } = await supabase.from('side_quests').update(fields).eq('id', d.id).eq('user_id', userId)
+          if (error) throw error
+          result = 'Side quest uppdaterad.'
+          break
+        }
+        case 'update_adventure': {
+          if (!d.id || !d.fields) throw new Error('Saknar id/fields')
+          const { error } = await supabase.from('adventures').update(d.fields).eq('id', d.id).eq('user_id', userId)
+          if (error) throw error
+          result = 'Upplevelse uppdaterad.'
+          break
+        }
+        case 'delete_adventure': {
+          if (!d.id) throw new Error('Saknar id')
+          const { error } = await supabase.from('adventures').delete().eq('id', d.id).eq('user_id', userId)
+          if (error) throw error
+          result = 'Upplevelse raderad.'
+          break
+        }
+        case 'add_journal_entry': {
+          if (!d.content) throw new Error('Saknar content')
+          const date = d.date || todayISO()
+          const { data: existing } = await supabase.from('journal_entries').select('id').eq('user_id', userId).eq('date', date).limit(1).maybeSingle()
+          if (existing?.id) { result = `Journalanteckning finns redan för ${date} — redigera den i appen istället.`; break }
+          const { error } = await supabase.from('journal_entries').insert({
+            user_id: userId, date, content: d.content,
+            mood: clean(d.mood), energy: clean(d.energy), sleep_hours: clean(d.sleep_hours),
+          })
+          if (error) throw error
+          // Mirror sleep/energy to health_logs the same way the Journal page does,
+          // so the two surfaces don't drift.
+          if (d.sleep_hours != null || d.energy != null) {
+            const hf: any = { user_id: userId, date, source: 'journal' }
+            if (d.sleep_hours != null) hf.sleep_hours = Number(d.sleep_hours)
+            if (d.energy != null) { hf.energy = Number(d.energy); hf.energy_level = Number(d.energy) }
+            await supabase.from('health_logs').upsert(hf, { onConflict: 'user_id,date' })
+          }
+          result = `Journalanteckning sparad för ${date}.`
+          break
+        }
         default:
           throw new Error(`Okänd action: ${action}`)
       }
@@ -919,6 +1087,7 @@ SPARA TYST (execute_action, nämn ej): faktum om användaren → save_insight | 
 PR/rekord (styrka+löp) → fetch_workouts(include_prs=true) ger all-time PR-tavla.
 
 ÅTGÄRDER: execute_action direkt utan bekräftelse. Saknas ID → hämta först. delete → bekräfta vad raderas.
+Du kan skriva till i stort sett hela appen när användaren ber om det: pass, hälsa, näring, kosttillskott, utgifter, inkomster, plugg-sessioner, kurser/tentor, mål (skapa/uppdatera/klarmarkera), resor, upplevelser, side quests, sociala loggar, journalanteckningar, tasks, insikter. Logga på det datum användaren säger (default idag). När du skapar ett mål: sätt category till rätt domän och koppla metric om ett sådant passar (t.ex. body_weight, bench_pr, net_worth, study_hours_7d) så progressen uppdateras automatiskt. Efter en skrivning: bekräfta kort vad som sparades och var det syns.
 
 LÄNKAR: När du hänvisar till en sida, länka med markdown så användaren kan klicka dit direkt: [Träning](/traning), [Hälsa](/halsa), [Ekonomi](/ekonomi), [Plugg](/plugg), [Jobb](/jobb), [Kalender](/kalender), [Insights](/insights), [Upplevelser](/upplevelser), [Journal](/journal), [Dashboard](/). Max 1–2 länkar/svar, bara när det tillför.
 
