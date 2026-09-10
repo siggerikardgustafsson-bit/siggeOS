@@ -22,6 +22,16 @@ function isStravaAuthError(status: number, body: any): boolean {
   return /authorization error/i.test(String(body?.message || ''))
 }
 
+// Strava returns 403 {"errors":[{"resource":"Application","code":"Inactive"}]}
+// when the API *application* (client_id) is deactivated on Strava's side —
+// nothing the user or a token refresh can fix. The app owner must re-activate
+// it / accept the API terms at strava.com/settings/api.
+function isStravaAppInactive(body: any): boolean {
+  const errs = body && typeof body === 'object' ? body.errors : null
+  return Array.isArray(errs) && errs.some((e: any) =>
+    String(e?.resource || '') === 'Application' && String(e?.code || '') === 'Inactive')
+}
+
 // GET a Strava endpoint with one retry on 5xx / network blip. Returns the parsed
 // body plus the raw status + a text snippet so callers can surface what actually
 // went wrong (the old code swallowed all of this into a flat 502).
@@ -319,6 +329,12 @@ serve(async (req) => {
     for (let page = 1; page <= 4; page++) {
       const r = await stravaGet(`/athlete/activities?per_page=100&page=${page}`, accessToken)
       if (r.status === 429) { rateLimited = true; break }
+      if (isStravaAppInactive(r.body)) {
+        return new Response(JSON.stringify({
+          error: 'app_inactive',
+          detail: 'Strava-API-appen är inaktiverad hos Strava. Appägaren måste återaktivera den och godkänna API-villkoren på strava.com/settings/api.',
+        }), { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } })
+      }
       if (isStravaAuthError(r.status, r.body)) {
         return new Response(JSON.stringify({ error: 'reauthorize', detail: 'Strava-anslutningen behöver kopplas om.' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
       }
