@@ -51,8 +51,10 @@ export const DEADLIFT_THRESHOLDS = [1.25, 1.5, 1.7, 1.9, 2.1, 2.3, 2.5]
 export const OHP_THRESHOLDS = [0.5, 0.65, 0.75, 0.85, 1.0, 1.1, 1.2]
 export const PULLUP_THRESHOLDS = [5, 10, 13, 16, 20, 24, 28]
 
-// SÖMN — duration (timmar), higher is better
-export const SLEEP_DURATION_THRESHOLDS = [6.5, 7, 7.5, 8, 8.5, 8.5, 9]
+// SÖMN — duration (timmar), higher is better.
+// [T2..T8] — a strict ladder. The old table repeated 8.5 at T6/T7, which made
+// T6 unreachable and jumped 8.5h straight from T5 to T7.
+export const SLEEP_DURATION_THRESHOLDS = [6.5, 7, 7.25, 7.5, 8, 8.5, 9]
 // Sömnregelbundenhet — SD i minuter, lower is better
 export const SLEEP_REGULARITY_THRESHOLDS = [60, 40, 30, 20, 15, 12, 10]
 
