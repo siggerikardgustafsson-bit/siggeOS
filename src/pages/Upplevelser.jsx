@@ -543,6 +543,50 @@ function TripForm({ initial, onSave, onCancel, saving }) {
   )
 }
 
+// Savings progress toward a trip's budget: "23 400 / 42 000 kr", a bar, and a
+// pace hint ("lägg 2 700 kr/mån för att hinna till avresa").
+function TripSavings({ trip, onSave }) {
+  const [editing, setEditing] = React.useState(false)
+  const [draft, setDraft] = React.useState(trip.saved_sek ?? '')
+  React.useEffect(() => { setDraft(trip.saved_sek ?? '') }, [trip.saved_sek])
+
+  const budget = Number(trip.budget_sek) || 0
+  const saved = Number(trip.saved_sek) || 0
+  const pct = budget > 0 ? Math.max(0, Math.min(1, saved / budget)) : 0
+  const remaining = Math.max(0, budget - saved)
+
+  let pace = null
+  if (remaining > 0 && trip.start_date) {
+    const months = (new Date(trip.start_date) - new Date()) / (30.44 * 86400000)
+    if (months >= 0.5) pace = `Lägg ${Math.ceil(remaining / months / 100) * 100} kr/mån för att hinna (${Math.round(months)} mån kvar).`
+    else if (months >= 0) pace = `${remaining.toLocaleString('sv-SE')} kr kvar och mindre än en månad till avresa.`
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+        <span style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600' }}>SPARAT</span>
+        {editing ? (
+          <span style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <input className="input" type="number" value={draft} autoFocus onChange={e => setDraft(e.target.value)}
+              style={{ width: '90px', fontSize: '12px', padding: '3px 6px' }} />
+            <button onClick={() => { onSave(draft); setEditing(false) }} className="btn btn-primary" style={{ fontSize: '11px', padding: '3px 8px' }}>OK</button>
+          </span>
+        ) : (
+          <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text)', fontWeight: '600', padding: 0 }}>
+            {saved.toLocaleString('sv-SE')} / {budget.toLocaleString('sv-SE')} kr
+            <span style={{ color: 'var(--accent)', marginLeft: '6px' }}>{Math.round(pct * 100)}%</span>
+          </button>
+        )}
+      </div>
+      <div style={{ height: '5px', borderRadius: '3px', background: 'var(--surface2)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${Math.round(pct * 100)}%`, background: 'var(--accent)', borderRadius: '3px', transition: 'width 0.5s ease' }} />
+      </div>
+      {pace && <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '5px' }}>{pace}</div>}
+    </div>
+  )
+}
+
 export default function UpplevelserPage() {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -625,6 +669,14 @@ export default function UpplevelserPage() {
     setShowNewTrip(false)
     setEditingTrip(null)
     setSaving(false)
+  }
+
+  // Inline "avsatt hittills" edit — doesn't go through the full trip form.
+  async function updateTripSaved(id, saved) {
+    const val = saved === '' || saved == null ? null : Math.round(Number(saved))
+    setTrips(prev => prev.map(t => t.id === id ? { ...t, saved_sek: val } : t))
+    const { error } = await supabase.from('trips').update({ saved_sek: val }).eq('id', id).eq('user_id', user.id)
+    if (error) { toast({ message: 'Kunde inte spara sparbeloppet', type: 'error' }); await fetchAll() }
   }
 
   async function saveAdventure() {
@@ -899,6 +951,9 @@ Returnera ENBART JSON utan backticks:
                         <div style={{ fontSize: '12px', color: 'var(--muted)' }}>
                           💰 Budget: <span style={{ color: 'var(--text)', fontWeight: '600' }}>{trip.budget_sek.toLocaleString('sv-SE')} kr</span>
                         </div>
+                      )}
+                      {(trip.status === 'planned' || trip.status === 'idea') && trip.budget_sek > 0 && (
+                        <TripSavings trip={trip} onSave={(v) => updateTripSaved(trip.id, v)} />
                       )}
                     </div>
                   )}
