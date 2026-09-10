@@ -26,18 +26,15 @@ ska vara proaktiv (pusha en plan) eller bara svara när du frågar? Var bor plan
 
 ## Dashboard / navigation / vyer
 
-### ✅ DELVIS BYGGT — UI för strukturerade mål (alt. c + d)
-Du valde (c) + (d). **Byggt** (WORKLOG #12): `<GoalsSection>` på /traning,
-/ekonomi (Sparande-fliken) och /profil, med live datakoppling via
-`src/lib/goalMetrics.js`. Auto-progress fungerar för ~15 metrics.
+### ✅ MESTA BYGGT — UI för strukturerade mål (alt. c + d + a)
+**Byggt:** `<GoalsSection>` på /traning, /ekonomi, /profil (#12) + live-metrics
+(#13, 21 st) + **egen sida `/mal`** med domänfilter & sammanfattning (#18) +
+**pin-knapp** (#18, sorterar pinnade först).
 **Fortfarande öppet (dina beslut):**
-- **(a) egen "Mål"-sida** och/eller **(b) dashboard-kort** för pinnade mål — inte
-  byggt. (a) kräver ett nav-tillägg i Mer-menyn; (b) trängs med konstellationen.
-- Ska "livsmålen" (1/3/10 år, fritext i `user_settings.goals`) migreras in som
-  strukturerade mål-rader, eller lämnas kvar som separat fritext i Profil? Idag
-  ligger de kvar orörda och visas inte i GoalsSection.
-- "Pin"-funktionen finns i schemat men har ingen UI-knapp än (väntar på beslut om
-  (b) dashboard-kortet, som är det enda stället pin betyder något).
+- **(b) dashboard-kort** för pinnade mål — inte byggt (trängs med
+  konstellationen). `TodayWidget` blickar nu framåt (#17) men visar inte mål.
+  Alternativ: egen liten "Mål"-orb i Karta-vyn, eller en rad i Träd-vyn.
+- Livsmålen (1/3/10 år) — se egen IDEAS-post nedan ("Fritext-livsmålen").
 
 ### ⭐ Auto-progress: override + nattjobb
 `goalMetrics.js` täcker nu 21 metrics (vikt, fett, sömn, steg, bänk/knäböj/

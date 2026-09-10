@@ -19,7 +19,12 @@ Fortsatt arbete på ny branch `data-sync-jarvis-tools` (av `main`). Poster #14+.
 |---|-----|--------|---------------|
 | 14 | jarvis-chat: `execute_action` täcker nästan hela appen (20 nya skriv-actions) | `83867a7` | **`functions deploy jarvis-chat`** |
 | 15 | Datasynk: `log_training` skriver nu `training_exercises` + PR + steg + score; `add_journal_entry` speglar score. Audit-fynd nedan. | `536f0fd` | ingår i samma jarvis-chat-deploy |
-| 16 | Kalender: "Kommande"-strip (14 dgr), filter sparas mellan besök, trip-status-bugg (`idé`→`idea`) | `e4ebe73` | inget (frontend) — pusha branchen |
+| 16 | Kalender: "Kommande"-strip (14 dgr), filter sparas mellan besök, trip-status-bugg (`idé`→`idea`) | `e4ebe73` | inget (frontend) |
+| 17 | Dashboard `TodayWidget` blickar framåt (nästa 14 dgr + tenta-nedräkning) istället för bara idag | `bf5671a` | inget (frontend) |
+| 18 | Ny sida `/mal` — alla mål på ett ställe (domänfilter + sammanfattning); pin-knapp i GoalsSection; nav överallt | `3d3a917` | jarvis-chat-raden → samma deploy som #14 |
+
+Post 14–16 mergades till main + pushades 2026-09-10 (`a7ab2a6..d1e602f`).
+Post 17–18 på branch `ux-cohesion` (av `main`@`d1e602f`).
 
 ---
 
@@ -68,6 +73,38 @@ skapa mål tills efter `db push`.
 ---
 
 ## Poster
+
+### 18. Ny sida /mal + pin
+**Spår:** A (din begäran: mer sammanflätat/användbart — IDEAS-item "egen Mål-sida")
+**Vad:** `/mal` samlar alla mål oavsett domän: domänfilter-chips (Alla/Träning/…),
+en sammanfattningsremsa (på-god-väg-antal, närmaste deadline, mål per domän) och
+den befintliga `<GoalsSection>` återanvänd med vald domän (`key={filter}` → ren
+remount). `GoalsSection` fick en **pin-knapp** per mål (aktiverar `goals.pinned`
+som saknade UI); pinnade mål sorteras först överallt sektionen renderas. `/mal`
+inlagt i BottomNav (Mer), Sidebar, CommandPalette + Jarvis LÄNKAR.
+**Filer:** `src/pages/Mal.jsx` (ny), `src/components/GoalsSection.jsx`,
+`src/App.jsx`, `src/components/{BottomNav,Sidebar,CommandPalette}.jsx`,
+`supabase/functions/jarvis-chat/index.ts` (LÄNKAR-raden)
+**Verifiering:** preview /mal — sammanfattning + filter + pin-toggle funkar
+(pin sparas till DB och sorteras om); "Inga aktiva mål för hälsa" vid tomt filter.
+`npm run build` OK (Mal-chunk 1.7 kB gz).
+**Commit:** `3d3a917`
+**Kräver av dig:** frontend inget. LÄNKAR-raden → `supabase functions deploy jarvis-chat` (samma som #14).
+
+### 17. Dashboard TodayWidget blickar framåt
+**Spår:** A (din begäran: mer användbart)
+**Vad:** `TodayWidget` visade bara dagens händelser → tom dag = ingen signal om
+tentan om 3 dagar. Nu hämtar den även nästa 14 dagar och visar en
+"Härnäst"/"Kommande"-sektion vars längd beror på hur full dagen är (4 rader när
+idag är tom, 2 när lätt, 0 när full). En tenta inom 14 dagar får alltid en röd
+nedräknings-callout överst. Obligatoriska-titlar körs genom samma städare som
+Kalendern. Tomt läge = "Allt lugnt · inget de närmaste två veckorna" bara när
+det faktiskt är tomt framåt.
+**Filer:** `src/components/dashboard/TodayWidget.jsx`
+**Verifiering:** preview (Karta-vy, Idag-orb) — "Idag 1 händelse" + "HÄRNÄST:
+PA-pass vaken (Imorgon), obligatoriskt (Om 4d)". `npm run build` OK.
+**Commit:** `bf5671a`
+**Kräver av dig:** inget (frontend).
 
 ### 16. Kalender — kommande-strip + kvalitetsfixar
 **Spår:** A (din begäran: "jobba vidare på kalendern och dess funktioner")
