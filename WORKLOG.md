@@ -18,8 +18,8 @@ Fortsatt arbete på ny branch `data-sync-jarvis-tools` (av `main`). Poster #14+.
 | # | Vad | Commit | Kräver av dig |
 |---|-----|--------|---------------|
 | 14 | jarvis-chat: `execute_action` täcker nästan hela appen (20 nya skriv-actions) | `83867a7` | **`functions deploy jarvis-chat`** |
-| 15 | Datasynk: `log_training` skriver nu `training_exercises` + PR + steg + score; `add_journal_entry` speglar score. Audit-fynd nedan. | `4ecc129` | ingår i samma jarvis-chat-deploy |
-| 16 | Kalender: "Kommande"-strip (14 dgr), filter sparas mellan besök, trip-status-bugg (`idé`→`idea`) | `164a3be` | inget (frontend) — pusha branchen |
+| 15 | Datasynk: `log_training` skriver nu `training_exercises` + PR + steg + score; `add_journal_entry` speglar score. Audit-fynd nedan. | `536f0fd` | ingår i samma jarvis-chat-deploy |
+| 16 | Kalender: "Kommande"-strip (14 dgr), filter sparas mellan besök, trip-status-bugg (`idé`→`idea`) | `e4ebe73` | inget (frontend) — pusha branchen |
 
 ---
 
@@ -87,7 +87,7 @@ skapa mål tills efter `db push`.
 **Verifiering:** preview /kalender — strippen visar PA-pass + obligatoriska korrekt
 med rätt relativ tid; tap på "Eget arbete" valde mån 14/9 och panelen visade
 dagens tre moment. `npm run build` OK.
-**Commit:** `164a3be`
+**Commit:** `e4ebe73`
 **Kräver av dig:** inget (frontend). Pusha `data-sync-jarvis-tools` / merga till main.
 
 ### 15. Datasynk-audit + parity för Jarvis-skrivningar
@@ -131,7 +131,7 @@ Strava/health-ingest, Jarvis) och varje härledd/speglad yta.
 **Filer:** `supabase/functions/jarvis-chat/index.ts`
 **Verifiering:** esbuild .ts-transform OK. Kan ej köra edge-fn lokalt (ingen
 deno); varje ny gren följer exakt mönstret från de befintliga ~30 case:en.
-**Commit:** `4ecc129`
+**Commit:** `536f0fd`
 **Kräver av dig:** **[DEPLOY]** `supabase functions deploy jarvis-chat` (samma
 som post 14).
 
