@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import {
   format, parseISO, startOfMonth, endOfMonth, startOfWeek,
   endOfWeek, eachDayOfInterval, addMonths, subMonths, isSameMonth,
-  differenceInDays, isToday, addDays, max as maxDate
+  differenceInDays, isToday
 } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight, Loader, RefreshCw, Dumbbell, Timer, Briefcase, FileText, GraduationCap, BookOpen, Heart, Clock, Plane, CheckCircle2, Circle } from 'lucide-react'
@@ -41,16 +41,6 @@ const FLAGS = {
   'Indonesien':'🇮🇩','Indien':'🇮🇳','Singapore':'🇸🇬','Malaysia':'🇲🇾','Filippinerna':'🇵🇭',
   'Australien':'🇦🇺','Nya Zeeland':'🇳🇿',
   'Sydafrika':'🇿🇦','Kenya':'🇰🇪','Etiopien':'🇪🇹','Tanzania':'🇹🇿',
-}
-
-// Human "hur långt bort" for a date string (YYYY-MM-DD), from today.
-function relativeDay(dateStr) {
-  const d = differenceInDays(parseISO(dateStr), new Date().setHours(0, 0, 0, 0))
-  if (d < 0) return { text: `${-d}d sedan`, tone: 'past' }
-  if (d === 0) return { text: 'idag', tone: 'today' }
-  if (d === 1) return { text: 'imorgon', tone: 'soon' }
-  if (d <= 7) return { text: `om ${d}d`, tone: 'soon' }
-  return { text: `om ${d}d`, tone: 'far' }
 }
 
 const FILTER_LS_KEY = 'maxxit.kalender.filters'
@@ -130,13 +120,7 @@ export default function KalenderPage() {
   async function fetchAll() {
     setLoading(true)
     const start = format(startOfMonth(month), 'yyyy-MM-dd')
-    // When looking at the current month, pull an extra ~3 weeks past month-end so
-    // the "Kommande" strip can show items that spill into next month.
-    const viewingNow = isSameMonth(month, new Date())
-    const end = format(
-      viewingNow ? maxDate([endOfMonth(month), addDays(new Date(), 21)]) : endOfMonth(month),
-      'yyyy-MM-dd',
-    )
+    const end = format(endOfMonth(month), 'yyyy-MM-dd')
 
     const [trainRes, paRes, examRes, mandRes, taskDeadlineRes, journalRes, healthRes, erikRes, tripRes] = await Promise.all([
       supabase.from('training_sessions').select('date, session_type, distance_km, duration_minutes, notes').eq('user_id', user.id).gte('date', start).lte('date', end),
@@ -280,34 +264,7 @@ export default function KalenderPage() {
   const selectedEvents = selectedDay ? (events[selectedDay] || []).filter(e => filterTypes.has(e.type)) : []
   const filteredEvents = (date) => (events[date] || []).filter(e => filterTypes.has(e.type))
 
-  // "Kommande" — the next 14 days across every type, honouring the filter chips.
-  // Only meaningful on the current month (that's the window fetchAll extends).
-  const showUpcoming = isSameMonth(month, new Date())
-  const todayStr = format(new Date(), 'yyyy-MM-dd')
-  const horizonStr = format(addDays(new Date(), 14), 'yyyy-MM-dd')
-  const upcoming = showUpcoming
-    ? Object.entries(events)
-        .filter(([date]) => date >= todayStr && date <= horizonStr)
-        .flatMap(([date, evs]) => evs.filter(e => filterTypes.has(e.type)).map(e => ({ ...e, date })))
-        // passive daily logs (journal/health) aren't "coming up" — drop them here
-        .filter(e => !['journal', 'health'].includes(e.type))
-        .sort((a, b) => a.date.localeCompare(b.date))
-        // collapse repeats: a trip shows once (its earliest day in range); any
-        // other event collapses only when the same label repeats on the same day
-        .filter((e, i, arr) => {
-          if (e.type === 'trip') return arr.findIndex(x => x.type === 'trip' && x.label === e.label) === i
-          return arr.findIndex(x => x.date === e.date && x.type === e.type && x.label === e.label) === i
-        })
-        .slice(0, 10)
-    : []
-
-  // Month stats
   const allEvents = Object.values(events).flat()
-  const trainCount = allEvents.filter(e => e.type === 'training' || e.type === 'run').length
-  const paCount = allEvents.filter(e => e.type === 'pa').length
-  const mandCount = allEvents.filter(e => e.type === 'mandatory').length
-  const examCount = allEvents.filter(e => e.type === 'exam').length
-  const studyDeadlineCount = allEvents.filter(e => e.type === 'study_deadline').length
 
   return (
     <div className="page-wrap">
@@ -321,102 +278,41 @@ export default function KalenderPage() {
         </div>
       </div>
       <div className="page-content-scroll">
-        <div style={{ padding: "16px 16px 0", maxWidth: "1200px", margin: "0 auto" }}>
+        <div style={{ padding: "16px 16px 0", maxWidth: "1180px", margin: "0 auto" }}>
 
-      {/* Month title */}
-      <div style={{ fontSize: '18px', fontWeight: '600', marginBottom: '12px', textTransform: 'capitalize' }}>
-        {format(month, 'MMMM yyyy', { locale: sv })}
-      </div>
-
-      {/* Month stats */}
-      <div className="mx-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
-        {[
-          { label: 'Träningspass', value: trainCount, color: '#3b82f6' },
-          { label: 'PA-pass', value: paCount, color: '#f97316' },
-          { label: 'Obligatoriska', value: mandCount, color: '#8b5cf6' },
-          { label: 'Tentor', value: examCount, color: '#ef4444' },
-          { label: 'Deadlines', value: studyDeadlineCount, color: '#a78bfa' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="pg-stat" style={{ '--pg-c': color }}>
-            <div className="pg-stat-cap">{label}</div>
-            <div className="pg-stat-num mono">
-              {loading && allEvents.length === 0
-                ? <span className="mx-skel mx-skel-bar" style={{ display: 'inline-block', width: 22, height: 20, borderRadius: 5, verticalAlign: 'middle' }} />
-                : value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filter chips */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
+      {/* Slim month summary — a legend that doubles as the counts */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
         {Object.entries(EVENT_TYPES).map(([key, { label, color, Icon: IconComp }]) => {
           const active = filterTypes.has(key)
+          const count = allEvents.filter(e => e.type === key || (key === 'training' && e.type === 'run')).length
+          if (key === 'run') return null // folded into "Träning"
           return (
             <button key={key} onClick={() => {
               const next = new Set(filterTypes)
-              if (active) next.delete(key); else next.add(key)
+              if (active) { next.delete(key); if (key === 'training') next.delete('run') }
+              else { next.add(key); if (key === 'training') next.add('run') }
               setFilterTypes(next)
             }} style={{
-              padding: '4px 10px', borderRadius: '20px', border: `1px solid ${active ? color : 'var(--border)'}`,
-              background: active ? color + '18' : 'transparent', color: active ? color : 'var(--muted)',
-              fontSize: '11px', fontWeight: '500', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-              transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '5px 10px', borderRadius: '9px', border: `1px solid ${active ? color + '55' : 'var(--border)'}`,
+              background: active ? color + '14' : 'transparent', color: active ? 'var(--text)' : 'var(--muted)',
+              fontSize: '11.5px', fontWeight: '500', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+              transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '6px', opacity: active ? 1 : 0.7,
             }}>
-              <IconComp size={11} /> {label}
+              <IconComp size={12} style={{ color }} /> {key === 'training' ? 'Träning' : label}
+              {count > 0 && <span style={{ fontWeight: 700, color: active ? color : 'var(--muted2)' }}>{count}</span>}
             </button>
           )
         })}
       </div>
 
-      {/* Kommande — nästa 14 dagar */}
-      {upcoming.length > 0 && (
-        <div className="card" style={{ marginBottom: '16px', padding: '12px 14px' }}>
-          <div style={{ fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: '10px' }}>
-            Kommande
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            {upcoming.map((ev, i) => {
-              const t = EVENT_TYPES[ev.type] || EVENT_TYPES.training
-              const IconComp = t.Icon
-              const rel = relativeDay(ev.date)
-              const relColor = rel.tone === 'today' ? 'var(--accent)' : rel.tone === 'soon' ? '#f59e0b' : 'var(--muted)'
-              return (
-                <button
-                  key={`${ev.date}-${ev.type}-${i}`}
-                  onClick={() => setSelectedDay(ev.date)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '9px', width: '100%',
-                    padding: '7px 6px', background: selectedDay === ev.date ? 'var(--accent-soft)' : 'transparent',
-                    border: 'none', borderRadius: '7px', cursor: 'pointer', textAlign: 'left',
-                    fontFamily: 'Inter, sans-serif', color: 'var(--text)',
-                  }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: t.color, flexShrink: 0 }} />
-                  <IconComp size={12} style={{ color: t.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: '12.5px', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ev.label || t.label}
-                  </span>
-                  <span style={{ fontSize: '11px', color: 'var(--muted2)', flexShrink: 0, textTransform: 'capitalize' }}>
-                    {format(parseISO(ev.date), 'EEE d/M', { locale: sv })}
-                  </span>
-                  <span style={{ fontSize: '11px', fontWeight: 600, color: relColor, flexShrink: 0, minWidth: '52px', textAlign: 'right' }}>
-                    {rel.text}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: (selectedDay && !isMobile) ? '1fr 300px' : '1fr', gap: '16px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: (selectedDay && !isMobile) ? '1fr 320px' : '1fr', gap: '16px', alignItems: 'start' }}>
 
         {/* Calendar grid */}
-        <div className="card kal-cal-card" style={{ padding: isMobile ? '12px 8px' : '16px' }}>
+        <div className="card kal-cal-card" style={{ padding: isMobile ? '12px 10px' : '18px' }}>
           {/* Day headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: isMobile ? '2px' : '4px', marginBottom: '8px' }}>
-            {dayHeaders.map(d => (
-              <div key={d} style={{ fontSize: isMobile ? '10px' : '11px', color: 'var(--muted)', textAlign: 'center', fontWeight: '600', padding: '4px 0' }}>{isMobile ? d[0] : d}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: isMobile ? '2px' : '3px', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>
+            {dayHeaders.map((d, i) => (
+              <div key={d} style={{ fontSize: isMobile ? '10px' : '10.5px', color: i >= 5 ? 'var(--muted2)' : 'var(--muted)', textAlign: 'center', fontWeight: '700', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{isMobile ? d[0] : d}</div>
             ))}
           </div>
 
@@ -429,12 +325,8 @@ export default function KalenderPage() {
               const today = isToday(day)
               const isSelected = selectedDay === dateStr
               const isWeekend = day.getDay() === 0 || day.getDay() === 6
-              const hasExam = dayEvents.some(e => e.type === 'exam')
-              const hasPA = dayEvents.some(e => e.type === 'pa')
-              const hasStudyDeadline = dayEvents.some(e => e.type === 'study_deadline')
               const tripEvents = dayEvents.filter(e => e.type === 'trip')
               const nonTripEvents = dayEvents.filter(e => e.type !== 'trip')
-              const hasTrip = tripEvents.length > 0
               // Mobile: one dot per distinct event type present that day.
               const dotTypes = [...new Set(dayEvents.map(e => e.type))]
 
@@ -442,16 +334,22 @@ export default function KalenderPage() {
                 <div key={dateStr} onClick={() => setSelectedDay(isSelected ? null : dateStr)}
                   className={`kal-cell${today ? ' kal-cell-today' : ''}${isSelected ? ' kal-cell-selected' : ''}`}
                   style={{
-                  minHeight: isMobile ? '44px' : '84px', padding: isMobile ? '4px 2px' : '4px', borderRadius: '6px', cursor: 'pointer',
-                  background: isSelected ? 'var(--accent-soft)' : today ? 'rgba(79,142,247,0.06)' : hasExam ? 'rgba(239,68,68,0.04)' : hasPA ? 'rgba(249,115,22,0.04)' : hasTrip ? 'rgba(232,121,249,0.06)' : hasStudyDeadline ? 'rgba(167,139,250,0.06)' : isWeekend ? 'rgba(255,255,255,0.01)' : 'transparent',
-                  border: `1px solid ${isSelected ? 'var(--accent-border)' : today ? 'var(--accent-border)' : hasTrip ? 'rgba(232,121,249,0.25)' : hasStudyDeadline ? 'rgba(167,139,250,0.25)' : dayEvents.length > 0 ? 'var(--border)' : 'transparent'}`,
-                  opacity: inMonth ? 1 : 0.3,
-                  transition: 'all 0.12s',
+                  minHeight: isMobile ? '46px' : '92px', padding: isMobile ? '5px 2px' : '5px', borderRadius: '9px', cursor: 'pointer',
+                  background: isSelected ? 'var(--accent-soft)' : isWeekend ? 'color-mix(in srgb, var(--surface2) 45%, transparent)' : 'transparent',
+                  border: `1px solid ${isSelected ? 'var(--accent-border)' : 'var(--border)'}`,
+                  opacity: inMonth ? 1 : 0.32,
+                  transition: 'background 0.12s, border-color 0.12s',
                   overflow: 'hidden',
                   display: isMobile ? 'flex' : 'block', flexDirection: 'column', alignItems: isMobile ? 'center' : 'stretch',
                 }}>
-                  <div style={{ fontSize: isMobile ? '13px' : '11px', fontWeight: today ? '700' : '400', color: today ? 'var(--accent)' : isWeekend ? 'var(--muted2)' : 'var(--muted)', marginBottom: '3px', textAlign: isMobile ? 'center' : 'left' }}>
-                    {format(day, 'd')}
+                  <div style={{ marginBottom: '3px', textAlign: isMobile ? 'center' : 'left' }}>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      minWidth: isMobile ? '22px' : '20px', height: isMobile ? '22px' : '20px', borderRadius: '999px',
+                      fontSize: isMobile ? '12.5px' : '11px', fontWeight: today ? '800' : '500',
+                      background: today ? 'var(--accent)' : 'transparent',
+                      color: today ? '#fff' : isWeekend ? 'var(--muted2)' : 'var(--muted)',
+                    }}>{format(day, 'd')}</span>
                   </div>
                   {isMobile ? (
                     dotTypes.length > 0 && (
@@ -466,13 +364,12 @@ export default function KalenderPage() {
                   {/* Trip bar */}
                   {tripEvents.length > 0 && (
                     <div style={{
-                      fontSize: '9px', fontWeight: 600, color: '#e879f9',
-                      background: 'rgba(232,121,249,0.15)', borderRadius: '3px',
-                      padding: '1px 4px', marginBottom: '2px',
+                      fontSize: '9.5px', fontWeight: 600, color: '#e879f9',
+                      background: 'color-mix(in srgb, #e879f9 14%, transparent)', borderRadius: '5px',
+                      padding: '2px 5px', marginBottom: '2px',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      borderLeft: '2px solid #e879f9',
                     }}>
-                      {tripEvents[0].isFirst ? tripEvents[0].label : '✈'}
+                      {tripEvents[0].isFirst ? tripEvents[0].label : '✈ ' + (tripEvents[0].sub || 'Resa')}
                     </div>
                   )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
