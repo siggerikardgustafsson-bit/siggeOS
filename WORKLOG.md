@@ -11,8 +11,8 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 
 ## Sammanfattning
 
-12 poster, alla spår A. #1–10 = natt-sessionen. #11–12 = uppföljning på din
-begäran (goals-UI + rate limiting). Detaljer per post nedan.
+13 poster, alla spår A. #1–10 = natt-sessionen. #11–13 = uppföljning på din
+begäran (goals-UI + rate limiting + fler mål-metrics). Detaljer per post nedan.
 
 | # | Vad | Commit | Kräver av dig |
 |---|-----|--------|---------------|
@@ -28,6 +28,7 @@ begäran (goals-UI + rate limiting). Detaljer per post nedan.
 | 10 | Bugg: lag-korrelationer räknade fel dag (tidszon) → UTC-ankrat | `1318683` | inget |
 | 11 | health-ingest: 30s per-token rate limit (429) | `90248b7` | **`db push` + `functions deploy health-ingest --no-verify-jwt`** |
 | 12 | Mål-UI per domänsida (/traning, /ekonomi, /profil) + `goalMetrics.js` (live datakoppling) | `8eee030` | frontend inget; full funktion efter **`db push`** (post_deploy_05) |
+| 13 | Fler mål-metrics (1k/halvmara-tid, studietimmar 28d, sparkvot, CSN-fribelopp) + H:MM:SS-formatering | `7555733` | inget (frontend); full funktion efter samma `db push` |
 
 **Deploy-lista (kör i denna ordning när du granskat diffen):**
 ```
@@ -64,6 +65,31 @@ skapa mål tills efter `db push`.
 **Commit:** `<hash>` "<meddelande>"
 **Kräver av dig:** inget / `supabase functions deploy x` / `supabase db push`
 -->
+
+### 13. Fler mål-metrics + tid-formatering
+**Spår:** A (bygger vidare på post 12, ren additiv logik)
+**Varför:** `goalMetrics.js` täckte 15 metrics men saknade självklara: 1 km- och
+halvmaraton-tid, studietimmar över 28d (parallellt med pass 28d, för tenta-mål),
+sparkvot (som du frågar Jarvis om) och CSN-fribeloppet (blockerande för en
+läkarstudent som jobbar PA). Tid ≥ 1h visades dessutom som "100:00" istället för
+"1:40:00".
+**Vad:** 6 nya metric-nycklar i `GOAL_METRICS`: `run_1k`, `run_half`
+(← run_personal_records, distance_key 1k/half_marathon), `study_hours_28d`
+(← study_sessions), `savings_rate` (netto/inkomst denna månad, %), `csn_fribelopp`
+(income_logs där counts_toward_csn, summerat på innevarande termin — samma
+halvårsfönster som Ekonomi-sidan använder). `monthAggregate` fick ett `rate`-läge.
+`formatMetricValue` för `unit:'s'` ger nu `H:MM:SS` när tiden är ≥ 1 timme.
+Inga nya tabeller, ingen migration, ingen ny CSS. GoalsSection plockar upp dem
+automatiskt via registret.
+**Filer:** `src/lib/goalMetrics.js`
+**Verifiering:** `npm run build` OK, esbuild-parse OK. Preview (/ekonomi →
+Sparande → Nytt mål): de nya ekonomi-metrics syns i dropdownen, "Sparkvot denna
+månad" auto-fyller enhet `%` och döljer riktning/nuläge korrekt. Resolvers är
+defensiva (null vid fel/saknad data). Konsol-felen i preview är
+`ERR_INTERNET_DISCONNECTED` (browser-panelen saknar nät), inte kod.
+**Commit:** `7555733`
+**Kräver av dig:** inget för frontend. Metric-kopplingen sparas först efter
+`supabase db push` (post_deploy_05), som post 12.
 
 ### 12. Mål-UI per domänsida + live datakoppling (din begäran, alt. c+d)
 **Spår:** A

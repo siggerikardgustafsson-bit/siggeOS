@@ -39,13 +39,16 @@ Du valde (c) + (d). **Byggt** (WORKLOG #12): `<GoalsSection>` på /traning,
 - "Pin"-funktionen finns i schemat men har ingen UI-knapp än (väntar på beslut om
   (b) dashboard-kortet, som är det enda stället pin betyder något).
 
-### ⭐ Auto-progress: fler metrics + nattjobb
-`goalMetrics.js` täcker vikt, fett, sömn, steg, bänk/knäböj/marklyft-PR, 5k/10k,
-pass 7d/28d, nettoförmögenhet, netto/inkomst denna månad, studietimmar 7d.
-Kvar: (1) fler metrics (halvmara-tid, specifik övning efter namn, CSN-förbrukning,
-sparkvot); (2) manuellt satt `current_value` vinner idag bara om `metric` är
-tomt — ingen "override trots metric". (3) Värdena räknas ut vid sidladdning; ett
-nattjobb som snapshotar dem vore grunden för en progress-över-tid-graf per mål.
+### ⭐ Auto-progress: override + nattjobb
+`goalMetrics.js` täcker nu 21 metrics (vikt, fett, sömn, steg, bänk/knäböj/
+marklyft-PR, 1k/5k/10k/halvmara-tid, pass 7d/28d, studietimmar 7d/28d,
+nettoförmögenhet, netto/inkomst/sparkvot denna månad, CSN-fribelopp/termin) —
+WORKLOG #13 la de fyra sista + tid-formatering.
+Kvar: (1) fler metrics om du vill (specifik övning efter namn kräver att man
+väljer övning i formuläret); (2) manuellt satt `current_value` vinner idag bara
+om `metric` är tomt — ingen "override trots metric"; (3) värdena räknas ut vid
+sidladdning; ett nattjobb som snapshotar dem vore grunden för en
+progress-över-tid-graf per mål.
 **Beslut:** vill du ha history-snapshots (kräver en `goal_progress`-tabell)?
 
 ## Domän-specifikt (träning, hälsa, ekonomi, plugg, resor, jobb)

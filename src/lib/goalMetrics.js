@@ -71,12 +71,28 @@ async function monthAggregate(userId, kind) {
   const start = monthStartISO()
   const [inc, exp, fix] = await Promise.all([
     supabase.from('income_logs').select('amount').eq('user_id', userId).gte('date', start),
-    kind === 'net' ? supabase.from('expense_logs').select('amount').eq('user_id', userId).gte('date', start) : Promise.resolve({ data: [] }),
-    kind === 'net' ? supabase.from('fixed_costs').select('amount').eq('user_id', userId).eq('active', true) : Promise.resolve({ data: [] }),
+    kind !== 'income' ? supabase.from('expense_logs').select('amount').eq('user_id', userId).gte('date', start) : Promise.resolve({ data: [] }),
+    kind !== 'income' ? supabase.from('fixed_costs').select('amount').eq('user_id', userId).eq('active', true) : Promise.resolve({ data: [] }),
   ])
   const s = (r) => (r.data || []).reduce((a, x) => a + Number(x.amount || 0), 0)
-  const value = kind === 'net' ? Math.round(s(inc) - s(exp) - s(fix)) : Math.round(s(inc))
-  return { value, asOf: 'denna månad' }
+  const income = s(inc)
+  if (kind === 'income') return { value: Math.round(income), asOf: 'denna månad' }
+  const net = income - s(exp) - s(fix)
+  if (kind === 'net') return { value: Math.round(net), asOf: 'denna månad' }
+  // savings rate: net / income, as a percentage
+  if (income <= 0) return null
+  return { value: round1((net / income) * 100), asOf: 'denna månad' }
+}
+
+// kr counted toward the CSN fribelopp so far this half-year (Jan–Jun / Jul–Dec).
+async function csnHalfYearUsed(userId) {
+  const now = new Date()
+  const halfStart = now.getMonth() < 6 ? `${now.getFullYear()}-01-01` : `${now.getFullYear()}-07-01`
+  const { data } = await supabase.from('income_logs').select('amount')
+    .eq('user_id', userId).eq('counts_toward_csn', true).gte('date', halfStart)
+  if (!data) return null
+  const used = data.reduce((a, r) => a + Number(r.amount || 0), 0)
+  return { value: Math.round(used), asOf: now.getMonth() < 6 ? 'vårterminen' : 'höstterminen' }
 }
 
 // key → { label, unit, direction, domains[], resolve(userId) }
@@ -88,14 +104,19 @@ export const GOAL_METRICS = {
   bench_pr:       { label: 'Bänkpress PR',          unit: 'kg',   direction: 'up',   domains: ['traning'],                   resolve: (u) => strengthPR(u, ['bänk', 'bench']) },
   squat_pr:       { label: 'Knäböj PR',             unit: 'kg',   direction: 'up',   domains: ['traning'],                   resolve: (u) => strengthPR(u, ['knäböj', 'knaböj', 'squat']) },
   deadlift_pr:    { label: 'Marklyft PR',           unit: 'kg',   direction: 'up',   domains: ['traning'],                   resolve: (u) => strengthPR(u, ['marklyft', 'deadlift']) },
+  run_1k:         { label: '1 km-tid',              unit: 's',    direction: 'down', domains: ['traning'],                   resolve: (u) => runPR(u, '1k') },
   run_5k:         { label: '5 km-tid',              unit: 's',    direction: 'down', domains: ['traning'],                   resolve: (u) => runPR(u, '5k') },
   run_10k:        { label: '10 km-tid',             unit: 's',    direction: 'down', domains: ['traning'],                   resolve: (u) => runPR(u, '10k') },
+  run_half:       { label: 'Halvmaraton-tid',       unit: 's',    direction: 'down', domains: ['traning'],                   resolve: (u) => runPR(u, 'half_marathon') },
   sessions_7d:    { label: 'Pass senaste 7d',       unit: 'pass', direction: 'up',   domains: ['traning'],                   resolve: (u) => sessionCount(u, 7) },
   sessions_28d:   { label: 'Pass senaste 28d',      unit: 'pass', direction: 'up',   domains: ['traning'],                   resolve: (u) => sessionCount(u, 28) },
   study_hours_7d: { label: 'Studietimmar (7d)',     unit: 'h',    direction: 'up',   domains: ['plugg'],                     resolve: (u) => studyHours(u, 7) },
+  study_hours_28d:{ label: 'Studietimmar (28d)',    unit: 'h',    direction: 'up',   domains: ['plugg'],                     resolve: (u) => studyHours(u, 28) },
   net_worth:      { label: 'Nettoförmögenhet',      unit: 'kr',   direction: 'up',   domains: ['ekonomi', 'livet'],          resolve: (u) => netWorth(u) },
   month_net:      { label: 'Netto denna månad',     unit: 'kr',   direction: 'up',   domains: ['ekonomi'],                   resolve: (u) => monthAggregate(u, 'net') },
   month_income:   { label: 'Inkomst denna månad',   unit: 'kr',   direction: 'up',   domains: ['ekonomi'],                   resolve: (u) => monthAggregate(u, 'income') },
+  savings_rate:   { label: 'Sparkvot denna månad',  unit: '%',    direction: 'up',   domains: ['ekonomi'],                   resolve: (u) => monthAggregate(u, 'rate') },
+  csn_fribelopp:  { label: 'CSN-fribelopp använt (termin)', unit: 'kr', direction: 'down', domains: ['ekonomi', 'plugg'],   resolve: (u) => csnHalfYearUsed(u) },
 }
 
 export function metricsForDomain(domain) {
@@ -126,8 +147,11 @@ export function formatMetricValue(value, unit) {
   if (value == null || !Number.isFinite(Number(value))) return '—'
   const n = Number(value)
   if (unit === 's') {
-    const m = Math.floor(n / 60)
-    const s = Math.round(n % 60)
+    const total = Math.round(n)
+    const h = Math.floor(total / 3600)
+    const m = Math.floor((total % 3600) / 60)
+    const s = total % 60
+    if (h) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
     return `${m}:${String(s).padStart(2, '0')}`
   }
   if (unit === 'kr' || unit === 'steg') return n.toLocaleString('sv-SE') + (unit === 'kr' ? ' kr' : '')
