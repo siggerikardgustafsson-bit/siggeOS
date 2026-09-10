@@ -832,6 +832,8 @@ export default function UpplevelserPage() {
 
   async function deleteTrip(id) {
     const removed = trips.find(t => t.id === id)
+    if (!removed) return
+    if (!window.confirm(`Ta bort "${removed.title}"? Det går inte att ångra efteråt.`)) return
     setTrips(prev => prev.filter(t => t.id !== id))
     let undone = false
     toast({
@@ -841,7 +843,8 @@ export default function UpplevelserPage() {
     })
     setTimeout(async () => {
       if (undone) return
-      await supabase.from('trips').delete().eq('id', id)
+      const { error } = await supabase.from('trips').delete().eq('id', id).eq('user_id', user.id)
+      if (error) { toast({ message: 'Kunde inte ta bort resan', type: 'error' }); await fetchAll() }
     }, 5000)
   }
 

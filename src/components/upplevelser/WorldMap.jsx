@@ -39,7 +39,7 @@ const SV_EN = {
   'Etiopien': 'Ethiopia', 'Tanzania': 'Tanzania',
 }
 
-const DEFAULT_VIEW = { coordinates: [16, 28], zoom: 1.5 }
+const DEFAULT_VIEW = { coordinates: [24, 22], zoom: 1.35 }
 
 export default function WorldMap({ trips = [], tripFilter = 'all', highlightTripId = null, onFixCities }) {
   const [hover, setHover] = useState(null)
@@ -93,7 +93,8 @@ export default function WorldMap({ trips = [], tripFilter = 'all', highlightTrip
   return (
     <div className="upp-map-panel">
       <div className="upp-map-stage">
-        <ComposableMap projection="geoEqualEarth" projectionConfig={{ scale: 168 }} style={{ width: '100%', height: '100%' }}>
+        <ComposableMap width={1000} height={500} projection="geoEqualEarth"
+          projectionConfig={{ scale: 182, center: [0, 0] }} style={{ width: '100%', height: '100%' }}>
           <ZoomableGroup center={view.coordinates} zoom={view.zoom} minZoom={1} maxZoom={16}
             onMoveEnd={({ coordinates, zoom }) => setView({ coordinates, zoom })}>
             <Sphere id="upp-sphere" stroke="none" fill="var(--upp-ocean)" />
