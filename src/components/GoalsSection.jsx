@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { Target, Plus, Check, Edit2, Trash2, X, Save, RotateCcw } from 'lucide-react'
+import { Target, Plus, Check, Edit2, Trash2, X, Save, RotateCcw, Pin } from 'lucide-react'
 import {
   listGoals, createGoal, updateGoal, deleteGoal,
   goalProgress, goalDaysLeft, GOAL_DOMAIN_LABEL,
@@ -110,6 +110,13 @@ export default function GoalsSection({ domain = null, title = 'Mål' }) {
     } catch { toast({ message: 'Kunde inte uppdatera', type: 'error' }) }
   }
 
+  async function togglePin(g) {
+    try {
+      await updateGoal(g.id, { pinned: !g.pinned })
+      await load()
+    } catch { toast({ message: 'Kunde inte fästa målet', type: 'error' }) }
+  }
+
   async function remove(g) {
     if (!window.confirm(`Ta bort målet "${g.title}"?`)) return
     try { await deleteGoal(g.id); await load() }
@@ -126,7 +133,9 @@ export default function GoalsSection({ domain = null, title = 'Mål' }) {
     )
   }
 
-  const active = goals.filter((g) => g.status === 'active')
+  const active = goals
+    .filter((g) => g.status === 'active')
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
   const done = goals.filter((g) => g.status === 'done')
 
   return (
@@ -157,7 +166,7 @@ export default function GoalsSection({ domain = null, title = 'Mål' }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {active.map((g) => (
-          <GoalRow key={g.id} g={g} live={progress[g.id]} onEdit={() => openEdit(g)} onDone={() => toggleDone(g)} onRemove={() => remove(g)} showDomain={!domain} />
+          <GoalRow key={g.id} g={g} live={progress[g.id]} onEdit={() => openEdit(g)} onDone={() => toggleDone(g)} onRemove={() => remove(g)} onPin={() => togglePin(g)} showDomain={!domain} />
         ))}
       </div>
 
@@ -191,7 +200,7 @@ function SectionCap({ title }) {
   )
 }
 
-function GoalRow({ g, live, onEdit, onDone, onRemove, showDomain }) {
+function GoalRow({ g, live, onEdit, onDone, onRemove, onPin, showDomain }) {
   const dom = g.category || g.domain
   const col = DOMAIN_COLOR[dom] || 'var(--accent)'
   // Metric-linked goals get their current value live; manual goals use the stored one.
@@ -239,6 +248,12 @@ function GoalRow({ g, live, onEdit, onDone, onRemove, showDomain }) {
       </div>
 
       <div style={{ display: 'flex', gap: 2, alignItems: 'center', flexShrink: 0 }}>
+        {onPin && (
+          <button onClick={onPin} title={g.pinned ? 'Lossa från översikten' : 'Fäst i översikten'}
+            style={{ ...iconBtn, color: g.pinned ? col : 'var(--muted)' }}>
+            <Pin size={13} fill={g.pinned ? col : 'none'} />
+          </button>
+        )}
         <button onClick={onDone} title="Markera som uppnått" style={iconBtn}><Check size={14} /></button>
         <button onClick={onEdit} title="Redigera" style={iconBtn}><Edit2 size={13} /></button>
         <button onClick={onRemove} title="Ta bort" style={iconBtn}><Trash2 size={13} /></button>

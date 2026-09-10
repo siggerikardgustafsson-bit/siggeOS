@@ -22,6 +22,7 @@ const SettingsPage = lazy(() => import('./pages/Settings'))
 const KalenderPage = lazy(() => import('./pages/Kalender'))
 const ExportPage = lazy(() => import('./pages/Export'))
 const ProfilePage = lazy(() => import('./pages/Profile'))
+const MalPage = lazy(() => import('./pages/Mal'))
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -65,6 +66,7 @@ function AppRoutes() {
         <Route path="/halsa"        element={<HalsaPage />} />
         <Route path="/ekonomi"      element={<EkonomiPage />} />
         <Route path="/plugg"        element={<PluggPage />} />
+        <Route path="/mal"          element={<MalPage />} />
         <Route path="/jobb"         element={<JobbPage />} />
         <Route path="/upplevelser"   element={<UpplevelserPage />} />
         <Route path="/insights"      element={<InsightsPage />} />

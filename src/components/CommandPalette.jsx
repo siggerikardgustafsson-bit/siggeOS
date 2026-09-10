@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, MessageSquare, BookOpen, Dumbbell, Heart,
   DollarSign, GraduationCap, Briefcase, Compass, CalendarDays,
-  BarChart2, Download, Settings, Search,
+  BarChart2, Download, Settings, Search, Target,
 } from 'lucide-react'
 
 const COMMANDS = [
@@ -14,6 +14,7 @@ const COMMANDS = [
   { to: '/halsa',        icon: Heart,           label: 'Hälsa',       keywords: 'health sömn vikt' },
   { to: '/ekonomi',      icon: DollarSign,      label: 'Ekonomi',     keywords: 'pengar budget economy' },
   { to: '/plugg',        icon: GraduationCap,   label: 'Studier',       keywords: 'studier skola plugg utbildning' },
+  { to: '/mal',          icon: Target,          label: 'Mål',         keywords: 'mål goals delmål progress' },
   { to: '/jobb',         icon: Briefcase,       label: 'Jobb',        keywords: 'arbete work' },
   { to: '/upplevelser',  icon: Compass,         label: 'Upplevelser', keywords: 'resor adventure' },
   { to: '/kalender',     icon: CalendarDays,    label: 'Kalender',    keywords: 'calendar agenda' },
