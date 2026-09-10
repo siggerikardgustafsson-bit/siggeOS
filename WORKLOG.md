@@ -99,6 +99,23 @@ skapa mål tills efter `db push`.
 
 ## Poster
 
+### 23. Apple Health — setup-skärm (F3 frontend)
+**Spår:** A (ditt val efter polish-batchen)
+**Vad:** Ny sektion "Apple Health" i Inställningar. Opt-in: ingen token skapas
+förrän du klickar "Aktivera". Visar endpoint + bearer-token (maskerad, Visa/Dölj,
+kopieringsknappar), steg-för-steg för iOS-genvägen, exempel-JSON, samt
+"senaste mottagna data: X sedan" från `last_ingest_at`. Knappar för **Rotera
+token** (gamla dör direkt) och **Stäng av** (nollar token).
+**Filer:** `src/pages/Settings.jsx` (lokala `AppleHealthPanel` + `CopyField` +
+`relIngest`; ny post i `sections`), `src/lib/healthIngest.js` (`getIngestStatus`
+som även läser `last_ingest_at`)
+**Verifiering:** preview /installningar → Apple Health — panelen renderar,
+Visa/Dölj växlar token (giltig UUID), setup-stegen och exempel-JSON syns.
+`npm run build` OK (20s).
+**Commit:** `7decd52` (mergad → main, pushad)
+**Kräver av dig:** inget nytt — `health-ingest` edge-fn + migration 06/07 är redan
+deployade sen tidigare. Om du inte redan har en token: klicka "Aktivera" i UI:t.
+
 ### 22. Resmål ↔ sparande
 **Spår:** A (ditt förslag 2)
 **Vad:** `trips.saved_sek` (migration post_deploy_09) — manuell "avsatt hittills".

@@ -66,18 +66,13 @@ på planerade/idé-resor + takt-hint + Jarvis-medvetenhet. Källa = alt. (b).
 klartext-token (hasha), generisk 500 istället för rått PG-fel, semantisk
 datumvalidering, och revoke-UI (nedan).
 
-### 🔥 Setup-skärm för Apple Health-Shortcut (F3 backend är byggt)
-`health-ingest`-endpointen + token-hantering finns (`src/lib/healthIngest.js`).
-Kvar: en skärm (troligen i Inställningar → "Anslut Apple Health") som:
-- genererar token vid första besöket (`getOrCreateIngestToken`)
-- visar endpoint + token att klistra in, med copy-knapp
-- steg-för-steg för Shortcut:en ("Get Contents of URL", POST, headers, body med
-  `Health`-actions för vikt/sömn/steg/vilopuls)
-- "Rotera token" (revoke) och "Stäng av"
-- ev. "senast mottaget"-tid (kräver en `last_ingest_at`-kolumn — inte byggd)
-**Omfattning:** liten–medel. Mest copy/instruktioner. **Beslut:** var bor den
-(egen sida vs Inställningar-sektion), och vill du att jag skriver en färdig
-`.shortcut`-fil att importera eller räcker textinstruktioner?
+### ✅ BYGGT — Setup-skärm för Apple Health-Shortcut (F3 frontend)
+Byggt (#23): sektion "Apple Health" i Inställningar — opt-in token, endpoint +
+token med copy/Visa-Dölj, steg-för-steg för genvägen, exempel-JSON, "senaste
+mottagna data" (`last_ingest_at`, kolumnen finns via migration 07), Rotera +
+Stäng av. Textinstruktioner, ingen `.shortcut`-fil.
+**Kvar (om du vill):** en färdig importerbar `.shortcut`-fil (kräver att jag
+bygger den i Genvägar-format och hostar den) istället för textstegen.
 
 ### ⭐ HRV / aktiv energi i health_logs
 `health_logs` saknar kolumner för HRV och aktiv energi (kcal) — två av de mest
