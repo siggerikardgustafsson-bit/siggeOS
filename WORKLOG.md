@@ -11,7 +11,8 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 
 ## Sammanfattning
 
-10 poster, alla spår A. Detaljer per post nedan.
+12 poster, alla spår A. #1–10 = natt-sessionen. #11–12 = uppföljning på din
+begäran (goals-UI + rate limiting). Detaljer per post nedan.
 
 | # | Vad | Commit | Kräver av dig |
 |---|-----|--------|---------------|
@@ -25,12 +26,14 @@ Allt som kräver deploy för att märkas är markerat **[DEPLOY]** nedan — kö
 | 8 | Bugg: `daily_scores.total_score` alltid 0 → härleds nu i läsläge | `0da8939` | inget |
 | 9 | Veckorapporten ("Analysera vecka") grundas i fynd + signaler | `e70d8e2` | inget |
 | 10 | Bugg: lag-korrelationer räknade fel dag (tidszon) → UTC-ankrat | `1318683` | inget |
+| 11 | health-ingest: 30s per-token rate limit (429) | `90248b7` | **`db push` + `functions deploy health-ingest --no-verify-jwt`** |
+| 12 | Mål-UI per domänsida (/traning, /ekonomi, /profil) + `goalMetrics.js` (live datakoppling) | `8eee030` | frontend inget; full funktion efter **`db push`** (post_deploy_05) |
 
 **Deploy-lista (kör i denna ordning när du granskat diffen):**
 ```
 cd ~/dev/sigge-os
 git checkout audit-fixes            # om du inte redan är här
-supabase db push                    # migrationer: post_deploy_05 (goals), post_deploy_06 (health_ingest_token)
+supabase db push                    # post_deploy_05 (goals), 06 (health_ingest_token), 07 (last_ingest_at)
 supabase functions deploy jarvis-chat
 supabase functions deploy health-ingest --no-verify-jwt
 ```
@@ -38,6 +41,14 @@ Inget rör `main`. Inget är pushat. Vercel bygger inte förrän du mergar/pusha
 
 Migrationer är additiva + idempotenta. `goals`-tabellen fanns redan (12 kolumner,
 0 rader, oanvänd) — migration 05 UTÖKAR den, skapar den inte.
+
+**Före migration 05:** Mål-UI:t fungerar men i enklare läge — ingen metric-
+koppling och ingen pin sparas (kolumnerna finns inte än). Varje sida gör EN
+misslyckad query (400 i nätverksfliken) första gången per session, faller sedan
+tillbaka och kommer ihåg det. Efter `db push` försvinner 400:orna och
+metric-kopplingen börjar spara. Du kan skapa mål redan nu, de uppgraderas inte
+retroaktivt med metric — sätt om metric på dem efter deploy, eller vänta med att
+skapa mål tills efter `db push`.
 
 ---
 
@@ -53,6 +64,51 @@ Migrationer är additiva + idempotenta. `goals`-tabellen fanns redan (12 kolumne
 **Commit:** `<hash>` "<meddelande>"
 **Kräver av dig:** inget / `supabase functions deploy x` / `supabase db push`
 -->
+
+### 12. Mål-UI per domänsida + live datakoppling (din begäran, alt. c+d)
+**Spår:** A
+**Varför:** Du valde (c) mål-sektion per domänsida + (d) i Profil, och krävde att
+de kopplas till rätt datapunkter så progressen syns.
+**Vad:** Ny `<GoalsSection>`-komponent (skapa/redigera/ta bort/klarmarkera, med
+progress-rad) på tre ytor: `/traning` (Träningsmål), `/ekonomi` Sparande-fliken
+(Ekonomimål), `/profil` under Fokusområden (alla domäner). Ny `src/lib/goalMetrics.js`
+mappar ett måls `metric` till dess LIVE-värde ur rätt tabell:
+bänk/knäböj/marklyft-PR ← personal_records · 5k/10k-tid ← run_personal_records ·
+pass 7d/28d ← training_sessions · vikt/fett/sömn/steg ← health_logs ·
+nettoförmögenhet ← net_worth_history/assets · netto & inkomst denna månad ←
+income/expense/fixed_costs · studietimmar 7d ← study_sessions. Mål utan metric
+använder ett manuellt inmatat nuläge. `goals.js` degraderar snyggt före
+migration 05 (se sammanfattningen ovan). Ingen ny CSS — bara befintliga
+klasser (`.card`, `.input`, `.btn*`) + inline-layout.
+**Filer:** `src/components/GoalsSection.jsx` (ny), `src/lib/goalMetrics.js` (ny),
+`src/lib/goals.js` (schema-fallback), `src/pages/Traning.jsx`,
+`src/pages/Ekonomi.jsx`, `src/pages/Profile.jsx`
+**Verifiering:** preview — sektionerna renderar på alla tre sidor; metric-
+resolvers ger rätt värden mot verklig data (bänk 120kg, 5k 22:09,
+nettoförmögenhet 1805kr, pass 2); skapa/lista/ta bort funkar via fallback;
+1440s → "24:00", 114500 → "114 500 kr". `npm run build` OK.
+**Commit:** `8eee030` "Goals UI: per-domain sections wired to live data"
+**Kräver av dig:** frontend inget. `supabase db push` för full funktion (metric-
+koppling + pin). Se även: Jarvis läser redan `goals` (post 5) — samma migration.
+
+### 11. health-ingest: 30s per-token rate limit
+**Spår:** A (din begäran — ENDAST rate limiting i filen)
+**Varför:** Publik endpoint (`--no-verify-jwt`) utan någon spärr (din
+säkerhetsgranskning, punkt 3 = blockerande).
+**Vad:** Migration `post_deploy_07` lägger `user_settings.last_ingest_at`.
+Funktionen läser den vid token-uppslaget, returnerar **429** om senaste LYCKADE
+skrivning för token:en var < 30s sedan, och stämplar `last_ingest_at` **först
+efter** att upserten faktiskt gått igenom (rad ~100) — avvisade requests flyttar
+aldrig fönstret. Per token, inte per IP. Ingen annan ändring i filen (verifierat).
+**Filer:** `supabase/functions/health-ingest/index.ts` (rad 58 + 63-71 + 100-101),
+`supabase/migrations/20260703092000_post_deploy_07_health_ingest_last_seen.sql` (ny)
+**Verifiering:** esbuild .ts-transform OK. Kan ej köra edge-fn lokalt; logiken
+granskad. `sinceMs >= 0`-guard hanterar framtida/skev tidsstämpel.
+**Commit:** `90248b7` "health-ingest: 30s per-token rate limit"
+**Kräver av dig:** **[DEPLOY]** `supabase db push` + `supabase functions deploy
+health-ingest --no-verify-jwt`.
+De andra 5 punkterna i din granskning (klartext-token, generisk 500,
+datumvalidering, revoke-UI, anomali-detektion) är MEDVETET inte rörda.
 
 ### 10. Bugg: tvärdomän-lag-korrelationer räknade fel dag (tidszon)
 **Spår:** A

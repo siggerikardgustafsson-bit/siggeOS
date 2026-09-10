@@ -26,29 +26,27 @@ ska vara proaktiv (pusha en plan) eller bara svara när du frågar? Var bor plan
 
 ## Dashboard / navigation / vyer
 
-### 🔥 UI för strukturerade mål (F1 backend är byggt)
-Datalagret finns (`goals`-tabell + `src/lib/goals.js` + Jarvis läser dem). Det
-som saknas är var man skapar/ser/följer mål. Alternativ:
-- **(a) Egen "Mål"-sida** i Mer-menyn — lista per domän, progress-ringar,
-  deadline-sortering, "klarmarkera". Renast, men ett nav-tillägg.
-- **(b) Dashboard-kort** — de 3 pinnade målen med progress överst på dashboarden,
-  klick → detalj. Håller mål "top of mind" men trängs med konstellationen.
-- **(c) Sektion per domänsida** — träningsmål på /traning, sparmål på /ekonomi.
-  Kontextuellt men splittrar överblicken.
-- **(d) Bara i Profil** under "identitet & mål" — lågprofil, men då används de
-  sällan.
-**Rekommendation:** (a) + (b) tillsammans — sidan för att jobba med mål, kortet
-för att inte glömma dem. **Beslut du behöver fatta:** vilken kombination, och om
-"livsmålen" (1/3/10 år, fritext) ska migreras in som mål-rader eller lämnas kvar
-som separat fritext i Profil.
+### ✅ DELVIS BYGGT — UI för strukturerade mål (alt. c + d)
+Du valde (c) + (d). **Byggt** (WORKLOG #12): `<GoalsSection>` på /traning,
+/ekonomi (Sparande-fliken) och /profil, med live datakoppling via
+`src/lib/goalMetrics.js`. Auto-progress fungerar för ~15 metrics.
+**Fortfarande öppet (dina beslut):**
+- **(a) egen "Mål"-sida** och/eller **(b) dashboard-kort** för pinnade mål — inte
+  byggt. (a) kräver ett nav-tillägg i Mer-menyn; (b) trängs med konstellationen.
+- Ska "livsmålen" (1/3/10 år, fritext i `user_settings.goals`) migreras in som
+  strukturerade mål-rader, eller lämnas kvar som separat fritext i Profil? Idag
+  ligger de kvar orörda och visas inte i GoalsSection.
+- "Pin"-funktionen finns i schemat men har ingen UI-knapp än (väntar på beslut om
+  (b) dashboard-kortet, som är det enda stället pin betyder något).
 
-### ⭐ Auto-progress för mål
-Ett sparmål vet inte själv hur mycket du sparat; en 5km-tid vet inte ditt PR.
-Idé: en `metric`-koppling så `current_value` fylls automatiskt från rätt källa
-(sparmål ← net_worth_history/assets, tid ← run_personal_records, vikt ←
-health_logs senaste). **Omfattning:** medel — en mappning metric→query, körd vid
-sidladdning eller i ett nattjobb. **Beslut:** vilka metric-typer ska stödjas
-först, och ska manuellt satt current_value alltid vinna över auto?
+### ⭐ Auto-progress: fler metrics + nattjobb
+`goalMetrics.js` täcker vikt, fett, sömn, steg, bänk/knäböj/marklyft-PR, 5k/10k,
+pass 7d/28d, nettoförmögenhet, netto/inkomst denna månad, studietimmar 7d.
+Kvar: (1) fler metrics (halvmara-tid, specifik övning efter namn, CSN-förbrukning,
+sparkvot); (2) manuellt satt `current_value` vinner idag bara om `metric` är
+tomt — ingen "override trots metric". (3) Värdena räknas ut vid sidladdning; ett
+nattjobb som snapshotar dem vore grunden för en progress-över-tid-graf per mål.
+**Beslut:** vill du ha history-snapshots (kräver en `goal_progress`-tabell)?
 
 ## Domän-specifikt (träning, hälsa, ekonomi, plugg, resor, jobb)
 
@@ -62,6 +60,11 @@ Jarvis skulle då kunna säga "Asienresan är 3 månader bort och du ligger 8 00
 efter takten — lägg 2 700/mån till."
 **Omfattning:** medel. **Beslut:** vilken sparkälla (a/b/c), och var progress-
 raden bor (resekortet, en ny "ekonomi för resor"-vy, eller dashboarden).
+
+### ✅ Rate limiting på health-ingest — BYGGT
+30s per-token 429-spärr (WORKLOG #11). Kvar av din säkerhetsgranskning:
+klartext-token (hasha), generisk 500 istället för rått PG-fel, semantisk
+datumvalidering, och revoke-UI (nedan).
 
 ### 🔥 Setup-skärm för Apple Health-Shortcut (F3 backend är byggt)
 `health-ingest`-endpointen + token-hantering finns (`src/lib/healthIngest.js`).
