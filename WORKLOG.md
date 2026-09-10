@@ -123,7 +123,13 @@ en ruttlinje. Tema-medvetna ocean/land/label-tokens; städade zoom/legend/toolti
 som separat asset), zoom-motskalning, ruttlinjer, hover-koppling kort↔karta,
 CityPicker typeahead + dedup + reorder. `npm run build` OK. Mobil: stat-remsa
 2×2, karta 46vh, zoom flyttad till top-right (undan FAB).
-**Commit:** `4bed65a` + polish
+**Commit:** `4bed65a` + polish `356a06f` + feedback `90ec181`
+**Feedback-runda (`90ec181`):** karta bredare (grid = karta + fast 348px
+resekolumn); legenden tappade "N länder"-räknaren (den blev högre än
+stadsräknaren → förvirrande), nu "N städer på kartan" + knapp "N resor utan
+stad — fyll i" som öppnar första sådana resans formulär; planerade/idé-länder
+tintas lila (inte guld); stat-remsan = en delad rad med statusprick per cell;
+kartpanel platt bakgrund; hela sidan 1080px för alla flikar; resetitlar radbryts.
 **Kräver av dig:** **[DEPLOY]** `supabase db push` (post_deploy_10, additiv).
 Utan den: kartan använder fritext-parsning som förr, CityPicker sparar inte.
 Befintliga fler-stads-resor (Balkanroad, Malmö→Kroatien, Asien 2027) får rätt
