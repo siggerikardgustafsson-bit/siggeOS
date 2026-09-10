@@ -43,12 +43,9 @@ Post 19–22: branch `next-ux` → merged + pushed (`1dbbc13..88ef121`).
 | P4 | DetailModal (Maxx Score) omstylad till appens panel-tokens — 82px→64px tier-siffra, `blur(44px)`-glas → vanlig panel, enhetlig | `8de3d8e` | inget |
 | P5 | Profil "Livssituation sparas ej": roller är nu primärmodellen (gamla fält under "Fler detaljer", auto-härledda från aktiva roller), spara-bar med "Osparade ändringar"-indikator | `8de3d8e` | inget |
 | P6 | Laddnings-skeletons: ny `src/components/Skeleton.jsx` + Insights (full) / Dashboard (score-hero) / Kalender / Ekonomi | `470f1f7` | inget |
-
-**Kvar på din lista (ej påbörjat):**
-- Dashboard utan scroll (allt på startskärmen) — stor layout-ändring
-- Konstellations-bubblor krockar/klipps ur bild; starkare liquid-hover
-- Fortsätt kalendern
-- Upplevelser-kartan: markera besökta städer istället för hela länder
+| P7 | Kalender: rensad layout — bort med "Kommande"-rutan + redundant månadstitel + 5 stat-kort (räkningen ligger i filter-chipsen); lugnare celler, idag = fylld cirkel | `4d509a4` | inget |
+| P8 | Upplevelser-karta: `react-simple-maps` + d3-geo + city-gazetteer (`src/lib/cityCoords.js`) → städer som markörer istället för länder. Raderade `worldPaths.js` (1.6MB). Chunk 419KB→80KB gz. Zoom/pan, hover-tooltip, pulserande markörer | `ca26af9` | inget |
+| P9 | Dashboard Karta-vyn ryms på en skärm (`.cmap` → `clamp(480px, 100dvh-210px, 720px)`); pinnade mål bara i Träd-vyn. Bubbelkollision verifierad: 0 överlapp | `ef78de4` | inget |
 
 ---
 
