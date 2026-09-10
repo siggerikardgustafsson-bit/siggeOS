@@ -32,10 +32,10 @@ const TIER_REQUIREMENTS = {
   somn: [
     { tier:2, label:'Top 50%',  reqs:['Sömnsnitt ≥ 6.5h'] },
     { tier:3, label:'Top 30%',  reqs:['Sömnsnitt ≥ 7.0h','Logga sömn ≥ 5 av 7 dagar'] },
-    { tier:4, label:'Top 20%',  reqs:['Sömnsnitt ≥ 7.5h'] },
-    { tier:5, label:'Top 10%',  reqs:['Sömnsnitt ≥ 8.0h','Stabil läggtid'] },
-    { tier:6, label:'Top 5%',   reqs:['Sömnsnitt ≥ 8.5h','Bra regelbundenhet'] },
-    { tier:7, label:'Top 2.5%', reqs:['≥ 8.5h + hög konsekvens'] },
+    { tier:4, label:'Top 20%',  reqs:['Sömnsnitt ≥ 7.25h'] },
+    { tier:5, label:'Top 10%',  reqs:['Sömnsnitt ≥ 7.5h','Stabil läggtid'] },
+    { tier:6, label:'Top 5%',   reqs:['Sömnsnitt ≥ 8.0h','Bra regelbundenhet'] },
+    { tier:7, label:'Top 2.5%', reqs:['Sömnsnitt ≥ 8.5h','Hög konsekvens'] },
     { tier:8, label:'Top 1%',   reqs:['Sömnsnitt ≥ 9h','Optimal sömnkonsistens'] },
   ],
   plugg: [

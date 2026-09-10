@@ -5,7 +5,7 @@ const NEXT_TIER_SHORT = {
   kondition: ['—','5km < 28:00','5km < 24:00','5km < 22:00','5km < 20:00','5km < 18:30','5km < 17:00','Top 1% ✓'],
   styrka:    ['—','Bänk ≥ 0.75x BW','Bänk ≥ 1.0x BW','Bänk ≥ 1.15x BW','Bänk ≥ 1.3x BW','Bänk ≥ 1.5x BW','Bänk ≥ 1.65x BW','Top 1% ✓'],
   kropp:     ['—','Logga vikt regelbundet','BMI/fettprocent','Optimal komposition','Elite','Elite','Elite','Elite'],
-  somn:      ['—','Snitt ≥ 6.5h/natt','Snitt ≥ 7.0h/natt','Snitt ≥ 7.5h/natt','Snitt ≥ 8.0h/natt','Snitt ≥ 8.5h + konsistens','≥ 8.5h + variation < 12 min','Top 1% ✓'],
+  somn:      ['—','Snitt ≥ 6.5h/natt','Snitt ≥ 7.0h/natt','Snitt ≥ 7.25h/natt','Snitt ≥ 7.5h/natt','Snitt ≥ 8.0h + konsistens','Snitt ≥ 8.5h/natt','Snitt ≥ 9h ✓'],
   plugg:     ['—','Mastery ≥ 20%','Mastery ≥ 40%','Mastery ≥ 60%','Mastery ≥ 80%','Expert ✓','',''],
   ekonomi:   ['—','Netto ≥ 12 000 kr/mån','Netto ≥ 18 000 kr/mån','Netto ≥ 22 000 kr/mån','Netto ≥ 28 000 kr/mån','Netto ≥ 35 000 kr/mån','Netto ≥ 45 000 kr/mån','Top 1% ✓'],
   halsa:     ['—','Energi ≥ 5, humör ≥ 5','Energi ≥ 6','Energi ≥ 7, humör ≥ 7','Energi ≥ 8','Energi ≥ 9','Allt toppklass','Top 1% ✓'],
