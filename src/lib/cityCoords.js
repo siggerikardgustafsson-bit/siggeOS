@@ -25,6 +25,8 @@ export const CURATED = {
   'prag': [14.42, 50.09], 'bukarest': [26.1, 44.43], 'belgrad': [20.46, 44.82],
   'moskva': [37.62, 55.75], 'sankt petersburg': [30.34, 59.93], 'kiev': [30.52, 50.45],
   'sarajevo': [18.41, 43.86], 'mostar': [17.81, 43.34], 'banja luka': [17.19, 44.77],
+  'prijepolje': [19.65, 43.39], 'novi pazar': [20.52, 43.14], 'užice': [19.84, 43.86], 'uzice': [19.84, 43.86],
+  'rovinj': [13.64, 45.08], 'makarska': [17.02, 43.30], 'zadar': [15.22, 44.12], 'pula': [13.85, 44.87],
   'kotor': [18.77, 42.42], 'budva': [18.84, 42.29], 'ohrid': [20.8, 41.12],
   'skopje': [21.43, 41.99], 'pristina': [21.17, 42.66], 'priština': [21.17, 42.66],
   'istanbul': [28.98, 41.01], 'kappadokien': [34.83, 38.65], 'cappadocia': [34.83, 38.65],
@@ -161,7 +163,11 @@ const STOP = new Set([
 ])
 
 // Try every 1–3 word window of a phrase against the lookup; return all hits.
-function phraseToCities(phrase) {
+//   gazetteer=false (titles): CURATED only. Titles are prose — "Polen" or
+//     "Bestiga Kilimanjaro" would spuriously hit tiny same-named towns.
+//   gazetteer=true (the city field): the user typed a deliberate, usually
+//     comma-separated list of cities there, so the full 24k set is fair game.
+function phraseToCities(phrase, gazetteer = false) {
   const words = norm(phrase).replace(/[()[\]{}"'.]/g, ' ').split(/[\s,/›→>|+&–-]+/).filter(Boolean)
   const hits = []
   const used = new Set()
@@ -170,7 +176,7 @@ function phraseToCities(phrase) {
       if (used.has(i)) continue
       const gram = words.slice(i, i + n).join(' ')
       if (n === 1 && (STOP.has(gram) || gram.length < 4)) continue
-      const c = lookupCity(gram)
+      const c = CURATED_N[gram] || (gazetteer ? gaz?.get(gram)?.coord : null)
       if (c) {
         hits.push({ name: gram.replace(/\b\w/g, (m) => m.toUpperCase()), coord: c })
         for (let j = i; j < i + n; j++) used.add(j)
@@ -203,9 +209,10 @@ export function tripToPoints(trip) {
     if (out.length) return out
   }
 
-  // 2. Best-effort parse of the free-text fields.
-  for (const h of phraseToCities(trip.city || '')) push(h.name, h.coord, 'city')
-  for (const h of phraseToCities(trip.title || '')) push(h.name, h.coord, 'city')
+  // 2. Best-effort parse: the city field is a deliberate list (gazetteer OK),
+  //    the title is prose (curated only).
+  for (const h of phraseToCities(trip.city || '', true)) push(h.name, h.coord, 'city')
+  for (const h of phraseToCities(trip.title || '', false)) push(h.name, h.coord, 'city')
 
   // 3. Country centroid fallback.
   if (out.length === 0) {

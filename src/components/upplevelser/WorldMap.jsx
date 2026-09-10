@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { ComposableMap, Geographies, Geography, Marker, Line, ZoomableGroup, Sphere, Graticule } from 'react-simple-maps'
+import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup, Sphere, Graticule } from 'react-simple-maps'
 // 50m Natural Earth borders — emitted as a standalone cached asset (≈236KB gz),
 // fetched by <Geographies> instead of inflating this JS chunk.
 import worldTopo from 'world-atlas/countries-50m.json?url'
@@ -7,9 +7,8 @@ import { tripToPoints, loadGazetteer } from '../../lib/cityCoords'
 import { TRIP_STATUS_COLOR } from '../../lib/constants'
 
 // Projected world map (react-simple-maps + d3-geo). The emphasis is on *cities* —
-// where you've actually been — with faint country shading behind. Multi-city
-// trips draw a route line between their stops. Lazy-loaded chunk (keeps d3-geo,
-// the 50m topojson and the gazetteer out of the route bundle).
+// where you've actually been — with faint country shading behind. Lazy-loaded
+// chunk (keeps d3-geo, the 50m topojson and the gazetteer out of the route bundle).
 
 const STATUS_COLOR = {
   completed: 'var(--accent)',
@@ -50,10 +49,9 @@ export default function WorldMap({ trips = [], tripFilter = 'all', highlightTrip
   // The gazetteer streams in as its own chunk; re-resolve once it lands.
   useEffect(() => { loadGazetteer().then(() => setGazReady(true)) }, [])
 
-  const { markers, routes, visitedEN, cityCount, noCity, firstNoCityId } = useMemo(() => {
+  const { markers, visitedEN, cityCount, noCity, firstNoCityId } = useMemo(() => {
     const filtered = tripFilter === 'all' ? trips : trips.filter(t => t.status === tripFilter)
     const byPoint = new Map()
-    const rts = []
     const visited = new Map()          // EN name -> best status (completed > planned > idea)
     const bumpVisited = (en, st) => {
       const cur = visited.get(en)
@@ -74,14 +72,12 @@ export default function WorldMap({ trips = [], tripFilter = 'all', highlightTrip
         byPoint.set(key, cur)
       }
       const cityPts = pts.filter(p => p.kind === 'city')
-      if (cityPts.length >= 2) rts.push({ id: t.id, status: st, coords: cityPts.map(p => p.coord) })
       if (cs.length && cityPts.length === 0) { noCity++; if (!firstNoCityId) firstNoCityId = t.id }
     }
     if (tripFilter === 'all' || tripFilter === 'completed') bumpVisited('Sweden', 'completed')
     const m = [...byPoint.values()].sort((a, b) => b.trips.length - a.trips.length)
     return {
       markers: m,
-      routes: rts,
       visitedEN: visited,
       cityCount: m.filter(p => p.kind === 'city').length,
       noCity,
@@ -122,16 +118,6 @@ export default function WorldMap({ trips = [], tripFilter = 'all', highlightTrip
                 })
               }
             </Geographies>
-
-            {routes.map((rt, i) => {
-              const c = STATUS_COLOR[rt.status]
-              const on = highlightTripId && rt.id === highlightTripId
-              return rt.coords.slice(1).map((to, j) => (
-                <Line key={`${i}-${j}`} from={rt.coords[j]} to={to} stroke={c}
-                  strokeWidth={(on ? 1.6 : 0.9) / k} strokeOpacity={on ? 0.9 : 0.38}
-                  strokeLinecap="round" strokeDasharray={rt.status === 'completed' ? undefined : `${3 / k} ${4 / k}`} />
-              ))
-            })}
 
             {markers.map((p) => {
               const c = STATUS_COLOR[p.status]
