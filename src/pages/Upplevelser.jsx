@@ -949,7 +949,12 @@ Returnera ENBART JSON utan backticks:
               <WorldMap trips={trips} tripFilter={tripFilter} highlightTripId={hoverTripId} />
             </Suspense>
           </div>
-          <div className="upp-trips-scroll" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="upp-trips-scroll" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {filteredTrips.length === 0 && (
+              <div style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px', border: '1px dashed var(--border)', borderRadius: '12px' }}>
+                {trips.length === 0 ? 'Inga resor ännu — lägg till din första.' : 'Inga resor med den statusen.'}
+              </div>
+            )}
             {filteredTrips.map(trip => {
               const isExpanded = expandedTrip === trip.id
               const isEditing = editingTrip === trip.id

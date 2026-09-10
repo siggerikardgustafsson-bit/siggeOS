@@ -99,6 +99,36 @@ skapa mål tills efter `db push`.
 
 ## Poster
 
+### 25. Upplevelser: karta + stads-input omgjord
+**Spår:** A (du: "fixa layouten, en lösning för städer, höj upplösningen, förbättra överlag")
+**Layout:** kompakt stat-remsa + pill-filterchips (med antal) istället för stora
+kort; Resor-fliken breddad till 1120px. Hover på ett resekort highlightar
+resans städer + rutt på kartan. Tom-lista-state.
+**Stads-input (mappnings-fixen):** ny `CityPicker` i resformuläret + planeraren —
+ordnade chips med typeahead mot 24k-stads-gazetteern, ‹ › för att ändra
+ordning/rutt. Sparas som `trips.cities` jsonb `[{name,lng,lat}]` (migration
+**post_deploy_10**) så kartan plottar exakta koordinater istället för att gissa
+ur titeln. Fritext-parsningen kvar som fallback; `saveTrip` degraderar tills
+kolumnen finns. `cityCoords.js`: `searchCities()`/`resolveCity()`,
+`tripToPoints()` väljer den explicita listan först.
+**Karta:** 50m Natural Earth-gränser (var 110m) — emittas som eget cachat
+asset via `?url`, så WorldMap-chunken stannar på ~108KB. Landfärg nertonad,
+stadsmarkörer i fokus (storlek efter antal resor, glow vid hover, konstant
+skärmstorlek vid all zoom, etiketter vid inzoomning). Fler-stads-resor ritar
+en ruttlinje. Tema-medvetna ocean/land/label-tokens; städade zoom/legend/tooltip.
+**Filer:** `src/components/upplevelser/WorldMap.jsx`, `src/lib/cityCoords.js`,
+`src/pages/Upplevelser.jsx`, `src/index.css`,
+`supabase/migrations/20260710090000_post_deploy_10_trip_cities.sql` (ny)
+**Verifiering:** preview /upplevelser — layout, filterchips, karta (50m laddas
+som separat asset), zoom-motskalning, ruttlinjer, hover-koppling kort↔karta,
+CityPicker typeahead + dedup + reorder. `npm run build` OK. Mobil: stat-remsa
+2×2, karta 46vh, zoom flyttad till top-right (undan FAB).
+**Commit:** `4bed65a` + polish
+**Kräver av dig:** **[DEPLOY]** `supabase db push` (post_deploy_10, additiv).
+Utan den: kartan använder fritext-parsning som förr, CityPicker sparar inte.
+Befintliga fler-stads-resor (Balkanroad, Malmö→Kroatien, Asien 2027) får rätt
+prickar när du öppnar dem och fyller i städerna.
+
 ### 24. Strava-synk: visa det verkliga felet + härdning
 **Spår:** A (du: "strava synken funkar ej")
 **Symptom:** `?action=sync` returnerade platt 502 "Strava svarade oväntat vid
