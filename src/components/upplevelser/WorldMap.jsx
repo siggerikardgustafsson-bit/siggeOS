@@ -1,12 +1,15 @@
 import { useState, useMemo, useEffect } from 'react'
-import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup, Sphere, Graticule } from 'react-simple-maps'
-import worldTopo from 'world-atlas/countries-110m.json'
+import { ComposableMap, Geographies, Geography, Marker, Line, ZoomableGroup, Sphere, Graticule } from 'react-simple-maps'
+// 50m Natural Earth borders — emitted as a standalone cached asset (≈236KB gz),
+// fetched by <Geographies> instead of inflating this JS chunk.
+import worldTopo from 'world-atlas/countries-50m.json?url'
 import { tripToPoints, loadGazetteer } from '../../lib/cityCoords'
 import { TRIP_STATUS_COLOR } from '../../lib/constants'
 
-// A projected world map (react-simple-maps + d3-geo). Trips are plotted as
-// city markers — the emphasis is on *where you've been*, not blanket-shading
-// countries. Lazy-loaded: keeps d3-geo + the topojson out of the route chunk.
+// Projected world map (react-simple-maps + d3-geo). The emphasis is on *cities* —
+// where you've actually been — with faint country shading behind. Multi-city
+// trips draw a route line between their stops. Lazy-loaded chunk (keeps d3-geo,
+// the 50m topojson and the gazetteer out of the route bundle).
 
 const STATUS_COLOR = {
   completed: 'var(--accent)',
@@ -37,55 +40,60 @@ const SV_EN = {
   'Etiopien': 'Ethiopia', 'Tanzania': 'Tanzania',
 }
 
-export default function WorldMap({ trips = [], tripFilter = 'all' }) {
-  const [hover, setHover] = useState(null)
-  const [zoom, setZoom] = useState({ k: 1.35 })
-  const [gazReady, setGazReady] = useState(false)
-  const bumpZoom = (f) => setZoom((s) => ({ k: Math.max(1, Math.min(14, s.k * f)) }))
+const DEFAULT_VIEW = { coordinates: [18, 30], zoom: 1.4 }
 
-  // Full ~24k-city gazetteer streams in as a separate chunk; the map paints
-  // immediately with the curated set and re-resolves once it lands.
+export default function WorldMap({ trips = [], tripFilter = 'all', highlightTripId = null }) {
+  const [hover, setHover] = useState(null)
+  const [view, setView] = useState(DEFAULT_VIEW)
+  const [gazReady, setGazReady] = useState(false)
+
+  // The gazetteer streams in as its own chunk; re-resolve once it lands.
   useEffect(() => { loadGazetteer().then(() => setGazReady(true)) }, [])
 
-  const { markers, visitedEN, cityCount, countryCount } = useMemo(() => {
+  const { markers, routes, visitedEN, cityCount, countryCount } = useMemo(() => {
     const filtered = tripFilter === 'all' ? trips : trips.filter(t => t.status === tripFilter)
     const byPoint = new Map()
+    const rts = []
     const visited = new Set()
     for (const t of filtered) {
       const st = t.status || 'idea'
       const cs = t.countries?.length ? t.countries : (t.country ? [t.country] : [])
       for (const c of cs) if (SV_EN[c]) visited.add(SV_EN[c])
-      for (const p of tripToPoints(t)) {
+      const pts = tripToPoints(t)
+      for (const p of pts) {
         const key = p.coord.join(',')
         const cur = byPoint.get(key) || { name: p.name, coord: p.coord, kind: p.kind, trips: [], status: 'idea' }
         cur.trips.push(t)
         if (STATUS_RANK[st] > STATUS_RANK[cur.status]) cur.status = st
         byPoint.set(key, cur)
       }
+      const cityPts = pts.filter(p => p.kind === 'city')
+      if (cityPts.length >= 2) rts.push({ id: t.id, status: st, coords: cityPts.map(p => p.coord) })
     }
-    // Hemland always counts as visited.
     if (tripFilter === 'all' || tripFilter === 'completed') visited.add('Sweden')
     const m = [...byPoint.values()].sort((a, b) => b.trips.length - a.trips.length)
     return {
       markers: m,
+      routes: rts,
       visitedEN: visited,
       cityCount: m.filter(p => p.kind === 'city').length,
       countryCount: visited.size,
     }
   }, [trips, tripFilter, gazReady])
 
+  const k = view.zoom            // markers/labels counter-scale so they stay a constant screen size
+  const zoomed = view.zoom >= 2.2
+  const bump = (f) => setView(v => ({ ...v, zoom: Math.max(1, Math.min(16, v.zoom * f)) }))
+  const reset = () => setView(DEFAULT_VIEW)
+
   return (
     <div className="upp-map-panel">
-      <div className="upp-map-stage" style={{ position: 'relative' }}>
-        <ComposableMap
-          projection="geoEqualEarth"
-          projectionConfig={{ scale: 175 }}
-          style={{ width: '100%', height: '100%' }}
-        >
-          <ZoomableGroup center={[22, 32]} zoom={zoom.k} minZoom={1} maxZoom={14}
-            onMoveEnd={({ zoom: z }) => setZoom((s) => ({ ...s, k: z }))}>
-            <Sphere id="upp-sphere" stroke="none" fill="color-mix(in srgb, #060912 68%, var(--surface))" />
-            <Graticule stroke="var(--border2)" strokeWidth={0.3} strokeOpacity={0.3} />
+      <div className="upp-map-stage">
+        <ComposableMap projection="geoEqualEarth" projectionConfig={{ scale: 168 }} style={{ width: '100%', height: '100%' }}>
+          <ZoomableGroup center={view.coordinates} zoom={view.zoom} minZoom={1} maxZoom={16}
+            onMoveEnd={({ coordinates, zoom }) => setView({ coordinates, zoom })}>
+            <Sphere id="upp-sphere" stroke="none" fill="var(--upp-ocean)" />
+            <Graticule stroke="var(--upp-grat)" strokeWidth={0.28} />
             <Geographies geography={worldTopo}>
               {({ geographies }) =>
                 geographies.map((geo) => {
@@ -96,12 +104,12 @@ export default function WorldMap({ trips = [], tripFilter = 'all' }) {
                       geography={geo}
                       style={{
                         default: {
-                          fill: isVisited ? 'color-mix(in srgb, var(--accent) 22%, var(--surface3))' : 'var(--surface3)',
-                          stroke: isVisited ? 'color-mix(in srgb, var(--accent) 35%, transparent)' : 'var(--border2)',
-                          strokeWidth: isVisited ? 0.5 : 0.35,
+                          fill: isVisited ? 'var(--upp-land-on)' : 'var(--upp-land)',
+                          stroke: 'var(--upp-border)',
+                          strokeWidth: 0.3,
                           outline: 'none',
                         },
-                        hover: { fill: 'color-mix(in srgb, var(--accent) 30%, var(--surface3))', outline: 'none' },
+                        hover: { fill: isVisited ? 'var(--upp-land-on)' : 'var(--upp-land)', outline: 'none' },
                         pressed: { outline: 'none' },
                       }}
                     />
@@ -110,23 +118,42 @@ export default function WorldMap({ trips = [], tripFilter = 'all' }) {
               }
             </Geographies>
 
+            {routes.map((rt, i) => {
+              const c = STATUS_COLOR[rt.status]
+              const on = highlightTripId && rt.id === highlightTripId
+              return rt.coords.slice(1).map((to, j) => (
+                <Line key={`${i}-${j}`} from={rt.coords[j]} to={to} stroke={c}
+                  strokeWidth={(on ? 1.6 : 0.9) / k} strokeOpacity={on ? 0.9 : 0.38}
+                  strokeLinecap="round" strokeDasharray={rt.status === 'completed' ? undefined : `${3 / k} ${4 / k}`} />
+              ))
+            })}
+
             {markers.map((p) => {
               const c = STATUS_COLOR[p.status]
-              const r = p.kind === 'country' ? 2.6 : 3.2 + Math.min(3.5, (p.trips.length - 1) * 1.2)
+              const isCity = p.kind === 'city'
+              const r = (isCity ? 3.4 + Math.min(3.4, (p.trips.length - 1) * 1.1) : 2.4) / k
               const isHover = hover?.name === p.name
+              const onTrip = highlightTripId && p.trips.some(t => t.id === highlightTripId)
+              const hot = isHover || onTrip
+              const showLabel = hot || (zoomed && isCity)
               return (
                 <Marker key={p.name + p.coord.join()} coordinates={p.coord}
                   onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}>
-                  <circle r={r + 4} fill={c} opacity={isHover ? 0.3 : 0.12}>
-                    {p.status === 'completed' && (
-                      <animate attributeName="opacity" values={`${isHover ? 0.3 : 0.12};0.02;${isHover ? 0.3 : 0.12}`} dur="3s" repeatCount="indefinite" />
-                    )}
-                  </circle>
-                  <circle r={r} fill={c} stroke="var(--surface)" strokeWidth={1}
-                    style={{ cursor: 'pointer', filter: isHover ? `drop-shadow(0 0 7px ${c})` : `drop-shadow(0 0 2px ${c})` }} />
-                  {isHover && (
-                    <text textAnchor="middle" y={-r - 5}
-                      style={{ fontSize: 9, fontWeight: 800, fill: 'var(--text)', paintOrder: 'stroke', stroke: 'var(--surface)', strokeWidth: 3, pointerEvents: 'none', textTransform: 'capitalize' }}>
+                  {p.status === 'completed' && hot && (
+                    <circle r={r} fill="none" stroke={c} strokeWidth={1 / k} opacity={0.6}>
+                      <animate attributeName="r" values={`${r};${r + 9 / k}`} dur="1.8s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.6;0" dur="1.8s" repeatCount="indefinite" />
+                    </circle>
+                  )}
+                  {p.status === 'completed'
+                    ? <circle r={r} fill={c} stroke="var(--upp-dot-ring)" strokeWidth={1 / k}
+                        style={{ cursor: 'pointer', filter: `drop-shadow(0 0 ${(hot ? 6 : 2.5) / k}px ${c})` }} />
+                    : <circle r={r} fill="var(--upp-ocean)" stroke={c} strokeWidth={1.6 / k}
+                        style={{ cursor: 'pointer', filter: hot ? `drop-shadow(0 0 ${5 / k}px ${c})` : 'none' }} />}
+                  {showLabel && (
+                    <text textAnchor="middle" y={-r - 4 / k}
+                      style={{ fontSize: 9 / k, fontWeight: 700, fill: 'var(--upp-label)', paintOrder: 'stroke',
+                        stroke: 'var(--upp-ocean)', strokeWidth: 3 / k, pointerEvents: 'none', textTransform: 'capitalize' }}>
                       {p.name}
                     </text>
                   )}
@@ -137,19 +164,18 @@ export default function WorldMap({ trips = [], tripFilter = 'all' }) {
         </ComposableMap>
 
         <div className="upp-map-zoom">
-          <button type="button" aria-label="Zooma in" onClick={() => bumpZoom(1.5)}>+</button>
-          <button type="button" aria-label="Zooma ut" onClick={() => bumpZoom(1 / 1.5)}>−</button>
-          {zoom.k > 1.5 && <button type="button" aria-label="Återställ" style={{ fontSize: 12 }} onClick={() => setZoom({ k: 1.35 })}>⟲</button>}
+          <button type="button" aria-label="Zooma in" onClick={() => bump(1.5)}>+</button>
+          <button type="button" aria-label="Zooma ut" onClick={() => bump(1 / 1.5)}>−</button>
+          {(view.zoom > 1.6 || view.coordinates[0] !== DEFAULT_VIEW.coordinates[0]) && (
+            <button type="button" aria-label="Återställ vy" style={{ fontSize: 13 }} onClick={reset}>⌂</button>
+          )}
         </div>
 
         {hover && (
-          <div style={{
-            position: 'absolute', left: 12, bottom: 12, maxWidth: 240,
-            background: 'var(--mx-panel-bg, var(--surface))', border: '1px solid var(--border)',
-            borderRadius: 12, padding: '10px 12px', pointerEvents: 'none', boxShadow: '0 12px 30px -12px rgba(0,0,0,0.5)',
-          }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textTransform: 'capitalize' }}>{hover.name}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+          <div className="upp-map-tip">
+            <div className="upp-map-tip-name">{hover.name}</div>
+            <div className="upp-map-tip-sub">
+              {hover.kind === 'country' && <span style={{ opacity: 0.7 }}>ungefärlig · </span>}
               {hover.trips.slice(0, 4).map(t => t.title).join(' · ')}
               {hover.trips.length > 4 ? ` +${hover.trips.length - 4}` : ''}
             </div>
@@ -157,16 +183,14 @@ export default function WorldMap({ trips = [], tripFilter = 'all' }) {
         )}
       </div>
 
-      <div className="upp-map-legend" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+      <div className="upp-map-legend">
         {['completed', 'planned', 'idea'].map(k => (
           <span key={k} className="upp-map-leg-item">
-            <span className="upp-map-leg-dot" style={{ '--leg-c': STATUS_COLOR[k], background: STATUS_COLOR[k] }} />
+            <span className="upp-map-leg-dot" style={{ '--leg-c': STATUS_COLOR[k], background: k === 'completed' ? STATUS_COLOR[k] : 'transparent', borderColor: STATUS_COLOR[k] }} />
             {STATUS_LABEL[k]}
           </span>
         ))}
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>
-          {cityCount} städer · {countryCount} länder
-        </span>
+        <span className="upp-map-leg-count">{cityCount} städer · {countryCount} länder</span>
       </div>
     </div>
   )

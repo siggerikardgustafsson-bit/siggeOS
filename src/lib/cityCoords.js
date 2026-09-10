@@ -72,7 +72,7 @@ const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
 const CURATED_N = {}
 for (const [k, v] of Object.entries(CURATED)) CURATED_N[norm(k)] = v
 
-let gaz = null
+let gaz = null // Map<norm(name), { name, coord: [lng, lat] }>
 let gazPromise = null
 
 // Load the full ~24k-city gazetteer once (separate chunk).
@@ -88,7 +88,7 @@ export function loadGazetteer() {
         const name = line.slice(0, j)
         const lng = +line.slice(j + 1, i)
         const lat = +line.slice(i + 1)
-        if (Number.isFinite(lng) && Number.isFinite(lat)) m.set(norm(name), [lng, lat])
+        if (Number.isFinite(lng) && Number.isFinite(lat)) m.set(norm(name), { name, coord: [lng, lat] })
       }
       gaz = m
       return m
@@ -97,9 +97,59 @@ export function loadGazetteer() {
   return gazPromise
 }
 
+export function gazetteerReady() {
+  return !!gaz
+}
+
+const titleCase = (s) => String(s).replace(/\b\w/g, (m) => m.toUpperCase())
+
 function lookupCity(k) {
   if (!k || k.length < 3) return null
-  return CURATED_N[k] || (gaz && gaz.get(k)) || null
+  return CURATED_N[k] || gaz?.get(k)?.coord || null
+}
+
+// Typeahead for the trip city picker. Curated (Swedish spellings) first, then
+// the gazetteer: prefix hits before substring hits, shorter names before longer.
+// Needs loadGazetteer() to have resolved for anything beyond the curated set.
+export function searchCities(query, limit = 8) {
+  const q = norm(query)
+  if (q.length < 2) return []
+  const seen = new Set()
+  const prefix = []
+  const substr = []
+  const add = (bucket, name, coord) => {
+    const key = norm(name)
+    if (seen.has(key)) return
+    seen.add(key)
+    bucket.push({ name, coord })
+  }
+  // Substring hits only count at a word start ("york" → "New York", not
+  // "hvar" → "Molodohvardiysk").
+  const wordHit = (n) => n.split(/[ \-']/).some((w) => w.startsWith(q))
+  for (const [k, v] of Object.entries(CURATED_N)) {
+    if (k === q || k.startsWith(q)) add(prefix, titleCase(k), v)
+    else if (wordHit(k)) add(substr, titleCase(k), v)
+  }
+  if (gaz) {
+    for (const { name, coord } of gaz.values()) {
+      const n = norm(name)
+      if (n.startsWith(q)) add(prefix, name, coord)
+      else if (wordHit(n)) add(substr, name, coord)
+      if (prefix.length > 40) break
+    }
+  }
+  prefix.sort((a, b) => a.name.length - b.name.length)
+  substr.sort((a, b) => a.name.length - b.name.length)
+  return [...prefix, ...substr].slice(0, limit)
+}
+
+// Resolve a free-typed city name to { name, coord } (or null). Used when the
+// user types a name and hits enter without picking a suggestion.
+export function resolveCity(name) {
+  const hits = searchCities(name, 1)
+  if (hits.length && norm(hits[0].name) === norm(name)) return hits[0]
+  const c = lookupCity(norm(name))
+  return c ? { name: titleCase(norm(name)), coord: c } : (hits[0] || null)
 }
 
 // Stop-words so "Barcelona NYE" or "Prag skolresa" still match "barcelona"/"prag"
@@ -130,21 +180,34 @@ function phraseToCities(phrase) {
   return hits
 }
 
-// Resolve a trip to one or more { name, coord, kind } points. Prefers explicit
-// city names (incl. ones in the city field or the title), then the country.
+// Resolve a trip to one or more { name, coord, kind } points, in visit order.
+// Priority: the explicit `cities` array (set in the trip form) → names parsed
+// from the city field / title → the country centroid as a last resort.
 export function tripToPoints(trip) {
   const out = []
   const seen = new Set()
   const push = (name, coord, kind) => {
+    if (!coord || !Number.isFinite(coord[0]) || !Number.isFinite(coord[1])) return
     const key = coord.map((n) => n.toFixed(1)).join(',')
     if (seen.has(key)) return
     seen.add(key)
-    out.push({ name: name.trim(), coord, kind })
+    out.push({ name: String(name).trim(), coord, kind })
   }
 
+  // 1. Explicit, ordered list from the trip form — coords stored alongside.
+  if (Array.isArray(trip.cities) && trip.cities.length) {
+    for (const c of trip.cities) {
+      if (c && Number.isFinite(c.lng) && Number.isFinite(c.lat)) push(c.name, [c.lng, c.lat], 'city')
+      else if (c?.name) { const r = resolveCity(c.name); if (r) push(r.name, r.coord, 'city') }
+    }
+    if (out.length) return out
+  }
+
+  // 2. Best-effort parse of the free-text fields.
   for (const h of phraseToCities(trip.city || '')) push(h.name, h.coord, 'city')
   for (const h of phraseToCities(trip.title || '')) push(h.name, h.coord, 'city')
 
+  // 3. Country centroid fallback.
   if (out.length === 0) {
     const countries = trip.countries?.length ? trip.countries : (trip.country ? [trip.country] : [])
     for (const c of countries) {

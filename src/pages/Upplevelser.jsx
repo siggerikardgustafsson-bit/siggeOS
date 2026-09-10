@@ -11,6 +11,7 @@ import {
 import { TRIP_STATUSES } from '../lib/constants'
 import EmptyState from '../components/EmptyState'
 import { getUserIdentityContext, identityToPrompt } from '../lib/personalization'
+import { loadGazetteer, searchCities, resolveCity } from '../lib/cityCoords'
 
 // Heavy (1.6MB of SVG geometry) — split into its own chunk, loaded when the
 // Resor tab renders. See project_build_verification.
@@ -63,7 +64,7 @@ const DIFFICULTIES = [
 ]
 
 const EMPTY_TRIP = {
-  title: '', country: '', countries: [], city: '', start_date: '', end_date: '',
+  title: '', country: '', countries: [], city: '', cities: [], start_date: '', end_date: '',
   highlights: '', rating: 0, status: 'completed', budget_sek: '', notes: ''
 }
 
@@ -233,6 +234,103 @@ function CountryPicker({ selected, onChange }) {
 }
 
 
+// Ordered multi-city picker with typeahead against the 24k-city gazetteer.
+// Stores [{ name, lng, lat }] so the map never has to re-geocode.
+function CityPicker({ value = [], onChange }) {
+  const [q, setQ] = useState('')
+  const [results, setResults] = useState([])
+  const [ready, setReady] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const boxRef = React.useRef(null)
+
+  useEffect(() => { loadGazetteer().then(() => setReady(true)) }, [])
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const term = q.trim()
+      if (term.length < 2) { setResults([]); return }
+      const chosen = new Set(value.map(c => c.name.toLowerCase()))
+      setResults(searchCities(term, 7).filter(r => !chosen.has(r.name.toLowerCase())))
+    }, 140)
+    return () => clearTimeout(t)
+  }, [q, value, ready])
+
+  useEffect(() => {
+    if (!focused) return
+    const close = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setFocused(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [focused])
+
+  const addCity = (c) => {
+    if (!c) return
+    if (value.some(v => v.name.toLowerCase() === c.name.toLowerCase())) { setQ(''); return }
+    onChange([...value, { name: c.name, lng: c.coord[0], lat: c.coord[1] }])
+    setQ('')
+    setResults([])
+  }
+  const removeCity = (i) => onChange(value.filter((_, idx) => idx !== i))
+  const move = (i, dir) => {
+    const j = i + dir
+    if (j < 0 || j >= value.length) return
+    const next = [...value]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    onChange(next)
+  }
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const term = q.trim()
+      if (!term) return
+      // Resolve synchronously — don't depend on the debounced `results`.
+      const hit = results[0] || searchCities(term, 1)[0] || resolveCity(term)
+      if (hit) addCity(hit)
+    } else if (e.key === 'Backspace' && !q && value.length) {
+      removeCity(value.length - 1)
+    }
+  }
+
+  return (
+    <div ref={boxRef} style={{ position: 'relative' }}>
+      <div className="input" style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', alignItems: 'center', minHeight: '38px', padding: '5px 8px', cursor: 'text' }}
+        onClick={() => boxRef.current?.querySelector('input')?.focus()}>
+        {value.map((c, i) => (
+          <span key={c.name + i} className="upp-city-chip">
+            <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title="Tidigare" style={{ opacity: i === 0 ? 0.25 : 0.7 }}>‹</button>
+            <span>{c.name}</span>
+            <button type="button" onClick={() => move(i, 1)} disabled={i === value.length - 1} title="Senare" style={{ opacity: i === value.length - 1 ? 0.25 : 0.7 }}>›</button>
+            <button type="button" onClick={() => removeCity(i)} title="Ta bort" style={{ marginLeft: '1px' }}><X size={11} /></button>
+          </span>
+        ))}
+        <input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onKeyDown={onKeyDown}
+          placeholder={value.length ? 'Lägg till stad…' : 'Sök stad — t.ex. Sarajevo, Hanoi…'}
+          style={{ flex: 1, minWidth: '120px', border: 'none', outline: 'none', background: 'transparent', color: 'var(--text)', fontSize: '13px', fontFamily: 'Inter, sans-serif', padding: '4px 2px' }}
+        />
+      </div>
+      {focused && q.trim().length >= 2 && (
+        <div className="upp-city-menu">
+          {!ready && <div className="upp-city-opt" style={{ color: 'var(--muted)' }}>Laddar städer…</div>}
+          {ready && results.length === 0 && <div className="upp-city-opt" style={{ color: 'var(--muted)' }}>Ingen träff — tryck Enter för att lägga till ändå</div>}
+          {results.map(r => (
+            <button type="button" key={r.name + r.coord.join()} className="upp-city-opt" onClick={() => addCity(r)}>
+              <span>📍 {r.name}</span>
+              <span style={{ color: 'var(--muted)', fontSize: '11px' }}>{r.coord[1].toFixed(1)}, {r.coord[0].toFixed(1)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '5px' }}>
+        Städer i ordning — driver kartan. Pilarna ‹ › ändrar reserutten.
+      </div>
+    </div>
+  )
+}
+
 const BUDGET_CATEGORIES = [
   { id: 'flyg', label: 'Flyg / Transport', icon: '✈️' },
   { id: 'boende', label: 'Boende', icon: '🏨' },
@@ -245,6 +343,7 @@ const EMPTY_BUDGET_ITEM = { category: 'flyg', description: '', amount: '', isEst
 
 function TripPlannerModal({ trip, onClose, onSave }) {
   const [planningDoc, setPlanningDoc] = React.useState(trip.planning_doc || trip.notes || '')
+  const [cities, setCities] = React.useState(Array.isArray(trip.cities) ? trip.cities : [])
   const [budgetItems, setBudgetItems] = React.useState(
     trip.budget_items?.length ? trip.budget_items : BUDGET_CATEGORIES.map(c => ({ ...EMPTY_BUDGET_ITEM, category: c.id, description: '', amount: '', isEstimate: false }))
   )
@@ -344,6 +443,7 @@ Svara ENBART med JSON (inga backticks):
     setSaving(true)
     await onSave({
       ...trip,
+      cities,
       planning_doc: planningDoc,
       budget_items: budgetItems,
       budget_sek: totalBudget > 0 ? Math.round(totalBudget) : trip.budget_sek,
@@ -372,6 +472,14 @@ Svara ENBART med JSON (inga backticks):
         </div>
 
         <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* Cities / route */}
+          <div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: '700', letterSpacing: '0.08em', marginBottom: '8px' }}>
+              STÄDER & RUTT
+            </div>
+            <CityPicker value={cities} onChange={setCities} />
+          </div>
 
           {/* Planning doc */}
           <div>
@@ -506,9 +614,9 @@ function TripForm({ initial, onSave, onCancel, saving }) {
           <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Länder</label>
           <CountryPicker selected={form.countries || []} onChange={v => f('countries', v)} />
         </div>
-        <div>
-          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Stad / Region</label>
-          <input className="input" placeholder="t.ex. Lissabon" value={form.city} onChange={e => f('city', e.target.value)} />
+        <div style={{ gridColumn: '1 / -1' }}>
+          <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Städer</label>
+          <CityPicker value={form.cities || []} onChange={v => f('cities', v)} />
         </div>
         <div>
           <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px' }}>Budget (kr)</label>
@@ -602,6 +710,7 @@ export default function UpplevelserPage() {
   const [showNewAdventure, setShowNewAdventure] = useState(false)
   const [tripFilter, setTripFilter] = useState('all')
   const [planningTrip, setPlanningTrip] = useState(null)
+  const [hoverTripId, setHoverTripId] = useState(null)
 
   const [adventureForm, setAdventureForm] = useState({
     title: '', description: '', date: format(new Date(), 'yyyy-MM-dd'),
@@ -644,12 +753,15 @@ export default function UpplevelserPage() {
 
   async function saveTrip(form) {
     setSaving(true)
+    const cities = (form.cities || []).filter(c => c && c.name && Number.isFinite(c.lng) && Number.isFinite(c.lat))
     const payload = {
       user_id: user.id,
       title: form.title,
       country: form.countries?.[0] || '',
       countries: form.countries || [],
-      city: form.city,
+      cities,
+      // keep the free-text `city` in sync — Kalender + older reads use it
+      city: cities.length ? cities.map(c => c.name).join(', ') : (form.city || ''),
       start_date: form.start_date || null,
       end_date: form.end_date || null,
       highlights: form.highlights,
@@ -660,11 +772,17 @@ export default function UpplevelserPage() {
       planning_doc: form.planning_doc || null,
       budget_items: form.budget_items || null,
     }
-    if (form.id) {
-      await supabase.from('trips').update(payload).eq('id', form.id)
-    } else {
-      await supabase.from('trips').insert(payload)
+    const run = (p) => form.id
+      ? supabase.from('trips').update(p).eq('id', form.id)
+      : supabase.from('trips').insert(p)
+    let { error } = await run(payload)
+    // `cities` column ships in migration post_deploy_10 — degrade gracefully
+    // until it lands (PostgREST 'PGRST204' / 42703 on the unknown column).
+    if (error && (/cities/i.test(error.message || '') || error.code === 'PGRST204' || error.code === '42703')) {
+      const { cities: _drop, ...rest } = payload
+      ;({ error } = await run(rest))
     }
+    if (error) { toast({ message: 'Kunde inte spara resan', type: 'error' }); console.error(error) }
     await fetchAll()
     setShowNewTrip(false)
     setEditingTrip(null)
@@ -779,9 +897,9 @@ Returnera ENBART JSON utan backticks:
       </div>
 
       <div className="page-content-scroll">
-        <div style={{ padding: '16px 16px 0', maxWidth: '900px', margin: '0 auto' }}>
+        <div style={{ padding: '16px 16px 0', maxWidth: activeTab === 'resor' ? '1120px' : '900px', margin: '0 auto', transition: 'max-width .2s' }}>
 
-      <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px' }}>
+      <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px', maxWidth: activeTab === 'resor' ? '900px' : 'none' }}>
         {tabs.map(tab => {
           const TabIcon = tab.icon
           return (
@@ -795,31 +913,30 @@ Returnera ENBART JSON utan backticks:
       {/* ===== RESOR ===== */}
       {activeTab === 'resor' && (
         <>
-          <div className="mx-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
+          <div className="upp-stat-strip">
             {[
               { label: 'Genomförda', value: completedTrips.length, color: '#10b981' },
               { label: 'Länder', value: allCountries.length, color: '#3b82f6' },
               { label: 'Planerade', value: trips.filter(t => t.status === 'planned').length, color: '#8b5cf6' },
               { label: 'Dagar reste', value: completedTrips.reduce((sum, t) => sum + (t.start_date && t.end_date ? differenceInDays(parseISO(t.end_date), parseISO(t.start_date)) + 1 : 0), 0), color: '#f59e0b' },
             ].map(({ label, value, color }) => (
-              <div key={label} className="pg-stat" style={{ '--pg-c': color }}>
-                <div className="pg-stat-cap">{label}</div>
-                <div className="pg-stat-num mono">{value}</div>
+              <div key={label} className="upp-stat" style={{ '--pg-c': color }}>
+                <div className="upp-stat-cap">{label}</div>
+                <div className="upp-stat-num mono">{value}</div>
               </div>
             ))}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {[{ id: 'all', label: 'Alla' }, ...TRIP_STATUSES].map(({ id, label }) => (
-                <button key={id} onClick={() => setTripFilter(id)} style={{
-                  padding: '6px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                  background: tripFilter === id ? 'var(--blue)' : 'var(--surface2)',
-                  color: tripFilter === id ? 'white' : 'var(--muted)',
-                  fontSize: '12px', fontFamily: 'Inter, sans-serif', fontWeight: '500',
-                }}>{label}</button>
-              ))}
-            </div>
+          <div className="upp-filter-row">
+            {[{ id: 'all', label: 'Alla' }, ...TRIP_STATUSES].map(({ id, label }) => {
+              const n = id === 'all' ? trips.length : trips.filter(t => t.status === id).length
+              return (
+                <button key={id} onClick={() => setTripFilter(id)}
+                  className={`upp-filter-chip${tripFilter === id ? ' is-active' : ''}`}>
+                  {label} <span style={{ opacity: 0.6 }}>{n}</span>
+                </button>
+              )
+            })}
           </div>
 
           {(showNewTrip && !editingTrip) && (
@@ -829,7 +946,7 @@ Returnera ENBART JSON utan backticks:
           <div className="upp-resor-layout">
           <div className="upp-map-col">
             <Suspense fallback={<div className="upp-map-panel" style={{ minHeight: 260, display: 'grid', placeItems: 'center', color: 'var(--muted)', fontSize: 12 }}>Laddar karta…</div>}>
-              <WorldMap trips={trips} tripFilter={tripFilter} />
+              <WorldMap trips={trips} tripFilter={tripFilter} highlightTripId={hoverTripId} />
             </Suspense>
           </div>
           <div className="upp-trips-scroll" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -849,7 +966,7 @@ Returnera ENBART JSON utan backticks:
                 return (
                   <TripForm
                     key={trip.id}
-                    initial={{ ...trip, budget_sek: trip.budget_sek || '', countries: tripCountries, rating: trip.rating || 0 }}
+                    initial={{ ...trip, budget_sek: trip.budget_sek || '', countries: tripCountries, cities: Array.isArray(trip.cities) ? trip.cities : [], rating: trip.rating || 0 }}
                     onSave={saveTrip}
                     onCancel={() => setEditingTrip(null)}
                     saving={saving}
@@ -859,13 +976,17 @@ Returnera ENBART JSON utan backticks:
 
               return (
                 <div key={trip.id} className="card" style={{
-                  borderColor: trip.status === 'planned' ? 'rgba(59,130,246,0.3)' : trip.status === 'idea' ? 'rgba(139,92,246,0.2)' : 'var(--border)',
-                }}>
+                  borderColor: hoverTripId === trip.id ? 'var(--accent)'
+                    : trip.status === 'planned' ? 'rgba(59,130,246,0.3)' : trip.status === 'idea' ? 'rgba(139,92,246,0.2)' : 'var(--border)',
+                  transition: 'border-color .15s',
+                }}
+                  onMouseEnter={() => setHoverTripId(trip.id)} onMouseLeave={() => setHoverTripId(null)}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }}
                     onClick={() => setExpandedTrip(isExpanded ? null : trip.id)}>
                     <div style={{ display: 'flex', gap: '11px', alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '18px', lineHeight: 1.05, flexShrink: 0, paddingTop: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
-                        {tripCountries.slice(0, 4).map((c, i) => <span key={i}>{FLAGS[c] || '🌍'}</span>)}
+                        {tripCountries.slice(0, 3).map((c, i) => <span key={i}>{FLAGS[c] || '🌍'}</span>)}
+                        {tripCountries.length > 3 && <span style={{ fontSize: '10px', color: 'var(--muted)' }}>+{tripCountries.length - 3}</span>}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
