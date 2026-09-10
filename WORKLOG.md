@@ -105,9 +105,14 @@ skapa mål tills efter `db push`.
 hämtning av aktiviteter." `?action=status` funkar (connected, athlete 110767412),
 så token-raden finns och token-refresh går igenom → `/athlete/activities` failar
 med något som varken är 401 eller 429. Gammal kod slukade Stravas svar.
-**Trolig rotorsak:** Strava ligger bakom Cloudflare och har börjat servera en
-bot-challenge (403 HTML) mot Denos default-User-Agent → `res.json()` kastar →
-`acts=null` → 502.
+**BEKRÄFTAD rotorsak** (via `?action=debug`): Strava svarar
+`403 {"message":"Forbidden","errors":[{"resource":"Application","field":"Status","code":"Inactive"}]}`
+— **Strava-API-appen (client_id 250984) är inaktiverad hos Strava.** Ingen
+token-refresh eller omkoppling hjälper. Appägaren måste logga in på
+strava.com/settings/api, återaktivera appen och godkänna de uppdaterade
+API-villkoren. `858026b` la till diagnostiken som avslöjade det; `<nästa>`
+returnerar nu `{error:'app_inactive', detail}` (503) med klartext istället för
+502.
 **Vad:** alla Strava-GET går nu via `stravaGet()` — explicit `User-Agent` +
 `Accept: application/json`, en retry på 5xx/nätverksblipp, returnerar rå status
 + body-snutt. `sync` sid-1-fel returnerar `{stravaStatus, stravaBody}` och
