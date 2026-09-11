@@ -41,7 +41,7 @@ import { getJarvisUserContext } from '../lib/jarvis'
 import { getSalaryPeriod } from '../lib/salaryPeriod'
 import { computeStudiesTier, buildStudiesLevelUp } from '../lib/studies'
 import { DEFAULT_SUPPLEMENTS } from '../lib/constants'
-import { languageBlend, languageLabel } from '../lib/languageSkill'
+import { languageBlend, languageLabel, languageXP, xpTier, xpForTier } from '../lib/languageSkill'
 
 const GRAPH_CATS = [
   { id:'somn',      label:'Sömn',      color:'#8b5cf6' },
@@ -325,9 +325,13 @@ export default function Dashboard() {
         // Graceful until post_deploy_12 (cards column) is migrated — a SELECT
         // naming an unknown column fails the whole query, not just that field.
         (async () => {
-          const withCards = await supabase.from('skill_logs').select('date,skill,minutes,cards').eq('user_id',userId).gte('date',since30)
+          // since90 — languageXP() needs ~90d of history to converge (its own
+          // 14-day-half-life decay renders anything older negligible); am()
+          // and languageBlend() self-scope to their own shorter windows so
+          // this wider fetch doesn't change guitar's or the weekly figures.
+          const withCards = await supabase.from('skill_logs').select('date,skill,minutes,cards').eq('user_id',userId).gte('date',since90)
           if (!withCards.error) return withCards
-          return supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since30)
+          return supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since90)
         })(),
         Promise.resolve({ data: settingsQuick }),
         supabase.from('training_exercises')
@@ -768,13 +772,20 @@ export default function Dashboard() {
       const wTs=[eT,moT,alcoholT,supplementT].filter(Boolean)
       const wTop=wTs.length?wTs.reduce((min,t)=>t.tier<min.tier?t:min,wTs[0]):null
 
-      function am(sn){const l=(skillData||[]).filter(s=>s.skill===sn);return l.length?Math.round(l.reduce((s,x)=>s+x.minutes,0)/4):0}
+      // Self-scoped to the trailing 28d regardless of how wide skillData was fetched.
+      function am(sn){
+        const cutoff=format(subDays(todayDate,28),'yyyy-MM-dd')
+        const l=(skillData||[]).filter(s=>s.skill===sn && s.date>=cutoff)
+        return l.length?Math.round(l.reduce((s,x)=>s+x.minutes,0)/4):0
+      }
 
-      // Language blend (cards + CI minutes) lives in src/lib/languageSkill.js —
-      // shared with Plugg's Språk tab so the two never drift apart.
+      // Languages: tier comes from languageXP() (decaying points-since-start,
+      // src/lib/languageSkill.js) — not a plain weekly snapshot like every
+      // other skill/category. Guitar stays on the plain weekly-minutes ladder.
       const spB=languageBlend(skillData,'spanish'), srB=languageBlend(skillData,'serbian'), gnB=languageBlend(skillData,'german')
-      const spM=spB.effective, srM=srB.effective, gnM=gnB.effective, gtM=am('guitar')
-      const spT=getSkillTier(spM),srT=getSkillTier(srM),gtT=getSkillTier(gtM),gnT=getSkillTier(gnM)
+      const spXP=languageXP(skillData,'spanish'), srXP=languageXP(skillData,'serbian'), gnXP=languageXP(skillData,'german')
+      const gtM=am('guitar')
+      const spT=xpTier(spXP),srT=xpTier(srXP),gnT=xpTier(gnXP),gtT=getSkillTier(gtM)
       const skTop=[spT,srT,gtT,gnT].reduce((b,t)=>t.tier>b.tier?t:b,spT)
       const skH=!!(skillData?.length)
 
@@ -886,13 +897,14 @@ export default function Dashboard() {
       ]
       const wellLevelUp = wTs.length ? makeLevelUp(currentWellTier, 8, healthReqs, 'T') : null
 
-      const skillTargets = { 2:30, 3:60, 4:120, 5:240, 6:240 }
+      const skillTargets = { 2:30, 3:60, 4:120, 5:240, 6:240 } // guitar only now — languages use xpForTier()
       const currentSkillTier = skH ? skTop.tier : 0
       const nextSkillTier = Math.min((currentSkillTier || 1) + 1, 6)
+      const nextXpTarget = xpForTier(nextSkillTier)
       const skillLevelUp = skH ? makeLevelUp(currentSkillTier, 6, [
-        makeReq({ label:'Spanska', current:spM, target:skillTargets[nextSkillTier], unit:'min/v' }),
-        makeReq({ label:'Serbiska', current:srM, target:skillTargets[nextSkillTier], unit:'min/v' }),
-        makeReq({ label:'Tyska', current:gnM, target:skillTargets[nextSkillTier], unit:'min/v' }),
+        makeReq({ label:'Spanska', current:spXP, target:nextXpTarget, unit:'xp' }),
+        makeReq({ label:'Serbiska', current:srXP, target:nextXpTarget, unit:'xp' }),
+        makeReq({ label:'Tyska', current:gnXP, target:nextXpTarget, unit:'xp' }),
         makeReq({ label:'Gitarr', current:gtM, target:skillTargets[nextSkillTier], unit:'min/v' }),
       ], 'T') : null
 
@@ -982,9 +994,9 @@ export default function Dashboard() {
           ],
           details:[
             {label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',tierInfo:pT},
-            {label:'Spanska',value:languageLabel(spB),tierInfo:spT?.tier?spT:null},
-            {label:'Serbiska',value:languageLabel(srB),tierInfo:srT?.tier?srT:null},
-            {label:'Tyska',value:languageLabel(gnB),tierInfo:gnT?.tier?gnT:null},
+            {label:'Spanska',value:`${languageLabel(spB)} · ${spXP} xp`,tierInfo:spT?.tier?spT:null},
+            {label:'Serbiska',value:`${languageLabel(srB)} · ${srXP} xp`,tierInfo:srT?.tier?srT:null},
+            {label:'Tyska',value:`${languageLabel(gnB)} · ${gnXP} xp`,tierInfo:gnT?.tier?gnT:null},
             {label:'Gitarr',value:gtM?gtM+' min/v':'—',tierInfo:gtT?.tier?gtT:null},
             ...Object.entries(byCourse).map(([c,v])=>({label:c,value:Math.round(v.reduce((s,x)=>s+x,0)/v.length)+'%'})),
           ],

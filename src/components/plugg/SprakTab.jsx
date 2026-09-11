@@ -1,13 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Globe, Plus, Loader } from 'lucide-react'
-import { getSkillTier } from '../dashboard/tierUtils'
-import { languageBlend, languageLabel, LANGUAGE_SKILLS, LANGUAGE_LABELS } from '../../lib/languageSkill'
+import {
+  languageBlend, languageLabel, languageXP, xpTier, xpForTier,
+  LANGUAGE_SKILLS, LANGUAGE_LABELS, XP_LOOKBACK_DAYS,
+} from '../../lib/languageSkill'
 
 // Plugg > Språk — stats for the language skills (Anki cards + logged CI
 // minutes) plus a quick "logga CI direkt efter passet" form. Lower friction
 // than digging into Journal's collapsible Färdigheter section for the one
 // thing you actually want to log often.
+//
+// The tier badge is XP (decaying points-since-start, see languageSkill.js),
+// not the plain weekly average — "X kort/v · Y min/v" underneath is the
+// honest recent-activity number, XP is the standing.
 const LANG_COLOR = { spanish: '#ef4444', serbian: '#3b82f6', german: '#14b8a6' }
 
 // Graceful degradation until post_deploy_11 (activity_type) is migrated.
@@ -31,8 +37,10 @@ export default function SprakTab({ userId }) {
   const load = useCallback(async () => {
     if (!userId) return
     setLoading(true)
+    // XP_LOOKBACK_DAYS so languageXP() sees its full window; languageBlend()
+    // self-scopes back down to a week regardless.
     const since = new Date()
-    since.setDate(since.getDate() - 30)
+    since.setDate(since.getDate() - XP_LOOKBACK_DAYS)
     const { data } = await supabase.from('skill_logs')
       .select('date,skill,minutes,cards,activity_type')
       .eq('user_id', userId).in('skill', LANGUAGE_SKILLS).gte('date', since.toISOString().slice(0, 10))
@@ -57,8 +65,13 @@ export default function SprakTab({ userId }) {
     }
   }
 
-  const breakdown = Object.fromEntries(LANGUAGE_SKILLS.map(s => [s, languageBlend(rows, s)]))
-  const recent = rows.slice(0, 12)
+  const stats = Object.fromEntries(LANGUAGE_SKILLS.map(s => {
+    const xp = languageXP(rows, s)
+    return [s, { blend: languageBlend(rows, s), xp, tier: xpTier(xp) }]
+  }))
+  const last30 = new Date(); last30.setDate(last30.getDate() - 30)
+  const last30Str = last30.toISOString().slice(0, 10)
+  const recent = rows.filter(r => r.date >= last30Str).slice(0, 12)
 
   return (
     <>
@@ -92,20 +105,21 @@ export default function SprakTab({ userId }) {
       {/* Per-language stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px,1fr))', gap: '12px', marginBottom: '16px' }}>
         {LANGUAGE_SKILLS.map(s => {
-          const b = breakdown[s]
-          const tier = getSkillTier(b.effective)
+          const { blend, xp, tier } = stats[s]
           const color = LANG_COLOR[s]
+          const next = xpForTier(Math.min((tier.tier || 1) + 1, 6))
           return (
             <div key={s} className="card" style={{ borderColor: color + '30' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ fontWeight: 700 }}>{LANGUAGE_LABELS[s]}</div>
-                {tier && (
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: tier.color, padding: '2px 8px', borderRadius: 20, background: tier.color + '18' }}>
-                    T{tier.tier} {tier.label}
-                  </span>
-                )}
+                <span style={{ fontSize: '11px', fontWeight: 800, color: tier.color, padding: '2px 8px', borderRadius: 20, background: tier.color + '18' }}>
+                  T{tier.tier} {tier.label}
+                </span>
               </div>
-              <div style={{ fontSize: '13px', color: 'var(--muted2)' }}>{languageLabel(b)}</div>
+              <div style={{ fontSize: '13px', color: 'var(--muted2)' }}>{languageLabel(blend)}</div>
+              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                {xp} xp{tier.tier < 6 ? ` · ${Math.max(0, next - xp)} kvar till nästa nivå` : ''}
+              </div>
             </div>
           )
         })}
