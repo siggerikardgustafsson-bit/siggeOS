@@ -1,5 +1,18 @@
 # Ekonomi auto-sync — research & prep (2026-09-12)
 
+## Status (2026-09-13): built, credentials live, API-level verified
+
+Account created, Application registered (Sandbox), secrets set
+(`ENABLE_BANKING_APP_ID`/`ENV`/`PRIVATE_KEY_PEM`), `ekonomi-bank-link` +
+`ekonomi-sync` edge functions deployed. Confirmed working directly against
+Enable Banking's API (JWT auth, `/aspsps`, `/auth`) — Swedbank is in the
+Sandbox bank list with a test personnummer (`19901111-1111`, no real BankID
+needed for this environment). Not yet confirmed: the actual click-through in
+the app (Ekonomi page "Koppla Swedbank" button) and the transaction shape
+from a real `/accounts/{uid}/transactions` response — `ekonomi-sync`'s field
+mapping is still BerlinGroup-standard-shaped but unverified against a live
+payload. See code comments in `supabase/functions/ekonomi-sync/index.ts`.
+
 User ask: "börja researcha och preppa för någon integration till ekonomi så
 att det sköts per automatik" — research + groundwork, not a live integration
 yet (that needs an account only Sigge can create — see "What only you can do"
