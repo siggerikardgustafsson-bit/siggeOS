@@ -242,7 +242,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
     // ever touches the curved rim.
     return (
       <div className="cexp" onClick={(e) => e.stopPropagation()}
-        style={{ width:'min(70.7%, 560px)', maxHeight:'70.7%', overflowY:'auto', display:'flex',
+        style={{ width:'min(70.7%, 560px)', maxHeight:'80%', overflowY:'auto', display:'flex',
           flexDirection:'column', alignItems:'center', textAlign:'center', padding:'4px 6px' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:11, marginBottom:2 }}>
           {!isCore && (
@@ -254,12 +254,12 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           <span style={{ fontSize:'clamp(19px,2.6vw,27px)', fontWeight:950, color:'#fff', letterSpacing:'-0.02em' }}>{name}</span>
         </div>
         {tierLabel && <span style={{ fontSize:11, fontWeight:800, letterSpacing:'0.2em', textTransform:'uppercase', color:col }}>{tierLabel}</span>}
-        <div style={{ position:'relative', fontSize:'clamp(58px,9.5vw,116px)', lineHeight:.95, fontWeight:950, letterSpacing:'-0.06em', color:'#fff', textShadow:`0 2px 30px ${col}aa`, margin:'2px 0 4px' }}>
+        <div style={{ position:'relative', fontSize:'clamp(52px,7.5vw,92px)', lineHeight:.95, fontWeight:950, letterSpacing:'-0.06em', color:'#fff', textShadow:`0 2px 30px ${col}aa`, margin:'2px 0 4px' }}>
           {tierNum > 0 ? 'T' + tierNum : '—'}
         </div>
         {levelUp && (
-          <div style={{ width:'92%', maxWidth:380, marginBottom:14 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10.5, fontWeight:800, color:'var(--muted)', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.1em' }}>
+          <div style={{ width:'92%', maxWidth:380, marginBottom:9 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10.5, fontWeight:800, color:'var(--muted)', marginBottom:5, textTransform:'uppercase', letterSpacing:'0.1em' }}>
               <span>{levelUp.progressPct}% → T{levelUp.nextTier}</span>
               {levelUp.title && <span style={{ color:nextC }}>{levelUp.title}</span>}
             </div>
@@ -267,14 +267,14 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
               <div style={{ width:(levelUp.progressPct||0)+'%', height:'100%', borderRadius:99, background:`linear-gradient(90deg, ${col}, ${nextC})`, boxShadow:`0 0 12px ${nextC}` }} />
             </div>
             {levelUp.primaryBottleneck && (
-              <div style={{ fontSize:11.5, color:'var(--muted2)', marginTop:9 }}>
+              <div style={{ fontSize:11.5, color:'var(--muted2)', marginTop:7 }}>
                 Flaskhals: <span style={{ color:nextC, fontWeight:800 }}>{levelUp.primaryBottleneck}</span>
               </div>
             )}
           </div>
         )}
         {metrics.length > 0 && (
-          <div style={{ display:'flex', flexWrap:'wrap', justifyContent:'center', gap:7, width:'100%', marginBottom:14 }}>
+          <div style={{ display:'flex', flexWrap:'wrap', justifyContent:'center', gap:6, width:'100%', marginBottom:9 }}>
             {metrics.map((m, i) => (
               <button key={i} className="cexp-pill"
                 onClick={m.evidence ? () => onMetricClick?.({ ...m.evidence, categoryId:id, categoryName:name, metricLabel:m.label, metricValue:m.value }) : undefined}
@@ -287,10 +287,10 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           </div>
         )}
         {Array.isArray(levelUp?.blockers) && levelUp.blockers.length > 0 && (
-          <div style={{ width:'94%', marginBottom:14, textAlign:'left' }}>
-            <div style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', color:'var(--muted)', marginBottom:7, textAlign:'center' }}>Lås upp nästa tier</div>
+          <div style={{ width:'94%', marginBottom:9, textAlign:'left' }}>
+            <div style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.1em', color:'var(--muted)', marginBottom:5, textAlign:'center' }}>Lås upp nästa tier</div>
             {levelUp.blockers.map((b, i) => (
-              <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', fontSize:12, color:'var(--muted2)', padding:'4px 0', lineHeight:1.4 }}>
+              <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', fontSize:12, color:'var(--muted2)', padding:'2px 0', lineHeight:1.35 }}>
                 <span style={{ color:nextC, fontWeight:900 }}>›</span>
                 <span>{typeof b === 'string' ? b : (b?.label || b?.text || '')}</span>
               </div>
@@ -307,7 +307,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
   }
 
   return (
-    <div ref={wrapRef} className="cmap" style={{ position:'relative', width:'100%', minHeight: isExpanded ? '82vh' : 'clamp(480px, calc(100dvh - 210px), 720px)', padding:'26px 0', transition:'min-height .5s cubic-bezier(.22,1,.36,1)' }}>
+    <div ref={wrapRef} className="cmap" style={{ position:'relative', width:'100%', minHeight: isExpanded ? '92vh' : 'clamp(480px, calc(100dvh - 210px), 720px)', padding:'26px 0', transition:'min-height .5s cubic-bezier(.22,1,.36,1)' }}>
       <style>{`
         .cmap-edge { stroke-dasharray: 5 7; animation: cmapFlow 2.6s linear infinite; }
         @keyframes cmapFlow { to { stroke-dashoffset: -24; } }
@@ -504,7 +504,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         const id = 'core'
         const exp = expandedId === id
         const hov = hoverId === id && !isExpanded
-        const dim = exp ? 'min(78vh, 760px)' : (hov ? COREHOVER : CORE)
+        const dim = exp ? 'min(88vh, 820px)' : (hov ? COREHOVER : CORE)
         const dimOther = isExpanded && !exp
         const corePct = maxxProfile?.levelUp?.progressPct
         const push = pushFor(50, 50)
@@ -553,7 +553,7 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
         const exp = expandedId === id
         const hov = hoverId === id && !isExpanded
         const dimOther = isExpanded && !exp
-        const size = exp ? 'min(78vh, 760px)' : (hov ? HOVER : BASE)
+        const size = exp ? 'min(88vh, 820px)' : (hov ? HOVER : BASE)
         const left = exp ? '50%' : n.x + '%'
         const top = exp ? '50%' : n.y + '%'
         const progressPct = cat.levelUp?.progressPct
