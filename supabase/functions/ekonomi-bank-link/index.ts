@@ -31,7 +31,7 @@ import { startAuth, createSession } from '../_shared/enableBanking.ts'
 // Control Panel too (both must match exactly).
 const SELF_URL = 'https://foctdzzbonepdzeubate.supabase.co/functions/v1/ekonomi-bank-link'
 // Where to send the browser once linking is done (success or failure).
-const APP_RETURN_URL = 'https://siggeos.app/ekonomi' // TODO: confirm the real prod app URL
+const APP_RETURN_URL = 'https://sigge-os.vercel.app/ekonomi'
 
 serve(async (req) => {
   const cors = corsHeaders(req)
