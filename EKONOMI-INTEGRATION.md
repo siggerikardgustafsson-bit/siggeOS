@@ -24,6 +24,17 @@ once you're in their dashboard (their ASPSP directory) before linking, since
 bank-specific quirks (e.g. personal vs. corporate account scoping) sometimes
 only surface there.
 
+**Cost confirmed (2026-09-13): free for this use case.** Restricted
+Production (self-linked accounts, which is all SiggeOS needs) requires no
+contract, no KYB, and — per multiple independent developer sources — no
+credit card. Paid, contract-based pricing only kicks in for a *public,
+customer-facing* app serving other people's accounts, which doesn't apply
+here. Enable Banking's own FAQ doesn't spell out "$0" in so many words for
+this specific tier (it just says restricted mode skips the contract/KYB
+step, and separately describes volume-based invoicing for the *contracted*
+tier) — so if their signup flow ever asks for payment details before you've
+signed anything, stop and flag it rather than assuming it's still free.
+
 ## Why not the "obvious" choice (GoCardless / Nordigen)
 
 My first instinct — and probably yours if you'd googled this a year ago —
