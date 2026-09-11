@@ -370,9 +370,17 @@ export default function Dashboard() {
       if (profile?.display_name) setDisplayName(profile.display_name)
 
       // Strava best efforts per activity.
-      // Important: do NOT estimate 1 km / 5 km / 10 km from whole-run average pace.
-      // Dashboard should represent current fitness from actual Strava "Bästa insatser"
-      // saved in run_personal_records for the last 90 days.
+      // The TIER stays strict: never estimate 1 km / 5 km / 10 km from whole-run
+      // average pace for ranking — that's what calculateConditioningTier /
+      // kTop below consume, via bestActual() only. A slow-and-even long run
+      // must never inflate (or deflate) a rank.
+      //
+      // The DISPLAYED "PR" figure is a different job: a 5km PR with no 1km PR is
+      // Strava simply not having found a clean 1km segment inside that run — not
+      // "no 1km data exists". So when there's no real best-effort for a distance,
+      // fall back to the fastest logged average pace among runs that cover at
+      // least that distance (last 90d) — a real, lower-bound number, never a
+      // ranking input. Always labelled "uppskattat" so it never passes as verified.
       function bestActual(distanceKey) {
         const efforts = (runPrData || []).filter(r =>
           r.distance_key === distanceKey &&
@@ -388,6 +396,24 @@ export default function Dashboard() {
         }, efforts[0])
       }
 
+      const DISTANCE_KM = { '1k': 1, '5k': 5, '10k': 10, half_marathon: 21.097 }
+      function estimateFromPace(distanceKey) {
+        const km = DISTANCE_KM[distanceKey]
+        const candidates = (runData || []).filter(r => Number(r.distance_km) >= km && Number(r.pace_per_km) > 0)
+        if (!candidates.length) return null
+        const best = candidates.reduce((b, r) => (Number(r.pace_per_km) < Number(b.pace_per_km) ? r : b), candidates[0])
+        return {
+          time_seconds: Math.round(Number(best.pace_per_km) * km),
+          pace_per_km: Number(best.pace_per_km),
+          date: best.date,
+          distance_km: km,
+          estimated: true,
+          sourcePace: best.pace_per_km,
+          sourceDistanceKm: best.distance_km,
+        }
+      }
+      const bestForDisplay = (distanceKey) => bestActual(distanceKey) || estimateFromPace(distanceKey)
+
       function toDecayed(run) {
         if (!run) return null
         return getDecayedValue(Number(run.time_seconds), run.date, 90)
@@ -398,17 +424,32 @@ export default function Dashboard() {
       const r10Actual = bestActual('10k')
       const rHActual = bestActual('half_marathon')
 
+      // Display-only variants — fall back to the pace estimate when Strava has
+      // no verified segment. Never fed into tier math (see r1T/r5T/... below,
+      // which stay on r1D/r5D/... derived from the strict r*Actual above).
+      const r1Show  = bestForDisplay('1k')
+      const r5Show  = bestForDisplay('5k')
+      const r10Show = bestForDisplay('10k')
+      const rHShow  = bestForDisplay('half_marathon')
+
       function runEvidence(row, label) {
         if (!row) return null
         return {
           type: 'run_best_effort',
           title: label,
-          subtitle: 'Strava best effort från enskilt löppass',
-          value: formatRunTime(Number(row.time_seconds)),
+          subtitle: row.estimated
+            ? `Uppskattat från snabbaste snittfart (${row.sourceDistanceKm} km-pass) — inget verifierat Strava-segment för denna distans`
+            : 'Strava best effort från enskilt löppass',
+          value: (row.estimated ? '~' : '') + formatRunTime(Number(row.time_seconds)),
           date: row.date,
           navTarget: row.strava_activity_id ? `/traning?stravaActivity=${row.strava_activity_id}` : '/traning',
           navLabel: 'Träning',
-          rows: [
+          rows: row.estimated ? [
+            { label: 'Källa', value: 'uppskattat — snittfart från längre pass' },
+            { label: 'Uppskattad tid', value: '~' + formatRunTime(Number(row.time_seconds)) },
+            { label: 'Baserat på', value: `${row.sourceDistanceKm} km-pass i snittfart ${formatRunTime(Number(row.sourcePace))}/km` },
+            { label: 'Datum', value: row.date || '—' },
+          ] : [
             { label: 'Källa', value: 'run_personal_records' },
             { label: 'Best effort', value: row.strava_effort_name || row.label || label },
             { label: 'Tid', value: formatRunTime(Number(row.time_seconds)) },
@@ -864,10 +905,22 @@ export default function Dashboard() {
         ] }
       }) : null
 
-      const r1Evidence = runEvidence(r1Actual, '1 km PR')
-      const r5Evidence = runEvidence(r5Actual, '5 km PR')
-      const r10Evidence = runEvidence(r10Actual, '10 km PR')
-      const rHEvidence = runEvidence(rHActual, 'Halvmara')
+      // Decayed display values — fall back to the pace estimate (r*Show) so the
+      // PR card always shows the strongest available performance, per-distance
+      // tier badges (r1T etc.) stay attached to the strict/verified value only.
+      const r1ShowD  = toDecayed(r1Show)
+      const r5ShowD  = toDecayed(r5Show)
+      const r10ShowD = toDecayed(r10Show)
+      const rHShowD  = toDecayed(rHShow)
+      function fmtPR(showD, row) {
+        if (!showD) return '—'
+        return (row?.estimated ? '~' : '') + formatRunTime(Math.round(showD.value))
+      }
+
+      const r1Evidence = runEvidence(r1Show, '1 km PR')
+      const r5Evidence = runEvidence(r5Show, '5 km PR')
+      const r10Evidence = runEvidence(r10Show, '10 km PR')
+      const rHEvidence = runEvidence(rHShow, 'Halvmara')
       const bEvidence = strengthEvidence('Bänk e1RM', ['bänkpress','bench'])
       const sEvidence = strengthEvidence('Knäböj e1RM', ['knäböj','squat'])
       const dlEvidence = strengthEvidence('Marklyft e1RM', ['marklyft','deadlift'])
@@ -875,11 +928,11 @@ export default function Dashboard() {
       const cats = [
         {id:'kondition',name:'Kondition',icon:'kondition',tier:kTop,hasData:hasRunData,pct:kTop?Math.round((kTop.tier/8)*100):0,decayWarning:[r5D,r10D,rHD,rMD].some(d=>d?.stale),trend:r5D?.daysSince<14?'up':'neutral',
           metrics:[
-            {label:'1km PR',value:r1D?formatRunTime(Math.round(r1D.value)):'—',highlight:true,evidence:r1Evidence},
-            {label:'5km PR',value:r5D?formatRunTime(Math.round(r5D.value)):'—',evidence:r5Evidence},
-            {label:'10km PR',value:r10D?formatRunTime(Math.round(r10D.value)):'—',evidence:r10Evidence}
+            {label:'1km PR',value:fmtPR(r1ShowD, r1Show),highlight:true,evidence:r1Evidence},
+            {label:'5km PR',value:fmtPR(r5ShowD, r5Show),evidence:r5Evidence},
+            {label:'10km PR',value:fmtPR(r10ShowD, r10Show),evidence:r10Evidence}
           ],
-          details:[{label:'1km PR',value:sourceValue(r1D?formatRunTime(Math.round(r1D.value)):'—', r1Evidence),tierInfo:r1T},{label:'5km PR',value:sourceValue(r5D?formatRunTime(Math.round(r5D.value)):'—', r5Evidence),tierInfo:r5T},{label:'10km PR',value:sourceValue(r10D?formatRunTime(Math.round(r10D.value)):'—', r10Evidence),tierInfo:r10T},{label:'Halvmara',value:sourceValue(rHD?formatRunTime(Math.round(rHD.value)):'—', rHEvidence),tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT}],
+          details:[{label:'1km PR',value:sourceValue(fmtPR(r1ShowD, r1Show), r1Evidence),tierInfo:r1T},{label:'5km PR',value:sourceValue(fmtPR(r5ShowD, r5Show), r5Evidence),tierInfo:r5T},{label:'10km PR',value:sourceValue(fmtPR(r10ShowD, r10Show), r10Evidence),tierInfo:r10T},{label:'Halvmara',value:sourceValue(fmtPR(rHShowD, rHShow), rHEvidence),tierInfo:rHT},{label:'Mara',value:rMD?formatRunTime(Math.round(rMD.value)):'—',tierInfo:rMT}],
           chartData:(runData||[]).filter(r=>r.distance_km>=4.5&&r.distance_km<=11).slice(0,20).reverse().map(r=>({date:r.date.slice(5),Pace:r.pace_per_km?Math.round(r.pace_per_km/60*10)/10:null})),
           chartLines:[{key:'Pace',label:'Pace (min/km)',color:'#4f8ef7'}],levelUp:kondLevelUp,navTarget:'/traning',navLabel:'Träning'},
         {id:'styrka',name:'Styrka',icon:'styrka',tier:stTop,hasData:hasStrengthData,pct:strengthLevelUp?.progressPct ?? (stTop?Math.round((stTop.tier/8)*100):0),decayWarning:false,trend:'neutral',
