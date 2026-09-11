@@ -113,12 +113,28 @@ export async function getAccountDetails(accountUid: string) {
 // Follows `continuation_key` until exhausted (2026-09-14 fix — the first cut
 // of this only fetched ONE page, silently dropping everything past it; a
 // real account easily has more transactions than fit in one response).
-// MAX_PAGES is a sane backstop, not a real limit — a year of a personal
-// account is nowhere near it.
-const MAX_PAGES = 50
+//
+// 2026-09-14, later same day — confirmed against the real production
+// account that Swedbank/Enable Banking does NOT always serve a window
+// synchronously, REGARDLESS of how recent/narrow it is: sometimes the first
+// page comes back with zero transactions and a continuation_key that, when
+// followed, keeps returning MORE empty pages (each itself fast, ~1-2s) for
+// a long time — this looks like an on-demand "statement" being generated
+// server-side, and it's non-deterministic (the exact same account+window
+// was instant on one call and took 10+ minutes without finishing on
+// another, back to back). MAX_PAGES is no longer just a backstop against a
+// pathological infinite loop — it's a real, expected exit path. Kept low
+// (not 50) so ONE slow/cold connection can't eat an entire sync run; the
+// caller (ekonomi-sync) MUST check `complete` and must NOT advance that
+// connection's last_synced_at on an incomplete fetch, or the un-fetched
+// window is silently lost forever (this was a real bug here — advancing
+// the watermark on every attempt regardless of outcome, even a fetch that
+// exhausted its page budget having seen nothing).
+const MAX_PAGES = 15
 export async function getTransactions(accountUid: string, dateFrom?: string) {
   const all: any[] = []
   let continuationKey: string | undefined
+  let complete = false
   for (let page = 0; page < MAX_PAGES; page++) {
     const params = new URLSearchParams()
     if (dateFrom) params.set('date_from', dateFrom)
@@ -127,7 +143,7 @@ export async function getTransactions(accountUid: string, dateFrom?: string) {
     const res = await ebFetch(`/accounts/${accountUid}/transactions${q}`) as { transactions: any[]; continuation_key?: string }
     all.push(...(res.transactions || []))
     continuationKey = res.continuation_key
-    if (!continuationKey) break
+    if (!continuationKey) { complete = true; break }
   }
-  return { transactions: all }
+  return { transactions: all, complete }
 }
