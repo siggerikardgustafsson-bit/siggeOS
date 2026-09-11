@@ -16,6 +16,14 @@ ever need. Architecture mirrors the Anki-sync pattern already live in this
 app (`skill-ingest`), just simpler: no local Mac script needed, since the
 bank API is reachable directly from a Supabase Edge Function.
 
+**Swedbank confirmed (2026-09-13, user's own bank):** Enable Banking lists
+Swedbank as a supported ASPSP — Swedbank exposes a standard BerlinGroup-
+spec PSD2 API (same family every EU aggregator, including Enable Banking,
+builds against), so no provider change needed. Worth a quick sanity check
+once you're in their dashboard (their ASPSP directory) before linking, since
+bank-specific quirks (e.g. personal vs. corporate account scoping) sometimes
+only surface there.
+
 ## Why not the "obvious" choice (GoCardless / Nordigen)
 
 My first instinct — and probably yours if you'd googled this a year ago —

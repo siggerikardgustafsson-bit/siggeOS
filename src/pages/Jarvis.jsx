@@ -35,6 +35,15 @@ const FOLLOWUP_RULES = [
 ]
 const DEFAULT_FOLLOWUPS = ['Vad ska jag fokusera på idag?', 'Vad oroar dig mest i min data?', 'Sätt en plan för veckan']
 
+// Proactive daily brief (user call 2026-09-13, "gör jarvis mer proaktiv") —
+// fired once per day, only when this is genuinely the first Jarvis
+// interaction that day (see the mount effect / dailyBriefRef). Sent with
+// visible:false + skipUserSave:true so it never shows as a fake user
+// question — Jarvis just speaks first. Grounded in the SAME MAXX
+// INTELLIGENS + MÖNSTER + SIGNALER context every other message gets
+// (refreshContext), so this costs one normal chat call, no new data plumbing.
+const DAILY_BRIEF_PROMPT = 'Det här är första interaktionen för dagen — inled proaktivt, inte reaktivt. Ge en kort daglig briefing (max 3–4 meningar): vad är mest värt att fokusera på idag utifrån min faktiska data? Om det finns en tydlig flaskhals, en varningssignal, eller ett konkret snabbt vinst-läge just nu, nämn det specifikt (siffror, inte generiska råd). Ingen inledande hälsningsfras — gå rakt in i sakinnehållet.'
+
 function getFollowUps(messages) {
   const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && !m.isSeparator)
   if (!lastAssistant) return []
@@ -52,6 +61,7 @@ export default function Jarvis() {
   const location = useLocation()
   const navigate = useNavigate()
   const deepLinkRef = useRef(false)
+  const dailyBriefRef = useRef(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -90,9 +100,18 @@ export default function Jarvis() {
 
   useEffect(() => {
     if (!user) return
-    loadHistory()
-    refreshContext(true) // rebuild on entry — catches writes made on other pages (P1-6)
-    loadInsights()
+    ;(async () => {
+      const hasMessageToday = await loadHistory()
+      refreshContext(true) // rebuild on entry — catches writes made on other pages (P1-6)
+      loadInsights()
+      // Proactive daily brief (user call 2026-09-13) — Jarvis speaks first if
+      // this is genuinely the first interaction today and nothing else is
+      // about to auto-fire (a Dashboard deep-link prompt takes priority).
+      if (!hasMessageToday && !location.state?.prompt && !dailyBriefRef.current) {
+        dailyBriefRef.current = true
+        sendToJarvis(DAILY_BRIEF_PROMPT, false, { skipUserSave: true })
+      }
+    })()
   }, [user])
 
   useEffect(() => {
@@ -237,19 +256,23 @@ export default function Jarvis() {
       .limit(300)
     if (data) data.reverse()
 
-    if (!data?.length) return
+    if (!data?.length) return false
     const msgs = []
     let lastDay = null
+    let hasMessageToday = false
+    const today = todayISO()
     for (const row of data) {
       const day = row.created_at.slice(0, 10)
+      if (day === today) hasMessageToday = true
       if (day !== lastDay) {
-        const isToday = day === todayISO()
+        const isToday = day === today
         msgs.push({ role: 'separator', content: isToday ? 'Idag' : format(new Date(day + 'T12:00:00'), 'd MMMM', { locale: sv }), isSeparator: true })
         lastDay = day
       }
       msgs.push({ role: row.role, content: stripAccidentalActionJson(row.content), created_at: row.created_at })
     }
     setMessages(msgs)
+    return hasMessageToday
   }
 
   async function loadInsights() {
