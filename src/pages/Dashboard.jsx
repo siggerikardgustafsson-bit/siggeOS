@@ -15,7 +15,7 @@ import AchievementsModal from '../components/AchievementsModal'
 import { CalendarDays, BarChart2, Orbit, Sparkles, Trophy, Network } from 'lucide-react'
 import { useToast } from '../context/ToastContext'
 import {
-  getTier, getSkillTier, getDecayedValue, calcOverallTier,
+  getTier, getDecayedValue, calcOverallTier,
   formatRunTime,
   RUN_5K_THRESHOLDS, RUN_10K_THRESHOLDS, RUN_HALF_THRESHOLDS,
   BENCH_THRESHOLDS, SQUAT_THRESHOLDS, DEADLIFT_THRESHOLDS, OHP_THRESHOLDS, PULLUP_THRESHOLDS,
@@ -23,7 +23,7 @@ import {
   ENERGY_THRESHOLDS, MOOD_THRESHOLDS,
   TIER_COLORS, TIER_NAMES,
 } from '../components/dashboard/tierUtils'
-import { getUserProfile, buildUserContext } from '../lib/personalization'
+import { getUserProfile, buildUserContext, resolveTargetWeight } from '../lib/personalization'
 import {
   calculateStrengthTier, calculateConditioningTier, calculateEconomyTier,
   calculateHealthTier, calculateStudyTier,
@@ -40,7 +40,10 @@ import SectionHeader from '../components/ui/SectionHeader'
 import { getJarvisUserContext } from '../lib/jarvis'
 import { getSalaryPeriod } from '../lib/salaryPeriod'
 import { DEFAULT_SUPPLEMENTS } from '../lib/constants'
-import { languageBlend, languageLabel, languageXP, xpTier, xpForTier } from '../lib/languageSkill'
+import {
+  languageBlend, languageLabel, languageTier,
+  CARDS_THRESHOLDS, CI_HOURS_THRESHOLDS, CONSISTENCY_DAY_THRESHOLDS,
+} from '../lib/languageSkill'
 
 const GRAPH_CATS = [
   { id:'valmående', label:'Hälsa',     color:'#f472b6' }, // merged Sömn+Hälsa — column name predates the merge
@@ -67,19 +70,6 @@ function GraphTooltip({ active, payload, label }) {
 }
 
 
-function goalValue(goals, keys, fallback = null) {
-  for (const key of keys) {
-    const value = goals?.[key]
-    if (value !== undefined && value !== null && value !== '') return value
-  }
-  return fallback
-}
-
-function parseNumber(value) {
-  if (value === undefined || value === null || value === '') return null
-  const parsed = Number(String(value).replace(',', '.'))
-  return Number.isFinite(parsed) ? parsed : null
-}
 
 function buildMaxxProfile(cats, profileId = 'balanced', personalization = null) {
   const rankCats = cats.filter(c => c?.tier?.tier && c.hasData && !['kropp'].includes(c.id))
@@ -320,16 +310,18 @@ export default function Dashboard() {
         supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
         supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
         supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',periodStart).lte('date',periodEnd),
-        // Graceful until post_deploy_12 (cards column) is migrated — a SELECT
-        // naming an unknown column fails the whole query, not just that field.
+        // Graceful until post_deploy_11/12 (activity_type/cards columns) are
+        // migrated — a SELECT naming an unknown column fails the whole query.
+        // No date floor (user call 2026-09-11): languageTier()'s cards/CI
+        // totals are LIFETIME cumulative, not a windowed snapshot — am() and
+        // languageBlend()/guitarConsistencyTier() self-scope to their own
+        // shorter windows so this doesn't change guitar's or the weekly figures.
         (async () => {
-          // since90 — languageXP() needs ~90d of history to converge (its own
-          // 14-day-half-life decay renders anything older negligible); am()
-          // and languageBlend() self-scope to their own shorter windows so
-          // this wider fetch doesn't change guitar's or the weekly figures.
-          const withCards = await supabase.from('skill_logs').select('date,skill,minutes,cards').eq('user_id',userId).gte('date',since90)
+          const withCards = await supabase.from('skill_logs').select('date,skill,minutes,cards,activity_type').eq('user_id',userId)
           if (!withCards.error) return withCards
-          return supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since90)
+          const withCardsOnly = await supabase.from('skill_logs').select('date,skill,minutes,cards').eq('user_id',userId)
+          if (!withCardsOnly.error) return withCardsOnly
+          return supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId)
         })(),
         Promise.resolve({ data: settingsQuick }),
         supabase.from('training_exercises')
@@ -360,8 +352,6 @@ export default function Dashboard() {
       ])
 
       const latestW = (healthData||[]).find(h=>h.weight_kg)
-      const goalWeightRaw = goalValue(userSettings?.goals, ['target_weight','body_weight_goal','weight_goal_kg','målvikt'], null)
-      const goalWeight = parseNumber(goalWeightRaw)
       const bw = latestW?.weight_kg || null
       setBodyWeight(bw)
 
@@ -712,7 +702,9 @@ export default function Dashboard() {
       }
 
       const wLogs=(healthData||[]).filter(h=>h.weight_kg).slice(0,14)
-      const wGoal = goalWeight || 75
+      // Single source of truth (user call 2026-09-11) — profiles.target_weight_kg
+      // wins over user_settings.goals.* so Dashboard/Halsa never disagree again.
+      const wGoal = resolveTargetWeight(profile, userSettings) || 75
       const wNew=wLogs[0]?.weight_kg||bw,wOld=wLogs[wLogs.length-1]?.weight_kg||bw
       const wD=Math.round((wNew-wOld)*10)/10,wK=Math.max(0,Math.round((bw-wGoal)*10)/10)
       const wP=wK<=0?100:Math.max(0,Math.round((1-wK/Math.max(0.1,bw-wGoal+wK))*100))
@@ -784,14 +776,32 @@ export default function Dashboard() {
         return l.length?Math.round(l.reduce((s,x)=>s+x.minutes,0)/4):0
       }
 
-      // Languages: tier comes from languageXP() (decaying points-since-start,
-      // src/lib/languageSkill.js) — not a plain weekly snapshot like every
-      // other skill/category. Guitar stays on the plain weekly-minutes ladder.
+      // Gitarr (user call 2026-09-11): "flaskhalsen bör vara consistency på x
+      // antal minuter om dagen" — tier = how many of the last 28 days had a
+      // real (≥15min) practice session, not weekly-average volume. A few long
+      // sessions no longer outrank showing up regularly.
+      const GUITAR_MIN_SESSION_MIN = 15
+      const GUITAR_LABELS = ['Inaktiv','Har börjat','Nybörjare','Regelbunden','Dedikerad','Seriös','Mästare']
+      const GUITAR_COLORS = ['#374151','#4b5563','#3b82f6','#10b981','#06b6d4','#ec4899','#f59e0b']
+      function guitarConsistencyTier(sn){
+        const cutoff=format(subDays(todayDate,28),'yyyy-MM-dd')
+        const activeDays=new Set((skillData||[]).filter(s=>s.skill===sn && s.date>=cutoff && Number(s.minutes||0)>=GUITAR_MIN_SESSION_MIN).map(s=>s.date)).size
+        if(!activeDays) return { tier:0, label:GUITAR_LABELS[0], color:GUITAR_COLORS[0], activeDays:0 }
+        let tier=1
+        for(let i=0;i<CONSISTENCY_DAY_THRESHOLDS.length;i++) if(activeDays>=CONSISTENCY_DAY_THRESHOLDS[i]) tier=i+2
+        return { tier, label:GUITAR_LABELS[tier], color:GUITAR_COLORS[tier], activeDays }
+      }
+
+      // Languages: tier comes from languageTier() (v2, three-gate: cumulative
+      // cards + cumulative CI hours + recent consistency — see languageSkill.js
+      // header). languageBlend() stays a display-only weekly figure.
       const spB=languageBlend(skillData,'spanish'), srB=languageBlend(skillData,'serbian'), gnB=languageBlend(skillData,'german')
-      const spXP=languageXP(skillData,'spanish'), srXP=languageXP(skillData,'serbian'), gnXP=languageXP(skillData,'german')
+      const spT=languageTier(skillData,'spanish'), srT=languageTier(skillData,'serbian'), gnT=languageTier(skillData,'german')
       const gtM=am('guitar')
-      const spT=xpTier(spXP),srT=xpTier(srXP),gnT=xpTier(gnXP),gtT=getSkillTier(gtM)
-      const skTop=[spT,srT,gtT,gnT].reduce((b,t)=>t.tier>b.tier?t:b,spT)
+      const gtT=guitarConsistencyTier('guitar')
+      // Each of the 4 is its own bottleneck (user call 2026-09-11) — weakest
+      // link, not best-of. An untouched language pins the whole category low.
+      const skTop=[spT,srT,gtT,gnT].reduce((b,t)=>t.tier<b.tier?t:b,spT)
       const skH=!!(skillData?.length)
 
       // ── Dynamic level-up / bottleneck system ─────────────────────────────
@@ -898,15 +908,33 @@ export default function Dashboard() {
       ]
       const wellLevelUp = wTs.length ? makeLevelUp(currentWellTier, 8, healthReqs, 'T') : null
 
-      const skillTargets = { 2:30, 3:60, 4:120, 5:240, 6:240 } // guitar only now — languages use xpForTier()
+      // Each requirement names its OWN binding gate (kort/CI/regelbundenhet for
+      // languages, dagar/28 for gitarr) — matches skTop's per-skill weakest-
+      // link so the reason a language isn't ranking up is always visible.
+      function langBindingReq(label, t){
+        if (!t || t.tier === 0) return makeReq({ label, current:0, target:1, unit:'kort', currentLabel:'Inget loggat', targetLabel:'Börja logga' })
+        if (t.tier >= 6) return makeReq({ label, current:1, target:1 })
+        const idx = Math.max(0, t.tier - 1)
+        if (t.cardsTier <= t.ciTier && t.cardsTier <= t.consistencyTier) {
+          return makeReq({ label:`${label} (kort)`, current:t.cardsTotal, target:CARDS_THRESHOLDS[idx], unit:'kort' })
+        }
+        if (t.ciTier <= t.consistencyTier) {
+          return makeReq({ label:`${label} (CI)`, current:t.ciHoursTotal, target:CI_HOURS_THRESHOLDS[idx], unit:'h' })
+        }
+        return makeReq({ label:`${label} (regelbundenhet)`, current:t.activeDays, target:CONSISTENCY_DAY_THRESHOLDS[idx], unit:'dagar/28' })
+      }
+      function guitarReq(t){
+        if (!t || t.tier === 0) return makeReq({ label:'Gitarr', current:0, target:1, unit:'dagar/28', currentLabel:'Inget loggat', targetLabel:'Börja spela' })
+        if (t.tier >= 6) return makeReq({ label:'Gitarr', current:1, target:1 })
+        const idx = Math.max(0, t.tier - 1)
+        return makeReq({ label:`Gitarr (≥${GUITAR_MIN_SESSION_MIN}min/dag)`, current:t.activeDays, target:CONSISTENCY_DAY_THRESHOLDS[idx], unit:'dagar/28' })
+      }
       const currentSkillTier = skH ? skTop.tier : 0
-      const nextSkillTier = Math.min((currentSkillTier || 1) + 1, 6)
-      const nextXpTarget = xpForTier(nextSkillTier)
       const skillLevelUp = skH ? makeLevelUp(currentSkillTier, 6, [
-        makeReq({ label:'Spanska', current:spXP, target:nextXpTarget, unit:'xp' }),
-        makeReq({ label:'Serbiska', current:srXP, target:nextXpTarget, unit:'xp' }),
-        makeReq({ label:'Tyska', current:gnXP, target:nextXpTarget, unit:'xp' }),
-        makeReq({ label:'Gitarr', current:gtM, target:skillTargets[nextSkillTier], unit:'min/v' }),
+        langBindingReq('Spanska', spT),
+        langBindingReq('Serbiska', srT),
+        langBindingReq('Tyska', gnT),
+        guitarReq(gtT),
       ], 'T') : null
 
       const skillsTierVal = skH ? (skTop?.tier ?? 0) : 0
@@ -942,10 +970,6 @@ export default function Dashboard() {
       const bEvidence = strengthEvidence('Bänk e1RM', ['bänkpress','bench'])
       const sEvidence = strengthEvidence('Knäböj e1RM', ['knäböj','squat'])
       const dlEvidence = strengthEvidence('Marklyft e1RM', ['marklyft','deadlift'])
-
-      // Best-of-3 language for the Färdigheter bubble's compact metric line.
-      const bestLangXP = Math.max(spXP, srXP, gnXP)
-      const bestLangName = spXP >= srXP && spXP >= gnXP ? 'Spanska' : srXP >= gnXP ? 'Serbiska' : 'Tyska'
 
       const cats = [
         {id:'kondition',name:'Kondition',icon:'kondition',tier:kTop,hasData:hasRunData,pct:kTop?Math.round((kTop.tier/8)*100):0,decayWarning:[r5D,r10D,rHD,rMD].some(d=>d?.stale),trend:r5D?.daysSince<14?'up':'neutral',
@@ -984,16 +1008,20 @@ export default function Dashboard() {
           ],
           chartData:[],chartLines:[],levelUp:studyLevelUp,navTarget:'/plugg',navLabel:'Studier'},
         {id:'fardigheter',name:'Färdigheter',icon:'fardigheter',tier:skTop,hasData:skH,pct:skTop?.tier?Math.round((skTop.tier/6)*100):0,decayWarning:false,trend:'neutral',
+          // User call 2026-09-11: the small satellite bubbles ARE the 4 skills
+          // (not a rolled-up "level"/"best language") — each highlighted when
+          // it's the one currently binding skTop (the weakest-link bottleneck).
           metrics:[
-            {label:'Färdighetsnivå',value:skTop?.tier?(TIER_NAMES[skTop.tier]||`T${skTop.tier}`):'—',highlight:true},
-            {label:'Gitarr',value:gtM?gtM+' min/v':'—'},
-            {label:'Bästa språk',value:bestLangXP>0?`${bestLangName} (${bestLangXP} xp)`:'—'},
+            {label:'Spanska',value:spT?.tier?`T${spT.tier}`:'—',highlight:(spT?.tier??0)===skTop?.tier},
+            {label:'Tyska',value:gnT?.tier?`T${gnT.tier}`:'—',highlight:(gnT?.tier??0)===skTop?.tier},
+            {label:'Serbiska',value:srT?.tier?`T${srT.tier}`:'—',highlight:(srT?.tier??0)===skTop?.tier},
+            {label:'Gitarr',value:gtT?.tier?`T${gtT.tier}`:'—',highlight:(gtT?.tier??0)===skTop?.tier},
           ],
           details:[
-            {label:'Spanska',value:`${languageLabel(spB)} · ${spXP} xp`,tierInfo:spT?.tier?spT:null},
-            {label:'Serbiska',value:`${languageLabel(srB)} · ${srXP} xp`,tierInfo:srT?.tier?srT:null},
-            {label:'Tyska',value:`${languageLabel(gnB)} · ${gnXP} xp`,tierInfo:gnT?.tier?gnT:null},
-            {label:'Gitarr',value:gtM?gtM+' min/v':'—',tierInfo:gtT?.tier?gtT:null},
+            {label:'Spanska',value:`${languageLabel(spB)} · ${spT.cardsTotal} kort · ${spT.ciHoursTotal}h CI totalt`,tierInfo:spT?.tier?spT:null},
+            {label:'Serbiska',value:`${languageLabel(srB)} · ${srT.cardsTotal} kort · ${srT.ciHoursTotal}h CI totalt`,tierInfo:srT?.tier?srT:null},
+            {label:'Tyska',value:`${languageLabel(gnB)} · ${gnT.cardsTotal} kort · ${gnT.ciHoursTotal}h CI totalt`,tierInfo:gnT?.tier?gnT:null},
+            {label:'Gitarr',value:gtM?`${gtM} min/v · ${gtT.activeDays||0}/28 dagar med pass`:'—',tierInfo:gtT?.tier?gtT:null},
           ],
           chartData:[],chartLines:[],levelUp:skillLevelUp,navTarget:'/plugg',navLabel:'Plugg'},
         {id:'ekonomi',name:'Ekonomi',icon:'ekonomi',tier:eTop,hasData:!!(totPA||sav!=null),pct:eTop?Math.round((eTop.tier/8)*100):0,decayWarning:false,trend:'neutral',

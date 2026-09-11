@@ -11,8 +11,10 @@ const NEXT_TIER_SHORT = {
   // full driver list (+ vikttrend/kosttillskott/alkohol) is in DetailModal.
   halsa:     ['—','Sömn ≥6.5h, steg ≥5000','Sömn ≥7.0h, steg ≥7500','Sömn ≥7.25h, steg ≥9000','Sömn ≥7.5h, steg ≥11000','Sömn ≥8.0h, steg ≥13000','Sömn ≥8.5h, steg ≥15000','Sömn ≥9h, steg ≥18000 ✓'],
   valmående: ['—','Sömn ≥6.5h, steg ≥5000','Sömn ≥7.0h, steg ≥7500','Sömn ≥7.25h, steg ≥9000','Sömn ≥7.5h, steg ≥11000','Sömn ≥8.0h, steg ≥13000','Sömn ≥8.5h, steg ≥15000','Sömn ≥9h, steg ≥18000 ✓'],
-  // Gitarr (min/vecka) + språk (xp) combined — tops out at T6 (no T7/T8).
-  fardigheter:['—','','Gitarr ≥30 min/v · Språk ≥90 xp','Gitarr ≥60 min/v · Språk ≥175 xp','Gitarr ≥120 min/v · Språk ≥350 xp','Gitarr ≥240 min/v · Språk ≥700 xp ✓','',''],
+  // v2 (user call 2026-09-11): 3 gates for språk (kort+CI+regelbundenhet),
+  // 1 for gitarr (regelbundenhet) — tops out at T6 (no T7/T8). Index N =
+  // requirement to reach tier N+1 (matches every other row in this object).
+  fardigheter:['Börja logga','1000 kort·15h·2/28d','2500 kort·50h·6/28d','4500 kort·150h·10/28d','6500 kort·400h·16/28d','8000 kort·900h·22/28d ✓','',''],
 }
 
 function Icon({ id, color, size = 14 }) {

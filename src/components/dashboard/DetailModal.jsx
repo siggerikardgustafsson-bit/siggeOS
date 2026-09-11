@@ -57,14 +57,20 @@ const TIER_REQUIREMENTS = {
     { tier:8, label:'Top 1%',   reqs:['Sömn ≥ 9h','Steg ≥ 18000/dag','Alkohol nära noll','Kosttillskott ≥ 99% om loggat'] },
   ],
   valmående: [],
-  // Färdigheter (user call 2026-09-11) — gitarr uses min/vecka, språk uses
-  // decaying XP (languageSkill.js); same tier numbering (getSkillTier/xpTier).
+  // Färdigheter v2 (user call 2026-09-11) — evidence-based, three gates for
+  // each language (cumulative cards + cumulative CI hours + consistency, all
+  // must clear), one gate for gitarr (consistency only). Each of the 4 skills
+  // is its own bottleneck for the category — see languageSkill.js header for
+  // the vocabulary-size/CI-hours research basis. Tier 6 = "Flytande" for
+  // språk (~8000 cards ≈ the commonly-cited word-family count for near-native
+  // comprehension), "Mästare" for gitarr.
   fardigheter: [
-    { tier:2, label:'Nybörjare',   reqs:['Gitarr: 1–30 min/vecka','Språk: 1–89 xp'] },
-    { tier:3, label:'Regelbunden', reqs:['Gitarr: 30–60 min/vecka','Språk: 90–174 xp'] },
-    { tier:4, label:'Dedikerad',   reqs:['Gitarr: 60–120 min/vecka','Språk: 175–349 xp'] },
-    { tier:5, label:'Seriös',      reqs:['Gitarr: 120–240 min/vecka','Språk: 350–699 xp'] },
-    { tier:6, label:'Mästare',     reqs:['Gitarr: 240+ min/vecka','Språk: 700+ xp'] },
+    { tier:1, label:'Har börjat',  reqs:['Något loggat, under nästa tröskel (se nedan)'] },
+    { tier:2, label:'Nybörjare',   reqs:['Språk: 1000 kort · 15h CI · 2/28 dagar','Gitarr: 2/28 dagar ≥15min'] },
+    { tier:3, label:'Regelbunden', reqs:['Språk: 2500 kort · 50h CI · 6/28 dagar','Gitarr: 6/28 dagar ≥15min'] },
+    { tier:4, label:'Dedikerad',   reqs:['Språk: 4500 kort · 150h CI · 10/28 dagar','Gitarr: 10/28 dagar ≥15min'] },
+    { tier:5, label:'Seriös',      reqs:['Språk: 6500 kort · 400h CI · 16/28 dagar','Gitarr: 16/28 dagar ≥15min'] },
+    { tier:6, label:'Flytande / Mästare', reqs:['Språk: 8000 kort · 900h CI · 22/28 dagar','Gitarr: 22/28 dagar ≥15min'] },
   ],
   kropp: [],
 }

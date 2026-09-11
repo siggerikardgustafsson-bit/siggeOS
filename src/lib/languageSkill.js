@@ -3,36 +3,60 @@
 // and Plugg's Språk tab (stats display), so both always agree.
 //
 // Two real, never-estimated signals feed everything here: Anki cards reviewed
-// (skill_logs.cards, written by the skill-ingest auto-sync) and logged
-// non-Anki minutes (CI or "Allmänt"). A row contributes to ONE bucket only —
-// cards if set, else minutes — so nothing is double-counted.
+// (skill_logs.cards, written by the skill-ingest auto-sync) and logged CI
+// minutes (comprehensible input — activity_type 'ci', or legacy unlabeled
+// rows; explicitly NOT 'anki' rows that happen to have no card count). A row
+// contributes to ONE bucket only — cards if set, else CI minutes — so nothing
+// is double-counted.
 //
-// languageBlend() — a rolling weekly average, for the honest "X kort/v · Y
-//   min/v" DISPLAY breakdown only. Not the tier source (see below).
-// languageXP()/xpTier() — the actual TIER source (user call 2026-09-11): a
-//   decaying point total since you started, not a plain weekly snapshot —
-//   "counts everything, but you lose it if you don't keep the routine up".
-//   Every day's cards+CI minutes convert to XP (using the same cards:minutes
-//   ratio as the weekly targets below, so the two stay calibrated against
-//   each other) and get added to a running total that decays by half every
-//   XP_HALF_LIFE_DAYS of complete inactivity (leaky-bucket / exponentially-
-//   weighted sum — the standard shape for "recent sustained effort", just
-//   with a much longer memory than the 7-90d windows every other category in
-//   the app uses). XP_THRESHOLDS are DERIVED, not guessed: the steady-state
-//   XP a language reaches if practiced exactly at each weekly minute target
-//   forever, under that decay rate — so a nonstop Mästare-pace routine tops
-//   out right at the Mästare threshold, not below or wildly above it.
+// v2 (user call 2026-09-11) — replaces the v1 decaying-XP tier ("counts
+// everything, loses points if you stop") with a THREE-GATE model, because a
+// single blended number let raw card volume paper over a total absence of
+// listening/reading practice, and decay made no sense for "have I actually
+// learned 8000 words" (spaced repetition already handles retention; forgetting
+// isn't the same axis as "have I been exposed to this word before"). The tier
+// is now the WEAKEST of three gates — cards, CI, and recent consistency each
+// have to clear the bar independently:
+//
+//   1. Cumulative lifetime CARDS (never decreases) — a rough proxy for
+//      vocabulary exposure. Anchored to vocabulary-size research correlating
+//      word-family counts with CEFR levels (Nation et al.): ~1000 words is a
+//      beginner floor, ~8000-9000 word families is the commonly-cited
+//      threshold for understanding "almost everything" (C1/C2, i.e. fluent —
+//      hence the top tier's label and the ~8000-card ceiling below). Anki
+//      cards ≠ unique words 1:1 (a deck can drill one word from several
+//      angles), so this is a proxy, not a word count — the ladder is deliber-
+//      ately conservative about that gap rather than precise about it.
+//   2. Cumulative lifetime CI hours — immersion/input-based acquisition
+//      research (the "input hypothesis" tradition, and the ~1000-hour rule of
+//      thumb common in immersion-learning communities) puts several hundred
+//      to ~1000 hours of real comprehensible input around the point where
+//      native content becomes genuinely followable. Vocabulary drilling alone
+//      does not make someone fluent — this is why CI is its own gate, not
+//      folded into the cards number.
+//   3. RECENT consistency — active practice days (cards OR CI) in the
+//      trailing 28 days. A large lifetime total with zero recent activity
+//      caps you here, not at the cards/CI tier — "flytande" should mean
+//      currently fluent, not "was fluent once."
+//
+// languageBlend() stays as the rolling-weekly DISPLAY breakdown ("X kort/v ·
+// Y min/v") — informational only, doesn't drive the tier (same as before).
 // ============================================================================
-export const CARDS_TARGET_PER_WEEK = 700   // ≈100 cards/day — a starting guess, tune once real data exists
-export const MINUTES_TARGET_PER_WEEK = 240 // matches the old T6 ("Mästare") weekly-minutes threshold
+export const CARDS_TARGET_PER_WEEK = 700   // ≈100 cards/day — for the weekly display blend only
+export const MINUTES_TARGET_PER_WEEK = 240 // matches the old T6 weekly-minutes threshold — display only
 export const LANGUAGE_SKILLS = ['spanish', 'serbian', 'german']
 export const LANGUAGE_LABELS = { spanish: 'Spanska', serbian: 'Serbiska', german: 'Tyska' }
 
-export const XP_HALF_LIFE_DAYS = 14  // user call — a 2-week total pause halves your points
-export const XP_LOOKBACK_DAYS = 90   // 90/14 ≈ 6.4 half-lives — anything older is <1% of its original weight, safe to ignore
-// t3..t6 = steady-state XP at the old weekly targets (30/60/120/240 min/week)
-// under XP_HALF_LIFE_DAYS decay: steady = (weeklyTarget/7) / (1 - 0.5^(1/14)).
-export const XP_THRESHOLDS = { t3: 90, t4: 175, t5: 350, t6: 700 }
+// Tier 2..6 thresholds (index 0 → tier 2, … index 4 → tier 6). See header for
+// the evidence basis. User-anchored: tier 2 = 1000 cards + 15h CI (their own
+// example); tier 6 = ~8000 cards ("flytande").
+export const CARDS_THRESHOLDS = [1000, 2500, 4500, 6500, 8000]     // cumulative lifetime cards
+export const CI_HOURS_THRESHOLDS = [15, 50, 150, 400, 900]         // cumulative lifetime CI hours
+export const CONSISTENCY_DAY_THRESHOLDS = [2, 6, 10, 16, 22]       // active days in trailing 28
+
+const TIER_LABELS = ['Inaktiv', 'Har börjat', 'Nybörjare', 'Regelbunden', 'Dedikerad', 'Seriös', 'Flytande']
+const TIER_COLORS = ['#374151', '#4b5563', '#3b82f6', '#10b981', '#06b6d4', '#ec4899', '#f59e0b']
+const GATE_LABELS = { cards: 'kort', ci: 'CI', consistency: 'regelbundenhet' }
 
 function daysAgoISO(n) {
   const d = new Date()
@@ -41,7 +65,7 @@ function daysAgoISO(n) {
 }
 
 // rows: skill_logs rows for any skill, any window ≥ `weeks` — self-scopes to
-// the trailing `weeks` so callers can pass a wider fetch (XP needs ~90d)
+// the trailing `weeks` so callers can pass a wider (even lifetime) fetch
 // without skewing this average.
 export function languageBlend(rows, skill, weeks = 4) {
   const cutoff = daysAgoISO(weeks * 7)
@@ -64,46 +88,59 @@ export function languageLabel(b) {
   return parts.length ? parts.join(' · ') : '—'
 }
 
-// Decaying point total. Self-scopes to XP_LOOKBACK_DAYS regardless of how
-// wide a window `rows` was fetched with.
-export function languageXP(rows, skill, halfLifeDays = XP_HALF_LIFE_DAYS) {
-  const cutoff = daysAgoISO(XP_LOOKBACK_DAYS)
-  const l = (rows || []).filter(r => r.skill === skill && r.date >= cutoff)
-  if (!l.length) return 0
-  const cardXpRate = MINUTES_TARGET_PER_WEEK / CARDS_TARGET_PER_WEEK // 1 card ≈ this many XP, same ratio as the weekly targets
-  const byDay = {}
-  for (const r of l) {
-    const earned = r.cards != null ? Number(r.cards || 0) * cardXpRate : Number(r.minutes || 0)
-    if (earned > 0) byDay[r.date] = (byDay[r.date] || 0) + earned
-  }
-  const dates = Object.keys(byDay).sort()
-  if (!dates.length) return 0
-  const decay = Math.pow(0.5, 1 / halfLifeDays)
-  let xp = 0
-  const cursor = new Date(dates[0] + 'T00:00:00Z')
-  const end = new Date()
-  end.setUTCHours(0, 0, 0, 0)
-  while (cursor <= end) {
-    const key = cursor.toISOString().slice(0, 10)
-    xp = xp * decay + (byDay[key] || 0)
-    cursor.setUTCDate(cursor.getUTCDate() + 1)
-  }
-  return Math.round(xp)
+// Cumulative lifetime cards — every row where an Anki sync/log set `cards`.
+export function totalCards(rows, skill) {
+  return (rows || []).filter(r => r.skill === skill && r.cards != null).reduce((s, r) => s + Number(r.cards || 0), 0)
 }
 
-export function xpTier(xp) {
-  if (!xp) return { tier: 0, label: 'Inaktiv', color: '#374151' }
-  if (xp >= XP_THRESHOLDS.t6) return { tier: 6, label: 'Mästare', color: '#f59e0b' }
-  if (xp >= XP_THRESHOLDS.t5) return { tier: 5, label: 'Seriös', color: '#ec4899' }
-  if (xp >= XP_THRESHOLDS.t4) return { tier: 4, label: 'Dedikerad', color: '#06b6d4' }
-  if (xp >= XP_THRESHOLDS.t3) return { tier: 3, label: 'Regelbunden', color: '#10b981' }
-  return { tier: 2, label: 'Nybörjare', color: '#3b82f6' }
+// Cumulative lifetime CI minutes — rows with no card count, EXCLUDING legacy
+// activity_type:'anki' minutes-only rows (that's Anki time, not input time).
+export function totalCIMinutes(rows, skill) {
+  return (rows || [])
+    .filter(r => r.skill === skill && r.cards == null && r.activity_type !== 'anki')
+    .reduce((s, r) => s + Number(r.minutes || 0), 0)
 }
 
-// XP needed to reach `tier` (for progress bars / "N XP kvar till nästa tier").
-export function xpForTier(tier) {
-  if (tier >= 6) return XP_THRESHOLDS.t6
-  if (tier === 5) return XP_THRESHOLDS.t5
-  if (tier === 4) return XP_THRESHOLDS.t4
-  return XP_THRESHOLDS.t3
+// Days with ANY logged activity (cards or CI) for this skill in the trailing
+// `days` window — the "are you currently doing this" consistency signal.
+export function activeDaysCount(rows, skill, days = 28) {
+  const cutoff = daysAgoISO(days)
+  const dates = new Set(
+    (rows || [])
+      .filter(r => r.skill === skill && r.date >= cutoff && (Number(r.cards) > 0 || Number(r.minutes) > 0))
+      .map(r => r.date)
+  )
+  return dates.size
+}
+
+function ladderTier(value, thresholds) {
+  let tier = 1
+  for (let i = 0; i < thresholds.length; i++) if (value >= thresholds[i]) tier = i + 2
+  return tier
+}
+
+// The tier source (v2, user call 2026-09-11) — weakest of 3 gates. `rows` can
+// be any window; totals/consistency self-scope internally (lifetime for
+// totals, trailing 28d for consistency) regardless of how wide the fetch was.
+export function languageTier(rows, skill) {
+  const cardsTotal = totalCards(rows, skill)
+  const ciMinutesTotal = totalCIMinutes(rows, skill)
+  const ciHoursTotal = Math.round((ciMinutesTotal / 60) * 10) / 10
+  const activeDays = activeDaysCount(rows, skill, 28)
+
+  if (!cardsTotal && !ciMinutesTotal) {
+    return { tier: 0, label: TIER_LABELS[0], color: TIER_COLORS[0], cardsTotal: 0, ciHoursTotal: 0, activeDays: 0,
+      cardsTier: 0, ciTier: 0, consistencyTier: 0, bottleneck: null }
+  }
+  const cardsTier = ladderTier(cardsTotal, CARDS_THRESHOLDS)
+  const ciTier = ladderTier(ciHoursTotal, CI_HOURS_THRESHOLDS)
+  const consistencyTier = ladderTier(activeDays, CONSISTENCY_DAY_THRESHOLDS)
+  const tier = Math.min(cardsTier, ciTier, consistencyTier)
+  const gates = [['cards', cardsTier], ['ci', ciTier], ['consistency', consistencyTier]]
+  const bottleneckKey = gates.find(([, t]) => t === tier)?.[0] || null
+  return {
+    tier, label: TIER_LABELS[tier], color: TIER_COLORS[tier],
+    cardsTotal, ciHoursTotal, activeDays, cardsTier, ciTier, consistencyTier,
+    bottleneck: bottleneckKey ? GATE_LABELS[bottleneckKey] : null,
+  }
 }

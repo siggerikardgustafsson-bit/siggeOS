@@ -215,11 +215,15 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           onClick={(e) => { e.stopPropagation(); go() }}>
           <span className="csat-disc" style={{
             background:`radial-gradient(118% 118% at 32% 24%, rgba(255,255,255,.92) 0%, rgba(255,255,255,.1) 11%, ${color}22 34%, rgba(13,18,32,.98) 74%, rgba(8,11,20,1) 100%)`,
-            border:`1px solid ${color}`,
-            boxShadow:`0 0 0 1px ${color}22, 0 10px 26px -8px rgba(0,0,0,.75), 0 0 20px ${color}3a, inset 0 1.5px 1px rgba(255,255,255,.5), inset 0 -10px 18px -8px ${color}40` }}>
+            border: m.highlight ? '2px solid #f59e0b' : `1px solid ${color}`,
+            boxShadow: m.highlight
+              ? `0 0 0 1px #f59e0b33, 0 10px 26px -8px rgba(0,0,0,.75), 0 0 22px #f59e0b55, inset 0 1.5px 1px rgba(255,255,255,.5), inset 0 -10px 18px -8px ${color}40`
+              : `0 0 0 1px ${color}22, 0 10px 26px -8px rgba(0,0,0,.75), 0 0 20px ${color}3a, inset 0 1.5px 1px rgba(255,255,255,.5), inset 0 -10px 18px -8px ${color}40` }}>
             <span style={{ fontSize:13, fontWeight:900, color:'#fff', lineHeight:1.05, textShadow:`0 1px 6px rgba(0,0,0,.55)` }}>{m.value}</span>
           </span>
-          <span className="csat-l">{m.label}</span>
+          {/* highlight = this metric is the category's binding bottleneck (user
+              call 2026-09-11, first used by Färdigheter's per-skill satellites) */}
+          <span className="csat-l" style={m.highlight ? { color:'#f59e0b', fontWeight:900 } : undefined}>{m.label}{m.highlight ? ' ⚠' : ''}</span>
         </button>
       )
     })
@@ -532,6 +536,11 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
                     {hov && maxxProfile?.levelUp?.primaryBottleneck && (
                       <span style={{ fontSize:10.5, color:'var(--muted2)', marginTop:5, maxWidth:150, lineHeight:1.3 }}>Flaskhals: <b style={{ color:nextColor }}>{maxxProfile.levelUp.primaryBottleneck}</b></span>
                     )}
+                    {hov && maxxProfile?.composition?.missing?.length > 0 && (
+                      <span style={{ fontSize:9.5, color:'var(--muted)', marginTop:3, maxWidth:150, lineHeight:1.3, fontStyle:'italic' }}>
+                        {maxxProfile.composition.missing.length} kategori{maxxProfile.composition.missing.length === 1 ? '' : 'er'} utan data räknas inte ({maxxProfile.composition.missing.join(', ')})
+                      </span>
+                    )}
                     {hov && <span style={{ fontSize:9.5, fontWeight:800, color:'var(--accent)', marginTop:7, letterSpacing:'0.05em' }}>KLICKA FÖR ALLT</span>}
                   </div>
                 )}
@@ -598,6 +607,11 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
                   <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5 }}>
                     <Icon id={id} color={active ? col : 'var(--muted)'} size={26} />
                     <span style={{ fontSize:22, fontWeight:950, color:active ? '#fff' : 'var(--muted)', lineHeight:1, textShadow:active?`0 0 14px ${col}`:'none' }}>{tierNum > 0 ? 'T' + tierNum : '—'}</span>
+                    {/* User call 2026-09-11: no-data categories stay excluded from
+                        Maxx Score, but should be visibly labeled as such (not just a
+                        dim "—") so it's clear why e.g. Studier isn't dragging the
+                        headline score down or up. */}
+                    {!active && <span style={{ fontSize:9, fontWeight:700, color:'var(--muted)', letterSpacing:'0.03em' }}>Ej loggat</span>}
                   </div>
                 )}
               </div>

@@ -186,6 +186,26 @@ export async function getUserContext(userId) {
   return buildUserContext(await getUserProfile(userId))
 }
 
+// Weight goal has had two possible sources that can drift apart: profiles.
+// target_weight_kg (set on the Profile page) and user_settings.goals.
+// body_weight_goal (Settings page / onboarding). profiles.target_weight_kg
+// wins — user call 2026-09-11 ("den som jag har satt själv ska vara den som
+// gäller"), and it's the single canonical field vs. a loosely-typed JSON blob
+// with several legacy key-name variants. Used by Dashboard.jsx + Halsa.jsx so
+// the two pages can never show two different målvikt again.
+export function resolveTargetWeight(profile, userSettings) {
+  const fromProfile = Number(profile?.target_weight_kg)
+  if (Number.isFinite(fromProfile) && fromProfile > 0) return fromProfile
+  const goals = userSettings?.goals
+  for (const key of ['body_weight_goal', 'target_weight', 'weight_goal_kg', 'målvikt']) {
+    const raw = goals?.[key]
+    if (raw === undefined || raw === null || raw === '') continue
+    const n = Number(String(raw).replace(',', '.'))
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return null
+}
+
 // Accepts a profile object (sync extract) OR a userId/undefined (fetches).
 async function resolveProfile(profileOrId) {
   if (profileOrId && typeof profileOrId === 'object') return profileOrId

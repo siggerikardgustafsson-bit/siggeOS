@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Globe, Plus, Loader } from 'lucide-react'
+import Sparkline from '../Sparkline'
 import {
-  languageBlend, languageLabel, languageXP, xpTier, xpForTier,
-  LANGUAGE_SKILLS, LANGUAGE_LABELS, XP_LOOKBACK_DAYS,
+  languageBlend, languageLabel, languageTier,
+  CARDS_THRESHOLDS, CI_HOURS_THRESHOLDS, CONSISTENCY_DAY_THRESHOLDS,
+  LANGUAGE_SKILLS, LANGUAGE_LABELS,
 } from '../../lib/languageSkill'
 
 // Plugg > Språk — stats for the language skills (Anki cards + logged CI
@@ -11,9 +13,11 @@ import {
 // than digging into Journal's collapsible Färdigheter section for the one
 // thing you actually want to log often.
 //
-// The tier badge is XP (decaying points-since-start, see languageSkill.js),
-// not the plain weekly average — "X kort/v · Y min/v" underneath is the
-// honest recent-activity number, XP is the standing.
+// v2 (user call 2026-09-11) — the tier badge is now languageTier()'s 3-gate
+// model (cumulative lifetime cards + cumulative lifetime CI hours + recent
+// consistency, weakest of the three — see languageSkill.js header for the
+// evidence basis). "X kort/v · Y min/v" stays as the honest recent-pace
+// number underneath; the gate bars below show the real lifetime progress.
 const LANG_COLOR = { spanish: '#ef4444', serbian: '#3b82f6', german: '#14b8a6' }
 
 // Graceful degradation until post_deploy_11 (activity_type) is migrated.
@@ -24,6 +28,36 @@ async function insertSkillRow(row) {
     ;({ error } = await supabase.from('skill_logs').insert(rest))
   }
   return error
+}
+
+// Cumulative-over-time series for the sparkline — running total by day.
+function cumulativeCardsSeries(rows, skill) {
+  const byDate = {}
+  for (const r of rows) {
+    if (r.skill !== skill || r.cards == null) continue
+    byDate[r.date] = (byDate[r.date] || 0) + Number(r.cards || 0)
+  }
+  const dates = Object.keys(byDate).sort()
+  let running = 0
+  return dates.map(d => (running += byDate[d]))
+}
+
+function GateBar({ label, value, target, unit, color }) {
+  const pct = target ? Math.max(0, Math.min(100, Math.round((value / target) * 100))) : (value > 0 ? 100 : 0)
+  const met = target != null && value >= target
+  return (
+    <div style={{ marginBottom: '6px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10.5px', color: 'var(--muted)', marginBottom: '2px' }}>
+        <span>{label}</span>
+        <span style={{ color: met ? color : 'var(--muted)', fontWeight: met ? 700 : 400 }}>
+          {value}{unit} {target != null ? `/ ${target}${unit}` : ''}
+        </span>
+      </div>
+      <div style={{ height: '4px', borderRadius: '3px', background: 'var(--surface2)', overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', borderRadius: '3px', background: color, transition: 'width .3s' }} />
+      </div>
+    </div>
+  )
 }
 
 export default function SprakTab({ userId }) {
@@ -37,13 +71,11 @@ export default function SprakTab({ userId }) {
   const load = useCallback(async () => {
     if (!userId) return
     setLoading(true)
-    // XP_LOOKBACK_DAYS so languageXP() sees its full window; languageBlend()
-    // self-scopes back down to a week regardless.
-    const since = new Date()
-    since.setDate(since.getDate() - XP_LOOKBACK_DAYS)
+    // No date floor — languageTier()'s cards/CI totals are LIFETIME cumulative
+    // (user call 2026-09-11); languageBlend() self-scopes back to a week regardless.
     const { data } = await supabase.from('skill_logs')
       .select('date,skill,minutes,cards,activity_type')
-      .eq('user_id', userId).in('skill', LANGUAGE_SKILLS).gte('date', since.toISOString().slice(0, 10))
+      .eq('user_id', userId).in('skill', LANGUAGE_SKILLS)
       .order('date', { ascending: false })
     setRows(data || [])
     setLoading(false)
@@ -65,10 +97,7 @@ export default function SprakTab({ userId }) {
     }
   }
 
-  const stats = Object.fromEntries(LANGUAGE_SKILLS.map(s => {
-    const xp = languageXP(rows, s)
-    return [s, { blend: languageBlend(rows, s), xp, tier: xpTier(xp) }]
-  }))
+  const stats = Object.fromEntries(LANGUAGE_SKILLS.map(s => [s, { blend: languageBlend(rows, s), t: languageTier(rows, s) }]))
   const last30 = new Date(); last30.setDate(last30.getDate() - 30)
   const last30Str = last30.toISOString().slice(0, 10)
   const recent = rows.filter(r => r.date >= last30Str).slice(0, 12)
@@ -102,24 +131,45 @@ export default function SprakTab({ userId }) {
         </div>
       </div>
 
-      {/* Per-language stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px,1fr))', gap: '12px', marginBottom: '16px' }}>
+      {/* Per-language stats — tier + the 3 gates (kort/CI/regelbundenhet) that drive it */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px,1fr))', gap: '12px', marginBottom: '16px' }}>
         {LANGUAGE_SKILLS.map(s => {
-          const { blend, xp, tier } = stats[s]
+          const { blend, t } = stats[s]
           const color = LANG_COLOR[s]
-          const next = xpForTier(Math.min((tier.tier || 1) + 1, 6))
+          // Target index for the next numeric milestone — tier0/1 both show
+          // tier2's bar (tier1 itself has no numeric target, just "started").
+          const idx = Math.max(2, Math.min((t.tier || 0) + 1, 6)) - 2
+          const cardsTarget = t.tier < 6 ? CARDS_THRESHOLDS[idx] : null
+          const ciTarget = t.tier < 6 ? CI_HOURS_THRESHOLDS[idx] : null
+          const consTarget = t.tier < 6 ? CONSISTENCY_DAY_THRESHOLDS[idx] : null
+          const series = cumulativeCardsSeries(rows, s)
           return (
             <div key={s} className="card" style={{ borderColor: color + '30' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ fontWeight: 700 }}>{LANGUAGE_LABELS[s]}</div>
-                <span style={{ fontSize: '11px', fontWeight: 800, color: tier.color, padding: '2px 8px', borderRadius: 20, background: tier.color + '18' }}>
-                  T{tier.tier} {tier.label}
+                <span style={{ fontSize: '11px', fontWeight: 800, color: t.color, padding: '2px 8px', borderRadius: 20, background: t.color + '18' }}>
+                  T{t.tier} {t.label}
                 </span>
               </div>
-              <div style={{ fontSize: '13px', color: 'var(--muted2)' }}>{languageLabel(blend)}</div>
-              <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
-                {xp} xp{tier.tier < 6 ? ` · ${Math.max(0, next - xp)} kvar till nästa nivå` : ''}
+              <div style={{ fontSize: '13px', color: 'var(--muted2)', marginBottom: '2px' }}>{languageLabel(blend)}</div>
+              <div style={{ fontSize: '10.5px', color: 'var(--muted)', marginBottom: '8px' }}>
+                {t.cardsTotal} kort · {t.ciHoursTotal}h CI totalt sedan start
+                {t.bottleneck && t.tier < 6 ? ` · flaskhals: ${t.bottleneck}` : ''}
               </div>
+              {series.length > 1 && (
+                <div style={{ marginBottom: '8px' }}>
+                  <Sparkline data={series} color={color} width={220} height={30} />
+                </div>
+              )}
+              {t.tier < 6 ? (
+                <>
+                  <GateBar label="Kort (totalt)" value={t.cardsTotal} target={cardsTarget} unit="" color={color} />
+                  <GateBar label="CI (h totalt)" value={t.ciHoursTotal} target={ciTarget} unit="h" color={color} />
+                  <GateBar label="Regelbundenhet (dagar/28)" value={t.activeDays} target={consTarget} unit="" color={color} />
+                </>
+              ) : (
+                <div style={{ fontSize: '11px', color: t.color, fontWeight: 700 }}>Flytande — alla trösklar nådda ✓</div>
+              )}
             </div>
           )
         })}
