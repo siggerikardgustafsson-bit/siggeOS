@@ -25,13 +25,16 @@ export * from './context'
 export * from './reason'
 
 // Snapshot columns → Dashboard category id + display name.
+// 'halsa' = merged Sömn+Hälsa (user call 2026-09-11, column name predates the
+// merge); 'fardigheter' split out of Studier as its own ranking category
+// the same day — see tierProfiles.js for the full change note.
 const SNAPSHOT_CATS = [
   { col: 'kondition', id: 'kondition', name: 'Kondition' },
   { col: 'styrka', id: 'styrka', name: 'Styrka' },
-  { col: 'somn', id: 'somn', name: 'Sömn' },
   { col: 'ekonomi', id: 'ekonomi', name: 'Ekonomi' },
   { col: 'valmående', id: 'halsa', name: 'Hälsa' },
   { col: 'plugg', id: 'plugg', name: 'Studier' },
+  { col: 'fardigheter', id: 'fardigheter', name: 'Färdigheter' },
 ]
 
 /**
@@ -64,7 +67,7 @@ export function reconstructFromSnapshot(snapshotRow, profile = null) {
   const personalization = buildPersonalizationSummary(profile, hasDataMap)
 
   // rankCats == the rankable categories (matches buildMaxxProfile's filter).
-  const rankCats = categories.filter((c) => !['kropp', 'fardigheter'].includes(c.id))
+  const rankCats = categories.filter((c) => !['kropp'].includes(c.id))
   // Pick the weighting profile the scoring system would (no DB singleton import).
   const profileId = suggestTierProfile({ goals: { primary: profile?.primary_focus }, lifeStage: profile?.life_stage })
   const weights = weightsForProfile(profileId)
@@ -101,7 +104,7 @@ export async function loadJarvisContext({ supabase, userId, getProfile = null } 
     const [{ data: snap }, profile] = await Promise.all([
       supabase
         .from('tier_snapshots')
-        .select('date,kondition,styrka,plugg,ekonomi,somn,valmående')
+        .select('date,kondition,styrka,plugg,ekonomi,valmående,fardigheter')
         .eq('user_id', userId)
         .order('date', { ascending: false })
         .limit(1)

@@ -30,8 +30,10 @@ const round = (x) => Math.round(x * 10) / 10
 const MAX_TIER = 8
 
 // Dashboard category ids that participate in the Maxx Score (mirrors
-// buildMaxxProfile's rankCats filter). plugg/skills/body are excluded there too.
-export const RANKABLE_IDS = ['kondition', 'styrka', 'somn', 'ekonomi', 'halsa', 'plugg']
+// buildMaxxProfile's rankCats filter). Only 'kropp' (body) is excluded there.
+// 'halsa' = merged Sömn+Hälsa; 'fardigheter' ranks as of the 2026-09-11 split
+// from Studier (user call — see tierProfiles.js).
+export const RANKABLE_IDS = ['kondition', 'styrka', 'halsa', 'ekonomi', 'plugg', 'fardigheter']
 
 // ── Effort / time model ───────────────────────────────────────────────────────
 // Per-category linear progression rates for the natural unit of each category's
@@ -42,12 +44,14 @@ export const RANKABLE_IDS = ['kondition', 'styrka', 'somn', 'ekonomi', 'halsa', 
 export const EFFORT_RATES = {
   styrka:  { unit: 'kg', perMonth: 2.5, confidence: 0.6, drives: 'styrketräning' },
   ekonomi: { unit: 'kr', perMonth: 4000, confidence: 0.4, drives: 'sparande' }, // assumed monthly surplus
-  somn:    { unit: 'h',  perMonth: 0.4, confidence: 0.5, drives: 'sömnrutin' },
   plugg:   { unit: '%',  perMonth: 12, confidence: 0.5, drives: 'studietid' },
 }
 // Progress-curve fallback: base months to clear a full tier-band, scaled by how
 // much of the band remains and by tier difficulty (higher tiers are harder).
-const CATEGORY_BASE_MONTHS = { kondition: 5, styrka: 5, ekonomi: 6, somn: 2, halsa: 2, plugg: 3 }
+// halsa = merged Sömn+Hälsa (multi-signal, no single linear unit — same as
+// before the merge). fardigheter has no EFFORT_RATES entry either (XP + min/v
+// mixed) — 3 months is a habit-timescale default, same order as plugg.
+const CATEGORY_BASE_MONTHS = { kondition: 5, styrka: 5, ekonomi: 6, halsa: 2, plugg: 3, fardigheter: 3 }
 const tierDifficulty = (tier) => 1 + Math.max(0, (tier || 1) - 3) * 0.35
 
 const EFFORT_BUCKETS = [

@@ -198,6 +198,5 @@ export const DASH_CATEGORY_MAP = {
   kondition: 'conditioning',
   styrka: 'strength',
   ekonomi: 'economy',
-  somn: 'health',
-  halsa: 'health',
+  halsa: 'health', // merged Sömn+Hälsa (user call 2026-09-11) — 'somn' no longer a separate cat id
 }

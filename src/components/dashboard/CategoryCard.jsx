@@ -5,12 +5,14 @@ const NEXT_TIER_SHORT = {
   kondition: ['—','5km < 28:00','5km < 24:00','5km < 22:00','5km < 20:00','5km < 18:30','5km < 17:00','Top 1% ✓'],
   styrka:    ['—','Bänk ≥ 0.75x BW','Bänk ≥ 1.0x BW','Bänk ≥ 1.15x BW','Bänk ≥ 1.3x BW','Bänk ≥ 1.5x BW','Bänk ≥ 1.65x BW','Top 1% ✓'],
   kropp:     ['—','Logga vikt regelbundet','BMI/fettprocent','Optimal komposition','Elite','Elite','Elite','Elite'],
-  somn:      ['—','Snitt ≥ 6.5h/natt','Snitt ≥ 7.0h/natt','Snitt ≥ 7.25h/natt','Snitt ≥ 7.5h/natt','Snitt ≥ 8.0h + konsistens','Snitt ≥ 8.5h/natt','Snitt ≥ 9h ✓'],
   plugg:     ['—','Mastery ≥ 20%','Mastery ≥ 40%','Mastery ≥ 60%','Mastery ≥ 80%','Expert ✓','',''],
   ekonomi:   ['—','Netto ≥ 12 000 kr/mån','Netto ≥ 18 000 kr/mån','Netto ≥ 22 000 kr/mån','Netto ≥ 28 000 kr/mån','Netto ≥ 35 000 kr/mån','Netto ≥ 45 000 kr/mån','Top 1% ✓'],
-  halsa:     ['—','Energi ≥ 5, humör ≥ 5','Energi ≥ 6','Energi ≥ 7, humör ≥ 7','Energi ≥ 8','Energi ≥ 9','Allt toppklass','Top 1% ✓'],
-  valmående: ['—','Energi ≥ 5, humör ≥ 5','Energi ≥ 6','Energi ≥ 7, humör ≥ 7','Energi ≥ 8','Energi ≥ 9','Allt toppklass','Top 1% ✓'],
-  fardigheter:['—','1–30 min/vecka','30–60 min/vecka','60–120 min/vecka','120–240 min/vecka','240+ min/vecka ✓','',''],
+  // Merged Sömn+Hälsa (user call 2026-09-11) — sömn+steg lead the short text;
+  // full driver list (+ vikttrend/kosttillskott/alkohol) is in DetailModal.
+  halsa:     ['—','Sömn ≥6.5h, steg ≥5000','Sömn ≥7.0h, steg ≥7500','Sömn ≥7.25h, steg ≥9000','Sömn ≥7.5h, steg ≥11000','Sömn ≥8.0h, steg ≥13000','Sömn ≥8.5h, steg ≥15000','Sömn ≥9h, steg ≥18000 ✓'],
+  valmående: ['—','Sömn ≥6.5h, steg ≥5000','Sömn ≥7.0h, steg ≥7500','Sömn ≥7.25h, steg ≥9000','Sömn ≥7.5h, steg ≥11000','Sömn ≥8.0h, steg ≥13000','Sömn ≥8.5h, steg ≥15000','Sömn ≥9h, steg ≥18000 ✓'],
+  // Gitarr (min/vecka) + språk (xp) combined — tops out at T6 (no T7/T8).
+  fardigheter:['—','','Gitarr ≥30 min/v · Språk ≥90 xp','Gitarr ≥60 min/v · Språk ≥175 xp','Gitarr ≥120 min/v · Språk ≥350 xp','Gitarr ≥240 min/v · Språk ≥700 xp ✓','',''],
 }
 
 function Icon({ id, color, size = 14 }) {

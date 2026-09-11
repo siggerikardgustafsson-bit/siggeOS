@@ -5,8 +5,8 @@ import Sparkline from '../Sparkline'
 import { TIER_COLORS, CAT_PATHS } from './tierUtils'
 
 const NAV_TARGET = {
-  kondition:'/traning', styrka:'/traning', kropp:'/halsa', somn:'/halsa',
-  halsa:'/halsa', valmående:'/halsa', plugg:'/plugg', ekonomi:'/ekonomi', fardigheter:'/jobb',
+  kondition:'/traning', styrka:'/traning', kropp:'/halsa',
+  halsa:'/halsa', valmående:'/halsa', plugg:'/plugg', ekonomi:'/ekonomi', fardigheter:'/plugg',
 }
 
 function Icon({ id, color, size = 20 }) {

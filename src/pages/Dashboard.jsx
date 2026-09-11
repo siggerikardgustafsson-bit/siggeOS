@@ -19,7 +19,7 @@ import {
   formatRunTime,
   RUN_5K_THRESHOLDS, RUN_10K_THRESHOLDS, RUN_HALF_THRESHOLDS,
   BENCH_THRESHOLDS, SQUAT_THRESHOLDS, DEADLIFT_THRESHOLDS, OHP_THRESHOLDS, PULLUP_THRESHOLDS,
-  SLEEP_DURATION_THRESHOLDS, INCOME_THRESHOLDS, SAVINGS_THRESHOLDS,
+  SLEEP_DURATION_THRESHOLDS, STEPS_THRESHOLDS, INCOME_THRESHOLDS, SAVINGS_THRESHOLDS,
   ENERGY_THRESHOLDS, MOOD_THRESHOLDS,
   TIER_COLORS, TIER_NAMES,
 } from '../components/dashboard/tierUtils'
@@ -39,13 +39,11 @@ import StatusChip from '../components/ui/StatusChip'
 import SectionHeader from '../components/ui/SectionHeader'
 import { getJarvisUserContext } from '../lib/jarvis'
 import { getSalaryPeriod } from '../lib/salaryPeriod'
-import { computeStudiesTier, buildStudiesLevelUp } from '../lib/studies'
 import { DEFAULT_SUPPLEMENTS } from '../lib/constants'
 import { languageBlend, languageLabel, languageXP, xpTier, xpForTier } from '../lib/languageSkill'
 
 const GRAPH_CATS = [
-  { id:'somn',      label:'Sömn',      color:'#8b5cf6' },
-  { id:'valmående', label:'Hälsa', color:'#f472b6' },
+  { id:'valmående', label:'Hälsa',     color:'#f472b6' }, // merged Sömn+Hälsa — column name predates the merge
   { id:'plugg',     label:'Studier',   color:'#34d399' },
   { id:'kondition', label:'Kondition', color:'#4f8ef7' },
   { id:'styrka',    label:'Styrka',    color:'#a78bfa' },
@@ -84,7 +82,7 @@ function parseNumber(value) {
 }
 
 function buildMaxxProfile(cats, profileId = 'balanced', personalization = null) {
-  const rankCats = cats.filter(c => c?.tier?.tier && c.hasData && !['kropp','fardigheter'].includes(c.id))
+  const rankCats = cats.filter(c => c?.tier?.tier && c.hasData && !['kropp'].includes(c.id))
   if (!rankCats.length) return null
   const weights = weightsForProfile(profileId)
   // Maxx Score v2 — profile-weighted percentile blended with the weakest link.
@@ -276,7 +274,7 @@ export default function Dashboard() {
   const [displayName, setDisplayName] = useState('')
   const [userId, setUserId] = useState(null)
   const [graphPeriod, setGraphPeriod] = useState('30d')
-  const [activeGraphCats, setActiveGraphCats] = useState(['somn','valmående','plugg'])
+  const [activeGraphCats, setActiveGraphCats] = useState(['valmående','plugg','kondition'])
   const [rawGraphData, setRawGraphData] = useState({ healthData: [], snapshots: [] })
   const [refreshKey, setRefreshKey] = useState(0)
   const [viewMode, setViewMode] = useState(() => {
@@ -765,11 +763,18 @@ export default function Dashboard() {
       const supplementTaken7 = supp7.filter(l => l.taken).length
       const supplementExpected7 = activeSupplements.length * 7
       const supplementCompliance = supp7.length && supplementExpected7 ? Math.round((supplementTaken7 / supplementExpected7) * 100) : null
+      // Energi/Humör are DISPLAY only (eT/moT below) — user call 2026-09-11: the
+      // merged Sömn+Hälsa category's tier is driven by sleep/vikttrend/steg/
+      // kosttillskott/alkohol instead, not energy/mood.
       const eT=aE!=null?getTier(aE,ENERGY_THRESHOLDS,true):null
       const moT=aMo!=null?getTier(aMo,MOOD_THRESHOLDS,true):null
       const alcoholT=alcoholLogged?getTier(alcohol7,[14,10,7,5,3,1,0.1],false):null
       const supplementT=supplementCompliance!=null?getTier(supplementCompliance,[50,60,70,80,90,95,99],true):null
-      const wTs=[eT,moT,alcoholT,supplementT].filter(Boolean)
+      const stepsT=aSteps!=null?calculateHealthTier('steps',aSteps,ctx):null
+      const wgT=bw?calculateHealthTier('weight_goal',{current:bw,target:wGoal},ctx):null
+      // Sömn+Hälsa merge (user call 2026-09-11) — weakest-link across the 5
+      // signals named above. slT (sleep) computed earlier, above wLogs/wGoal.
+      const wTs=[slT,wgT,stepsT,alcoholT,supplementT].filter(Boolean)
       const wTop=wTs.length?wTs.reduce((min,t)=>t.tier<min.tier?t:min,wTs[0]):null
 
       // Self-scoped to the trailing 28d regardless of how wide skillData was fetched.
@@ -863,14 +868,6 @@ export default function Dashboard() {
         makeReq({ label:'Halvmara', current:rHShowD?.value, target:RUN_HALF_THRESHOLDS[runIdx], higherIsBetter:false, unit:'sec' }),
       ], 'T') : null
 
-      const currentSleepTier = slT?.tier || (avgSl ? 1 : 0)
-      const nextSleepTier = Math.min((currentSleepTier || 1) + 1, 8)
-      const sleepIdx = Math.max(0, nextSleepTier - 2)
-      const sleepLevelUp = avgSl ? makeLevelUp(currentSleepTier, 8, [
-        makeReq({ label:'Sömnsnitt 7d', current:avgSl, target:SLEEP_DURATION_THRESHOLDS[sleepIdx], unit:'h' }),
-        makeReq({ label:'Loggfrekvens', current:sl7.length, target: nextSleepTier >= 3 ? 5 : 3, unit:'av 7', currentLabel:`${sl7.length}/7`, targetLabel:`${nextSleepTier >= 3 ? 5 : 3}/7` }),
-      ], 'T') : null
-
       const studyTargetByNextTier = { 2:20, 3:40, 4:60, 5:80 }
       const currentStudyTier = pT?.tier || (avgM != null ? 1 : 0)
       const nextStudyTier = Math.min((currentStudyTier || 1) + 1, 5)
@@ -886,12 +883,16 @@ export default function Dashboard() {
         makeReq({ label:'Sparkapital', current:sav, target:SAVINGS_THRESHOLDS[econIdx], unit:'kr' }),
       ], 'T') : null
 
+      // Sömn+Hälsa merge (user call 2026-09-11) — replaces the old separate
+      // Sömn-only levelUp and Energi/Humör-driven Hälsa levelUp with one
+      // combined requirement list across the 5 signals that now drive wTop.
       const currentWellTier = wTop?.tier || (wTs.length ? 1 : 0)
       const nextWellTier = Math.min((currentWellTier || 1) + 1, 8)
       const wellIdx = Math.max(0, nextWellTier - 2)
       const healthReqs = [
-        makeReq({ label:'Energi', current:aE, target:ENERGY_THRESHOLDS[wellIdx], unit:'/10', currentLabel:aE != null ? `${aE}/10` : '—', targetLabel:`${ENERGY_THRESHOLDS[wellIdx]}/10` }),
-        makeReq({ label:'Humör', current:aMo, target:MOOD_THRESHOLDS[wellIdx], unit:'/10', currentLabel:aMo != null ? `${aMo}/10` : '—', targetLabel:`${MOOD_THRESHOLDS[wellIdx]}/10` }),
+        makeReq({ label:'Sömnsnitt 7d', current:avgSl, target:SLEEP_DURATION_THRESHOLDS[wellIdx], unit:'h' }),
+        makeReq({ label:'Steg/dag (7d)', current:aSteps, target:STEPS_THRESHOLDS[wellIdx], unit:'steg' }),
+        ...(bw ? [makeReq({ label:'Vikt mot mål', current:wK, target:0, higherIsBetter:false, unit:'kg', currentLabel:wK<=0?'Klar':`${wK} kg kvar`, targetLabel:'Nått målvikt' })] : []),
         ...(alcoholLogged ? [makeReq({ label:'Alkohol 7d', current:alcohol7, target:[14,10,7,5,3,1,0.1][wellIdx], higherIsBetter:false, unit:'enheter', currentLabel:`${Math.round(alcohol7*10)/10} enheter`, targetLabel:`≤ ${[14,10,7,5,3,1,0.1][wellIdx]} enheter` })] : []),
         ...(supplementCompliance != null ? [makeReq({ label:'Kosttillskott', current:supplementCompliance, target:[50,60,70,80,90,95,99][wellIdx], unit:'%', currentLabel:`${supplementCompliance}%`, targetLabel:`${[50,60,70,80,90,95,99][wellIdx]}%` })] : []),
       ]
@@ -908,18 +909,7 @@ export default function Dashboard() {
         makeReq({ label:'Gitarr', current:gtM, target:skillTargets[nextSkillTier], unit:'min/v' }),
       ], 'T') : null
 
-      // ── Phase 14 — Studier composite (formal studies + skills as ONE category) ──
-      // Folds the already-computed skills tier (skTop) into the study tier via a
-      // profile-aware weighting. Replaces the plugg tier IN PLACE (internal id
-      // stays 'plugg' → Maxx Score / Rank Up / Bottleneck unchanged, still 6 cats).
       const skillsTierVal = skH ? (skTop?.tier ?? 0) : 0
-      const studies = computeStudiesTier({
-        formalTier: pT?.tier ?? null,
-        skillTier: skillsTierVal,
-        lifeStage: profile?.life_stage ?? null,
-        primaryFocus: profile?.primary_focus ?? null,
-      })
-      const studiesLevelUp = studies ? buildStudiesLevelUp(studies.tier, studyLevelUp, skillLevelUp) : studyLevelUp
 
       const bodyLevelUp = latestW?.weight_kg ? {
         currentTier: null,
@@ -953,6 +943,10 @@ export default function Dashboard() {
       const sEvidence = strengthEvidence('Knäböj e1RM', ['knäböj','squat'])
       const dlEvidence = strengthEvidence('Marklyft e1RM', ['marklyft','deadlift'])
 
+      // Best-of-3 language for the Färdigheter bubble's compact metric line.
+      const bestLangXP = Math.max(spXP, srXP, gnXP)
+      const bestLangName = spXP >= srXP && spXP >= gnXP ? 'Spanska' : srXP >= gnXP ? 'Serbiska' : 'Tyska'
+
       const cats = [
         {id:'kondition',name:'Kondition',icon:'kondition',tier:kTop,hasData:hasRunData,pct:kTop?Math.round((kTop.tier/8)*100):0,decayWarning:[r5D,r10D,rHD,rMD].some(d=>d?.stale),trend:r5D?.daysSince<14?'up':'neutral',
           metrics:[
@@ -979,52 +973,59 @@ export default function Dashboard() {
           ],
           details:[{label:'Bänkpress e1RM',value:sourceValue(bE1RM?Math.round(bE1RM)+' kg ('+Math.round(bE1RM/bw*100)/100+'x BW)':'—', bEvidence),tierInfo:bT},{label:'Knäböj e1RM',value:sourceValue(sE1RM?Math.round(sE1RM)+' kg ('+Math.round(sE1RM/bw*100)/100+'x BW)':'—', sEvidence),tierInfo:sT},{label:'Marklyft e1RM',value:sourceValue(dlE1RM?Math.round(dlE1RM)+' kg ('+Math.round(dlE1RM/bw*100)/100+'x BW)':'—', dlEvidence),tierInfo:dlT},{label:'Militärpress e1RM',value:oE1RM?Math.round(oE1RM)+' kg':'—',tierInfo:oT},{label:'Weighted pull-up e1RM',value:puE1RM?'+'+Math.round(puE1RM)+' kg':'—',tierInfo:puT}],
           chartData:[],chartLines:[],levelUp:strengthLevelUp,tierGuide:strengthTierGuide,navTarget:'/traning',navLabel:'Träning'},
-        {id:'somn',name:'Sömn',icon:'somn',tier:slT,hasData:!!avgSl,pct:slT?Math.round((slT.tier/8)*100):0,decayWarning:false,trend:'neutral',
-          metrics:[{label:'Snitt 7 dagar',value:avgSl?avgSl+'h':'—',highlight:true},{label:'Loggar',value:sl7.length+' av 7 dagar'}],
-          details:[{label:'Sömnsnitt 7d',value:avgSl?avgSl+' timmar':'—',tierInfo:slT}],
-          chartData:(healthData||[]).filter(h=>h.sleep_hours).slice(0,14).reverse().map(h=>({date:h.date.slice(5),Sömn:h.sleep_hours})),
-          chartLines:[{key:'Sömn',label:'Timmar',color:'#8b5cf6'}],levelUp:sleepLevelUp,navTarget:'/halsa',navLabel:'Hälsa'},
-        {id:'plugg',name:'Studier',icon:'plugg',tier:studies ? { tier:studies.tier, label:studies.label, color:studies.color } : pT,hasData:!!studies || avgM!=null,pct:studies?Math.round((studies.tier/8)*100):(avgM!=null?avgM:0),decayWarning:false,trend:'neutral',
-          // Phase 14 — composite Studier: formal studies + skills (sub-dimension), profile-weighted.
-          composite:studies,
+        {id:'plugg',name:'Studier',icon:'plugg',tier:pT,hasData:avgM!=null,pct:avgM!=null?avgM:0,decayWarning:false,trend:'neutral',
           metrics:[
             {label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',highlight:true},
-            {label:'Färdigheter',value:skH?`T${skillsTierVal}`:'—'},
             {label:'Aktiva mål',value:aG.length},
           ],
           details:[
             {label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',tierInfo:pT},
+            ...Object.entries(byCourse).map(([c,v])=>({label:c,value:Math.round(v.reduce((s,x)=>s+x,0)/v.length)+'%'})),
+          ],
+          chartData:[],chartLines:[],levelUp:studyLevelUp,navTarget:'/plugg',navLabel:'Studier'},
+        {id:'fardigheter',name:'Färdigheter',icon:'fardigheter',tier:skTop,hasData:skH,pct:skTop?.tier?Math.round((skTop.tier/6)*100):0,decayWarning:false,trend:'neutral',
+          metrics:[
+            {label:'Färdighetsnivå',value:skTop?.tier?(TIER_NAMES[skTop.tier]||`T${skTop.tier}`):'—',highlight:true},
+            {label:'Gitarr',value:gtM?gtM+' min/v':'—'},
+            {label:'Bästa språk',value:bestLangXP>0?`${bestLangName} (${bestLangXP} xp)`:'—'},
+          ],
+          details:[
             {label:'Spanska',value:`${languageLabel(spB)} · ${spXP} xp`,tierInfo:spT?.tier?spT:null},
             {label:'Serbiska',value:`${languageLabel(srB)} · ${srXP} xp`,tierInfo:srT?.tier?srT:null},
             {label:'Tyska',value:`${languageLabel(gnB)} · ${gnXP} xp`,tierInfo:gnT?.tier?gnT:null},
             {label:'Gitarr',value:gtM?gtM+' min/v':'—',tierInfo:gtT?.tier?gtT:null},
-            ...Object.entries(byCourse).map(([c,v])=>({label:c,value:Math.round(v.reduce((s,x)=>s+x,0)/v.length)+'%'})),
           ],
-          chartData:[],chartLines:[],levelUp:studiesLevelUp,navTarget:'/plugg',navLabel:'Studier'},
+          chartData:[],chartLines:[],levelUp:skillLevelUp,navTarget:'/plugg',navLabel:'Plugg'},
         {id:'ekonomi',name:'Ekonomi',icon:'ekonomi',tier:eTop,hasData:!!(totPA||sav!=null),pct:eTop?Math.round((eTop.tier/8)*100):0,decayWarning:false,trend:'neutral',
           metrics:[{label:'Inkomst/period',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',highlight:true},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—'}],
           details:[{label:'Netto denna period',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',tierInfo:incT},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—',tierInfo:savT}],
           chartData:[],chartLines:[],levelUp:econLevelUp,navTarget:'/ekonomi',navLabel:'Ekonomi'},
-        {id:'halsa',name:'Hälsa',icon:'halsa',tier:wTop,hasData:wTs.length>0 || !!latestW?.weight_kg,pct:wTop?Math.round((wTop.tier/8)*100):(latestW?.weight_kg?wP:0),decayWarning:false,trend:aE?(aE>=7?'up':aE<=4?'down':'neutral'):'neutral',
+        {id:'halsa',name:'Hälsa',icon:'halsa',tier:wTop,hasData:wTs.length>0 || !!latestW?.weight_kg,pct:wTop?Math.round((wTop.tier/8)*100):(latestW?.weight_kg?wP:0),decayWarning:false,trend:'neutral',
+          // Sömn+Hälsa merge (user call 2026-09-11): tier now driven by sömn/
+          // vikttrend/steg/kosttillskott/alkohol (wTs above) — Energi/Humör are
+          // shown below for context but no longer feed the tier (no tierInfo).
           metrics:[
-            {label:'Energi',value:aE!=null?aE+'/10':'—',highlight:true},
-            {label:'Humör',value:aMo!=null?aMo+'/10':'—'},
+            {label:'Sömn 7d',value:avgSl?avgSl+'h':'—',highlight:true},
+            {label:'Steg 7d',value:aSteps!=null?Math.round(aSteps).toLocaleString('sv-SE'):'—'},
             {label:'Vikttrend',value:wLogs.length?(wD>0?'+':'')+wD+' kg':'—'},
             {label:'Kosttillskott',value:supplementCompliance!=null?supplementCompliance+'%':'—'},
             {label:'Alkohol 7d',value:alcoholLogged?Math.round(alcohol7*10)/10+' enh':'—'},
           ],
           details:[
-            {label:'Energi (7d)',value:aE!=null?aE+'/10':'—',tierInfo:eT},
-            {label:'Humör (7d)',value:aMo!=null?aMo+'/10':'—',tierInfo:moT},
+            {label:'Sömnsnitt 7d',value:avgSl?avgSl+' timmar':'—',tierInfo:slT},
+            {label:'Loggfrekvens sömn',value:sl7.length+' av 7 dagar'},
+            {label:'Steg/dag (7d)',value:aSteps!=null?Math.round(aSteps).toLocaleString('sv-SE'):'—',tierInfo:stepsT},
             {label:'Vikt',value:bw?bw+' kg':'—'},
             {label:'Målvikt',value:wGoal? wGoal+' kg':'—'},
-            {label:'Kvar till målvikt',value:bw&&wGoal? wK+' kg':'—'},
+            {label:'Kvar till målvikt',value:bw&&wGoal? wK+' kg':'—',tierInfo:wgT},
             {label:'Vikttrend 14d',value:wLogs.length?(wD>0?'+':'')+wD+' kg':'—'},
             {label:'Kosttillskott',value:supplementCompliance!=null?supplementCompliance+'%':'Ej loggat',tierInfo:supplementT},
             {label:'Alkohol 7d',value:alcoholLogged?Math.round(alcohol7*10)/10+' enheter':'Ej loggat',tierInfo:alcoholT},
+            {label:'Energi (7d)',value:aE!=null?aE+'/10':'—'},
+            {label:'Humör (7d)',value:aMo!=null?aMo+'/10':'—'},
           ],
-          chartData:(healthData||[]).filter(h=>(h.energy_level ?? h.energy)||h.mood||h.alcohol_units!=null).slice(0,14).reverse().map(h=>({date:h.date.slice(5),Energi:h.energy_level ?? h.energy,Humör:h.mood,Alkohol:h.alcohol_units})),
-          chartLines:[{key:'Energi',label:'Energi',color:'#fbbf24'},{key:'Humör',label:'Humör',color:'#34d399'},{key:'Alkohol',label:'Alkohol',color:'#f87171'}],
+          chartData:(healthData||[]).filter(h=>h.sleep_hours||h.steps!=null||h.alcohol_units!=null).slice(0,14).reverse().map(h=>({date:h.date.slice(5),Sömn:h.sleep_hours,Steg:h.steps,Alkohol:h.alcohol_units})),
+          chartLines:[{key:'Sömn',label:'Sömn (h)',color:'#8b5cf6'},{key:'Steg',label:'Steg',color:'#10b981'},{key:'Alkohol',label:'Alkohol',color:'#f87171'}],
           levelUp:wellLevelUp,
           navTarget:'/halsa',navLabel:'Hälsa'},
       ]
@@ -1041,8 +1042,8 @@ export default function Dashboard() {
         styrka:    cats.find(c=>c.id==='styrka')?.tier?.tier ?? null,
         plugg:     cats.find(c=>c.id==='plugg')?.tier?.tier ?? null,
         ekonomi:   cats.find(c=>c.id==='ekonomi')?.tier?.tier ?? null,
-        somn:      cats.find(c=>c.id==='somn')?.tier?.tier ?? null,
-        valmående: cats.find(c=>c.id==='halsa')?.tier?.tier ?? null,
+        valmående: cats.find(c=>c.id==='halsa')?.tier?.tier ?? null, // merged Sömn+Hälsa — column predates the merge
+        fardigheter: cats.find(c=>c.id==='fardigheter')?.tier?.tier ?? null,
         score_version: SCORE_VERSION,
       }
       // Fire-and-forget, but surface failures: if this write silently fails,
@@ -1086,8 +1087,9 @@ export default function Dashboard() {
       const d = format(subDays(new Date(), i), 'yyyy-MM-dd')
       const pt = { date: d.slice(5) }
       const hl = healthData.find(h => h.date === d)
-      if (hl?.sleep_hours) { const t = getTier(hl.sleep_hours, SLEEP_DURATION_THRESHOLDS, true); if (t) pt['somn'] = t.tier }
-      if (hl?.energy_level ?? hl?.energy) { const t = getTier(hl.energy_level ?? hl.energy, ENERGY_THRESHOLDS, true); if (t) pt['valmående'] = t.tier }
+      // Merged Sömn+Hälsa (user call 2026-09-11): sleep alone as the historical
+      // day-proxy — matches wTop dropping Energi/Humör as tier-driving signals.
+      if (hl?.sleep_hours) { const t = getTier(hl.sleep_hours, SLEEP_DURATION_THRESHOLDS, true); if (t) pt['valmående'] = t.tier }
       const snap = snapshotMap[d]
       if (snap) {
         if (snap.kondition) pt['kondition'] = snap.kondition

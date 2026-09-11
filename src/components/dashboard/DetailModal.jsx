@@ -29,15 +29,6 @@ const TIER_REQUIREMENTS = {
     { tier:7, label:'Top 2.5%', reqs:['Bänk ≥ 1.65x BW','Knäböj ≥ 1.9x BW','Marklyft ≥ 2.3x BW'] },
     { tier:8, label:'Top 1%',   reqs:['Bänk ≥ 1.8x BW','Knäböj ≥ 2.1x BW','Marklyft ≥ 2.5x BW'] },
   ],
-  somn: [
-    { tier:2, label:'Top 50%',  reqs:['Sömnsnitt ≥ 6.5h'] },
-    { tier:3, label:'Top 30%',  reqs:['Sömnsnitt ≥ 7.0h','Logga sömn ≥ 5 av 7 dagar'] },
-    { tier:4, label:'Top 20%',  reqs:['Sömnsnitt ≥ 7.25h'] },
-    { tier:5, label:'Top 10%',  reqs:['Sömnsnitt ≥ 7.5h','Stabil läggtid'] },
-    { tier:6, label:'Top 5%',   reqs:['Sömnsnitt ≥ 8.0h','Bra regelbundenhet'] },
-    { tier:7, label:'Top 2.5%', reqs:['Sömnsnitt ≥ 8.5h','Hög konsekvens'] },
-    { tier:8, label:'Top 1%',   reqs:['Sömnsnitt ≥ 9h','Optimal sömnkonsistens'] },
-  ],
   plugg: [
     { tier:1, label:'Nybörjare',     reqs:['Mastery 0–20%'] },
     { tier:2, label:'Grundläggande', reqs:['Mastery ≥ 20%'] },
@@ -54,22 +45,26 @@ const TIER_REQUIREMENTS = {
     { tier:7, label:'Top 2.5%', reqs:['Nettoinkomst ≥ 45 000 kr/mån','Sparkapital ≥ 350 000 kr'] },
     { tier:8, label:'Top 1%',   reqs:['Nettoinkomst ≥ 60 000 kr/mån','Sparkapital ≥ 500 000 kr'] },
   ],
+  // Merged Sömn+Hälsa (user call 2026-09-11) — sömn/vikttrend/steg/
+  // kosttillskott/alkohol drive the tier now, not Energi/Humör.
   halsa: [
-    { tier:2, label:'Top 50%',  reqs:['Energi ≥ 5/10','Humör ≥ 5/10','Alkohol ≤ 14 enheter/vecka'] },
-    { tier:3, label:'Top 30%',  reqs:['Energi ≥ 6/10','Humör ≥ 6/10','Alkohol ≤ 10 enheter/vecka'] },
-    { tier:4, label:'Top 20%',  reqs:['Energi ≥ 7/10','Humör ≥ 7/10','Alkohol ≤ 7 enheter/vecka','Vikttrend åt rätt håll'] },
-    { tier:5, label:'Top 10%',  reqs:['Energi ≥ 8/10','Humör ≥ 8/10','Alkohol ≤ 5 enheter/vecka','Kosttillskott ≥ 80% om loggat'] },
-    { tier:6, label:'Top 5%',   reqs:['Energi ≥ 9/10','Humör ≥ 9/10','Alkohol ≤ 3 enheter/vecka','Kosttillskott ≥ 90% om loggat'] },
-    { tier:7, label:'Top 2.5%', reqs:['Alla hälsometrics toppklass konsekvent'] },
-    { tier:8, label:'Top 1%',   reqs:['Energi/humör ≥ 9.5/10','Alkohol nära noll','Kosttillskott ≥ 99% om loggat'] },
+    { tier:2, label:'Top 50%',  reqs:['Sömn ≥ 6.5h','Steg ≥ 5000/dag','Alkohol ≤ 14 enheter/vecka'] },
+    { tier:3, label:'Top 30%',  reqs:['Sömn ≥ 7.0h','Steg ≥ 7500/dag','Alkohol ≤ 10 enheter/vecka'] },
+    { tier:4, label:'Top 20%',  reqs:['Sömn ≥ 7.25h','Steg ≥ 9000/dag','Alkohol ≤ 7 enheter/vecka','Vikttrend mot målvikt'] },
+    { tier:5, label:'Top 10%',  reqs:['Sömn ≥ 7.5h','Steg ≥ 11000/dag','Alkohol ≤ 5 enheter/vecka','Kosttillskott ≥ 80% om loggat'] },
+    { tier:6, label:'Top 5%',   reqs:['Sömn ≥ 8.0h','Steg ≥ 13000/dag','Alkohol ≤ 3 enheter/vecka','Kosttillskott ≥ 90% om loggat'] },
+    { tier:7, label:'Top 2.5%', reqs:['Sömn ≥ 8.5h','Steg ≥ 15000/dag','Alla hälsometrics toppklass'] },
+    { tier:8, label:'Top 1%',   reqs:['Sömn ≥ 9h','Steg ≥ 18000/dag','Alkohol nära noll','Kosttillskott ≥ 99% om loggat'] },
   ],
   valmående: [],
+  // Färdigheter (user call 2026-09-11) — gitarr uses min/vecka, språk uses
+  // decaying XP (languageSkill.js); same tier numbering (getSkillTier/xpTier).
   fardigheter: [
-    { tier:2, label:'Nybörjare',   reqs:['1–30 min/vecka'] },
-    { tier:3, label:'Regelbunden', reqs:['30–60 min/vecka'] },
-    { tier:4, label:'Dedikerad',   reqs:['60–120 min/vecka'] },
-    { tier:5, label:'Seriös',      reqs:['120–240 min/vecka'] },
-    { tier:6, label:'Mästare',     reqs:['240+ min/vecka'] },
+    { tier:2, label:'Nybörjare',   reqs:['Gitarr: 1–30 min/vecka','Språk: 1–89 xp'] },
+    { tier:3, label:'Regelbunden', reqs:['Gitarr: 30–60 min/vecka','Språk: 90–174 xp'] },
+    { tier:4, label:'Dedikerad',   reqs:['Gitarr: 60–120 min/vecka','Språk: 175–349 xp'] },
+    { tier:5, label:'Seriös',      reqs:['Gitarr: 120–240 min/vecka','Språk: 350–699 xp'] },
+    { tier:6, label:'Mästare',     reqs:['Gitarr: 240+ min/vecka','Språk: 700+ xp'] },
   ],
   kropp: [],
 }
