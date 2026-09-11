@@ -27,9 +27,19 @@ const SKILLS = [
   { id: 'guitar',   label: 'Gitarr',   icon: 'Music',      color: '#f59e0b' },
   { id: 'spanish',  label: 'Spanska',  icon: 'Globe',      color: '#ef4444' },
   { id: 'serbian',  label: 'Serbiska', icon: 'Globe',      color: '#3b82f6' },
+  { id: 'german',   label: 'Tyska',    icon: 'Globe',      color: '#14b8a6' },
   { id: 'reading',  label: 'Läsning',  icon: 'BookMarked', color: '#8b5cf6' },
   { id: 'piano',    label: 'Piano',    icon: 'Music',      color: '#06b6d4' },
   { id: 'other',    label: 'Annat',    icon: 'Sparkles',   color: '#10b981' },
+]
+
+// Language skills can split their minutes into HOW they were practiced — the
+// Dashboard tier still just sums all of a language's rows regardless of type.
+const LANGUAGE_SKILLS = new Set(['spanish', 'serbian', 'german'])
+const ACTIVITY_TYPES = [
+  { id: '',     label: 'Allmänt' },
+  { id: 'anki', label: 'Anki' },
+  { id: 'ci',   label: 'CI (input)' },
 ]
 
 const EMPTY_FORM = {
@@ -145,7 +155,7 @@ export default function JournalPage() {
     setEditDate(entry.date)
     // Load any skill_logs for that day so editing doesn't blank them (P2-6).
     const { data: skillRows } = await supabase.from('skill_logs')
-      .select('skill,minutes').eq('user_id', user.id).eq('date', entry.date)
+      .select('skill,minutes,activity_type').eq('user_id', user.id).eq('date', entry.date)
     setForm({
       content: entry.content || '',
       mood: entry.mood || 7,
@@ -155,10 +165,22 @@ export default function JournalPage() {
       sleep_note: entry.sleep_note || '',
       social_score: entry.social_score || 7,
       is_travel_entry: entry.is_travel_entry || false,
-      skills: (skillRows || []).map(r => ({ id: r.skill, minutes: r.minutes })),
+      skills: (skillRows || []).map(r => ({ id: r.skill, minutes: r.minutes, activity_type: r.activity_type || '' })),
     })
     setShowForm(true)
     setViewEntry(null)
+  }
+
+  // Graceful degradation until post_deploy_11 (activity_type) is migrated —
+  // retry without the new column instead of silently losing every skill row.
+  async function insertSkillRows(rows) {
+    if (!rows.length) return
+    let { error } = await supabase.from('skill_logs').insert(rows)
+    if (error && (/activity_type/i.test(error.message || '') || error.code === 'PGRST204' || error.code === '42703')) {
+      const bare = rows.map(({ activity_type, ...rest }) => rest)
+      ;({ error } = await supabase.from('skill_logs').insert(bare))
+    }
+    if (error) console.warn('skill_logs insert failed:', error.message)
   }
 
   async function saveEntry() {
@@ -189,8 +211,8 @@ export default function JournalPage() {
         // Persist skill edits — insert branch already does this; the update
         // branch used to drop them silently (AUDIT.md P2-6).
         await supabase.from('skill_logs').delete().eq('user_id', user.id).eq('date', editDate)
-        const skillRows = (form.skills || []).filter(s => s.minutes > 0).map(s => ({ user_id: user.id, date: editDate, skill: s.id, minutes: s.minutes }))
-        if (skillRows.length) await supabase.from('skill_logs').insert(skillRows)
+        const skillRows = (form.skills || []).filter(s => s.minutes > 0).map(s => ({ user_id: user.id, date: editDate, skill: s.id, minutes: s.minutes, activity_type: s.activity_type || null }))
+        await insertSkillRows(skillRows)
         // Re-run AI analysis when the text actually changed — otherwise a
         // rewritten entry keeps its stale ai_summary forever (AUDIT.md P2-6).
         if (form.content !== (editingEntry.content || '')) {
@@ -225,8 +247,8 @@ export default function JournalPage() {
         }, { onConflict: 'user_id,date' })
         if (form.skills?.length) {
           await supabase.from('skill_logs').delete().eq('user_id', user.id).eq('date', dateStr)
-          const rows = form.skills.filter(s => s.minutes > 0).map(s => ({ user_id: user.id, date: dateStr, skill: s.id, minutes: s.minutes }))
-          if (rows.length) await supabase.from('skill_logs').insert(rows)
+          const rows = form.skills.filter(s => s.minutes > 0).map(s => ({ user_id: user.id, date: dateStr, skill: s.id, minutes: s.minutes, activity_type: s.activity_type || null }))
+          await insertSkillRows(rows)
         }
         await updateJournalScore(dateStr, form)
 
@@ -711,15 +733,26 @@ export default function JournalPage() {
                           <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {form.skills.map((s, i) => {
                               const skill = SKILLS.find(sk => sk.id === s.id) || SKILLS[0]
+                              const isLanguage = LANGUAGE_SKILLS.has(s.id)
                               return (
-                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                   <select
                                     value={s.id}
-                                    onChange={e => setForm(f => ({ ...f, skills: f.skills.map((sk, si) => si === i ? { ...sk, id: e.target.value } : sk) }))}
-                                    style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '7px 10px', color: 'var(--text)', fontSize: '13px', fontFamily: 'Inter, sans-serif', cursor: 'pointer', outline: 'none' }}
+                                    onChange={e => setForm(f => ({ ...f, skills: f.skills.map((sk, si) => si === i ? { ...sk, id: e.target.value, activity_type: LANGUAGE_SKILLS.has(e.target.value) ? sk.activity_type : '' } : sk) }))}
+                                    style={{ flex: 1, minWidth: '110px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '7px 10px', color: 'var(--text)', fontSize: '13px', fontFamily: 'Inter, sans-serif', cursor: 'pointer', outline: 'none' }}
                                   >
                                     {SKILLS.map(sk => <option key={sk.id} value={sk.id}>{sk.label}</option>)}
                                   </select>
+                                  {isLanguage && (
+                                    <select
+                                      value={s.activity_type || ''}
+                                      onChange={e => setForm(f => ({ ...f, skills: f.skills.map((sk, si) => si === i ? { ...sk, activity_type: e.target.value } : sk) }))}
+                                      title="Hur övade du?"
+                                      style={{ flexShrink: 0, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '7px 8px', color: 'var(--muted2)', fontSize: '12px', fontFamily: 'Inter, sans-serif', cursor: 'pointer', outline: 'none' }}
+                                    >
+                                      {ACTIVITY_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                                    </select>
+                                  )}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
                                     <input
                                       type="number" min="5" max="240" step="5"

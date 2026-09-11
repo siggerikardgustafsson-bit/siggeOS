@@ -762,9 +762,9 @@ export default function Dashboard() {
       const wTop=wTs.length?wTs.reduce((min,t)=>t.tier<min.tier?t:min,wTs[0]):null
 
       function am(sn){const l=(skillData||[]).filter(s=>s.skill===sn);return l.length?Math.round(l.reduce((s,x)=>s+x.minutes,0)/4):0}
-      const spM=am('spanish'),srM=am('serbian'),gtM=am('guitar')
-      const spT=getSkillTier(spM),srT=getSkillTier(srM),gtT=getSkillTier(gtM)
-      const skTop=[spT,srT,gtT].reduce((b,t)=>t.tier>b.tier?t:b,spT)
+      const spM=am('spanish'),srM=am('serbian'),gtM=am('guitar'),gnM=am('german')
+      const spT=getSkillTier(spM),srT=getSkillTier(srM),gtT=getSkillTier(gtM),gnT=getSkillTier(gnM)
+      const skTop=[spT,srT,gtT,gnT].reduce((b,t)=>t.tier>b.tier?t:b,spT)
       const skH=!!(skillData?.length)
 
       // ── Dynamic level-up / bottleneck system ─────────────────────────────
@@ -881,6 +881,7 @@ export default function Dashboard() {
       const skillLevelUp = skH ? makeLevelUp(currentSkillTier, 6, [
         makeReq({ label:'Spanska', current:spM, target:skillTargets[nextSkillTier], unit:'min/v' }),
         makeReq({ label:'Serbiska', current:srM, target:skillTargets[nextSkillTier], unit:'min/v' }),
+        makeReq({ label:'Tyska', current:gnM, target:skillTargets[nextSkillTier], unit:'min/v' }),
         makeReq({ label:'Gitarr', current:gtM, target:skillTargets[nextSkillTier], unit:'min/v' }),
       ], 'T') : null
 
@@ -972,6 +973,7 @@ export default function Dashboard() {
             {label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',tierInfo:pT},
             {label:'Spanska',value:spM?spM+' min/v':'—',tierInfo:spT?.tier?spT:null},
             {label:'Serbiska',value:srM?srM+' min/v':'—',tierInfo:srT?.tier?srT:null},
+            {label:'Tyska',value:gnM?gnM+' min/v':'—',tierInfo:gnT?.tier?gnT:null},
             {label:'Gitarr',value:gtM?gtM+' min/v':'—',tierInfo:gtT?.tier?gtT:null},
             ...Object.entries(byCourse).map(([c,v])=>({label:c,value:Math.round(v.reduce((s,x)=>s+x,0)/v.length)+'%'})),
           ],
