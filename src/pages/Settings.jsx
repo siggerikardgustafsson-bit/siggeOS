@@ -11,6 +11,8 @@ import {
 import { usePwaInstall } from '../hooks/usePwaInstall'
 import { getIngestStatus, getOrCreateIngestToken, rotateIngestToken, disableIngest, ingestSetup } from '../lib/healthIngest'
 import SectionHeader from '../components/ui/SectionHeader'
+import { resolveTargetWeight } from '../lib/personalization'
+import { listGoals } from '../lib/goals'
 
 const ACCENTS = [
   { id: 'blue',   label: 'Blå',    color: '#4f8ef7' },
@@ -319,18 +321,27 @@ export default function SettingsPage() {
   // Notifications
   const [notifJournal, setNotifJournal] = useState(false)
   const [notifTraining, setNotifTraining] = useState(false)
+  const [resolvedTargetWeight, setResolvedTargetWeight] = useState(null)
+  const [targetWeightSource, setTargetWeightSource] = useState(null) // 'goal' | 'profile' | null
 
   useEffect(() => {
     if (user) loadProfile()
   }, [user])
 
   async function loadProfile() {
-    const [{ data }, { data: prof }] = await Promise.all([
+    const [{ data }, { data: prof }, activeGoals] = await Promise.all([
       supabase.from('user_settings').select('*').eq('user_id', user.id).maybeSingle(),
-      supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
+      supabase.from('profiles').select('display_name, target_weight_kg').eq('id', user.id).maybeSingle(),
+      listGoals(user.id, { status: 'active' }).catch(() => []),
     ])
     // display_name is canonical on profiles; user_settings only mirrors it.
     setDisplayName(prof?.display_name || data?.display_name || '')
+    // Kroppsviktsmål — same resolver Dashboard/Halsa/Insights use (user call
+    // 2026-09-13: this field "verkar inte hämtas från de officiella målen").
+    // Shown read-only here now, sourced from wherever it's ACTUALLY set.
+    const goalRow = (activeGoals || []).find(g => g.metric === 'body_weight' && g.target_value != null)
+    setResolvedTargetWeight(resolveTargetWeight(prof, data, activeGoals))
+    setTargetWeightSource(goalRow ? 'goal' : prof?.target_weight_kg ? 'profile' : (data?.goals?.body_weight_goal ? 'settings' : null))
     if (data) {
       setAboutMe(data.about_me || '')
       setGoals(mergeGoals(data.goals))
@@ -654,7 +665,17 @@ export default function SettingsPage() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div>
                       <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>KROPPSVIKTSMÅL (kg)</label>
-                      <input className="input" type="number" step="0.1" placeholder="t.ex. 82" value={goals.body_weight_goal} onChange={e => setGoals(g => ({ ...g, body_weight_goal: e.target.value }))} />
+                      {/* Read-only (user call 2026-09-13) — this field used to
+                          be its own separate source that silently did nothing
+                          once a Mål-sidan goal or Profil-sidan value existed.
+                          Now it just shows whichever one is actually in effect. */}
+                      <input className="input" value={resolvedTargetWeight != null ? `${resolvedTargetWeight} kg` : 'Inget satt'} readOnly disabled style={{ opacity: 0.75, cursor: 'default' }} />
+                      <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '5px' }}>
+                        {targetWeightSource === 'goal' && 'Från ett aktivt mål på Mål-sidan.'}
+                        {targetWeightSource === 'profile' && 'Från Profil-sidan — ändra där.'}
+                        {targetWeightSource === 'settings' && 'Från en äldre inställning här — flytta till Profil-sidan eller Mål-sidan.'}
+                        {!targetWeightSource && 'Inget satt än — sätt på Profil-sidan eller som ett mål på Mål-sidan.'}
+                      </div>
                     </div>
                     <div>
                       <label style={{ fontSize: '12px', color: 'var(--muted)', display: 'block', marginBottom: '6px', fontWeight: '500' }}>DATUM FÖR VIKTMÅL</label>

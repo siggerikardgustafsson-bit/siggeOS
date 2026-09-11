@@ -9,7 +9,11 @@ function CatIcon({ id, color, size = 16 }) {
 // underlying metrics. Pure visualization of the EXISTING tier data — no new
 // scoring, and only ranking categories feed the root (Experiences excluded).
 export default function KpiTree({ categories = [], maxxProfile, overallTier, onSelect, onMetricClick }) {
-  const ORDER = ['kondition', 'styrka', 'plugg', 'ekonomi', 'somn', 'halsa']
+  // 'somn' was retired into 'halsa' and 'fardigheter' split out of 'plugg' as
+  // its own ranking category 2026-09-11 — this hardcoded list never got
+  // updated then, so Färdigheter silently never appeared here (user call
+  // 2026-09-13, "du glömt att lägga till färdigheter i trädvyn").
+  const ORDER = ['kondition', 'styrka', 'plugg', 'fardigheter', 'ekonomi', 'halsa']
   const pillars = ORDER.map(id => categories.find(c => c.id === id)).filter(Boolean)
   const rootTier = maxxProfile?.tier?.tier ?? overallTier ?? 0
   const rootColor = TIER_COLORS[rootTier] || '#4f8ef7'
@@ -32,7 +36,7 @@ export default function KpiTree({ categories = [], maxxProfile, overallTier, onS
           const color = c.hasData && t ? (TIER_COLORS[t] || '#4f8ef7') : 'var(--muted)'
           const pct = c.levelUp?.progressPct ?? c.pct ?? 0
           const nextC = TIER_COLORS[c.levelUp?.nextTier] || color
-          const leaves = (c.metrics || []).slice(0, 3)
+          const leaves = (c.metrics || []).slice(0, 4) // 4, not 3 — Färdigheter has 4 skills to show
           return (
             <div className="kpi-branch" key={c.id} style={{ animationDelay: (i * 0.05) + 's', '--bc': c.hasData && t ? color : undefined }}>
               <button className="kpi-node" onClick={() => onSelect?.(c)} style={{ '--nc': color }}>
