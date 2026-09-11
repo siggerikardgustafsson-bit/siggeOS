@@ -110,13 +110,25 @@ serve(async (req) => {
         }
       }
 
-      if (incomeRows.length) await svc.from('income_logs').upsert(incomeRows, { onConflict: 'user_id,external_id' })
-      if (expenseRows.length) await svc.from('expense_logs').upsert(expenseRows, { onConflict: 'user_id,external_id' })
+      // Check .error explicitly — supabase-js upsert() does NOT throw on a
+      // DB-level failure (e.g. a bad onConflict target), it just returns
+      // {error}. Silently ignoring that was the 2026-09-13 bug: this
+      // reported "85 synced" while writing zero rows.
+      let written = 0
+      if (incomeRows.length) {
+        const { error: incErr, count } = await svc.from('income_logs').upsert(incomeRows, { onConflict: 'user_id,external_id', count: 'exact' })
+        if (incErr) throw new Error(`income_logs upsert: ${incErr.message}`)
+        written += count ?? incomeRows.length
+      }
+      if (expenseRows.length) {
+        const { error: expErr, count } = await svc.from('expense_logs').upsert(expenseRows, { onConflict: 'user_id,external_id', count: 'exact' })
+        if (expErr) throw new Error(`expense_logs upsert: ${expErr.message}`)
+        written += count ?? expenseRows.length
+      }
 
       await svc.from('bank_connections').update({ last_synced_at: new Date().toISOString() }).eq('id', conn.id)
-      const n = incomeRows.length + expenseRows.length
-      totalSynced += n
-      results.push({ account_uid: conn.account_uid, synced: n })
+      totalSynced += written
+      results.push({ account_uid: conn.account_uid, synced: written, seen: incomeRows.length + expenseRows.length })
     } catch (e) {
       console.error('ekonomi-sync failed for connection', conn.id, e)
       results.push({ account_uid: conn.account_uid, error: String(e?.message || e) })
