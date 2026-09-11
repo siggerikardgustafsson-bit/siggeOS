@@ -215,15 +215,13 @@ export default function DashboardConstellation({ categories = [], maxxProfile, o
           onClick={(e) => { e.stopPropagation(); go() }}>
           <span className="csat-disc" style={{
             background:`radial-gradient(118% 118% at 32% 24%, rgba(255,255,255,.92) 0%, rgba(255,255,255,.1) 11%, ${color}22 34%, rgba(13,18,32,.98) 74%, rgba(8,11,20,1) 100%)`,
-            border: m.highlight ? '2px solid #f59e0b' : `1px solid ${color}`,
-            boxShadow: m.highlight
-              ? `0 0 0 1px #f59e0b33, 0 10px 26px -8px rgba(0,0,0,.75), 0 0 22px #f59e0b55, inset 0 1.5px 1px rgba(255,255,255,.5), inset 0 -10px 18px -8px ${color}40`
-              : `0 0 0 1px ${color}22, 0 10px 26px -8px rgba(0,0,0,.75), 0 0 20px ${color}3a, inset 0 1.5px 1px rgba(255,255,255,.5), inset 0 -10px 18px -8px ${color}40` }}>
+            border: `1px solid ${color}`,
+            boxShadow: `0 0 0 1px ${color}22, 0 10px 26px -8px rgba(0,0,0,.75), 0 0 20px ${color}3a, inset 0 1.5px 1px rgba(255,255,255,.5), inset 0 -10px 18px -8px ${color}40` }}>
             <span style={{ fontSize:13, fontWeight:900, color:'#fff', lineHeight:1.05, textShadow:`0 1px 6px rgba(0,0,0,.55)` }}>{m.value}</span>
           </span>
-          {/* highlight = this metric is the category's binding bottleneck (user
-              call 2026-09-11, first used by Färdigheter's per-skill satellites) */}
-          <span className="csat-l" style={m.highlight ? { color:'#f59e0b', fontWeight:900 } : undefined}>{m.label}{m.highlight ? ' ⚠' : ''}</span>
+          {/* No bottleneck highlight styling (user call 2026-09-13: too
+              "blaffig") — every satellite renders plainly now. */}
+          <span className="csat-l">{m.label}</span>
         </button>
       )
     })

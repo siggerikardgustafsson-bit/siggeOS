@@ -916,7 +916,7 @@ Returnera ENBART JSON utan backticks:
       <div className="page-content-scroll">
         <div style={{ padding: '16px 16px 0' }}>
 
-      <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px' }}>
+      <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '14px' }}>
         {tabs.map(tab => {
           const TabIcon = tab.icon
           return (

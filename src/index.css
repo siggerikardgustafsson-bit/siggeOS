@@ -4118,7 +4118,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 /* ───────────── UPPLEVELSER — världskarta ───────────── */
 /* Full width, like every other page. The trip column stays a readable fixed
    width; the map takes the rest. */
-.upp-resor-layout { display:grid; grid-template-columns:minmax(0,1fr) clamp(340px, 26vw, 440px); gap:18px; align-items:start; }
+.upp-resor-layout { display:grid; grid-template-columns:minmax(0,1fr) clamp(340px, 26vw, 440px); gap:14px; align-items:start; }
 .upp-map-col { position:sticky; top:8px; min-width:0; }
 .upp-resor-layout > .upp-trips-scroll { min-width:0; }
 @media (max-width: 1040px){ .upp-resor-layout { grid-template-columns:minmax(0,1fr) 300px; gap:14px; } }
@@ -4132,7 +4132,10 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   --upp-border:rgba(255,255,255,0.10); --upp-dot-ring:#0a0e1a; --upp-label:rgba(255,255,255,0.94);
   border-radius:16px; padding:12px; overflow:hidden;
   background:var(--surface); border:1px solid var(--border);
-  box-shadow:0 20px 46px -34px rgba(0,0,0,.7); }
+  box-shadow:0 20px 46px -34px rgba(0,0,0,.7);
+  /* Centers the height-driven stage below when it's narrower than the column
+     (user call 2026-09-13: page shouldn't need to scroll). */
+  display:flex; flex-direction:column; align-items:center; }
 [data-theme="light"] .upp-map-panel {
   --upp-ocean:#d9e4f1; --upp-grat:rgba(0,0,0,0.045);
   --upp-land:#eef2f8;
@@ -4140,11 +4143,19 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   --upp-land-plan:color-mix(in srgb, #8b5cf6 18%, #e7edf5);
   --upp-border:rgba(0,0,0,0.13); --upp-dot-ring:#fff; --upp-label:rgba(18,26,44,0.92); }
 
+/* Height-driven, not width-driven (user call 2026-09-13: the whole RESOR tab
+   should fit one viewport, no page scroll). A width-driven aspect-ratio made
+   the map balloon to 74vh tall on any wide column — now `height` is the
+   primary dimension (a slice of viewport height) and `width` follows the
+   2:1 aspect-ratio, capped to the column via max-width — letterboxed rather
+   than uncapped when the column is wide, still fills it when narrow. */
 .upp-map-stage { position:relative; border-radius:12px; overflow:hidden;
-  aspect-ratio:2 / 1; min-height:360px; max-height:74vh; background:var(--upp-ocean); }
+  aspect-ratio:2 / 1; height:clamp(220px, 40vh, 380px); width:auto; max-width:100%;
+  background:var(--upp-ocean); }
 .upp-map-stage svg { width:100%; height:100%; display:block; cursor:grab; touch-action:none; }
 .upp-map-stage svg:active { cursor:grabbing; }
-@media (max-width: 860px){ .upp-map-stage { aspect-ratio:3 / 2; max-height:46vh; } }
+.upp-map-legend { align-self:stretch; }
+@media (max-width: 860px){ .upp-map-stage { aspect-ratio:3 / 2; height:clamp(200px, 34vh, 320px); width:100%; max-width:none; } }
 
 .upp-map-zoom { position:absolute; right:10px; top:10px; display:flex; flex-direction:column; gap:6px; }
 .upp-map-zoom button { width:30px; height:30px; border-radius:9px; cursor:pointer;
@@ -4186,10 +4197,11 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
   font-size:13px; font-family:Inter, sans-serif; color:var(--text); }
 .upp-city-opt:hover { background:color-mix(in srgb, var(--accent) 12%, transparent); }
 
-/* Stat strip + filter chips */
-.upp-stat-strip { display:grid; grid-template-columns:repeat(4,1fr); margin-bottom:14px;
+/* Stat strip + filter chips — tightened margins (user call 2026-09-13, "minska
+   lite spacing" to help the RESOR tab fit one viewport without scrolling). */
+.upp-stat-strip { display:grid; grid-template-columns:repeat(4,1fr); margin-bottom:10px;
   background:var(--surface2); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
-.upp-stat { display:flex; flex-direction:column; gap:3px; padding:12px 16px; border-left:1px solid var(--border); }
+.upp-stat { display:flex; flex-direction:column; gap:3px; padding:10px 16px; border-left:1px solid var(--border); }
 .upp-stat:first-child { border-left:none; }
 .upp-stat-cap { display:flex; align-items:center; gap:6px; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
 .upp-stat-cap::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--pg-c, var(--accent)); }
@@ -4197,7 +4209,7 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
 @media (max-width:560px){ .upp-stat-strip { grid-template-columns:repeat(2,1fr); }
   .upp-stat:nth-child(3){ border-left:none; }
   .upp-stat:nth-child(n+3){ border-top:1px solid var(--border); } }
-.upp-filter-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.upp-filter-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
 .upp-filter-chip { padding:6px 13px; border-radius:999px; border:1px solid var(--border); cursor:pointer;
   background:var(--surface2); color:var(--muted); font-size:12px; font-weight:600; font-family:Inter, sans-serif;
   transition:background .12s, color .12s, border-color .12s; }

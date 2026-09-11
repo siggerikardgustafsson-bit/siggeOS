@@ -128,6 +128,7 @@ export default function TraningPage() {
   const [muscleGroups, setMuscleGroups] = useState([])
   const [exerciseAliases, setExerciseAliases] = useState({})
   const [librarySearch, setLibrarySearch] = useState('')
+  const [libraryMuscleFilter, setLibraryMuscleFilter] = useState(null)
   const [libraryLoading, setLibraryLoading] = useState(false)
   const [editingLibraryExercise, setEditingLibraryExercise] = useState(null)
   const [savingLibraryExercise, setSavingLibraryExercise] = useState(false)
@@ -317,12 +318,17 @@ export default function TraningPage() {
     if (!user) return
     setLibraryLoading(true)
     const [exerciseRes, muscleRes, aliasRes] = await Promise.all([
-      supabase.from('exercise_library_with_muscles').select('*').order('category').order('name'),
+      supabase.from('exercise_library_with_muscles').select('*').order('name'),
       supabase.from('muscle_groups').select('*').eq('is_active', true).order('sort_order'),
       supabase.from('exercise_aliases').select('id, exercise_id, alias, slug').order('alias'),
     ])
 
+    // uniqueBySlugPreferOwn's own sort (own-first, then name) is only for the
+    // DEDUP step — re-sort purely alphabetically for display (user call
+    // 2026-09-13), so custom exercises interleave with standard ones by name
+    // instead of all custom ones coming first.
     const visibleExercises = uniqueBySlugPreferOwn(exerciseRes.data || [])
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'sv'))
     const aliasMap = {}
     for (const alias of aliasRes.data || []) {
       if (!aliasMap[alias.exercise_id]) aliasMap[alias.exercise_id] = []
@@ -1655,6 +1661,26 @@ export default function TraningPage() {
               <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
               <input className="input" placeholder="Sök övning, kategori eller muskel..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} style={{ paddingLeft: '34px' }} />
             </div>
+            {muscleGroups.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '10px' }}>
+                <button onClick={() => setLibraryMuscleFilter(null)}
+                  style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '11.5px', cursor: 'pointer',
+                    background: !libraryMuscleFilter ? 'var(--accent-soft)' : 'var(--surface2)',
+                    border: '1px solid ' + (!libraryMuscleFilter ? 'var(--accent-border)' : 'var(--border)'),
+                    color: !libraryMuscleFilter ? 'var(--accent)' : 'var(--muted)' }}>
+                  Alla muskler
+                </button>
+                {muscleGroups.map(m => (
+                  <button key={m.id} onClick={() => setLibraryMuscleFilter(f => f === m.id ? null : m.id)}
+                    style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '11.5px', cursor: 'pointer',
+                      background: libraryMuscleFilter === m.id ? 'var(--accent-soft)' : 'var(--surface2)',
+                      border: '1px solid ' + (libraryMuscleFilter === m.id ? 'var(--accent-border)' : 'var(--border)'),
+                      color: libraryMuscleFilter === m.id ? 'var(--accent)' : 'var(--muted)' }}>
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Saknas i biblioteket — historik loggad innan denna fix, eller
@@ -1707,6 +1733,7 @@ export default function TraningPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '10px' }}>
               {libraryExercises
                 .filter(ex => {
+                  if (libraryMuscleFilter && !(ex.muscles || []).some(m => m.muscle_id === libraryMuscleFilter)) return false
                   const q = librarySearch.trim().toLowerCase()
                   if (!q) return true
                   const muscleText = (ex.muscles || []).map(m => `${m.muscle_name} ${m.role}`).join(' ').toLowerCase()
