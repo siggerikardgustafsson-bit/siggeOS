@@ -11,11 +11,11 @@ import RunModal from '../components/RunModal'
 import Modal from '../components/Modal'
 import EmptyState from '../components/EmptyState'
 import GoalsSection from '../components/GoalsSection'
-import { patchGoals } from '../lib/userSettings'
-import { BASE_EXERCISE_LIBRARY, BW_EXERCISES, updatePersonalRecord } from '../lib/exercises'
+import { BW_EXERCISES, updatePersonalRecord, findExerciseMatch, quickAddExercise } from '../lib/exercises'
 
-// BASE_EXERCISE_LIBRARY, BW_EXERCISES and updatePersonalRecord live in
-// src/lib/exercises.js so QuickLog shares the exact same catalogue + PR logic.
+// BW_EXERCISES, updatePersonalRecord, findExerciseMatch and quickAddExercise
+// live in src/lib/exercises.js so QuickLog shares the exact same real
+// exercise-library matching + PR logic — no local copy (2026-09-12).
 
 const RUN_PR_DISTANCES = [
   { label: '1 km',       meters: 1000 },
@@ -120,8 +120,8 @@ export default function TraningPage() {
   const [expandedSession, setExpandedSession] = useState(null)
   const [showExercisePicker, setShowExercisePicker] = useState(false)
   const [editingSession, setEditingSession] = useState(null) // session being edited
-  const [customExercise, setCustomExercise] = useState('')
-  const [exerciseLibrary, setExerciseLibrary] = useState(BASE_EXERCISE_LIBRARY)
+  const [pickerQuery, setCustomExercise] = useState('')
+  const [orphanExerciseNames, setOrphanExerciseNames] = useState([])
 
   // Exercise library 2.0
   const [libraryExercises, setLibraryExercises] = useState([])
@@ -131,6 +131,11 @@ export default function TraningPage() {
   const [libraryLoading, setLibraryLoading] = useState(false)
   const [editingLibraryExercise, setEditingLibraryExercise] = useState(null)
   const [savingLibraryExercise, setSavingLibraryExercise] = useState(false)
+  const [addingExercise, setAddingExercise] = useState(false)
+  const [mergeMode, setMergeMode] = useState(false)
+  const [mergeKeepId, setMergeKeepId] = useState(null)
+  const [mergeDropId, setMergeDropId] = useState(null)
+  const [merging, setMerging] = useState(false)
 
   // Strava
   const [stravaConnected, setStravaConnected] = useState(false)
@@ -178,7 +183,7 @@ export default function TraningPage() {
   const [selectedSessionDetail, setSelectedSessionDetail] = useState(null)
 
   useEffect(() => {
-    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); loadCustomExercises(); fetchExerciseLibrary() }
+    if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); fetchExerciseLibrary(); loadOrphanExerciseNames() }
   }, [user])
 
   // Deep link: ?exercise=<name> opens the exercise progression/history view directly.
@@ -213,27 +218,75 @@ export default function TraningPage() {
     }
   }, [sessions, searchParams, setSearchParams])
 
-  async function loadCustomExercises() {
-    const [settingsRes, historyRes] = await Promise.all([
-      supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle(),
-      supabase.from('training_exercises')
-        .select('exercise_name, training_sessions!inner(user_id)')
-        .eq('training_sessions.user_id', user.id),
+  // "Saknas i biblioteket" (user call 2026-09-12) — every distinct exercise
+  // name ever logged, checked against the REAL library. Anything left over is
+  // a name that got saved with exercise_id: null before this fix (the exact
+  // "lutande hantelbänk" bug) — surfaced in the library view with a one-click
+  // "lägg till" that also backfills exercise_id on every historical row.
+  async function loadOrphanExerciseNames() {
+    const { data } = await supabase
+      .from('training_exercises')
+      .select('exercise_name, exercise_id, training_sessions!inner(user_id)')
+      .eq('training_sessions.user_id', user.id)
+      .is('exercise_id', null)
+    const names = [...new Set((data || []).map(r => r.exercise_name).filter(Boolean))]
+    setOrphanExerciseNames(names)
+  }
+
+  async function addOrphanToLibrary(name) {
+    const created = await quickAddToLibrary(name)
+    if (!created) return
+    await Promise.all([
+      supabase.from('training_exercises').update({ exercise_id: created.id, exercise_name: created.name })
+        .eq('user_id', user.id).eq('exercise_name', name).is('exercise_id', null),
+      supabase.from('personal_records').update({ exercise_id: created.id, exercise_name: created.name })
+        .eq('user_id', user.id).eq('exercise_name', name).is('exercise_id', null),
     ])
+    setOrphanExerciseNames(prev => prev.filter(n => n !== name))
+    await Promise.all([fetchSessions(), fetchPRs()])
+    toast({ message: `"${created.name}" tillagd i biblioteket — historik uppdaterad`, type: 'success' })
+  }
 
-    const custom = settingsRes.data?.goals?.custom_exercises || []
+  // "Merge" för dubletter (user call 2026-09-12) — reassigns every historical
+  // row from `drop` onto `keep`, carries `drop`'s name (and its own aliases)
+  // over as an alias of `keep` so old logs/searches still resolve, then
+  // removes `drop` (deletes a user-owned row; deactivates — never deletes —
+  // a global one, since other users may reference it).
+  async function mergeExercises() {
+    if (!mergeKeepId || !mergeDropId || mergeKeepId === mergeDropId) return
+    setMerging(true)
+    try {
+      const keep = libraryExercises.find(e => e.id === mergeKeepId)
+      const drop = libraryExercises.find(e => e.id === mergeDropId)
+      if (!keep || !drop) throw new Error('missing exercise')
 
-    // All base exercise names (flat)
-    const baseNames = new Set(Object.values(BASE_EXERCISE_LIBRARY).flat().map(n => n.toLowerCase()))
+      await supabase.from('training_exercises').update({ exercise_id: keep.id, exercise_name: keep.name }).eq('exercise_id', drop.id)
+      await supabase.from('personal_records').update({ exercise_id: keep.id, exercise_name: keep.name }).eq('exercise_id', drop.id)
 
-    // Unique names from history that aren't in the base library
-    const fromHistory = [...new Set((historyRes.data || []).map(r => r.exercise_name).filter(Boolean))]
-      .filter(name => !baseNames.has(name.toLowerCase()))
+      const keepSlug = normalizeSlug(keep.name)
+      const existingSlugs = new Set((exerciseAliases[keep.id] || []).map(a => a.slug))
+      const aliasInserts = []
+      const dropSlug = normalizeSlug(drop.name)
+      if (dropSlug !== keepSlug && !existingSlugs.has(dropSlug)) aliasInserts.push({ exercise_id: keep.id, alias: drop.name, slug: dropSlug })
+      for (const a of (exerciseAliases[drop.id] || [])) {
+        if (a.slug !== keepSlug && !existingSlugs.has(a.slug) && !aliasInserts.some(x => x.slug === a.slug)) {
+          aliasInserts.push({ exercise_id: keep.id, alias: a.alias, slug: a.slug })
+        }
+      }
+      if (aliasInserts.length) await supabase.from('exercise_aliases').insert(aliasInserts)
+      await supabase.from('exercise_aliases').delete().eq('exercise_id', drop.id)
 
-    // Merge: custom settings + history, deduplicated
-    const allCustom = [...new Set([...custom, ...fromHistory])]
+      if (drop.user_id) await supabase.from('exercise_library').delete().eq('id', drop.id)
+      else await supabase.from('exercise_library').update({ is_active: false }).eq('id', drop.id)
 
-    setExerciseLibrary(prev => ({ ...prev, 'Egna': allCustom }))
+      toast({ message: `"${drop.name}" sammanslagen med "${keep.name}"`, type: 'success' })
+      setMergeMode(false); setMergeKeepId(null); setMergeDropId(null)
+      await Promise.all([fetchExerciseLibrary(), fetchSessions(), fetchPRs()])
+    } catch (e) {
+      console.error('mergeExercises failed:', e)
+      toast({ message: 'Kunde inte slå ihop övningarna.', type: 'error' })
+    }
+    setMerging(false)
   }
 
   function normalizeSlug(value) {
@@ -414,19 +467,6 @@ export default function TraningPage() {
     setSavingLibraryExercise(false)
   }
 
-  async function saveCustomExercise(name) {
-    const { data } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle()
-    const existing = data?.goals?.custom_exercises || []
-    if (existing.includes(name)) return
-    const updated = [...existing, name]
-    try {
-      await patchGoals(user.id, { custom_exercises: updated })
-      setExerciseLibrary(prev => ({ ...prev, 'Egna': updated }))
-    } catch (e) {
-      console.error('saveCustomExercise failed:', e)
-      toast({ message: 'Kunde inte spara den egna övningen.', type: 'error' })
-    }
-  }
 
   async function checkStravaStatus() {
     try {
@@ -615,8 +655,47 @@ export default function TraningPage() {
   }
 
   function findLibraryExerciseByName(name) {
-    const normalized = normalizeSlug(name)
-    return libraryExercises.find(e => e.slug === normalized || normalizeSlug(e.name) === normalized)
+    return findExerciseMatch(name, libraryExercises, exerciseAliases)
+  }
+
+  // "Ska inte gå att logga något som inte finns i övningsbiblioteket" (user
+  // call 2026-09-12) — the one affordance every logging path offers instead
+  // of a free-text, unlinked exercise_name. Minimal row; full metadata
+  // (category/muscle groups) can be filled in later from the library editor.
+  async function quickAddToLibrary(name) {
+    const created = await quickAddExercise({ supabase, userId: user.id, name })
+    if (created) await fetchExerciseLibrary()
+    return created
+  }
+
+  // Inline match/add status shown under a free-typed exercise name — the same
+  // check both logging forms (new session + edit session) render, so typing
+  // "lutande hantelbänk" always makes it obvious it's not in the library YET,
+  // with a one-tap fix, instead of silently saving unlinked.
+  function renderExerciseMatchStatus(name, onAdding) {
+    if (!name?.trim()) return null
+    const match = findLibraryExerciseByName(name)
+    if (match) {
+      return (
+        <div style={{ fontSize: '11px', color: '#10b981', margin: '-6px 0 10px 2px', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Check size={11} /> {match.name}{match.name !== name.trim() ? ` (matchar "${name.trim()}")` : ''}
+        </div>
+      )
+    }
+    return (
+      <div style={{ fontSize: '11px', color: '#f59e0b', margin: '-6px 0 10px 2px', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>Inte i biblioteket ännu</span>
+        <button disabled={addingExercise} onClick={async () => {
+          setAddingExercise(true)
+          const created = await quickAddToLibrary(name.trim())
+          setAddingExercise(false)
+          if (created) { onAdding?.(created.name); toast({ message: `"${created.name}" tillagd i biblioteket`, type: 'success' }) }
+          else toast({ message: 'Kunde inte lägga till övningen.', type: 'error' })
+        }} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: '11px', fontWeight: 700, textDecoration: 'underline', padding: 0 }}>
+          {addingExercise ? 'Lägger till…' : 'Lägg till i biblioteket'}
+        </button>
+      </div>
+    )
   }
 
   // Single source of truth for "is this a bodyweight exercise" (AUDIT.md P2-4):
@@ -632,6 +711,16 @@ export default function TraningPage() {
   async function saveEditSession() {
     if (!editingSession) return
     const { id, date, sessionType, feeling, notes, exercises } = editingSession
+    // "Ska inte gå att logga något som inte finns i övningsbiblioteket" (user
+    // call 2026-09-12) — block BEFORE the delete-then-reinsert below so a
+    // typo can never wipe a session's real exercise rows.
+    if (sessionType === 'gym') {
+      const unresolved = [...new Set(exercises.filter(ex => ex.name?.trim() && !findLibraryExerciseByName(ex.name)).map(ex => ex.name.trim()))]
+      if (unresolved.length) {
+        toast({ message: `Lägg till i biblioteket först: ${unresolved.join(', ')}`, type: 'error' })
+        return
+      }
+    }
     await supabase.from('training_sessions').update({ date, session_type: sessionType, feeling: feeling ? parseInt(feeling) : null, notes: notes || null }).eq('id', id)
     await supabase.from('training_exercises').delete().eq('session_id', id)
     const rows = exercises.flatMap((ex, _) => ex.sets.map((s, si) => ({ user_id: user.id, session_id: id, exercise_id: findLibraryExerciseByName(ex.name)?.id || null, exercise_name: ex.name, set_number: si + 1, reps: s.reps ? parseInt(s.reps) : null, weight_kg: s.weight !== '' ? parseFloat(s.weight) : null, is_dropset: s.is_dropset || false }))).filter(r => r.exercise_name)
@@ -780,6 +869,13 @@ export default function TraningPage() {
   }
 
   async function saveGymSession() {
+    // "Ska inte gå att logga något som inte finns i övningsbiblioteket"
+    // (user call 2026-09-12) — checked before creating the session row at all.
+    const unresolved = [...new Set(exercises.filter(ex => ex.name?.trim() && !findLibraryExerciseByName(ex.name)).map(ex => ex.name.trim()))]
+    if (unresolved.length) {
+      toast({ message: `Lägg till i biblioteket först: ${unresolved.join(', ')}`, type: 'error' })
+      return
+    }
     setSaving(true)
     const sessionDate = gymForm.date || format(new Date(), 'yyyy-MM-dd')
 
@@ -1166,6 +1262,21 @@ export default function TraningPage() {
 
   const progressive = useMemo(() => getProgressiveOverloadData(), [sessions, libraryExercises]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Real library, grouped for the picker — replaces the old hardcoded
+  // BASE_EXERCISE_LIBRARY + free-text "Egna" list (user call 2026-09-12).
+  const libraryByCategory = useMemo(() => {
+    const q = pickerQuery.trim().toLowerCase()
+    const filtered = q ? libraryExercises.filter(e => e.name.toLowerCase().includes(q)) : libraryExercises
+    const groups = {}
+    for (const ex of filtered) {
+      const cat = ex.category || 'Övrigt'
+      if (!groups[cat]) groups[cat] = []
+      groups[cat].push(ex)
+    }
+    return groups
+  }, [libraryExercises, pickerQuery])
+  const pickerHasExactMatch = !!findLibraryExerciseByName(pickerQuery)
+
   const runKeyLabels = {
     '1k': '1 km',
     '5k': '5 km',
@@ -1530,15 +1641,65 @@ export default function TraningPage() {
                   Redigera övningar, muskler och alias. Globala övningar sparas som din egen version när du ändrar dem.
                 </div>
               </div>
-              <button onClick={fetchExerciseLibrary} className="btn btn-ghost btn-sm" disabled={libraryLoading}>
-                {libraryLoading ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />} Uppdatera
-              </button>
+              <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                <button onClick={() => { setMergeMode(m => !m); setMergeKeepId(null); setMergeDropId(null) }}
+                  className={`btn btn-sm ${mergeMode ? 'btn-primary' : 'btn-ghost'}`} title="Slå ihop dubletter">
+                  Slå ihop dubletter
+                </button>
+                <button onClick={fetchExerciseLibrary} className="btn btn-ghost btn-sm" disabled={libraryLoading}>
+                  {libraryLoading ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />} Uppdatera
+                </button>
+              </div>
             </div>
             <div style={{ position: 'relative' }}>
               <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
               <input className="input" placeholder="Sök övning, kategori eller muskel..." value={librarySearch} onChange={e => setLibrarySearch(e.target.value)} style={{ paddingLeft: '34px' }} />
             </div>
           </div>
+
+          {/* Saknas i biblioteket — historik loggad innan denna fix, eller
+              loggad via ett sätt som gick förbi den (user call 2026-09-12,
+              "lutande hantelbänk"-buggen). Backfillar exercise_id på alla
+              historiska rader när du lägger till. */}
+          {orphanExerciseNames.length > 0 && (
+            <div className="card" style={{ borderColor: 'rgba(245,158,11,0.35)' }}>
+              <div style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '600', marginBottom: '8px' }}>
+                SAKNAS I BIBLIOTEKET ({orphanExerciseNames.length})
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--muted2)', marginBottom: '10px' }}>
+                Loggat tidigare men aldrig kopplat till en riktig övning — går inte att hitta i biblioteket förrän du lägger till dem.
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {orphanExerciseNames.map(name => (
+                  <button key={name} onClick={() => addOrphanToLibrary(name)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px', borderRadius: '6px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', color: 'var(--text)', fontSize: '12.5px', cursor: 'pointer' }}>
+                    {name} <Plus size={12} color="#f59e0b" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {mergeMode && (
+            <div className="card" style={{ borderColor: 'var(--accent-border)', background: 'var(--accent-soft)' }}>
+              {mergeKeepId && mergeDropId ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '13px' }}>
+                    Slå ihop <b>{libraryExercises.find(e => e.id === mergeDropId)?.name}</b> in i <b>{libraryExercises.find(e => e.id === mergeKeepId)?.name}</b>?
+                    All historik flyttas, gamla namnet blir ett alias.
+                  </span>
+                  <button onClick={mergeExercises} disabled={merging} className="btn btn-primary btn-sm">
+                    {merging ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : 'Bekräfta'}
+                  </button>
+                  <button onClick={() => { setMergeKeepId(null); setMergeDropId(null) }} className="btn btn-ghost btn-sm">Avbryt val</button>
+                </div>
+              ) : (
+                <span style={{ fontSize: '13px', color: 'var(--muted2)' }}>
+                  {!mergeKeepId ? 'Klicka på övningen du vill BEHÅLLA.' : 'Klicka på dubletten som ska slås ihop in i den.'}
+                </span>
+              )}
+            </div>
+          )}
 
           {libraryLoading ? (
             <div className="card" style={{ textAlign: 'center', padding: '36px', color: 'var(--muted)' }}>Laddar övningsbibliotek...</div>
@@ -1554,18 +1715,37 @@ export default function TraningPage() {
                 .map(ex => {
                   const primary = (ex.muscles || []).filter(m => m.role === 'primary').map(m => m.muscle_name)
                   const secondary = (ex.muscles || []).filter(m => m.role === 'secondary').map(m => m.muscle_name)
+                  const isKeep = mergeMode && mergeKeepId === ex.id
+                  const isDrop = mergeMode && mergeDropId === ex.id
+                  function onMergeClick() {
+                    if (!mergeKeepId) { setMergeKeepId(ex.id); return }
+                    if (mergeKeepId === ex.id) { setMergeKeepId(null); return }
+                    if (mergeDropId === ex.id) { setMergeDropId(null); return }
+                    setMergeDropId(ex.id)
+                  }
                   return (
-                    <div key={ex.id} className="card-sm" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div key={ex.id} className="card-sm" onClick={mergeMode ? onMergeClick : undefined}
+                      style={{ display: 'flex', flexDirection: 'column', gap: '10px', cursor: mergeMode ? 'pointer' : 'default',
+                        borderColor: isKeep ? '#10b981' : isDrop ? '#f59e0b' : undefined,
+                        boxShadow: isKeep ? '0 0 0 1px #10b981' : isDrop ? '0 0 0 1px #f59e0b' : undefined }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'flex-start' }}>
                         <div style={{ minWidth: 0 }}>
-                          <button onClick={() => setSelectedExercise(ex.name)} title="Visa progression" style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', fontSize: '15px', fontWeight: '700', color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: '5px' }} className="tr-ex-name">{ex.name}<ChevronRight size={13} className="tr-ex-chev" /></button>
+                          {mergeMode ? (
+                            <span style={{ fontSize: '15px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                              {isKeep && <Check size={13} color="#10b981" />}{isDrop && <X size={13} color="#f59e0b" />}{ex.name}
+                            </span>
+                          ) : (
+                            <button onClick={() => setSelectedExercise(ex.name)} title="Visa progression" style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', fontSize: '15px', fontWeight: '700', color: 'var(--text)', display: 'inline-flex', alignItems: 'center', gap: '5px' }} className="tr-ex-name">{ex.name}<ChevronRight size={13} className="tr-ex-chev" /></button>
+                          )}
                           <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '2px' }}>
                             {ex.category || 'Okategori'}{ex.equipment ? ` · ${ex.equipment}` : ''}{ex.user_id ? ' · egen' : ' · standard'}
                           </div>
                         </div>
-                        <button onClick={() => openLibraryExercise(ex)} className="btn btn-ghost btn-icon" title="Redigera övning">
-                          <Edit3 size={13} />
-                        </button>
+                        {!mergeMode && (
+                          <button onClick={() => openLibraryExercise(ex)} className="btn btn-ghost btn-icon" title="Redigera övning">
+                            <Edit3 size={13} />
+                          </button>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1852,6 +2032,7 @@ export default function TraningPage() {
                       </button>
                     )}
                   </div>
+                  {renderExerciseMatchStatus(ex.name, newName => updateExerciseName(exIdx, newName))}
 
                   {/* Sets */}
                   {(() => {
@@ -1891,33 +2072,46 @@ export default function TraningPage() {
                 </div>
               ))}
 
-              {/* Exercise picker modal */}
+              {/* Exercise picker modal — SEARCHES the real library (user call
+                  2026-09-12: logging should be "look it up", not free-text).
+                  No match → explicit "lägg till i biblioteket" only. */}
               {showExercisePicker !== false && (
-                <Modal onClose={() => setShowExercisePicker(false)} maxWidth={560} title="Välj övning">
-                    {Object.entries(exerciseLibrary).map(([category, exs]) => (
+                <Modal onClose={() => { setShowExercisePicker(false); setCustomExercise('') }} maxWidth={560} title="Välj övning">
+                    <input className="input" value={pickerQuery} onChange={e => setCustomExercise(e.target.value)}
+                      placeholder="Sök övning..." style={{ marginBottom: '14px' }} autoFocus />
+                    {Object.keys(libraryByCategory).length === 0 && !pickerQuery.trim() ? (
+                      <div style={{ fontSize: '13px', color: 'var(--muted)', textAlign: 'center', padding: '16px 0' }}>Inga övningar i biblioteket än.</div>
+                    ) : Object.entries(libraryByCategory).map(([category, exs]) => (
                       <div key={category} style={{ marginBottom: '14px' }}>
                         <div style={{ fontSize: '11px', color: 'var(--muted)', fontWeight: '600', marginBottom: '6px' }}>{category.toUpperCase()}</div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                           {exs.map(ex => (
-                            <button key={ex} onClick={() => { updateExerciseName(showExercisePicker, ex); setShowExercisePicker(false) }}
+                            <button key={ex.id} onClick={() => { updateExerciseName(showExercisePicker, ex.name); setShowExercisePicker(false); setCustomExercise('') }}
                               style={{ padding: '5px 10px', borderRadius: '6px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: '13px', cursor: 'pointer' }}>
-                              {ex}
+                              {ex.name}
                             </button>
                           ))}
                         </div>
                       </div>
                     ))}
-                    <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-                      <input className="input" value={customExercise} onChange={e => setCustomExercise(e.target.value)} placeholder="Egen övning..." />
-                      <button onClick={() => {
-                        if (customExercise.trim()) {
-                          updateExerciseName(showExercisePicker, customExercise.trim())
-                          saveCustomExercise(customExercise.trim())
+                    {pickerQuery.trim() && !pickerHasExactMatch && (
+                      <button disabled={addingExercise} onClick={async () => {
+                        setAddingExercise(true)
+                        const created = await quickAddToLibrary(pickerQuery.trim())
+                        setAddingExercise(false)
+                        if (created) {
+                          updateExerciseName(showExercisePicker, created.name)
                           setShowExercisePicker(false)
                           setCustomExercise('')
+                          toast({ message: `"${created.name}" tillagd i biblioteket`, type: 'success' })
+                        } else {
+                          toast({ message: 'Kunde inte lägga till övningen.', type: 'error' })
                         }
-                      }} className="btn btn-primary" style={{ flexShrink: 0 }}>Spara</button>
-                    </div>
+                      }} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '4px' }}>
+                        {addingExercise ? <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={14} />}
+                        Lägg till &quot;{pickerQuery.trim()}&quot; i biblioteket
+                      </button>
+                    )}
                 </Modal>
               )}
 
@@ -2414,6 +2608,7 @@ export default function TraningPage() {
                     <button onClick={() => setEditingSession(p => ({ ...p, exercises: p.exercises.filter((_, i) => i !== exIdx) }))} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', flexShrink: 0 }}><X size={15} /></button>
                   )}
                 </div>
+                {renderExerciseMatchStatus(ex.name, newName => setEditingSession(p => ({ ...p, exercises: p.exercises.map((x, i) => i !== exIdx ? x : { ...x, name: newName }) })))}
                 <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 1fr 24px', gap: '6px', fontSize: '11px', color: 'var(--muted)', padding: '0 2px', marginBottom: '4px' }}>
                   <span>Set</span><span>Reps</span><span>{isBodyweight(ex.name) ? '+Kg' : 'Kg'}</span><span></span>
                 </div>

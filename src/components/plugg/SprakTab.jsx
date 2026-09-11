@@ -30,20 +30,27 @@ async function insertSkillRow(row) {
   return error
 }
 
-// Combined cumulative-cards-over-time series, all 3 languages in one chart —
-// running totals by day so growth (and gaps) are visible at a glance.
-function cumulativeChartData(rows) {
-  const byDate = {} // date -> { spanish, serbian, german }
+// Per-language cumulative series — user call 2026-09-12: three separate
+// charts, not one combined "all languages" chart. Each shows that language's
+// OWN total kort + CI, running since the first day it has data.
+function cumulativeSeriesForSkill(rows, skill) {
+  const byDate = {}
   for (const r of rows) {
-    if (r.cards == null || !LANGUAGE_SKILLS.includes(r.skill)) continue
-    byDate[r.date] = byDate[r.date] || {}
-    byDate[r.date][r.skill] = (byDate[r.date][r.skill] || 0) + Number(r.cards || 0)
+    if (r.skill !== skill) continue
+    if (r.cards != null) {
+      byDate[r.date] = byDate[r.date] || { cards: 0, ci: 0 }
+      byDate[r.date].cards += Number(r.cards || 0)
+    } else if (r.activity_type !== 'anki') {
+      byDate[r.date] = byDate[r.date] || { cards: 0, ci: 0 }
+      byDate[r.date].ci += Number(r.minutes || 0) / 60
+    }
   }
   const dates = Object.keys(byDate).sort()
-  const running = { spanish: 0, serbian: 0, german: 0 }
+  let cards = 0, ci = 0
   return dates.map(d => {
-    for (const s of LANGUAGE_SKILLS) running[s] += byDate[d][s] || 0
-    return { date: d.slice(5), spanish: running.spanish, serbian: running.serbian, german: running.german }
+    cards += byDate[d].cards
+    ci += byDate[d].ci
+    return { date: d.slice(5), kort: Math.round(cards), ci: Math.round(ci * 10) / 10 }
   })
 }
 
@@ -105,7 +112,6 @@ export default function SprakTab({ userId }) {
   const stats = Object.fromEntries(LANGUAGE_SKILLS.map(s => [s, { blend: languageBlend(rows, s), t: languageTier(rows, s) }]))
   const totalCardsAll = LANGUAGE_SKILLS.reduce((s, k) => s + stats[k].t.cardsTotal, 0)
   const totalCIHoursAll = Math.round(LANGUAGE_SKILLS.reduce((s, k) => s + stats[k].t.ciHoursTotal, 0) * 10) / 10
-  const chartData = cumulativeChartData(rows)
   const last30 = new Date(); last30.setDate(last30.getDate() - 30)
   const last30Str = last30.toISOString().slice(0, 10)
   const recent = rows.filter(r => r.date >= last30Str).slice(0, 12)
@@ -142,7 +148,7 @@ export default function SprakTab({ userId }) {
       {/* Totalt sedan start — user call 2026-09-12 ("vill ha ett sätt att se
           totalt antal kort och ci-timmar"): a prominent combined number, not
           just buried in each language's card. */}
-      <div className="card" style={{ marginBottom: '16px', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+      <div className="card" style={{ marginBottom: '16px', display: 'flex', gap: '24px' }}>
         <div>
           <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kort totalt</div>
           <div style={{ fontSize: '26px', fontWeight: 900 }}>{totalCardsAll.toLocaleString('sv-SE')}</div>
@@ -150,23 +156,6 @@ export default function SprakTab({ userId }) {
         <div>
           <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>CI-timmar totalt</div>
           <div style={{ fontSize: '26px', fontWeight: 900 }}>{totalCIHoursAll.toLocaleString('sv-SE')}h</div>
-        </div>
-        <div style={{ flex: 1, minWidth: '220px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Kort per språk, sedan start</div>
-          {chartData.length > 1 ? (
-            <ResponsiveContainer width="100%" height={90}>
-              <LineChart data={chartData} margin={{ top: 2, right: 4, left: -30, bottom: 0 }}>
-                <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 9, fill: 'var(--muted)' }} axisLine={false} tickLine={false} width={30} />
-                <Tooltip contentStyle={{ background: 'var(--surface3)', border: '1px solid var(--border2)', borderRadius: 8, fontSize: 11 }} />
-                <Line type="monotone" dataKey="spanish" name="Spanska" stroke={LANG_COLOR.spanish} strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="serbian" name="Serbiska" stroke={LANG_COLOR.serbian} strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="german" name="Tyska" stroke={LANG_COLOR.german} strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ fontSize: '12px', color: 'var(--muted)' }}>Inget att visa än — behöver kort från minst 2 dagar.</div>
-          )}
         </div>
       </div>
 
@@ -181,6 +170,7 @@ export default function SprakTab({ userId }) {
           const cardsTarget = t.tier < 6 ? CARDS_THRESHOLDS[idx] : null
           const ciTarget = t.tier < 6 ? CI_HOURS_THRESHOLDS[idx] : null
           const consTarget = t.tier < 6 ? CONSISTENCY_DAY_THRESHOLDS[idx] : null
+          const series = cumulativeSeriesForSkill(rows, s)
           return (
             <div key={s} className="card" style={{ borderColor: color + '30' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -194,6 +184,20 @@ export default function SprakTab({ userId }) {
                 {t.cardsTotal} kort · {t.ciHoursTotal}h CI totalt sedan start
                 {t.bottleneck && t.tier < 6 ? ` · flaskhals: ${t.bottleneck}` : ''}
               </div>
+              {series.length > 1 && (
+                <div style={{ marginBottom: '8px' }}>
+                  <ResponsiveContainer width="100%" height={80}>
+                    <LineChart data={series} margin={{ top: 2, right: 4, left: -22, bottom: 0 }}>
+                      <XAxis dataKey="date" tick={{ fontSize: 9, fill: 'var(--muted)' }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="kort" tick={{ fontSize: 9, fill: color }} axisLine={false} tickLine={false} width={28} />
+                      <YAxis yAxisId="ci" orientation="right" tick={{ fontSize: 9, fill: 'var(--muted)' }} axisLine={false} tickLine={false} width={0} hide />
+                      <Tooltip contentStyle={{ background: 'var(--surface3)', border: '1px solid var(--border2)', borderRadius: 8, fontSize: 11 }} />
+                      <Line yAxisId="kort" type="monotone" dataKey="kort" name="Kort" stroke={color} strokeWidth={2} dot={false} />
+                      <Line yAxisId="ci" type="monotone" dataKey="ci" name="CI (h)" stroke="var(--muted)" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
               {t.tier < 6 ? (
                 <>
                   <GateBar label="Kort (totalt)" value={t.cardsTotal} target={cardsTarget} unit="" color={color} />

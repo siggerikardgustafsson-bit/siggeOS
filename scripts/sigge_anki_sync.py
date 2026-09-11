@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Syncs Anki card-review history (Spanska/Serbiska/Tyska) to SiggeOS.
+"""Syncs Anki NEW-card history (Spanska/Serbiska/Tyska) to SiggeOS.
 
 Requires Anki Desktop open with the AnkiConnect add-on (code 2055492159).
 Every run re-pulls the last BACKFILL_DAYS days and sends them all in one
 batch — so a gap (laptop closed, Anki not open that day, this script not
 running) self-heals the next time it runs, instead of leaving a hole.
-Counts UNIQUE cards touched per day (not raw review events, so a card you
-got wrong and re-saw the same day isn't counted twice) — matches what
-"X cards reviewed today" means in Anki's own UI.
+
+Counts NEW cards learned per day (user call 2026-09-12) — a card's FIRST-
+EVER review, across its whole history, not every day it happens to get
+reviewed again. Repetitions of already-known cards don't count: languageTier()
+(src/lib/languageSkill.js) uses cumulative cards as a vocabulary-SIZE proxy —
+"have I been exposed to ~8000 words" — and that only holds if a heavy
+reviewer can't inflate the number just by re-reviewing the same words a lot.
 
 Does nothing (exits quietly) if AnkiConnect isn't reachable, i.e. Anki
 Desktop isn't open right now — safe to poll often.
@@ -74,12 +78,16 @@ def main():
             print(f"skip {deck}: {e}", file=sys.stderr)
             continue
         for card_id, reviews in reviews_by_card.items():
-            for review in reviews:
-                review_time_ms = review["id"]  # revlog id IS the review timestamp, in ms
-                if review_time_ms < start_ms:
-                    continue
-                day = datetime.fromtimestamp(review_time_ms / 1000).date().isoformat()
-                by_day[day][skill].add(card_id)
+            if not reviews:
+                continue
+            # The card's first review EVER (not first within the window) —
+            # that's the actual "this word is new" moment. A card learned
+            # months ago and reviewed again today must not count as new today.
+            first_review_ms = min(r["id"] for r in reviews)
+            if first_review_ms < start_ms:
+                continue
+            day = datetime.fromtimestamp(first_review_ms / 1000).date().isoformat()
+            by_day[day][skill].add(card_id)
 
     if not by_day:
         return

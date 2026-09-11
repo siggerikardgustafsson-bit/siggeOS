@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
-import { BASE_EXERCISE_LIBRARY, isBodyweightName, updatePersonalRecord } from '../lib/exercises'
+import { isBodyweightName, updatePersonalRecord, fetchExerciseCatalogue, findExerciseMatch, quickAddExercise } from '../lib/exercises'
 import { format } from 'date-fns'
 import { Plus, X, Heart, Dumbbell, DollarSign, TrendingUp, BookOpen, Check, Loader, Trash2 } from 'lucide-react'
 
@@ -18,9 +18,9 @@ const FEELING_OPTS = [
   { v: 9, label: 'Grym' },
 ]
 // Same catalogue + PR logic as Träning (src/lib/exercises.js) — no local copy.
-const EXERCISE_LIBRARY = Object.fromEntries(
-  Object.entries(BASE_EXERCISE_LIBRARY).filter(([, list]) => list.length),
-)
+// v2 (user call 2026-09-12): searches the REAL exercise_library now, not a
+// hardcoded list — QuickLog used to let you type any free-text name and save
+// it with no exercise_id at all (Träning at least tried a slug match first).
 
 // ── Shared UI helpers ──────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ function HealthForm({ onSave, saving }) {
 
 // ── Gym form (full exercise logging) ──────────────────────────────────────
 
-function GymForm({ onSave, saving }) {
+function GymForm({ onSave, saving, catalogue, aliasMap, onQuickAdd }) {
   const [sessionType, setSessionType] = useState('gym')
   const [duration, setDuration] = useState('')
   const [feeling, setFeeling] = useState(7)
@@ -112,6 +112,7 @@ function GymForm({ onSave, saving }) {
   const [exercises, setExercises] = useState([{ name: '', sets: [{ reps: '', weight: '' }] }])
   const [showPicker, setShowPicker] = useState(null) // index of exercise opening picker
   const [customName, setCustomName] = useState('')
+  const [addingIdx, setAddingIdx] = useState(null)
 
   // Run-specific
   const [runDistance, setRunDistance] = useState('')
@@ -138,7 +139,18 @@ function GymForm({ onSave, saving }) {
 
   const hasValidExercises = isGym
     ? exercises.some(ex => ex.name && ex.sets.some(s => s.reps || s.weight))
+      && exercises.every(ex => !ex.name?.trim() || !!findExerciseMatch(ex.name, catalogue, aliasMap))
     : true
+
+  const libraryByGroup = (() => {
+    const groups = {}
+    for (const ex of catalogue || []) {
+      const cat = ex.category || 'Övrigt'
+      if (!groups[cat]) groups[cat] = []
+      groups[cat].push(ex)
+    }
+    return groups
+  })()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -207,26 +219,33 @@ function GymForm({ onSave, saving }) {
                     onFocus={() => setShowPicker(i)}
                     style={{ fontSize: '13px' }}
                   />
-                  {/* Exercise picker dropdown */}
+                  {/* Exercise picker dropdown — SEARCHES the real library
+                      (user call 2026-09-12), filtered live by what's typed. */}
                   {showPicker === i && (
                     <div style={{
                       position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
                       background: 'var(--surface)', border: '1px solid var(--border)',
                       borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                      maxHeight: '200px', overflowY: 'auto', marginTop: '4px',
+                      maxHeight: '220px', overflowY: 'auto', marginTop: '4px',
                     }}>
-                      {Object.entries(EXERCISE_LIBRARY).map(([group, exs]) => (
-                        <div key={group}>
-                          <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 700, padding: '6px 12px 2px', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{group}</div>
-                          {exs.map(name => (
-                            <button key={name} onClick={() => { updateName(i, name); setShowPicker(null) }}
-                              style={{ width: '100%', textAlign: 'left', padding: '7px 12px', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                            >{name}</button>
-                          ))}
-                        </div>
-                      ))}
+                      {(() => {
+                        const q = ex.name.trim().toLowerCase()
+                        const groups = q
+                          ? Object.fromEntries(Object.entries(libraryByGroup).map(([g, exs]) => [g, exs.filter(e => e.name.toLowerCase().includes(q))]).filter(([, exs]) => exs.length))
+                          : libraryByGroup
+                        return Object.entries(groups).map(([group, exs]) => (
+                          <div key={group}>
+                            <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 700, padding: '6px 12px 2px', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{group}</div>
+                            {exs.map(e => (
+                              <button key={e.id} onClick={() => { updateName(i, e.name); setShowPicker(null) }}
+                                style={{ width: '100%', textAlign: 'left', padding: '7px 12px', background: 'transparent', border: 'none', color: 'var(--text)', fontSize: '13px', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+                                onMouseEnter={ev => ev.currentTarget.style.background = 'var(--surface2)'}
+                                onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}
+                              >{e.name}</button>
+                            ))}
+                          </div>
+                        ))
+                      })()}
                       <button onClick={() => setShowPicker(null)} style={{ width: '100%', padding: '7px 12px', background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '12px', cursor: 'pointer', fontFamily: 'Inter, sans-serif', borderTop: '1px solid var(--border)' }}>
                         Stäng
                       </button>
@@ -239,6 +258,27 @@ function GymForm({ onSave, saving }) {
                   </button>
                 )}
               </div>
+              {/* "Ska inte gå att logga något som inte finns i biblioteket" —
+                  inline resolved/unresolved status + one-tap add (2026-09-12). */}
+              {ex.name?.trim() && (
+                findExerciseMatch(ex.name, catalogue, aliasMap) ? (
+                  <div style={{ fontSize: '11px', color: '#10b981', marginTop: '-4px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Check size={11} /> {findExerciseMatch(ex.name, catalogue, aliasMap).name}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '-4px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>Inte i biblioteket ännu</span>
+                    <button disabled={addingIdx === i} onClick={async () => {
+                      setAddingIdx(i)
+                      const created = await onQuickAdd(ex.name.trim())
+                      setAddingIdx(null)
+                      if (created) updateName(i, created.name)
+                    }} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: '11px', fontWeight: 700, textDecoration: 'underline', padding: 0 }}>
+                      {addingIdx === i ? 'Lägger till…' : 'Lägg till i biblioteket'}
+                    </button>
+                  </div>
+                )
+              )}
 
               {/* Sets */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -416,6 +456,8 @@ export default function QuickLog() {
   const [activeTab, setActiveTab] = useState('training')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [catalogue, setCatalogue] = useState([])
+  const [aliasMap, setAliasMap] = useState({})
   const overlayRef = useRef()
 
   function handleOverlay(e) {
@@ -427,6 +469,25 @@ export default function QuickLog() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // Real exercise library, shared with Träning (src/lib/exercises.js) —
+  // fetched once the panel opens so QuickLog never floats its own copy.
+  useEffect(() => {
+    if (!open || !user) return
+    fetchExerciseCatalogue(supabase).then(({ exercises, aliasMap: am }) => { setCatalogue(exercises); setAliasMap(am) })
+  }, [open, user])
+
+  async function handleQuickAddExercise(name) {
+    const created = await quickAddExercise({ supabase, userId: user.id, name })
+    if (created) {
+      const { exercises, aliasMap: am } = await fetchExerciseCatalogue(supabase)
+      setCatalogue(exercises); setAliasMap(am)
+      toast({ message: `"${created.name}" tillagd i biblioteket`, type: 'success' })
+    } else {
+      toast({ message: 'Kunde inte lägga till övningen.', type: 'error' })
+    }
+    return created
+  }
 
   async function handleSave(form) {
     if (!user) return
@@ -446,6 +507,19 @@ export default function QuickLog() {
       } else if (activeTab === 'training') {
         const { sessionType, duration, feeling, notes, exercises, runDistance, runMinutes, runSeconds } = form
         const isRun = sessionType === 'run'
+
+        // "Ska inte gå att logga något som inte finns i övningsbiblioteket"
+        // (user call 2026-09-12) — GymForm's Save button already disables on
+        // this, but re-check here too (defense-in-depth over a stale catalogue)
+        // before the session row is even created.
+        if (sessionType === 'gym') {
+          const unresolved = [...new Set(exercises.filter(ex => ex.name?.trim() && !findExerciseMatch(ex.name, catalogue, aliasMap)).map(ex => ex.name.trim()))]
+          if (unresolved.length) {
+            toast({ message: `Lägg till i biblioteket först: ${unresolved.join(', ')}`, type: 'error' })
+            setSaving(false)
+            return
+          }
+        }
 
         let extraFields = {}
         if (isRun) {
@@ -475,18 +549,22 @@ export default function QuickLog() {
           .single()
 
         if (!error && session && sessionType === 'gym') {
-          // Insert exercises
-          const exerciseRows = exercises.flatMap((ex, _) =>
-            ex.sets.map((s, si) => ({
+          // Insert exercises — exercise_id resolved against the real library
+          // (was always null before 2026-09-12, the root cause of logged
+          // exercises not showing up in Övningsbiblioteket).
+          const exerciseRows = exercises.flatMap((ex, _) => {
+            const match = findExerciseMatch(ex.name, catalogue, aliasMap)
+            return ex.sets.map((s, si) => ({
               user_id: user.id,
               session_id: session.id,
-              exercise_name: ex.name,
+              exercise_id: match?.id || null,
+              exercise_name: match?.name || ex.name,
               set_number: si + 1,
               reps: s.reps ? parseInt(s.reps) : null,
               weight_kg: s.weight ? parseFloat(s.weight) : null,
               is_dropset: false,
             }))
-          ).filter(r => r.exercise_name)
+          }).filter(r => r.exercise_name)
 
           if (exerciseRows.length > 0) {
             await supabase.from('training_exercises').insert(exerciseRows)
@@ -495,13 +573,15 @@ export default function QuickLog() {
           // Update PRs — shared logic, honours reps + bodyweight (AUDIT.md P2-2).
           for (const ex of exercises) {
             if (!ex.name?.trim()) continue
+            const match = findExerciseMatch(ex.name, catalogue, aliasMap)
             await updatePersonalRecord({
               supabase,
               userId: user.id,
-              exerciseName: ex.name,
+              exerciseId: match?.id || null,
+              exerciseName: match?.name || ex.name,
               sets: ex.sets,
               date: today,
-              bodyweight: isBodyweightName(ex.name),
+              bodyweight: typeof match?.is_bodyweight === 'boolean' ? match.is_bodyweight : isBodyweightName(ex.name),
             })
           }
         }
@@ -646,7 +726,7 @@ export default function QuickLog() {
                 </div>
               ) : (
                 <>
-                  {activeTab === 'training' && <GymForm   onSave={handleSave} saving={saving} />}
+                  {activeTab === 'training' && <GymForm   onSave={handleSave} saving={saving} catalogue={catalogue} aliasMap={aliasMap} onQuickAdd={handleQuickAddExercise} />}
                   {activeTab === 'health'   && <HealthForm onSave={handleSave} saving={saving} />}
                   {activeTab === 'expense'  && <ExpenseForm onSave={handleSave} saving={saving} />}
                   {activeTab === 'income'   && <IncomeForm  onSave={handleSave} saving={saving} />}

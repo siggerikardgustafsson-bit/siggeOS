@@ -32,6 +32,93 @@ export function isBodyweightName(name) {
   return BW_EXERCISES.has(String(name || '').toLowerCase().trim())
 }
 
+// ============================================================================
+// The REAL exercise library (exercise_library table + exercise_aliases) —
+// user call 2026-09-12: logged exercises weren't reliably landing in the
+// library ("kan inte hitta 'lutande hantelbänk'"). Root cause: every logging
+// path (Träning's gym form, its session editor, AND QuickLog) let you type a
+// free-text exercise_name that got saved with exercise_id: null whenever it
+// didn't happen to slug-match an existing row — QuickLog didn't even try.
+// These are the ONE shared implementation for "does this name exist in the
+// library" / "add it if not" so no logging path can drift onto its own
+// (wrong) notion of the library again — same precedent as updatePersonalRecord
+// above (AUDIT.md P2-2/P2-3).
+// ============================================================================
+export function normalizeExerciseSlug(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+// One row per slug, preferring the user's own override of a global exercise.
+function uniqueExercisesBySlug(rows) {
+  const sorted = [...(rows || [])].sort((a, b) => {
+    if (a.user_id && !b.user_id) return -1
+    if (!a.user_id && b.user_id) return 1
+    return String(a.name || '').localeCompare(String(b.name || ''))
+  })
+  const seen = new Set()
+  return sorted.filter(row => {
+    const key = row.slug || normalizeExerciseSlug(row.name)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** Fetch the real library + its alias map. Every logging surface calls this — none keep a local copy. */
+export async function fetchExerciseCatalogue(supabase) {
+  const [exerciseRes, aliasRes] = await Promise.all([
+    supabase.from('exercise_library_with_muscles').select('*').order('category').order('name'),
+    supabase.from('exercise_aliases').select('id, exercise_id, alias, slug'),
+  ])
+  const exercises = uniqueExercisesBySlug(exerciseRes.data || [])
+  const aliasMap = {}
+  for (const a of aliasRes.data || []) {
+    if (!aliasMap[a.exercise_id]) aliasMap[a.exercise_id] = []
+    aliasMap[a.exercise_id].push(a)
+  }
+  return { exercises, aliasMap }
+}
+
+/** Match a typed name against the real library — by slug, or by a known alias. */
+export function findExerciseMatch(name, exercises, aliasMap = {}) {
+  const normalized = normalizeExerciseSlug(name)
+  if (!normalized) return null
+  const direct = (exercises || []).find(e => e.slug === normalized || normalizeExerciseSlug(e.name) === normalized)
+  if (direct) return direct
+  for (const ex of exercises || []) {
+    const aliases = aliasMap[ex.id] || []
+    if (aliases.some(a => a.slug === normalized || normalizeExerciseSlug(a.alias) === normalized)) return ex
+  }
+  return null
+}
+
+/**
+ * Add a name straight to the library with minimal metadata (category/muscle
+ * groups can be filled in later from the full library editor) — the
+ * "not found → add it" affordance every logging path offers INSTEAD OF
+ * allowing a free-text, unlinked exercise_name.
+ */
+export async function quickAddExercise({ supabase, userId, name }) {
+  const trimmed = String(name || '').trim()
+  if (!trimmed) return null
+  const slug = normalizeExerciseSlug(trimmed)
+  const { data, error } = await supabase
+    .from('exercise_library')
+    .upsert(
+      { user_id: userId, name: trimmed, slug, measurement_type: 'weight_reps', is_bodyweight: isBodyweightName(trimmed), is_active: true },
+      { onConflict: 'user_id,slug' }
+    )
+    .select()
+    .single()
+  if (error) { console.error('quickAddExercise failed:', error); return null }
+  return data
+}
+
 // Pick the strongest set. Bodyweight sets rank by reps×(1+addedWeight/30);
 // weighted sets rank by an Epley-style 1RM estimate.
 function bestSet(sets, bodyweight) {
