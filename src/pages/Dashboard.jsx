@@ -315,7 +315,7 @@ export default function Dashboard() {
         { data: studyData }, { data: paData }, { data: skillData }, { data: userSettings },
         { data: exData }, { data: supplementLogs }, { data: snapshots }, { data: incomeData },
       ] = await Promise.all([
-        supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
+        supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km,session_type').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
         supabase.from('run_personal_records').select('id,distance_key,label,distance_km,time_seconds,pace_per_km,date,strava_activity_id,strava_effort_name,source').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}).then(r => r).catch(() => ({ data: [] })),
         supabase.from('personal_records').select('id,exercise_name,weight_kg,reps,date,exercise_id').eq('user_id',userId).order('weight_kg',{ascending:false}),
         supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
@@ -400,7 +400,11 @@ export default function Dashboard() {
       const DISTANCE_KM = { '1k': 1, '5k': 5, '10k': 10, half_marathon: 21.097 }
       function estimateFromPace(distanceKey) {
         const km = DISTANCE_KM[distanceKey]
-        const candidates = (runData || []).filter(r => Number(r.distance_km) >= km && Number(r.pace_per_km) > 0)
+        // session_type must be 'run' — runData otherwise holds every session
+        // with a logged distance (walks, bike rides synced as 'other', etc.),
+        // any of which can have a much faster (or slower) pace_per_km than an
+        // actual run and would silently corrupt the estimate.
+        const candidates = (runData || []).filter(r => r.session_type === 'run' && Number(r.distance_km) >= km && Number(r.pace_per_km) > 0)
         if (!candidates.length) return null
         const best = candidates.reduce((b, r) => (Number(r.pace_per_km) < Number(b.pace_per_km) ? r : b), candidates[0])
         return {
