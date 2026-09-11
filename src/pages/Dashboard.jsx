@@ -41,6 +41,7 @@ import { getJarvisUserContext } from '../lib/jarvis'
 import { getSalaryPeriod } from '../lib/salaryPeriod'
 import { computeStudiesTier, buildStudiesLevelUp } from '../lib/studies'
 import { DEFAULT_SUPPLEMENTS } from '../lib/constants'
+import { languageBlend, languageLabel } from '../lib/languageSkill'
 
 const GRAPH_CATS = [
   { id:'somn',      label:'Sömn',      color:'#8b5cf6' },
@@ -769,35 +770,9 @@ export default function Dashboard() {
 
       function am(sn){const l=(skillData||[]).filter(s=>s.skill===sn);return l.length?Math.round(l.reduce((s,x)=>s+x.minutes,0)/4):0}
 
-      // Languages blend two real, never-estimated signals into one "effective
-      // minutes/week" fed to the same getSkillTier() ladder: raw Anki cards
-      // reviewed (skill-ingest auto-sync) normalised against a weekly target,
-      // averaged with logged non-Anki minutes (CI or "Allmänt") normalised the
-      // same way. A row contributes to ONE bucket only (cards if set, else
-      // minutes) so nothing is double-counted. When only one bucket has data
-      // the blend reduces to exactly that bucket — no behaviour change for a
-      // minutes-only history. (User call 2026-09-11: combine, don't replace.)
-      const CARDS_TARGET_PER_WEEK = 700   // ≈100 cards/day — a starting guess, tune once real data exists
-      const MINUTES_TARGET_PER_WEEK = 240 // matches getSkillTier's own T6 ("Mästare") threshold
-      function languageMinutes(sn) {
-        const rows = (skillData||[]).filter(s => s.skill === sn)
-        const cardsWeek = Math.round(rows.filter(r => r.cards != null).reduce((s,r) => s + Number(r.cards||0), 0) / 4)
-        const minutesWeek = Math.round(rows.filter(r => r.cards == null).reduce((s,r) => s + Number(r.minutes||0), 0) / 4)
-        if (!cardsWeek && !minutesWeek) return { effective: 0, cardsWeek: 0, minutesWeek: 0 }
-        const parts = []
-        if (cardsWeek > 0) parts.push(Math.min(1, cardsWeek / CARDS_TARGET_PER_WEEK))
-        if (minutesWeek > 0) parts.push(Math.min(1, minutesWeek / MINUTES_TARGET_PER_WEEK))
-        const blended = parts.reduce((a,b) => a+b, 0) / parts.length
-        return { effective: Math.round(blended * MINUTES_TARGET_PER_WEEK), cardsWeek, minutesWeek }
-      }
-      // Honest display string — real numbers, not the blended tier-input.
-      function langLabel(b) {
-        const parts = []
-        if (b.cardsWeek > 0) parts.push(`${b.cardsWeek} kort/v`)
-        if (b.minutesWeek > 0) parts.push(`${b.minutesWeek} min/v`)
-        return parts.length ? parts.join(' · ') : '—'
-      }
-      const spB=languageMinutes('spanish'), srB=languageMinutes('serbian'), gnB=languageMinutes('german')
+      // Language blend (cards + CI minutes) lives in src/lib/languageSkill.js —
+      // shared with Plugg's Språk tab so the two never drift apart.
+      const spB=languageBlend(skillData,'spanish'), srB=languageBlend(skillData,'serbian'), gnB=languageBlend(skillData,'german')
       const spM=spB.effective, srM=srB.effective, gnM=gnB.effective, gtM=am('guitar')
       const spT=getSkillTier(spM),srT=getSkillTier(srM),gtT=getSkillTier(gtM),gnT=getSkillTier(gnM)
       const skTop=[spT,srT,gtT,gnT].reduce((b,t)=>t.tier>b.tier?t:b,spT)
@@ -1007,9 +982,9 @@ export default function Dashboard() {
           ],
           details:[
             {label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',tierInfo:pT},
-            {label:'Spanska',value:langLabel(spB),tierInfo:spT?.tier?spT:null},
-            {label:'Serbiska',value:langLabel(srB),tierInfo:srT?.tier?srT:null},
-            {label:'Tyska',value:langLabel(gnB),tierInfo:gnT?.tier?gnT:null},
+            {label:'Spanska',value:languageLabel(spB),tierInfo:spT?.tier?spT:null},
+            {label:'Serbiska',value:languageLabel(srB),tierInfo:srT?.tier?srT:null},
+            {label:'Tyska',value:languageLabel(gnB),tierInfo:gnT?.tier?gnT:null},
             {label:'Gitarr',value:gtM?gtM+' min/v':'—',tierInfo:gtT?.tier?gtT:null},
             ...Object.entries(byCourse).map(([c,v])=>({label:c,value:Math.round(v.reduce((s,x)=>s+x,0)/v.length)+'%'})),
           ],

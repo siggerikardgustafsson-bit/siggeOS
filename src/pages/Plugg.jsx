@@ -7,9 +7,10 @@ import { sv } from 'date-fns/locale'
 import {
   Plus, X, Save, Loader, BookOpen, GraduationCap,
   Copy, Check, ChevronDown, ChevronUp,
-  Archive, Zap, Upload, FileText, Trash2, Edit2
+  Archive, Zap, Upload, FileText, Trash2, Edit2, Globe
 } from 'lucide-react'
 import StudyModal from '../components/StudyModal'
+import SprakTab from '../components/plugg/SprakTab'
 
 const GRADES = ['IG', 'G']
 
@@ -548,7 +549,7 @@ export default function PluggPage() {
         <div style={{ padding: "16px 16px 0" }}>
 
       <div className="mx-segment" style={{ display: 'flex', width: '100%', marginBottom: '20px' }}>
-        {[{ id: 'aktiva', label: 'Aktiva kurser', icon: GraduationCap }, { id: 'arkiv', label: 'Arkiv', icon: Archive }, { id: 'session', label: 'Studielogg', icon: BookOpen }].map(tab => {
+        {[{ id: 'aktiva', label: 'Aktiva kurser', icon: GraduationCap }, { id: 'arkiv', label: 'Arkiv', icon: Archive }, { id: 'session', label: 'Studielogg', icon: BookOpen }, { id: 'sprak', label: 'Språk', icon: Globe }].map(tab => {
           const TabIcon = tab.icon
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`mx-segment-btn ${activeTab === tab.id ? 'active' : ''}`} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px' }}>
@@ -1329,6 +1330,9 @@ export default function PluggPage() {
           </div>
         </>
       )}
+
+      {/* ===== SPRÅK ===== */}
+      {activeTab === 'sprak' && <SprakTab userId={user?.id} />}
 
       {studySession && (
         <StudyModal
