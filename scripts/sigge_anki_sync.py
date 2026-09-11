@@ -46,7 +46,7 @@ DECKS = {
 def anki_request(action, **params):
     payload = json.dumps({"action": action, "version": 6, "params": params}).encode()
     req = urllib.request.Request(ANKI_URL, data=payload)
-    with urllib.request.urlopen(req, timeout=5) as r:
+    with urllib.request.urlopen(req, timeout=15) as r:
         data = json.loads(r.read())
     if data.get("error"):
         raise RuntimeError(data["error"])
@@ -59,18 +59,27 @@ def main():
     except Exception:
         return  # Anki not open — nothing to do.
 
-    start_id = int((time.time() - BACKFILL_DAYS * 86400) * 1000)
+    start_ms = (time.time() - BACKFILL_DAYS * 86400) * 1000
     by_day = defaultdict(lambda: defaultdict(set))  # date -> skill -> {cardID, ...}
 
     for skill, deck in DECKS.items():
         try:
-            reviews = anki_request("cardReviews", deck=deck, startID=start_id)
+            # deck:"X" (a search query, not cardReviews' own `deck` param) is
+            # what actually matches subdecks too — Deutsch/Srpsko-Hrvatski
+            # are organized into subdecks, and cardReviews(deck=X) only ever
+            # saw cards filed directly under the parent, i.e. none of them.
+            card_ids = anki_request("findCards", query=f'deck:"{deck}"')
+            reviews_by_card = anki_request("getReviewsOfCards", cards=card_ids) if card_ids else {}
         except Exception as e:
             print(f"skip {deck}: {e}", file=sys.stderr)
             continue
-        for review_time_ms, card_id, *_rest in reviews:
-            day = datetime.fromtimestamp(review_time_ms / 1000).date().isoformat()
-            by_day[day][skill].add(card_id)
+        for card_id, reviews in reviews_by_card.items():
+            for review in reviews:
+                review_time_ms = review["id"]  # revlog id IS the review timestamp, in ms
+                if review_time_ms < start_ms:
+                    continue
+                day = datetime.fromtimestamp(review_time_ms / 1000).date().isoformat()
+                by_day[day][skill].add(card_id)
 
     if not by_day:
         return
