@@ -186,14 +186,23 @@ export async function getUserContext(userId) {
   return buildUserContext(await getUserProfile(userId))
 }
 
-// Weight goal has had two possible sources that can drift apart: profiles.
-// target_weight_kg (set on the Profile page) and user_settings.goals.
-// body_weight_goal (Settings page / onboarding). profiles.target_weight_kg
-// wins — user call 2026-09-11 ("den som jag har satt själv ska vara den som
-// gäller"), and it's the single canonical field vs. a loosely-typed JSON blob
-// with several legacy key-name variants. Used by Dashboard.jsx + Halsa.jsx so
-// the two pages can never show two different målvikt again.
-export function resolveTargetWeight(profile, userSettings) {
+// Weight goal has had up to THREE possible sources that can drift apart:
+//   1. an active `goals` table row with metric:'body_weight' (the real Mål-
+//      page goal system, src/lib/goals.js) — wins, since it's the most
+//      deliberate expression of "my goal" (created via a dedicated goal UI
+//      with title/deadline, not a quick settings field).
+//   2. profiles.target_weight_kg (Profile page field).
+//   3. user_settings.goals.body_weight_goal (Settings page / onboarding).
+// `activeGoals` is optional (pass listGoals(userId) results, or omit/pass
+// null to skip that source — callers that haven't fetched goals yet still
+// get a correct profile/settings-only answer). Used by Dashboard.jsx +
+// Halsa.jsx so no two pages can show a different målvikt again.
+export function resolveTargetWeight(profile, userSettings, activeGoals) {
+  const goalRow = (activeGoals || []).find(g => g.metric === 'body_weight' && g.target_value != null)
+  if (goalRow) {
+    const n = Number(goalRow.target_value)
+    if (Number.isFinite(n) && n > 0) return n
+  }
   const fromProfile = Number(profile?.target_weight_kg)
   if (Number.isFinite(fromProfile) && fromProfile > 0) return fromProfile
   const goals = userSettings?.goals

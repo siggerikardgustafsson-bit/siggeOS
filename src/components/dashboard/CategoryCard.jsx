@@ -112,7 +112,10 @@ export default function CategoryCard({ category, onClick, onMetricClick }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           {hasData ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {metrics.slice(0, 3).map((m, i) => {
+              {/* 4, not 3 (user call 2026-09-12: "syns inte i trädvyn på
+                  telefonen" — Färdigheter's 4th skill, Gitarr, was getting cut.
+                  Matches the desktop constellation's Satellites cap of 4. */}
+              {metrics.slice(0, 4).map((m, i) => {
                 const clickable = !!m.evidence && !!onMetricClick
                 const RowTag = clickable ? 'button' : 'div'
                 return (

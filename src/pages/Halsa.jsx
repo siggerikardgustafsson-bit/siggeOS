@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useToast } from '../context/ToastContext'
 import { patchGoals } from '../lib/userSettings'
 import { resolveTargetWeight } from '../lib/personalization'
+import { listGoals } from '../lib/goals'
 import { DEFAULT_SUPPLEMENTS } from '../lib/constants'
 import { useTilt } from '../hooks/useTilt'
 import CountUp from '../components/CountUp'
@@ -64,6 +65,7 @@ export default function HalsaPage() {
   const [editingLog, setEditingLog] = useState(null)
   const [userSettings, setUserSettings] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [activeGoals, setActiveGoals] = useState([])
 
   const today = format(new Date(), 'yyyy-MM-dd')
   const [todayLog, setTodayLog] = useState(null)
@@ -78,7 +80,7 @@ export default function HalsaPage() {
   const [nutritionForm, setNutritionForm] = useState({ date: today, fasting: false, calories: '', protein_g: '', water_liters: '' })
   const [suppForm, setSuppForm] = useState({ date: today, supplements_taken: [] })
 
-  useEffect(() => { if (user) { fetchLogs(); fetchSupplementLogs(); fetchTodayLog(); fetchUserSettings(); fetchProfile() } }, [user])
+  useEffect(() => { if (user) { fetchLogs(); fetchSupplementLogs(); fetchTodayLog(); fetchUserSettings(); fetchProfile(); listGoals(user.id, { status: 'active' }).then(setActiveGoals).catch(() => setActiveGoals([])) } }, [user])
 
   useEffect(() => {
     const namesForDate = supplementLogs
@@ -373,7 +375,7 @@ export default function HalsaPage() {
   const latestWeight = logs.find(l => l.weight_kg)?.weight_kg
   // Single source of truth (user call 2026-09-11) — profiles.target_weight_kg
   // wins over user_settings.goals.* so this page and Dashboard never disagree.
-  const targetWeight = resolveTargetWeight(profile, userSettings)
+  const targetWeight = resolveTargetWeight(profile, userSettings, activeGoals)
   const avgSleep = logs.slice(0,7).filter(l => l.sleep_hours).reduce((s,l,_,a) => s+l.sleep_hours/a.length, 0)
   const avgSteps = logs.slice(0,7).filter(l => l.steps).reduce((s,l,_,a) => s+l.steps/a.length, 0)
   const chartData = logs.slice().reverse().map(l => ({ date: l.date, weight: l.weight_kg||null, sleep: l.sleep_hours||null, steps: l.steps||null, alcohol: l.alcohol_units||null }))

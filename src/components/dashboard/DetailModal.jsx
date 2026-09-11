@@ -57,20 +57,20 @@ const TIER_REQUIREMENTS = {
     { tier:8, label:'Top 1%',   reqs:['Sömn ≥ 9h','Steg ≥ 18000/dag','Alkohol nära noll','Kosttillskott ≥ 99% om loggat'] },
   ],
   valmående: [],
-  // Färdigheter v2 (user call 2026-09-11) — evidence-based, three gates for
-  // each language (cumulative cards + cumulative CI hours + consistency, all
-  // must clear), one gate for gitarr (consistency only). Each of the 4 skills
-  // is its own bottleneck for the category — see languageSkill.js header for
-  // the vocabulary-size/CI-hours research basis. Tier 6 = "Flytande" for
-  // språk (~8000 cards ≈ the commonly-cited word-family count for near-native
-  // comprehension), "Mästare" for gitarr.
+  // Färdigheter v2 (user call 2026-09-11, gitarr reverted 2026-09-12) —
+  // evidence-based three-gate model for each language (cumulative cards +
+  // cumulative CI hours + consistency, all must clear) — see languageSkill.js
+  // header for the vocabulary-size/CI-hours research basis. Gitarr stays on
+  // weekly-average minutes ("total veckovolym är bättre med gitarren"). Each
+  // of the 4 skills is its own bottleneck for the category; if ANY of the 4
+  // has data the category floors at T1 rather than being excluded entirely.
   fardigheter: [
-    { tier:1, label:'Har börjat',  reqs:['Något loggat, under nästa tröskel (se nedan)'] },
-    { tier:2, label:'Nybörjare',   reqs:['Språk: 1000 kort · 15h CI · 2/28 dagar','Gitarr: 2/28 dagar ≥15min'] },
-    { tier:3, label:'Regelbunden', reqs:['Språk: 2500 kort · 50h CI · 6/28 dagar','Gitarr: 6/28 dagar ≥15min'] },
-    { tier:4, label:'Dedikerad',   reqs:['Språk: 4500 kort · 150h CI · 10/28 dagar','Gitarr: 10/28 dagar ≥15min'] },
-    { tier:5, label:'Seriös',      reqs:['Språk: 6500 kort · 400h CI · 16/28 dagar','Gitarr: 16/28 dagar ≥15min'] },
-    { tier:6, label:'Flytande / Mästare', reqs:['Språk: 8000 kort · 900h CI · 22/28 dagar','Gitarr: 22/28 dagar ≥15min'] },
+    { tier:1, label:'Har börjat',  reqs:['Något loggat i minst en av de fyra, under nästa tröskel'] },
+    { tier:2, label:'Nybörjare',   reqs:['Språk: 1000 kort · 15h CI · 2/28 dagar','Gitarr: ≥30 min/vecka'] },
+    { tier:3, label:'Regelbunden', reqs:['Språk: 2500 kort · 50h CI · 6/28 dagar','Gitarr: ≥60 min/vecka'] },
+    { tier:4, label:'Dedikerad',   reqs:['Språk: 4500 kort · 150h CI · 10/28 dagar','Gitarr: ≥120 min/vecka'] },
+    { tier:5, label:'Seriös',      reqs:['Språk: 6500 kort · 400h CI · 16/28 dagar','Gitarr: ≥240 min/vecka'] },
+    { tier:6, label:'Flytande / Mästare', reqs:['Språk: 8000 kort · 900h CI · 22/28 dagar','Gitarr: ≥240 min/vecka (stabilt)'] },
   ],
   kropp: [],
 }

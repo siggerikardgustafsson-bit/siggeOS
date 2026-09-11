@@ -8,12 +8,14 @@ import { sv } from 'date-fns/locale'
 import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity, Link2 } from 'lucide-react'
 import PageSkeleton from '../components/Skeleton'
 import SectionHeader from '../components/ui/SectionHeader'
+import { resolveTargetWeight } from '../lib/personalization'
+import { listGoals } from '../lib/goals'
 import { crossDomainFindings, findingsToPrompt } from '../lib/correlate'
 import { detectSignals } from '../lib/signals'
 import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
 import {
   Line, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid, Area, AreaChart, ComposedChart
+  ResponsiveContainer, CartesianGrid, Area, AreaChart, ComposedChart, ReferenceLine
 } from 'recharts'
 
 const COLORS = {
@@ -107,6 +109,7 @@ export default function InsightsPage() {
   const [obsLastUpdated, setObsLastUpdated] = useState(null)
   const [period, setPeriod] = useState(90)
   const [data, setData] = useState({
+    targetWeight: null,
     weightData: [],
     sleepData: [],
     stepsData: [],
@@ -131,7 +134,7 @@ export default function InsightsPage() {
     const since90 = format(subDays(new Date(), period), 'yyyy-MM-dd')
     const since180 = format(subDays(new Date(), Math.max(period, 180)), 'yyyy-MM-dd')
 
-    const [healthRes, journalRes, studyRes, trainingRes, incomeRes, expenseRes, paRes, examRes, courseRes, prRes, settingsRes] = await Promise.all([
+    const [healthRes, journalRes, studyRes, trainingRes, incomeRes, expenseRes, paRes, examRes, courseRes, prRes, settingsRes, profileRes, activeGoals] = await Promise.all([
       supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy,energy_level').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('journal_entries').select('date,energy,mood,sleep_hours').eq('user_id', user.id).gte('date', since90).order('date'),
       supabase.from('study_sessions').select('date,hours,course_id').eq('user_id', user.id).gte('date', since90).order('date'),
@@ -143,7 +146,12 @@ export default function InsightsPage() {
       supabase.from('courses').select('id,name,term,active').eq('user_id', user.id),
       supabase.from('personal_records').select('*').eq('user_id', user.id).order('date', { ascending: false }),
       supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle(),
+      supabase.from('profiles').select('target_weight_kg').eq('id', user.id).maybeSingle(),
+      listGoals(user.id, { status: 'active' }).catch(() => []),
     ])
+    // Single source of truth (same resolver Dashboard/Halsa use) — an active
+    // Mål-page goal (metric:'body_weight') wins, else Profile page, else Settings.
+    const targetWeight = resolveTargetWeight(profileRes?.data, settingsRes?.data, activeGoals)
 
     // Weight trend (weekly avg) — ignore 0 values
     const weightByWeek = groupByWeek((healthRes.data || []).filter(l => l.weight_kg > 0), 'weight_kg')
@@ -349,7 +357,7 @@ export default function InsightsPage() {
       today: new Date(),
     })
 
-    setData({ weightData, sleepData, stepsData, studyData, trainingData, incomeData, paData, examProgress, prData, sleepEnergyData, correlations, weekdayData, streaks, findings, signals })
+    setData({ weightData, sleepData, stepsData, studyData, trainingData, incomeData, paData, examProgress, prData, sleepEnergyData, correlations, weekdayData, streaks, findings, signals, targetWeight })
     setLoading(false)
     generateObservations({ weightData, sleepData, studyData, trainingData, findings })
   }
@@ -486,6 +494,20 @@ export default function InsightsPage() {
   const latestWeight = data.weightData.slice(-1)[0]?.vikt || null
   const firstWeight = data.weightData[0]?.vikt || null
   const weightDelta = latestWeight && firstWeight ? Math.round((latestWeight - firstWeight) * 10) / 10 : null
+  // "Insights visar inte det aktuella viktmålet" (user call 2026-09-12) —
+  // data.targetWeight comes from the same resolveTargetWeight() Dashboard/
+  // Halsa use, so this can never show a different mål than those pages.
+  let goalSub = null
+  if (data.targetWeight) {
+    if (latestWeight != null) {
+      const diff = Math.round((latestWeight - data.targetWeight) * 10) / 10
+      goalSub = Math.abs(diff) < 0.05 ? `Målvikt nådd (${data.targetWeight}kg)`
+        : diff > 0 ? `${diff}kg över mål (${data.targetWeight}kg)` : `${Math.abs(diff)}kg under mål (${data.targetWeight}kg)`
+    } else {
+      goalSub = `Mål: ${data.targetWeight}kg`
+    }
+  }
+  const weightSub = [weightDelta ? `${weightDelta > 0 ? '+' : ''}${weightDelta}kg senaste 90d` : null, goalSub].filter(Boolean).join(' · ') || null
   const totalPaThisMonth = data.paData.slice(-1)[0]?.timmar || 0
   const trainingSessions = data.trainingData.slice(-4).reduce((sum, w) => sum + w.pass, 0)
 
@@ -599,7 +621,7 @@ export default function InsightsPage() {
       )}
 
       <div className="insights-stat-grid mx-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '28px' }}>
-        <StatCard label="Vikt nu" value={latestWeight ? `${latestWeight}kg` : '—'} sub={weightDelta ? `${weightDelta > 0 ? '+' : ''}${weightDelta}kg senaste 90d` : null} color={COLORS.blue} trend={weightDelta < 0 ? 'down' : weightDelta > 0 ? 'up' : 'flat'} />
+        <StatCard label="Vikt nu" value={latestWeight ? `${latestWeight}kg` : '—'} sub={weightSub} color={COLORS.blue} trend={weightDelta < 0 ? 'down' : weightDelta > 0 ? 'up' : 'flat'} />
         <StatCard label="Sömn (snitt)" value={avgSleep ? `${avgSleep}h` : '—'} sub="senaste 90 dagarna" color={COLORS.purple} />
         <StatCard label="Studier denna vecka" value={`${totalStudyThisWeek}h`} color={COLORS.amber} />
         <StatCard label="PA denna månad" value={`${totalPaThisMonth}h`} color={COLORS.green} />
@@ -755,9 +777,16 @@ export default function InsightsPage() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="week" tick={{ fontSize: 10, fill: 'var(--muted)' }} />
-                <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} domain={['auto', 'auto']} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--muted)' }} domain={[
+                  dataMin => data.targetWeight ? Math.min(dataMin, data.targetWeight) : dataMin,
+                  dataMax => data.targetWeight ? Math.max(dataMax, data.targetWeight) : dataMax,
+                ]} />
                 <Tooltip content={<CustomTooltip unit="kg" />} />
                 <Area type="monotone" dataKey="vikt" stroke={COLORS.blue} fill="url(#weightGrad)" strokeWidth={2} dot={false} name="Vikt" />
+                {data.targetWeight && (
+                  <ReferenceLine y={data.targetWeight} stroke={COLORS.green} strokeDasharray="4 4" strokeWidth={1.5}
+                    label={{ value: `Mål ${data.targetWeight}kg`, position: 'insideTopRight', fontSize: 10, fill: COLORS.green }} />
+                )}
               </AreaChart>
             </ResponsiveContainer>
           ) : <div style={{ color: 'var(--muted)', fontSize: '13px', padding: '40px 0', textAlign: 'center' }}>Inte tillräckligt med data</div>}

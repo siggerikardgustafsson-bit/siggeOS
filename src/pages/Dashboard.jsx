@@ -15,7 +15,7 @@ import AchievementsModal from '../components/AchievementsModal'
 import { CalendarDays, BarChart2, Orbit, Sparkles, Trophy, Network } from 'lucide-react'
 import { useToast } from '../context/ToastContext'
 import {
-  getTier, getDecayedValue, calcOverallTier,
+  getTier, getSkillTier, getDecayedValue, calcOverallTier,
   formatRunTime,
   RUN_5K_THRESHOLDS, RUN_10K_THRESHOLDS, RUN_HALF_THRESHOLDS,
   BENCH_THRESHOLDS, SQUAT_THRESHOLDS, DEADLIFT_THRESHOLDS, OHP_THRESHOLDS, PULLUP_THRESHOLDS,
@@ -24,6 +24,7 @@ import {
   TIER_COLORS, TIER_NAMES,
 } from '../components/dashboard/tierUtils'
 import { getUserProfile, buildUserContext, resolveTargetWeight } from '../lib/personalization'
+import { listGoals } from '../lib/goals'
 import {
   calculateStrengthTier, calculateConditioningTier, calculateEconomyTier,
   calculateHealthTier, calculateStudyTier,
@@ -303,6 +304,7 @@ export default function Dashboard() {
         { data: runData }, { data: runPrData }, { data: prData }, { data: healthData },
         { data: studyData }, { data: paData }, { data: skillData }, { data: userSettings },
         { data: exData }, { data: supplementLogs }, { data: snapshots }, { data: incomeData },
+        activeGoals,
       ] = await Promise.all([
         supabase.from('training_sessions').select('id,date,distance_km,time_seconds,pace_per_km,session_type').eq('user_id',userId).gte('date',since90).not('distance_km','is',null).order('date',{ascending:false}),
         supabase.from('run_personal_records').select('id,distance_key,label,distance_km,time_seconds,pace_per_km,date,strava_activity_id,strava_effort_name,source').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}).then(r => r).catch(() => ({ data: [] })),
@@ -314,8 +316,8 @@ export default function Dashboard() {
         // migrated — a SELECT naming an unknown column fails the whole query.
         // No date floor (user call 2026-09-11): languageTier()'s cards/CI
         // totals are LIFETIME cumulative, not a windowed snapshot — am() and
-        // languageBlend()/guitarConsistencyTier() self-scope to their own
-        // shorter windows so this doesn't change guitar's or the weekly figures.
+        // languageBlend() self-scope to their own shorter windows so this
+        // doesn't change guitar's or the weekly figures.
         (async () => {
           const withCards = await supabase.from('skill_logs').select('date,skill,minutes,cards,activity_type').eq('user_id',userId)
           if (!withCards.error) return withCards
@@ -349,6 +351,9 @@ export default function Dashboard() {
           .lte('date', periodEnd)
           .then(r => r)
           .catch(() => ({ data: [] })),
+        // For resolveTargetWeight — an active Mål-page goal (metric:'body_weight')
+        // is the top-priority weight-goal source (user call 2026-09-12).
+        listGoals(userId, { status: 'active' }).catch(() => []),
       ])
 
       const latestW = (healthData||[]).find(h=>h.weight_kg)
@@ -704,7 +709,7 @@ export default function Dashboard() {
       const wLogs=(healthData||[]).filter(h=>h.weight_kg).slice(0,14)
       // Single source of truth (user call 2026-09-11) — profiles.target_weight_kg
       // wins over user_settings.goals.* so Dashboard/Halsa never disagree again.
-      const wGoal = resolveTargetWeight(profile, userSettings) || 75
+      const wGoal = resolveTargetWeight(profile, userSettings, activeGoals) || 75
       const wNew=wLogs[0]?.weight_kg||bw,wOld=wLogs[wLogs.length-1]?.weight_kg||bw
       const wD=Math.round((wNew-wOld)*10)/10,wK=Math.max(0,Math.round((bw-wGoal)*10)/10)
       const wP=wK<=0?100:Math.max(0,Math.round((1-wK/Math.max(0.1,bw-wGoal+wK))*100))
@@ -776,33 +781,24 @@ export default function Dashboard() {
         return l.length?Math.round(l.reduce((s,x)=>s+x.minutes,0)/4):0
       }
 
-      // Gitarr (user call 2026-09-11): "flaskhalsen bör vara consistency på x
-      // antal minuter om dagen" — tier = how many of the last 28 days had a
-      // real (≥15min) practice session, not weekly-average volume. A few long
-      // sessions no longer outrank showing up regularly.
-      const GUITAR_MIN_SESSION_MIN = 15
-      const GUITAR_LABELS = ['Inaktiv','Har börjat','Nybörjare','Regelbunden','Dedikerad','Seriös','Mästare']
-      const GUITAR_COLORS = ['#374151','#4b5563','#3b82f6','#10b981','#06b6d4','#ec4899','#f59e0b']
-      function guitarConsistencyTier(sn){
-        const cutoff=format(subDays(todayDate,28),'yyyy-MM-dd')
-        const activeDays=new Set((skillData||[]).filter(s=>s.skill===sn && s.date>=cutoff && Number(s.minutes||0)>=GUITAR_MIN_SESSION_MIN).map(s=>s.date)).size
-        if(!activeDays) return { tier:0, label:GUITAR_LABELS[0], color:GUITAR_COLORS[0], activeDays:0 }
-        let tier=1
-        for(let i=0;i<CONSISTENCY_DAY_THRESHOLDS.length;i++) if(activeDays>=CONSISTENCY_DAY_THRESHOLDS[i]) tier=i+2
-        return { tier, label:GUITAR_LABELS[tier], color:GUITAR_COLORS[tier], activeDays }
-      }
-
       // Languages: tier comes from languageTier() (v2, three-gate: cumulative
       // cards + cumulative CI hours + recent consistency — see languageSkill.js
       // header). languageBlend() stays a display-only weekly figure.
       const spB=languageBlend(skillData,'spanish'), srB=languageBlend(skillData,'serbian'), gnB=languageBlend(skillData,'german')
       const spT=languageTier(skillData,'spanish'), srT=languageTier(skillData,'serbian'), gnT=languageTier(skillData,'german')
+      // Gitarr (user call 2026-09-12: "total veckovolym är bättre med
+      // gitarren") — reverted from the 2026-09-11 consistency-days experiment
+      // back to weekly-average minutes (getSkillTier).
       const gtM=am('guitar')
-      const gtT=guitarConsistencyTier('guitar')
-      // Each of the 4 is its own bottleneck (user call 2026-09-11) — weakest
-      // link, not best-of. An untouched language pins the whole category low.
-      const skTop=[spT,srT,gtT,gnT].reduce((b,t)=>t.tier<b.tier?t:b,spT)
+      const gtT=getSkillTier(gtM)
       const skH=!!(skillData?.length)
+      // Each of the 4 is its own bottleneck (weakest link, not best-of) — but
+      // (user call 2026-09-12) if there's ANY data at all across the 4, the
+      // category floors at T1 "Har börjat" rather than falling to T0 and
+      // being silently excluded from Maxx Score (rankCats requires a truthy
+      // tier) just because one specific untouched skill drags the min to 0.
+      const skWeakest=[spT,srT,gtT,gnT].reduce((b,t)=>t.tier<b.tier?t:b,spT)
+      const skTop=(skH && skWeakest.tier===0) ? { tier:1, label:'Har börjat', color:'#4b5563' } : skWeakest
 
       // ── Dynamic level-up / bottleneck system ─────────────────────────────
       const tierMeta = (n) => n ? ({ tier:n, label:TIER_NAMES[n] || `T${n}`, color:TIER_COLORS[n] || '#6b7280' }) : null
@@ -923,18 +919,20 @@ export default function Dashboard() {
         }
         return makeReq({ label:`${label} (regelbundenhet)`, current:t.activeDays, target:CONSISTENCY_DAY_THRESHOLDS[idx], unit:'dagar/28' })
       }
-      function guitarReq(t){
-        if (!t || t.tier === 0) return makeReq({ label:'Gitarr', current:0, target:1, unit:'dagar/28', currentLabel:'Inget loggat', targetLabel:'Börja spela' })
+      // Gitarr — weekly-average minutes (reverted 2026-09-12, see gtT above).
+      const GUITAR_MIN_TARGETS = { 2:30, 3:60, 4:120, 5:240, 6:240 }
+      function guitarReq(t, minutesPerWeek){
+        if (!t || t.tier === 0) return makeReq({ label:'Gitarr', current:0, target:1, unit:'min/v', currentLabel:'Inget loggat', targetLabel:'Börja spela' })
         if (t.tier >= 6) return makeReq({ label:'Gitarr', current:1, target:1 })
-        const idx = Math.max(0, t.tier - 1)
-        return makeReq({ label:`Gitarr (≥${GUITAR_MIN_SESSION_MIN}min/dag)`, current:t.activeDays, target:CONSISTENCY_DAY_THRESHOLDS[idx], unit:'dagar/28' })
+        const nextTier = Math.min(t.tier + 1, 6)
+        return makeReq({ label:'Gitarr', current:minutesPerWeek, target:GUITAR_MIN_TARGETS[nextTier], unit:'min/v' })
       }
       const currentSkillTier = skH ? skTop.tier : 0
       const skillLevelUp = skH ? makeLevelUp(currentSkillTier, 6, [
         langBindingReq('Spanska', spT),
         langBindingReq('Serbiska', srT),
         langBindingReq('Tyska', gnT),
-        guitarReq(gtT),
+        guitarReq(gtT, gtM),
       ], 'T') : null
 
       const skillsTierVal = skH ? (skTop?.tier ?? 0) : 0
@@ -1021,7 +1019,7 @@ export default function Dashboard() {
             {label:'Spanska',value:`${languageLabel(spB)} · ${spT.cardsTotal} kort · ${spT.ciHoursTotal}h CI totalt`,tierInfo:spT?.tier?spT:null},
             {label:'Serbiska',value:`${languageLabel(srB)} · ${srT.cardsTotal} kort · ${srT.ciHoursTotal}h CI totalt`,tierInfo:srT?.tier?srT:null},
             {label:'Tyska',value:`${languageLabel(gnB)} · ${gnT.cardsTotal} kort · ${gnT.ciHoursTotal}h CI totalt`,tierInfo:gnT?.tier?gnT:null},
-            {label:'Gitarr',value:gtM?`${gtM} min/v · ${gtT.activeDays||0}/28 dagar med pass`:'—',tierInfo:gtT?.tier?gtT:null},
+            {label:'Gitarr',value:gtM?`${gtM} min/v`:'—',tierInfo:gtT?.tier?gtT:null},
           ],
           chartData:[],chartLines:[],levelUp:skillLevelUp,navTarget:'/plugg',navLabel:'Plugg'},
         {id:'ekonomi',name:'Ekonomi',icon:'ekonomi',tier:eTop,hasData:!!(totPA||sav!=null),pct:eTop?Math.round((eTop.tier/8)*100):0,decayWarning:false,trend:'neutral',
