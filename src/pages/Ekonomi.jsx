@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../context/ToastContext'
@@ -515,6 +515,10 @@ export default function EkonomiPage() {
   const { user } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [bankConnections, setBankConnections] = useState([])
+  const [linkingBank, setLinkingBank] = useState(false)
+  const [syncingBank, setSyncingBank] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
   const [logType, setLogType] = useState('expense')
   const [selectedMonth, setSelectedMonth] = useState(new Date())
@@ -574,6 +578,64 @@ export default function EkonomiPage() {
   useEffect(() => {
     if (user && salaryDayLoaded) fetchAll()
   }, [user, salaryDayLoaded, selectedMonth, salaryDay])
+
+  // Ekonomi auto-sync (beta, 2026-09-13 — see EKONOMI-INTEGRATION.md).
+  useEffect(() => {
+    if (!user) return
+    fetchBankConnections()
+    const linkStatus = searchParams.get('bank_link')
+    if (linkStatus === 'ok') {
+      toast({ message: 'Bankkonto kopplat!', type: 'success' })
+      fetchBankConnections()
+      fetchAll()
+    } else if (linkStatus === 'error') {
+      toast({ message: `Kunde inte koppla bankkontot (${searchParams.get('reason') || 'okänt fel'}).`, type: 'error' })
+    }
+    if (linkStatus) { searchParams.delete('bank_link'); searchParams.delete('reason'); searchParams.delete('accounts'); setSearchParams(searchParams, { replace: true }) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  async function fetchBankConnections() {
+    const { data } = await supabase.from('bank_connections').select('*').eq('user_id', user.id)
+    setBankConnections(data || [])
+  }
+
+  async function linkBank() {
+    setLinkingBank(true)
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ekonomi-bank-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+        body: JSON.stringify({ aspspName: 'Swedbank', aspspCountry: 'SE' }),
+      })
+      const data = await resp.json().catch(() => null)
+      if (!resp.ok || !data?.url) throw new Error(data?.error || `HTTP ${resp.status}`)
+      window.location.href = data.url
+    } catch (e) {
+      toast({ message: `Kunde inte starta bankkoppling: ${e.message}`, type: 'error' })
+      setLinkingBank(false)
+    }
+  }
+
+  async function syncBankNow() {
+    setSyncingBank(true)
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ekonomi-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_ANON_KEY },
+      })
+      const data = await resp.json().catch(() => null)
+      if (!resp.ok || data?.ok === false) throw new Error(data?.error || `HTTP ${resp.status}`)
+      toast({ message: `Synkat — ${data.synced} nya transaktioner.`, type: 'success' })
+      fetchBankConnections()
+      fetchAll()
+    } catch (e) {
+      toast({ message: `Synk misslyckades: ${e.message}`, type: 'error' })
+    }
+    setSyncingBank(false)
+  }
 
   async function fetchAll() {
     const { start, end } = getSalaryPeriod(selectedMonth, salaryDay)
@@ -731,6 +793,37 @@ export default function EkonomiPage() {
       </div>
       <div className="page-content-scroll">
         <div className="mx-content-edge" style={{ padding: "16px 16px 0", width: "100%", maxWidth: "none", margin: "0" }}>
+
+      {/* Bankkoppling (beta) — Enable Banking auto-sync, se EKONOMI-INTEGRATION.md */}
+      <div className="card" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+        {bankConnections.length > 0 ? (
+          <>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700 }}>
+                {bankConnections.length} bankkonto{bankConnections.length === 1 ? '' : 'n'} kopplat — {bankConnections[0].aspsp_name}
+              </div>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '2px' }}>
+                {bankConnections[0].last_synced_at
+                  ? `Senast synkat ${format(new Date(bankConnections[0].last_synced_at), 'd MMM HH:mm', { locale: sv })}`
+                  : 'Aldrig synkat än'}
+              </div>
+            </div>
+            <button onClick={syncBankNow} disabled={syncingBank} className="btn btn-ghost btn-sm">
+              {syncingBank ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={13} />} Synka nu
+            </button>
+          </>
+        ) : (
+          <>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700 }}>Koppla ditt bankkonto (beta)</div>
+              <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '2px' }}>Automatisk import av transaktioner från Swedbank via Enable Banking.</div>
+            </div>
+            <button onClick={linkBank} disabled={linkingBank} className="btn btn-primary btn-sm">
+              {linkingBank ? <Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> : 'Koppla Swedbank'}
+            </button>
+          </>
+        )}
+      </div>
 
       {/* Tabs */}
       <div className="mx-segment" style={{ marginBottom: '20px' }}>
