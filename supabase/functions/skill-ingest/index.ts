@@ -94,7 +94,10 @@ serve(async (req) => {
       if (typeof skill !== 'string' || !KNOWN_SKILLS.has(skill)) { rejected.push(`${date}/${String(skill)}`); continue }
       const cards = Number(row?.cards)
       if (!Number.isFinite(cards) || cards < CARDS_BOUNDS[0] || cards > CARDS_BOUNDS[1]) { rejected.push(`${date}/${skill}`); continue }
-      rows.push({ user_id: userId, date, skill, cards: Math.round(cards), activity_type: 'anki', source: 'anki_sync' })
+      // minutes has a NOT NULL constraint predating the cards column — 0 is
+      // accurate here (this row logs cards, not minutes) and every reader
+      // (languageSkill.js) buckets by `cards != null`, not by this value.
+      rows.push({ user_id: userId, date, skill, cards: Math.round(cards), minutes: 0, activity_type: 'anki', source: 'anki_sync' })
       dates.add(date)
       skillsSeen.add(skill)
       any = true

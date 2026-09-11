@@ -13,6 +13,7 @@ Does nothing (exits quietly) if AnkiConnect isn't reachable, i.e. Anki
 Desktop isn't open right now — safe to poll often.
 """
 import json
+import ssl
 import sys
 import time
 import urllib.error
@@ -20,9 +21,19 @@ import urllib.request
 from collections import defaultdict
 from datetime import datetime
 
+try:
+    # python.org's macOS build ships its own OpenSSL without the system
+    # trust store wired in ("Install Certificates.command" normally does
+    # that, but isn't always present) — use certifi's bundle if installed
+    # so HTTPS works regardless of which python3 ends up running this.
+    import certifi
+    SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    SSL_CONTEXT = None
+
 ANKI_URL = "http://127.0.0.1:8765"
 SIGGE_URL = "https://foctdzzbonepdzeubate.supabase.co/functions/v1/skill-ingest"
-TOKEN = "PASTE_DIN_INGEST_TOKEN_HAR"  # Installningar -> Apple Health -> kopiera token (samma token)
+TOKEN = "5faa80ff-d0d4-47eb-b0b6-411f7e005cdc"  # Installningar -> Apple Health -> kopiera token (samma token)
 BACKFILL_DAYS = 30
 
 DECKS = {
@@ -75,7 +86,7 @@ def main():
         headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
+        with urllib.request.urlopen(req, timeout=20, context=SSL_CONTEXT) as r:
             print(r.read().decode())
     except urllib.error.HTTPError as e:
         print(e.read().decode(), file=sys.stderr)
