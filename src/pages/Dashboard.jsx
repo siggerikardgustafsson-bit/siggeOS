@@ -370,17 +370,18 @@ export default function Dashboard() {
       if (profile?.display_name) setDisplayName(profile.display_name)
 
       // Strava best efforts per activity.
-      // The TIER stays strict: never estimate 1 km / 5 km / 10 km from whole-run
-      // average pace for ranking — that's what calculateConditioningTier /
-      // kTop below consume, via bestActual() only. A slow-and-even long run
-      // must never inflate (or deflate) a rank.
-      //
-      // The DISPLAYED "PR" figure is a different job: a 5km PR with no 1km PR is
-      // Strava simply not having found a clean 1km segment inside that run — not
-      // "no 1km data exists". So when there's no real best-effort for a distance,
-      // fall back to the fastest logged average pace among runs that cover at
-      // least that distance (last 90d) — a real, lower-bound number, never a
-      // ranking input. Always labelled "uppskattat" so it never passes as verified.
+      // run_personal_records only holds what Strava's own best-effort detection
+      // finds per activity — it does not always report every shorter distance
+      // inside a longer run (a clean 5km run can easily be missing a "1k" entry).
+      // So "covers this distance" means: a real Strava segment, OR — when that's
+      // missing — the fastest logged AVERAGE pace among runs that cover at least
+      // that distance (last 90d). That's a genuine, already-achieved floor, not a
+      // guess: over any run of distance D at average pace P, at least one
+      // contiguous km-sized segment was run at pace ≤ P (otherwise the run's own
+      // average couldn't be P) — so it can only raise a tier a missing segment
+      // would otherwise hard-cap at T1, never overstate one beyond what was
+      // actually run. (User call, 2026-09-11 — was previously kept out of tier
+      // maths entirely; the "never rank down" property is what makes it safe.)
       function bestActual(distanceKey) {
         const efforts = (runPrData || []).filter(r =>
           r.distance_key === distanceKey &&
@@ -412,7 +413,7 @@ export default function Dashboard() {
           sourceDistanceKm: best.distance_km,
         }
       }
-      const bestForDisplay = (distanceKey) => bestActual(distanceKey) || estimateFromPace(distanceKey)
+      const bestOrEstimate = (distanceKey) => bestActual(distanceKey) || estimateFromPace(distanceKey)
 
       function toDecayed(run) {
         if (!run) return null
@@ -424,13 +425,11 @@ export default function Dashboard() {
       const r10Actual = bestActual('10k')
       const rHActual = bestActual('half_marathon')
 
-      // Display-only variants — fall back to the pace estimate when Strava has
-      // no verified segment. Never fed into tier math (see r1T/r5T/... below,
-      // which stay on r1D/r5D/... derived from the strict r*Actual above).
-      const r1Show  = bestForDisplay('1k')
-      const r5Show  = bestForDisplay('5k')
-      const r10Show = bestForDisplay('10k')
-      const rHShow  = bestForDisplay('half_marathon')
+      // Real-or-estimated — the authoritative value for BOTH tier and display now.
+      const r1Show  = bestOrEstimate('1k')
+      const r5Show  = bestOrEstimate('5k')
+      const r10Show = bestOrEstimate('10k')
+      const rHShow  = bestOrEstimate('half_marathon')
 
       function runEvidence(row, label) {
         if (!row) return null
@@ -461,29 +460,42 @@ export default function Dashboard() {
         }
       }
 
+      // Strict decayed values — kept only for the staleness/trend signal further
+      // down (decayWarning/trend want "do I have a fresh VERIFIED segment", not
+      // whether the pace-floor estimate is fresh).
       const r1D  = toDecayed(r1Actual)
       const r5D  = toDecayed(r5Actual)
       const r10D = toDecayed(r10Actual)
       const rHD  = toDecayed(rHActual)
       const rMD  = null
 
-      const r1T  = r1D  ? calculateConditioningTier('1k', r1D.value, ctx) : null
-      const r5T  = r5D  ? calculateConditioningTier('5k', r5D.value, ctx) : null
-      const r10T = r10D ? calculateConditioningTier('10k', r10D.value, ctx) : null
-      const rHT  = rHD  ? calculateConditioningTier('half_marathon', rHD.value, ctx) : null
+      // Real-or-estimated decayed values — these drive the tier now.
+      const r1ShowD  = toDecayed(r1Show)
+      const r5ShowD  = toDecayed(r5Show)
+      const r10ShowD = toDecayed(r10Show)
+      const rHShowD  = toDecayed(rHShow)
+      function fmtPR(showD, row) {
+        if (!showD) return '—'
+        return (row?.estimated ? '~' : '') + formatRunTime(Math.round(showD.value))
+      }
+
+      const r1T  = r1ShowD  ? calculateConditioningTier('1k', r1ShowD.value, ctx) : null
+      const r5T  = r5ShowD  ? calculateConditioningTier('5k', r5ShowD.value, ctx) : null
+      const r10T = r10ShowD ? calculateConditioningTier('10k', r10ShowD.value, ctx) : null
+      const rHT  = rHShowD  ? calculateConditioningTier('half_marathon', rHShowD.value, ctx) : null
       const rMT  = rMD  ? calculateConditioningTier('marathon', rMD.value, ctx) : null
 
       const hasRunData = !!(runPrData?.length || runData?.length)
 
-      // Coverage check uses actual imported Strava best efforts.
-      const covered1  = !!r1D
-      const covered5  = !!r5D
-      const covered10 = !!r10D
-      const coveredH  = !!rHD
+      // Coverage accepts the pace-derived floor too, not just a verified segment.
+      const covered1  = !!r1ShowD
+      const covered5  = !!r5ShowD
+      const covered10 = !!r10ShowD
+      const coveredH  = !!rHShowD
 
       const allFourCovered = covered1 && covered5 && covered10 && coveredH
 
-      // Tier = weak link of distances with ACTUAL data
+      // Tier = weak link of distances with data (real segment or pace floor)
       const kTs = [r1T, r5T, r10T, rHT].filter(Boolean)
       const kTop = allFourCovered && kTs.length > 0
         ? kTs.reduce((min, t) => t.tier < min.tier ? t : min, kTs[0])
@@ -819,10 +831,10 @@ export default function Dashboard() {
       const nextKondTier = Math.min((currentKondTier || 1) + 1, 8)
       const runIdx = Math.max(0, nextKondTier - 2)
       const kondLevelUp = hasRunData ? makeLevelUp(currentKondTier, 8, [
-        makeReq({ label:'1 km', current:r1D?.value, target:RUN_5K_THRESHOLDS[runIdx] * 0.195, higherIsBetter:false, unit:'sec' }),
-        makeReq({ label:'5 km', current:r5D?.value, target:RUN_5K_THRESHOLDS[runIdx], higherIsBetter:false, unit:'sec' }),
-        makeReq({ label:'10 km', current:r10D?.value, target:RUN_10K_THRESHOLDS[runIdx], higherIsBetter:false, unit:'sec' }),
-        makeReq({ label:'Halvmara', current:rHD?.value, target:RUN_HALF_THRESHOLDS[runIdx], higherIsBetter:false, unit:'sec' }),
+        makeReq({ label:'1 km', current:r1ShowD?.value, target:RUN_5K_THRESHOLDS[runIdx] * 0.195, higherIsBetter:false, unit:'sec' }),
+        makeReq({ label:'5 km', current:r5ShowD?.value, target:RUN_5K_THRESHOLDS[runIdx], higherIsBetter:false, unit:'sec' }),
+        makeReq({ label:'10 km', current:r10ShowD?.value, target:RUN_10K_THRESHOLDS[runIdx], higherIsBetter:false, unit:'sec' }),
+        makeReq({ label:'Halvmara', current:rHShowD?.value, target:RUN_HALF_THRESHOLDS[runIdx], higherIsBetter:false, unit:'sec' }),
       ], 'T') : null
 
       const currentSleepTier = slT?.tier || (avgSl ? 1 : 0)
@@ -904,18 +916,6 @@ export default function Dashboard() {
           ...(t >= 6 ? [`Militärpress ≥ ${OHP_THRESHOLDS[i]}x BW (${fmtKg(OHP_THRESHOLDS[i] * bw)})`] : []),
         ] }
       }) : null
-
-      // Decayed display values — fall back to the pace estimate (r*Show) so the
-      // PR card always shows the strongest available performance, per-distance
-      // tier badges (r1T etc.) stay attached to the strict/verified value only.
-      const r1ShowD  = toDecayed(r1Show)
-      const r5ShowD  = toDecayed(r5Show)
-      const r10ShowD = toDecayed(r10Show)
-      const rHShowD  = toDecayed(rHShow)
-      function fmtPR(showD, row) {
-        if (!showD) return '—'
-        return (row?.estimated ? '~' : '') + formatRunTime(Math.round(showD.value))
-      }
 
       const r1Evidence = runEvidence(r1Show, '1 km PR')
       const r5Evidence = runEvidence(r5Show, '5 km PR')
