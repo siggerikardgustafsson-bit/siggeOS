@@ -6,8 +6,8 @@
   <string>com.sigge.ankisync</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/bash</string>
-    <string>/Users/DITT_ANVANDARNAMN/scripts/sigge-anki-sync.sh</string>
+    <string>/usr/bin/python3</string>
+    <string>/Users/DITT_ANVANDARNAMN/scripts/sigge_anki_sync.py</string>
   </array>
   <!-- Runs every 15 min; the script itself no-ops instantly if Anki isn't
        open, so this is effectively "syncs shortly after you open Anki,
