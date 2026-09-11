@@ -13,7 +13,8 @@ import { Plus, X, Save, Loader, AlertTriangle, Target, RefreshCw, Edit2, Trash2 
 import { getSalaryPeriod } from '../lib/salaryPeriod'
 
 const EXPENSE_CATEGORIES = [
-  { id: 'mat',             label: 'Mat',             color: '#f97316', emoji: '' },
+  { id: 'mat',             label: 'Matvaror',        color: '#f97316', emoji: '' },
+  { id: 'restaurang',      label: 'Uteätande',       color: '#ef4444', emoji: '' },
   { id: 'nöje',            label: 'Nöje',            color: '#ec4899', emoji: '' },
   { id: 'transport',       label: 'Transport',       color: '#3b82f6', emoji: '' },
   { id: 'kläder',          label: 'Kläder',          color: '#8b5cf6', emoji: '' },

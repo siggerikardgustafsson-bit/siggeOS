@@ -100,7 +100,34 @@ export async function createSession(code: string) {
   }>
 }
 
+/** Account details — critically, `account_id.iban`, the value used to spot
+ * transfers between the user's own linked accounts (see ekonomi-sync). */
+export async function getAccountDetails(accountUid: string) {
+  return ebFetch(`/accounts/${accountUid}/details`) as Promise<{
+    account_id?: { iban?: string; other?: { identification?: string } }
+    details?: string
+    product?: string
+  }>
+}
+
+// Follows `continuation_key` until exhausted (2026-09-14 fix — the first cut
+// of this only fetched ONE page, silently dropping everything past it; a
+// real account easily has more transactions than fit in one response).
+// MAX_PAGES is a sane backstop, not a real limit — a year of a personal
+// account is nowhere near it.
+const MAX_PAGES = 50
 export async function getTransactions(accountUid: string, dateFrom?: string) {
-  const q = dateFrom ? `?date_from=${dateFrom}` : ''
-  return ebFetch(`/accounts/${accountUid}/transactions${q}`) as Promise<{ transactions: any[] }>
+  const all: any[] = []
+  let continuationKey: string | undefined
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const params = new URLSearchParams()
+    if (dateFrom) params.set('date_from', dateFrom)
+    if (continuationKey) params.set('continuation_key', continuationKey)
+    const q = params.toString() ? `?${params.toString()}` : ''
+    const res = await ebFetch(`/accounts/${accountUid}/transactions${q}`) as { transactions: any[]; continuation_key?: string }
+    all.push(...(res.transactions || []))
+    continuationKey = res.continuation_key
+    if (!continuationKey) break
+  }
+  return { transactions: all }
 }

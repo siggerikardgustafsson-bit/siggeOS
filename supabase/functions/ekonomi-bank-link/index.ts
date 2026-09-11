@@ -24,7 +24,7 @@
 // ============================================================================
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { corsHeaders, jsonResponse, getAuthedUser, serviceClient } from '../_shared/auth.ts'
-import { startAuth, createSession } from '../_shared/enableBanking.ts'
+import { startAuth, createSession, getAccountDetails } from '../_shared/enableBanking.ts'
 
 // This function's OWN URL — Enable Banking needs it as `redirect_url`, and
 // it must be added to the Application's whitelisted redirect URLs in their
@@ -57,13 +57,29 @@ serve(async (req) => {
 
     try {
       const session = await createSession(code)
-      const rows = (session.accounts || []).map((acc) => ({
-        user_id: reqRow.user_id,
-        aspsp_name: reqRow.aspsp_name,
-        aspsp_country: reqRow.aspsp_country,
-        session_id: session.session_id,
-        account_uid: acc.uid,
-        account_name: acc.name || null,
+      // Fetch each account's own IBAN — the key to spotting transfers between
+      // the user's own linked accounts later (ekonomi-sync). Best-effort per
+      // account: one failing (e.g. a card-only "account" with no IBAN) must
+      // not block linking the rest.
+      const rows = await Promise.all((session.accounts || []).map(async (acc) => {
+        let iban: string | null = null
+        let niceName: string | null = acc.name || null
+        try {
+          const details = await getAccountDetails(acc.uid)
+          iban = details.account_id?.iban || details.account_id?.other?.identification || null
+          if (details.details || details.product) niceName = [details.product, details.details].filter(Boolean).join(' — ')
+        } catch (e) {
+          console.error('getAccountDetails failed for', acc.uid, e)
+        }
+        return {
+          user_id: reqRow.user_id,
+          aspsp_name: reqRow.aspsp_name,
+          aspsp_country: reqRow.aspsp_country,
+          session_id: session.session_id,
+          account_uid: acc.uid,
+          account_name: niceName,
+          iban,
+        }
       }))
       if (rows.length) {
         await svc.from('bank_connections').upsert(rows, { onConflict: 'user_id,account_uid' })
