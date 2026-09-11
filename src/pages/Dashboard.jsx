@@ -321,7 +321,13 @@ export default function Dashboard() {
         supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
         supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
         supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',periodStart).lte('date',periodEnd),
-        supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since30),
+        // Graceful until post_deploy_12 (cards column) is migrated — a SELECT
+        // naming an unknown column fails the whole query, not just that field.
+        (async () => {
+          const withCards = await supabase.from('skill_logs').select('date,skill,minutes,cards').eq('user_id',userId).gte('date',since30)
+          if (!withCards.error) return withCards
+          return supabase.from('skill_logs').select('date,skill,minutes').eq('user_id',userId).gte('date',since30)
+        })(),
         Promise.resolve({ data: settingsQuick }),
         supabase.from('training_exercises')
           .select('id,session_id,set_number,exercise_name,reps,weight_kg,training_sessions!inner(id,date,user_id)')
@@ -762,7 +768,37 @@ export default function Dashboard() {
       const wTop=wTs.length?wTs.reduce((min,t)=>t.tier<min.tier?t:min,wTs[0]):null
 
       function am(sn){const l=(skillData||[]).filter(s=>s.skill===sn);return l.length?Math.round(l.reduce((s,x)=>s+x.minutes,0)/4):0}
-      const spM=am('spanish'),srM=am('serbian'),gtM=am('guitar'),gnM=am('german')
+
+      // Languages blend two real, never-estimated signals into one "effective
+      // minutes/week" fed to the same getSkillTier() ladder: raw Anki cards
+      // reviewed (skill-ingest auto-sync) normalised against a weekly target,
+      // averaged with logged non-Anki minutes (CI or "Allmänt") normalised the
+      // same way. A row contributes to ONE bucket only (cards if set, else
+      // minutes) so nothing is double-counted. When only one bucket has data
+      // the blend reduces to exactly that bucket — no behaviour change for a
+      // minutes-only history. (User call 2026-09-11: combine, don't replace.)
+      const CARDS_TARGET_PER_WEEK = 700   // ≈100 cards/day — a starting guess, tune once real data exists
+      const MINUTES_TARGET_PER_WEEK = 240 // matches getSkillTier's own T6 ("Mästare") threshold
+      function languageMinutes(sn) {
+        const rows = (skillData||[]).filter(s => s.skill === sn)
+        const cardsWeek = Math.round(rows.filter(r => r.cards != null).reduce((s,r) => s + Number(r.cards||0), 0) / 4)
+        const minutesWeek = Math.round(rows.filter(r => r.cards == null).reduce((s,r) => s + Number(r.minutes||0), 0) / 4)
+        if (!cardsWeek && !minutesWeek) return { effective: 0, cardsWeek: 0, minutesWeek: 0 }
+        const parts = []
+        if (cardsWeek > 0) parts.push(Math.min(1, cardsWeek / CARDS_TARGET_PER_WEEK))
+        if (minutesWeek > 0) parts.push(Math.min(1, minutesWeek / MINUTES_TARGET_PER_WEEK))
+        const blended = parts.reduce((a,b) => a+b, 0) / parts.length
+        return { effective: Math.round(blended * MINUTES_TARGET_PER_WEEK), cardsWeek, minutesWeek }
+      }
+      // Honest display string — real numbers, not the blended tier-input.
+      function langLabel(b) {
+        const parts = []
+        if (b.cardsWeek > 0) parts.push(`${b.cardsWeek} kort/v`)
+        if (b.minutesWeek > 0) parts.push(`${b.minutesWeek} min/v`)
+        return parts.length ? parts.join(' · ') : '—'
+      }
+      const spB=languageMinutes('spanish'), srB=languageMinutes('serbian'), gnB=languageMinutes('german')
+      const spM=spB.effective, srM=srB.effective, gnM=gnB.effective, gtM=am('guitar')
       const spT=getSkillTier(spM),srT=getSkillTier(srM),gtT=getSkillTier(gtM),gnT=getSkillTier(gnM)
       const skTop=[spT,srT,gtT,gnT].reduce((b,t)=>t.tier>b.tier?t:b,spT)
       const skH=!!(skillData?.length)
@@ -971,9 +1007,9 @@ export default function Dashboard() {
           ],
           details:[
             {label:'Mastery snitt',value:avgM!=null?avgM+'%':'—',tierInfo:pT},
-            {label:'Spanska',value:spM?spM+' min/v':'—',tierInfo:spT?.tier?spT:null},
-            {label:'Serbiska',value:srM?srM+' min/v':'—',tierInfo:srT?.tier?srT:null},
-            {label:'Tyska',value:gnM?gnM+' min/v':'—',tierInfo:gnT?.tier?gnT:null},
+            {label:'Spanska',value:langLabel(spB),tierInfo:spT?.tier?spT:null},
+            {label:'Serbiska',value:langLabel(srB),tierInfo:srT?.tier?srT:null},
+            {label:'Tyska',value:langLabel(gnB),tierInfo:gnT?.tier?gnT:null},
             {label:'Gitarr',value:gtM?gtM+' min/v':'—',tierInfo:gtT?.tier?gtT:null},
             ...Object.entries(byCourse).map(([c,v])=>({label:c,value:Math.round(v.reduce((s,x)=>s+x,0)/v.length)+'%'})),
           ],
