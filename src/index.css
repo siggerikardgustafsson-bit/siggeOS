@@ -4150,12 +4150,17 @@ button.interactive-lift:active, a.interactive-lift:active { transform: translate
    2:1 aspect-ratio, capped to the column via max-width — letterboxed rather
    than uncapped when the column is wide, still fills it when narrow. */
 .upp-map-stage { position:relative; border-radius:12px; overflow:hidden;
-  aspect-ratio:2 / 1; height:clamp(220px, 40vh, 380px); width:auto; max-width:100%;
+  /* 2026-09-15 (user call, "gör kartan större"): raised the height cap
+     220-380px -> 260-520px. Still height-driven (not width-driven — see
+     2026-09-13 note above, .upp-trips-scroll's own max-height:calc(100vh -
+     250px) internal scroll keeps this from reintroducing page scroll on
+     any normal desktop viewport). */
+  aspect-ratio:2 / 1; height:clamp(260px, 48vh, 520px); width:auto; max-width:100%;
   background:var(--upp-ocean); }
 .upp-map-stage svg { width:100%; height:100%; display:block; cursor:grab; touch-action:none; }
 .upp-map-stage svg:active { cursor:grabbing; }
 .upp-map-legend { align-self:stretch; }
-@media (max-width: 860px){ .upp-map-stage { aspect-ratio:3 / 2; height:clamp(200px, 34vh, 320px); width:100%; max-width:none; } }
+@media (max-width: 860px){ .upp-map-stage { aspect-ratio:3 / 2; height:clamp(210px, 38vh, 360px); width:100%; max-width:none; } }
 
 .upp-map-zoom { position:absolute; right:10px; top:10px; display:flex; flex-direction:column; gap:6px; }
 .upp-map-zoom button { width:30px; height:30px; border-radius:9px; cursor:pointer;
