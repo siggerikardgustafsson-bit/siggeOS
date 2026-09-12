@@ -1134,8 +1134,23 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
 
 // ─────────────────────────────────────────────
 // SYSTEM PROMPT — built entirely server-side
+//
+// 2026-09-15 — split into two parts (`instructions` + `dynamic`) instead of
+// one combined string, specifically so the caller can put each in its OWN
+// prompt-cache breakpoint. Previously this was one string with one
+// cache_control marker, which meant the ENTIRE prompt — including the
+// persona/coaching/tool-routing instructions below, which never change —
+// was billed at full price every time ANY per-user value changed (a new
+// insight, a refreshed NU context, even the display name). Splitting lets
+// `instructions` (fully static per user — userName/style/lang are stable
+// across a user's own messages) cache essentially indefinitely, while only
+// `dynamic` (profile/memory/friends/NU) is re-billed when it actually
+// changes. See the call site for the even more important fix this pairs
+// with: pulling the ever-changing "TID:" timestamp OUT of both cached
+// blocks entirely (it used to be embedded inside `context`/NU, which busted
+// the cache on literally every single message).
 // ─────────────────────────────────────────────
-function buildSystemPrompt(context: string, settings: any, contentBlock: string, insights: any[] = [], friends: any[] = []): string {
+function buildSystemPrompt(context: string, settings: any, contentBlock: string, insights: any[] = [], friends: any[] = []): { instructions: string; dynamic: string } {
   const s = settings || {}
   const g = s.goals || {}
   // Phase 16: address the actual user, never a hardcoded "Sigge". Falls back to
@@ -1160,7 +1175,7 @@ function buildSystemPrompt(context: string, settings: any, contentBlock: string,
   const insightLines = insights.map((i: any) => `${i.category}: ${i.insight.slice(0, 80)}`).join('\n')
   const friendLines = friends.map((f: any) => `${f.name}${f.relationship ? ' ('+f.relationship+')' : ''}`).join(', ')
 
-  return `Du är Jarvis – ${userName}s personliga AI-coach/assistent i MaxxIt. Stil: ${style}. Datadriven, konkret, aldrig generisk. Anta inget om användarens yrke, studier eller livssituation som inte framgår av PROFIL/MINNE/NU nedan.${s.jarvis_lang && s.jarvis_lang !== 'auto' ? ' Språk: '+s.jarvis_lang+'.' : ''}
+  const instructions = `Du är Jarvis – ${userName}s personliga AI-coach/assistent i MaxxIt. Stil: ${style}. Datadriven, konkret, aldrig generisk. Anta inget om användarens yrke, studier eller livssituation som inte framgår av PROFIL/MINNE/NU nedan.${s.jarvis_lang && s.jarvis_lang !== 'auto' ? ' Språk: '+s.jarvis_lang+'.' : ''}
 
 COACHNING – tänk som en vass personlig coach som känner ${userName}, inte en generisk life-tracker:
 - Utgå från hens egna siffror och trender och citera dem. Inga generella råd som gäller vem som helst.
@@ -1171,20 +1186,12 @@ COACHNING – tänk som en vass personlig coach som känner ${userName}, inte en
 - Avsluta coachning med EN konkret, mätbar nästa åtgärd för idag eller denna vecka.
 - Lyft framsteg, inte bara brister – resan ska vara värd att gå, inte bara mätas.
 
-PROFIL: ${profileLines || '–'}
-
-MINNE (senaste 20): ${insightLines || '–'}
-
-VÄNNER: ${friendLines || '–'}
-
-NU: ${context || '–'}${contentBlock ? '\n'+contentBlock : ''}
-
-DATUM: "TID:" överst i NU är exakt nu. Meddelanden i historiken som börjar med [ÅÅÅÅ-MM-DD] skrevs det datumet, inte idag – räkna "imorgon", "nästa vecka", "om 3 dagar" osv från när meddelandet skrevs, inte från idag, om inget annat sägs. Utan datumtagg = idag.
+DATUM: Ett "TID:"-block sist i denna systemprompt (efter NU) är exakt nu. Meddelanden i historiken som börjar med [ÅÅÅÅ-MM-DD] skrevs det datumet, inte idag – räkna "imorgon", "nästa vecka", "om 3 dagar" osv från när meddelandet skrevs, inte från idag, om inget annat sägs. Utan datumtagg = idag.
 
 VERKTYG – hämta NÄR data saknas, INTE om svaret ryms ovan. Hämta parallellt vid flera domäner. Ej samma data 2x.
 Brief/kväll/vecka → journal+health+workouts+scores. Mående → fetch_journal(summaries_only=true för trend, full för djup). Pass/styrka/löp → fetch_workouts. PR/rekord → fetch_workouts(include_prs=true). Kosttillskott/medicin/retatrutide → fetch_health. Schema → fetch_calendar. Ekonomi/sparande/nettoförmögenhet/tillgångar → fetch_economy. Resor → fetch_experiences. Tasks → fetch_tasks. Djupare minne/sök minne → fetch_memory_goals(search_keyword). Gammal chatt/"vad sa vi om X" → fetch_chat_history(search_keyword). Journal-sök → fetch_journal(search_keyword).
 
-SPARA TYST (execute_action, nämn ej): faktum om användaren → save_insight | uppdatera fel insikt → update_insight(id,insight_text) | ta bort inaktuell insikt → delete_insight(id) | väninfo → update_friend | korrigering/ny sanning → update_memory_context(context_area,update_text) | preferens → save_preference. Spara 1-2 insikter/konversation om något viktigt framkommit. Kolla MINNE ovan innan du sparar – spara inte om det redan framgår. Rätta aktivt felaktiga minnen när användaren korrigerar dig.
+SPARA TYST (execute_action, nämn ej): faktum om användaren → save_insight | uppdatera fel insikt → update_insight(id,insight_text) | ta bort inaktuell insikt → delete_insight(id) | väninfo → update_friend | korrigering/ny sanning → update_memory_context(context_area,update_text) | preferens → save_preference. Spara 1-2 insikter/konversation om något viktigt framkommit. Kolla MINNE nedan innan du sparar – spara inte om det redan framgår. Rätta aktivt felaktiga minnen när användaren korrigerar dig.
 PR/rekord (styrka+löp) → fetch_workouts(include_prs=true) ger all-time PR-tavla.
 
 ÅTGÄRDER: execute_action direkt utan bekräftelse. Saknas ID → hämta först. delete → bekräfta vad raderas.
@@ -1193,6 +1200,16 @@ Du kan skriva till i stort sett hela appen när användaren ber om det: pass, h�
 LÄNKAR: När du hänvisar till en sida, länka med markdown så användaren kan klicka dit direkt: [Träning](/traning), [Hälsa](/halsa), [Ekonomi](/ekonomi), [Plugg](/plugg), [Jobb](/jobb), [Kalender](/kalender), [Insights](/insights), [Upplevelser](/upplevelser), [Journal](/journal), [Mål](/mal), [Dashboard](/). Max 1–2 länkar/svar, bara när det tillför.
 
 Svar på användarens språk. Kort.`
+
+  const dynamic = `PROFIL: ${profileLines || '–'}
+
+MINNE (senaste 20): ${insightLines || '–'}
+
+VÄNNER: ${friendLines || '–'}
+
+NU: ${context || '–'}${contentBlock ? '\n'+contentBlock : ''}`
+
+  return { instructions, dynamic }
 }
 
 // ─────────────────────────────────────────────
@@ -1250,7 +1267,16 @@ serve(async (req) => {
     ])
 
     const mergedSettings = { ...(settingsResult.data || {}), display_name: profileResult.data?.display_name || null }
-    const system = overrideSystem || buildSystemPrompt(context, mergedSettings, contentResult, insightsResult.data || [], friendsResult.data || [])
+    // The frontend prepends a "TID: <now>\n" line to `context` on every send
+    // (Jarvis.jsx) so the model always knows the exact current time even
+    // when the rest of the context is up to 5 minutes stale (client-side
+    // cache). Pull it back out here — it must NOT end up inside a cached
+    // system block, or it busts prompt caching on every single message (see
+    // buildSystemPrompt's header comment and the cachedSystem construction
+    // below).
+    const tidMatch = /^(TID:[^\n]*)\n?/.exec(context || '')
+    const tidLine = tidMatch ? tidMatch[1] : null
+    const contextWithoutTid = tidMatch ? context.slice(tidMatch[0].length) : context
 
     // Tiered history: recent 6 messages at 2000 chars, older 8 at 600 chars
     const allMsgs = (messages || []).filter((m: any) => m && (m.role === 'user' || m.role === 'assistant'))
@@ -1277,7 +1303,32 @@ serve(async (req) => {
     const cachedTools = TOOLS.map((t: any, i: number) =>
       i === TOOLS.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t
     )
-    const cachedSystem = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
+    // Two cache breakpoints for normal chat instead of one (2026-09-15):
+    //   1. `instructions` — persona/coaching/tool-routing rules. Identical
+    //      for a given user's own style/lang settings across ALL their
+    //      messages, so this now stays cached basically indefinitely
+    //      instead of being re-billed whenever PROFIL/MINNE/NU changes.
+    //   2. `dynamic` — PROFIL/MINNE/VÄNNER/NU. Genuinely changes (new
+    //      insight, refreshed context) but far less often than every
+    //      message — this is its own cache-eligible block now instead of
+    //      being fused with the static instructions.
+    // The extracted `tidLine` goes in a THIRD, uncached block at the end —
+    // it changes every message by design, but since it's now its own tiny
+    // block, it no longer busts the two cached blocks before it (blocks
+    // after the last cache_control marker don't affect earlier breakpoints).
+    // In extraction/structured-output mode (overrideSystem) none of this
+    // applies — that's a one-shot call, not iterative chat, so one plain
+    // cached block is fine as before.
+    const cachedSystem = overrideSystem
+      ? [{ type: 'text', text: overrideSystem, cache_control: { type: 'ephemeral' } }]
+      : (() => {
+          const { instructions, dynamic } = buildSystemPrompt(contextWithoutTid, mergedSettings, contentResult, insightsResult.data || [], friendsResult.data || [])
+          return [
+            { type: 'text', text: instructions, cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: dynamic, cache_control: { type: 'ephemeral' } },
+            ...(tidLine ? [{ type: 'text', text: tidLine }] : []),
+          ]
+        })()
     // In extraction mode, omit tools entirely so the model can't enter the tool
     // loop and just answers (JSON). Normal chat keeps the full tool set.
     const effectiveTools = overrideSystem ? undefined : cachedTools
