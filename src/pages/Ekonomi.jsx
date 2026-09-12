@@ -3,13 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../context/ToastContext'
-import { format } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import { sv } from 'date-fns/locale'
 import CountUp from '../components/CountUp'
 import EmptyState from '../components/EmptyState'
 import GoalsSection from '../components/GoalsSection'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { Plus, X, Save, Loader, AlertTriangle, Target, RefreshCw, Edit2, Trash2 } from 'lucide-react'
+import { Plus, X, Save, Loader, AlertTriangle, Target, RefreshCw, Edit2, Trash2, Search, Zap } from 'lucide-react'
 import { getSalaryPeriod } from '../lib/salaryPeriod'
 
 const EXPENSE_CATEGORIES = [
@@ -512,6 +512,173 @@ function NetWorthTab({ user }) {
   )
 }
 
+// Bläddra bland ALLA transaktioner, oberoende av löneperioden ovan (P: den
+// begränsningen flaggades 2026-09-15 efter Enable Banking-synken — fetchAll()
+// scopar allt till EN löneperiod i taget, så det fanns ingen väg att se
+// historik längre bak eller bekräfta att en synk faktiskt skrev rätt rader).
+// Hämtar income+expense oberoende av varandra inom vald tidsrymd (capat på
+// 1000 rader/tabell — gott om marginal för en enskild persons ekonomi över
+// upp till ett år) och filtrerar/paginerar sedan client-side. Enklare och
+// robustare än cursor-baserad paginering över två separata tabeller.
+const TX_RANGE_PRESETS = [
+  { id: '1m', label: '1 mån', days: 30 },
+  { id: '3m', label: '3 mån', days: 90 },
+  { id: '6m', label: '6 mån', days: 182 },
+  { id: '1y', label: '1 år', days: 365 },
+  { id: 'all', label: 'Allt', days: null },
+]
+const TX_PAGE_SIZE = 60
+
+function AllTransactionsTab({ user }) {
+  const [loading, setLoading] = useState(true)
+  const [allRows, setAllRows] = useState([]) // raw, unfiltered, within the selected date range
+  const [range, setRange] = useState('3m')
+  const [typeFilter, setTypeFilter] = useState('all') // all | income | expense
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [visibleCount, setVisibleCount] = useState(TX_PAGE_SIZE)
+
+  useEffect(() => { if (user) load() }, [user, range])
+
+  async function load() {
+    setLoading(true)
+    const preset = TX_RANGE_PRESETS.find(p => p.id === range)
+    const dateFrom = preset?.days ? format(subDays(new Date(), preset.days), 'yyyy-MM-dd') : '2000-01-01'
+    const [incomesRes, expensesRes] = await Promise.all([
+      supabase.from('income_logs').select('*').eq('user_id', user.id).gte('date', dateFrom).order('date', { ascending: false }).limit(1000),
+      supabase.from('expense_logs').select('*').eq('user_id', user.id).gte('date', dateFrom).order('date', { ascending: false }).limit(1000),
+    ])
+    const merged = [
+      ...(incomesRes.data || []).map(r => ({ ...r, type: 'income' })),
+      ...(expensesRes.data || []).map(r => ({ ...r, type: 'expense' })),
+    ].sort((a, b) => new Date(b.date) - new Date(a.date))
+    setAllRows(merged)
+    setVisibleCount(TX_PAGE_SIZE)
+    setLoading(false)
+  }
+
+  async function deleteRow(row) {
+    await supabase.from(row.type === 'income' ? 'income_logs' : 'expense_logs').delete().eq('id', row.id).eq('user_id', user.id)
+    setAllRows(prev => prev.filter(r => !(r.id === row.id && r.type === row.type)))
+  }
+
+  const searchLower = search.trim().toLowerCase()
+  const filtered = allRows.filter(r => {
+    if (typeFilter !== 'all' && r.type !== typeFilter) return false
+    if (categoryFilter !== 'all' && r.type === 'expense' && r.category !== categoryFilter) return false
+    if (categoryFilter !== 'all' && r.type === 'income') return false
+    if (searchLower) {
+      const catLabel = EXPENSE_CATEGORIES.find(c => c.id === r.category)?.label
+      const hay = [r.description, r.source, r.category, catLabel].filter(Boolean).join(' ').toLowerCase()
+      if (!hay.includes(searchLower)) return false
+    }
+    return true
+  })
+  const visible = filtered.slice(0, visibleCount)
+  const sumIncome = filtered.filter(r => r.type === 'income').reduce((s, r) => s + Number(r.amount || 0), 0)
+  const sumExpense = filtered.filter(r => r.type === 'expense').reduce((s, r) => s + Number(r.amount || 0), 0)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Filters */}
+      <div className="card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {TX_RANGE_PRESETS.map(p => (
+            <button key={p.id} onClick={() => setRange(p.id)}
+              className={`mx-segment-btn ${range === p.id ? 'active' : ''}`} style={{ fontSize: 12 }}>{p.label}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select className="input" value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setVisibleCount(TX_PAGE_SIZE) }} style={{ width: 'auto', minWidth: 110 }}>
+            <option value="all">Alla typer</option>
+            <option value="income">Endast inkomst</option>
+            <option value="expense">Endast utgift</option>
+          </select>
+          <select className="input" value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setVisibleCount(TX_PAGE_SIZE) }} style={{ width: 'auto', minWidth: 130 }}>
+            <option value="all">Alla kategorier</option>
+            {EXPENSE_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+          <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
+            <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+            <input className="input" placeholder="Sök beskrivning, källa, kategori..." value={search}
+              onChange={e => { setSearch(e.target.value); setVisibleCount(TX_PAGE_SIZE) }} style={{ paddingLeft: 30, width: '100%' }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        <div className="card" style={{ padding: '10px 12px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Antal</div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>{filtered.length}</div>
+        </div>
+        <div className="card" style={{ padding: '10px 12px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Inkomst</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#10b981' }}>{Math.round(sumIncome).toLocaleString('sv-SE')} kr</div>
+        </div>
+        <div className="card" style={{ padding: '10px 12px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Utgift</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#ef4444' }}>{Math.round(sumExpense).toLocaleString('sv-SE')} kr</div>
+        </div>
+      </div>
+
+      {/* Rows */}
+      <div className="ek-card" style={{ padding: 0, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px' }}>
+            {[0, 1, 2, 3].map(i => <div key={i} className="mx-skel mx-skel-bar" style={{ height: 44, borderRadius: 10, width: `${100 - i * 5}%` }} />)}
+          </div>
+        ) : visible.length === 0 ? (
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+            Inga transaktioner matchar filtren.
+          </div>
+        ) : (
+          <>
+            {visible.map(tx => {
+              const cat = EXPENSE_CATEGORIES.find(c => c.id === tx.category)
+              const isInc = tx.type === 'income'
+              const ekc = isInc ? '#10b981' : (cat?.color || '#ef4444')
+              const isAuto = tx.sync_origin === 'enable_banking'
+              return (
+                <div key={`${tx.type}-${tx.id}`} className="ek-tx" style={{ '--ek-c': ekc }}>
+                  <div className="ek-tx-ico" style={{ fontSize: '15px' }}>{isInc ? '＋' : (cat?.emoji || '−')}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="ek-tx-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.description || tx.source || cat?.label || 'Utgift'}</span>
+                      {isAuto && (
+                        <span title="Auto-synkad från bank" style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 9.5, fontWeight: 700, color: '#3b82f6', background: 'rgba(59,130,246,0.12)', padding: '1px 5px', borderRadius: 999, flexShrink: 0 }}>
+                          <Zap size={9} /> AUTO
+                        </span>
+                      )}
+                    </div>
+                    <div className="ek-tx-date">{format(new Date(tx.date), 'd MMM yyyy', { locale: sv })}{!isInc && cat ? ` · ${cat.label}` : ''}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div className="ek-tx-amt" style={{ color: isInc ? '#10b981' : '#ef4444' }}>
+                      {isInc ? '+' : '-'}{Number(tx.amount).toLocaleString('sv-SE')} kr
+                    </div>
+                  </div>
+                  <button onClick={() => deleteRow(tx)}
+                    style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', opacity: 0.4, padding: '2px' }}>
+                    <X size={12} />
+                  </button>
+                </div>
+              )
+            })}
+            {visibleCount < filtered.length && (
+              <div style={{ padding: 12, textAlign: 'center' }}>
+                <button onClick={() => setVisibleCount(v => v + TX_PAGE_SIZE)} className="btn btn-ghost" style={{ fontSize: 12 }}>
+                  Visa fler ({filtered.length - visibleCount} till)
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function EkonomiPage() {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -774,9 +941,10 @@ export default function EkonomiPage() {
   })).filter(c => c.value > 0)
 
   const tabs = [
-    { id: 'overview', label: 'Översikt' },
-    { id: 'log',      label: 'Logga' },
-    { id: 'savings',  label: 'Sparande' },
+    { id: 'overview',     label: 'Översikt' },
+    { id: 'log',          label: 'Logga' },
+    { id: 'transactions', label: 'Alla transaktioner' },
+    { id: 'savings',      label: 'Sparande' },
   ]
 
   return (
@@ -1120,6 +1288,11 @@ export default function EkonomiPage() {
             </>
           )}
         </div>
+      )}
+
+      {/* ALL TRANSACTIONS TAB */}
+      {activeTab === 'transactions' && (
+        <AllTransactionsTab user={user} />
       )}
 
       {/* SAVINGS TAB */}
