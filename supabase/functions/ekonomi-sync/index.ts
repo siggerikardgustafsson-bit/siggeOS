@@ -92,10 +92,27 @@
 // separate, patient, non-blocking backfill job (poll for as long as it
 // takes, off the request/response path a button click waits on) — not a
 // bigger number in a constant here.
+//
+// v4 (2026-09-15) — fetch every connection CONCURRENTLY instead of one at a
+// time (a slow connection no longer eats time the others needed), which
+// briefly justified raising MAX_PAGES 15→60 for a better shot at finishing.
+// That was wrong: confirmed directly against the live API that Swedbank
+// enforces a PSD2 quota of only 4 transaction-history calls PER ACCOUNT PER
+// DAY (HTTP 429, "Consent daily limit 4 is exceeded ... TRANSACTIONS"), and
+// every pagination page — including a continuation_key follow-up — is its
+// own call against that budget. MAX_PAGES=60 meant one click could burn an
+// entire account's whole day on pagination alone. This is almost certainly
+// the real explanation for why fetches so often looked stuck/incomplete
+// all along, on top of whatever genuine on-demand-generation latency also
+// exists. Fixed: MAX_PAGES back down to 4 (see enableBanking.ts), and a
+// distinct RateLimitError so a 429 is reported as `rate_limited: true`
+// instead of a generic opaque error string. There is no code fix for the
+// quota itself — once an account hits it, that account's history simply
+// cannot be fetched again until Swedbank resets the daily counter.
 // ============================================================================
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { corsHeaders, jsonResponse, getAuthedUser, serviceClient } from '../_shared/auth.ts'
-import { getTransactions } from '../_shared/enableBanking.ts'
+import { getTransactions, RateLimitError } from '../_shared/enableBanking.ts'
 
 const DEFAULT_LOOKBACK_DAYS = 90
 const OVERLAP_DAYS = 3 // re-fetch a few days before last_synced_at — banks settle transactions late
@@ -244,6 +261,11 @@ serve(async (req) => {
   // them concurrently means every connection gets the full click's time
   // budget in parallel, not a shrinking slice of it.
   const fetchErrors: Record<string, string> = {}
+  // Set when the fetch failed specifically because Swedbank's PSD2 daily
+  // call quota for this account is exhausted (see MAX_PAGES comment in
+  // enableBanking.ts) — surfaced separately so the caller/UI can say
+  // "try again tomorrow" instead of a generic, alarming error.
+  const rateLimitedConn: Record<string, boolean> = {}
   // Whether each connection's fetch reached a real end (continuation_key
   // exhausted naturally) vs. gave up after MAX_PAGES without finishing.
   // Phase 3 uses this to decide whether it's safe to advance
@@ -277,7 +299,12 @@ serve(async (req) => {
         })
       }
     } catch (e) {
-      console.error('ekonomi-sync fetch failed for connection', conn.id, e)
+      if (e instanceof RateLimitError) {
+        rateLimitedConn[conn.id] = true
+        console.warn('ekonomi-sync rate-limited for connection', conn.id, e.message)
+      } else {
+        console.error('ekonomi-sync fetch failed for connection', conn.id, e)
+      }
       fetchErrors[conn.id] = String(e?.message || e)
     }
     return collected
@@ -320,7 +347,10 @@ serve(async (req) => {
 
   for (const conn of connections) {
     if (fetchErrors[conn.id]) {
-      results.push({ account_uid: conn.account_uid, error: fetchErrors[conn.id] })
+      results.push({
+        account_uid: conn.account_uid, error: fetchErrors[conn.id],
+        ...(rateLimitedConn[conn.id] ? { rate_limited: true } : {}),
+      })
       continue
     }
     try {

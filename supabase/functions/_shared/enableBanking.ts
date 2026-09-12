@@ -66,6 +66,17 @@ async function signJwt(): Promise<string> {
   return `${signingInput}.${base64url(new Uint8Array(sig))}`
 }
 
+// Thrown specifically for a 429 so callers can tell "Swedbank's PSD2 daily
+// call quota for this account is exhausted, stop retrying today" apart from
+// a real/unexpected error. See MAX_PAGES comment below for why this quota
+// matters so much here.
+export class RateLimitError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'RateLimitError'
+  }
+}
+
 async function ebFetch(path: string, init: RequestInit = {}) {
   const jwt = await signJwt()
   const res = await fetch(`${API_BASE}${path}`, {
@@ -73,6 +84,7 @@ async function ebFetch(path: string, init: RequestInit = {}) {
     headers: { ...(init.headers || {}), Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
   })
   const body = await res.json().catch(() => null)
+  if (res.status === 429) throw new RateLimitError(`Enable Banking ${path} → 429: ${JSON.stringify(body)}`)
   if (!res.ok) throw new Error(`Enable Banking ${path} → ${res.status}: ${JSON.stringify(body)}`)
   return body
 }
@@ -130,19 +142,35 @@ export async function getAccountDetails(accountUid: string) {
 // the watermark on every attempt regardless of outcome, even a fetch that
 // exhausted its page budget having seen nothing).
 //
-// 2026-09-15 — raised 15 → 60. With 15, the highest-volume account (the
-// checking account, "Privatkonto") reliably never finished across many
-// real "Synka nu" clicks, while the 3 low-volume savings accounts each
-// eventually got lucky and completed — meaning the user only ever saw a
-// tiny fraction of their real transactions (the small accounts) plus, as a
-// side effect, transfers whose OTHER leg lives on the never-fetched
-// checking account couldn't be paired-matched and leaked through as fake
-// expenses. Since ekonomi-sync now fetches all connections CONCURRENTLY
-// (see its Phase 1 comment) instead of sequentially, a slow connection no
-// longer eats time the others needed too, so it's safe to give it more
-// budget. Still not a guarantee — Swedbank's own backend decides how long
-// this takes, and it may occasionally need yet another click to finish.
-const MAX_PAGES = 60
+// 2026-09-15 — raised 15 → 60, then discovered WHY the "empty page +
+// continuation_key" pattern above happens so often, and why that was a
+// dangerous change: Swedbank/Enable Banking enforces a PSD2 quota of ONLY
+// 4 transaction-history calls PER ACCOUNT PER DAY ("Consent daily limit 4
+// is exceeded ... account service TRANSACTIONS", HTTP 429,
+// ASPSP_RATE_LIMIT_EXCEEDED — confirmed directly from the real API). Every
+// page of pagination — including a continuation_key follow-up — is its own
+// call against that same tiny budget. Raising MAX_PAGES to 60 meant a
+// SINGLE "Synka nu" click could burn an entire account's whole day's
+// allowance on pagination alone, which is almost certainly why fetches so
+// often "never finished" — the fetch wasn't necessarily slow, it may well
+// have been silently eating through the day's last few calls before this
+// file learned to recognize 429 as its own thing (see RateLimitError
+// above; previously the 429 was probably indistinguishable in outcome from
+// the "still generating" case from this file's point of view, since both
+// looked like "no continuation_key resolution yet"). Back down to a
+// conservative 4, matching the quota exactly, so ONE click can never all
+// by itself exhaust an account's entire day.
+//
+// Practical consequence: if an account's real history genuinely needs more
+// than 4 pages to reach the end, it CANNOT be fetched in a single day —
+// getTransactions() will return complete:false and ekonomi-sync will
+// correctly leave last_synced_at untouched, but the retry has to wait for
+// tomorrow's quota reset, not another click today (another click today
+// will just draw down the same exhausted daily budget further, or 429 outright
+// once it's gone). There is no "try harder" fix for this from our side —
+// it's a hard external quota, not a bug to engineer around with a bigger
+// number.
+const MAX_PAGES = 4
 export async function getTransactions(accountUid: string, dateFrom?: string) {
   const all: any[] = []
   let continuationKey: string | undefined
