@@ -231,14 +231,26 @@ serve(async (req) => {
   const myIbans = new Set(connections.map((c) => c.iban).filter(Boolean))
 
   // ---- Phase 1: fetch every connection's transactions into one list ----
-  const items: Item[] = []
+  // Run all connections' fetches CONCURRENTLY (2026-09-15 fix). Confirmed
+  // against the real production data: with these run sequentially, a
+  // slow/cold connection (Swedbank's on-demand statement generation, see
+  // the v3.1/v3.2 notes above) starved the others of nothing directly, but
+  // wasted the WHOLE request's wall-clock budget on one connection before
+  // even starting the next — across many "Synka nu" clicks, the 3 small
+  // savings accounts eventually each got their turn to complete, but the
+  // highest-volume checking account never did, because by the time its
+  // slow fetch got going there often wasn't enough of the click's time left
+  // and each retry started the SAME cold fetch over from scratch. Running
+  // them concurrently means every connection gets the full click's time
+  // budget in parallel, not a shrinking slice of it.
   const fetchErrors: Record<string, string> = {}
   // Whether each connection's fetch reached a real end (continuation_key
   // exhausted naturally) vs. gave up after MAX_PAGES without finishing.
   // Phase 3 uses this to decide whether it's safe to advance
   // last_synced_at — see the enableBanking.ts header comment for why.
   const completeByConn: Record<string, boolean> = {}
-  for (const conn of connections) {
+  const perConnItems = await Promise.all(connections.map(async (conn) => {
+    const collected: Item[] = []
     try {
       const since = conn.last_synced_at
         ? new Date(new Date(conn.last_synced_at).getTime() - OVERLAP_DAYS * 86400_000)
@@ -254,7 +266,7 @@ serve(async (req) => {
         const rawLines = Array.isArray(tx.remittance_information)
           ? tx.remittance_information
           : [tx.remittance_information].filter(Boolean)
-        items.push({
+        collected.push({
           conn, tx, isCredit, amount,
           currency: tx.transaction_amount?.currency || tx.currency || 'SEK',
           date: tx.booking_date || tx.value_date || dateFrom,
@@ -268,7 +280,9 @@ serve(async (req) => {
       console.error('ekonomi-sync fetch failed for connection', conn.id, e)
       fetchErrors[conn.id] = String(e?.message || e)
     }
-  }
+    return collected
+  }))
+  const items: Item[] = perConnItems.flat()
 
   // ---- Phase 2a: direct match — counterparty IBAN is one of my own ----
   for (const it of items) {

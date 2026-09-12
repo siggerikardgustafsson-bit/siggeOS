@@ -123,14 +123,26 @@ export async function getAccountDetails(accountUid: string) {
 // server-side, and it's non-deterministic (the exact same account+window
 // was instant on one call and took 10+ minutes without finishing on
 // another, back to back). MAX_PAGES is no longer just a backstop against a
-// pathological infinite loop — it's a real, expected exit path. Kept low
-// (not 50) so ONE slow/cold connection can't eat an entire sync run; the
-// caller (ekonomi-sync) MUST check `complete` and must NOT advance that
+// pathological infinite loop — it's a real, expected exit path; the caller
+// (ekonomi-sync) MUST check `complete` and must NOT advance that
 // connection's last_synced_at on an incomplete fetch, or the un-fetched
 // window is silently lost forever (this was a real bug here — advancing
 // the watermark on every attempt regardless of outcome, even a fetch that
 // exhausted its page budget having seen nothing).
-const MAX_PAGES = 15
+//
+// 2026-09-15 — raised 15 → 60. With 15, the highest-volume account (the
+// checking account, "Privatkonto") reliably never finished across many
+// real "Synka nu" clicks, while the 3 low-volume savings accounts each
+// eventually got lucky and completed — meaning the user only ever saw a
+// tiny fraction of their real transactions (the small accounts) plus, as a
+// side effect, transfers whose OTHER leg lives on the never-fetched
+// checking account couldn't be paired-matched and leaked through as fake
+// expenses. Since ekonomi-sync now fetches all connections CONCURRENTLY
+// (see its Phase 1 comment) instead of sequentially, a slow connection no
+// longer eats time the others needed too, so it's safe to give it more
+// budget. Still not a guarantee — Swedbank's own backend decides how long
+// this takes, and it may occasionally need yet another click to finish.
+const MAX_PAGES = 60
 export async function getTransactions(accountUid: string, dateFrom?: string) {
   const all: any[] = []
   let continuationKey: string | undefined
