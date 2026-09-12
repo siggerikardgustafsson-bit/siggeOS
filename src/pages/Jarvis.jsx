@@ -44,6 +44,18 @@ const DEFAULT_FOLLOWUPS = ['Vad ska jag fokusera på idag?', 'Vad oroar dig mest
 // (refreshContext), so this costs one normal chat call, no new data plumbing.
 const DAILY_BRIEF_PROMPT = 'Det här är första interaktionen för dagen — inled proaktivt, inte reaktivt. Ge en kort daglig briefing (max 3–4 meningar): vad är mest värt att fokusera på idag utifrån min faktiska data? Om det finns en tydlig flaskhals, en varningssignal, eller ett konkret snabbt vinst-läge just nu, nämn det specifikt (siffror, inte generiska råd). Ingen inledande hälsningsfras — gå rakt in i sakinnehållet.'
 
+// Proactive WEEKLY brief (2026-09-15, "gör Jarvis smartare") — same firing
+// mechanism as the daily brief above (first Jarvis interaction gates it),
+// but on Mondays specifically it replaces the daily prompt with this richer
+// one instead of sending both. There's already a purely-computed stats
+// modal for this (WeeklyReview.jsx, opened manually from Dashboard) but it
+// has no AI synthesis and requires a click-through to Jarvis to get one —
+// this makes Jarvis actually open the week with real analysis, unprompted,
+// using the exact same grounded MÖNSTER/SIGNALER/MAXX INTELLIGENS context
+// every message already gets (no new data plumbing, same cost profile as
+// the daily brief).
+const WEEKLY_BRIEF_PROMPT = 'Det här är första interaktionen för veckan — inled med en kort veckoöppning (max 5–6 meningar), inte en daglig snapshot. Titta bakåt på förra veckan utifrån min faktiska data: vad var den tydligaste kopplingen mellan domäner (sömn↔prestation, pluggbelastning↔energi, etc — MÖNSTER-blocket om det finns), och vad gick faktiskt bra (lyft det, inte bara brister)? Titta sedan framåt: en konkret risk eller möjlighet att hålla koll på denna vecka, och EN mätbar prioritet att sätta för veckan. Siffror, inte generiska råd. Ingen inledande hälsningsfras — gå rakt in i sakinnehållet.'
+
 function getFollowUps(messages) {
   const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && !m.isSeparator)
   if (!lastAssistant) return []
@@ -107,9 +119,14 @@ export default function Jarvis() {
       // Proactive daily brief (user call 2026-09-13) — Jarvis speaks first if
       // this is genuinely the first interaction today and nothing else is
       // about to auto-fire (a Dashboard deep-link prompt takes priority).
+      // On Mondays this becomes the richer WEEKLY_BRIEF_PROMPT instead of
+      // the daily one (2026-09-15) — still exactly one proactive message,
+      // just a week-opening synthesis instead of a daily snapshot on the
+      // day it's most useful to look back/forward.
       if (!hasMessageToday && !location.state?.prompt && !dailyBriefRef.current) {
         dailyBriefRef.current = true
-        sendToJarvis(DAILY_BRIEF_PROMPT, false, { skipUserSave: true })
+        const isMonday = new Date().getDay() === 1
+        sendToJarvis(isMonday ? WEEKLY_BRIEF_PROMPT : DAILY_BRIEF_PROMPT, false, { skipUserSave: true })
       }
     })()
   }, [user])
