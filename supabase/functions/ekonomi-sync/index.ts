@@ -174,9 +174,24 @@ const CATEGORY_KEYWORDS: Array<[string, string[]]> = [
 const CATEGORY_KEYWORDS_FOLDED: Array<[string, string[]]> =
   CATEGORY_KEYWORDS.map(([cat, kws]) => [cat, kws.map(foldSwedish)])
 
-function guessCategory(description: string): string {
+// Amount-based overrides for transactions keyword matching can never catch —
+// generic "Överföring via internet" transfers (rent, etc.) carry no
+// merchant/recipient text at all, so no keyword list can ever match them.
+// User-confirmed ground truth (2026-09-15): "90% av månaderna är
+// hyresbeloppet 11000 kr, så om det finns en utbetalning på exakt 11000 kr
+// så är det hyran." Only applied when keyword matching finds nothing — an
+// 11000 kr purchase with real merchant text still categorizes normally.
+const KNOWN_AMOUNT_CATEGORIES: Array<[number, string]> = [
+  [11000, 'hyra'],
+]
+
+function guessCategory(description: string, amount?: number): string {
   const d = foldSwedish(description)
   for (const [cat, kws] of CATEGORY_KEYWORDS_FOLDED) if (kws.some((k) => d.includes(k))) return cat
+  if (amount != null) {
+    const hit = KNOWN_AMOUNT_CATEGORIES.find(([amt]) => Math.abs(amt - amount) < 0.01)
+    if (hit) return hit[1]
+  }
   return 'övrigt'
 }
 
@@ -372,7 +387,7 @@ serve(async (req) => {
           })
         } else {
           expenseRows.push({
-            user_id: conn.user_id, date, amount, category: guessCategory(description || ''),
+            user_id: conn.user_id, date, amount, category: guessCategory(description || '', amount),
             description, external_id: externalId, sync_origin: 'enable_banking',
           })
         }
