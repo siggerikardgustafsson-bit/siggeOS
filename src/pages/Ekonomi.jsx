@@ -930,7 +930,24 @@ export default function EkonomiPage() {
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
   const fixedTotal = fixedCosts.reduce((sum, f) => sum + f.amount, 0)
-  const balance = totalIncomeNet - totalExpenses - fixedTotal
+  // A fixed cost is a BUDGETED recurring payment (rent, an installment
+  // plan, ...) entered once so the user doesn't have to log it by hand
+  // every period. Now that the bank sync writes the REAL transaction for
+  // that same payment into expense_logs, adding fixedTotal on top of
+  // totalExpenses double-counts it — confirmed 2026-09-16 (a real 11 000 kr
+  // rent payment synced from the bank + the "Hyra Täby centrum" 11 000 kr
+  // fixed cost, same money counted twice in the balance). Only add a fixed
+  // cost's budgeted amount when NO real expense this period already covers
+  // it (matched by amount — fixed_costs has no category/link to compare
+  // against — greedily, so two coincidentally-same-amount fixed costs
+  // don't both get cancelled by one real expense).
+  const usedExpenseIdsForFixed = new Set()
+  const fixedTotalDue = fixedCosts.reduce((sum, f) => {
+    const covering = expenses.find(e => !usedExpenseIdsForFixed.has(e.id) && Math.abs(e.amount - f.amount) < 1)
+    if (covering) { usedExpenseIdsForFixed.add(covering.id); return sum }
+    return sum + f.amount
+  }, 0)
+  const balance = totalIncomeNet - totalExpenses - fixedTotalDue
   const csnPct = (csnUsage / csnLimit) * 100
   const csnWarn = csnPct >= 80
 
@@ -1031,7 +1048,7 @@ export default function EkonomiPage() {
                   </div>
                   <div className="hl-sstat" style={{ '--hl-c': '#ef4444' }}>
                     <span className="hl-sstat-cap"><span className="dot" />Utgifter</span>
-                    <span className="hl-sstat-num"><CountUp value={Math.round(totalExpenses + fixedTotal)} /><span className="u">kr</span></span>
+                    <span className="hl-sstat-num"><CountUp value={Math.round(totalExpenses + fixedTotalDue)} /><span className="u">kr</span></span>
                   </div>
                   <div className="hl-sstat" style={{ '--hl-c': '#f59e0b' }}>
                     <span className="hl-sstat-cap"><span className="dot" />CSN kvar</span>
