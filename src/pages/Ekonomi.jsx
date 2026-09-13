@@ -948,12 +948,20 @@ export default function EkonomiPage() {
   // rent payment synced from the bank + the "Hyra Täby centrum" 11 000 kr
   // fixed cost, same money counted twice in the balance). Only add a fixed
   // cost's budgeted amount when NO real expense this period already covers
-  // it (matched by amount — fixed_costs has no category/link to compare
-  // against — greedily, so two coincidentally-same-amount fixed costs
-  // don't both get cancelled by one real expense).
+  // it (greedily, so two coincidentally-same-amount fixed costs don't both
+  // get cancelled by one real expense).
+  //
+  // Match by CATEGORY when the fixed cost's name clearly implies one, not
+  // just exact amount — rent varies month to month (confirmed: 16 000 kr
+  // one period vs the 11 000 kr budgeted), so an amount-only match missed
+  // it and the mismatched 11 000 kr got added on top of the real payment
+  // anyway. fixed_costs has no category column, hence the name sniff.
+  const inferFixedCostCategory = (name) => (name || '').toLowerCase().includes('hyra') ? 'hyra' : null
   const usedExpenseIdsForFixed = new Set()
   const fixedTotalDue = fixedCosts.reduce((sum, f) => {
-    const covering = expenses.find(e => !usedExpenseIdsForFixed.has(e.id) && Math.abs(e.amount - f.amount) < 1)
+    const cat = inferFixedCostCategory(f.name)
+    const covering = expenses.find(e => !usedExpenseIdsForFixed.has(e.id) &&
+      (cat ? e.category === cat : Math.abs(e.amount - f.amount) < 1))
     if (covering) { usedExpenseIdsForFixed.add(covering.id); return sum }
     return sum + f.amount
   }, 0)
