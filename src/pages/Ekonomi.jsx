@@ -918,9 +918,19 @@ export default function EkonomiPage() {
   // Sources that are taxed 30% — gross logged, net received
   const TAXED_SOURCES = ['PA-jobb']
   const TAX_RATE = 0.30
+  // Erik Norling pays in cash, which gets spent without ever being logged
+  // as an expense (user report 2026-09-16: "de försvinner ju i regel bara
+  // att jag ej loggar de utgifterna") — counting it as +income with no
+  // matching -expense inflated the period balance by money that never
+  // actually landed in (or stayed in) the bank account. Already excluded
+  // from the CSN total via counts_toward_csn; now also excluded here.
+  // Still logged and still shows in every transaction list — just doesn't
+  // move the balance.
+  const CASH_SOURCES = ['Erik Norling']
 
-  // Net income = what actually lands in your account
+  // Net income = what actually lands in your account and could affect balance
   const totalIncomeNet = incomes.reduce((sum, i) => {
+    if (CASH_SOURCES.includes(i.source)) return sum
     const isGross = TAXED_SOURCES.includes(i.source)
     return sum + (isGross ? i.amount * (1 - TAX_RATE) : i.amount)
   }, 0)
