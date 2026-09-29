@@ -4,7 +4,7 @@
 // Before this, a snapshot was only written when the Dashboard was opened, so
 // tier history (graphs, Jarvis tier trends) had a hole for every day the app
 // wasn't opened. This runs the exact Dashboard tier logic server-side — the
-// bundle is generated from src/lib/tierCompute.js by `npm run build`.
+// bundle is generated from src/lib/serverEntry.js by `npm run build`.
 //
 // Called by pg_cron at 21:45 UTC (23:45 CEST / 22:45 CET), when the UTC and
 // Stockholm calendar dates agree — tierCompute keys dates in runtime-local
@@ -17,7 +17,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { corsHeaders, unauthorized, serviceClient } from '../_shared/auth.ts'
 // @ts-ignore — generated plain-JS bundle
-import { fetchTierInputs, computeTierCategories, tierSnapshotRow } from '../_shared/tierCompute.bundle.js'
+import { fetchTierInputs, computeTierCategories, tierSnapshotRow } from '../_shared/serverLib.bundle.js'
 
 serve(async (req) => {
   const cors = corsHeaders(req)
