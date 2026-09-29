@@ -213,12 +213,179 @@ async function upsertRunBestEffortsForActivity(
   return saved
 }
 
+type SyncResult = {
+  error?: 'app_inactive' | 'reauthorize' | 'fetch_failed'
+  stravaStatus?: number
+  stravaBody?: string
+  synced: number; skipped: number; total: number
+  prsUpdated: number; detailDeferred: number; rateLimited: boolean
+}
+
+// Map Strava activity types to our session types
+const TYPE_MAP: Record<string, string> = {
+  Run: 'run', TrailRun: 'run', VirtualRun: 'run',
+  Ride: 'other', VirtualRide: 'other', EBikeRide: 'other',
+  Swim: 'other', Walk: 'walk', Hike: 'walk',
+  WeightTraining: 'gym', Workout: 'gym', CrossFit: 'gym',
+}
+const isRunType = (t: string) => t === 'Run' || t === 'TrailRun' || t === 'VirtualRun'
+
+// Shared by the manual `sync` action and the scheduled `cron` action.
+// `after` (unix seconds) makes it incremental: Strava only returns newer
+// activities, so a scheduled run usually costs a single API request.
+async function syncActivities(
+  supabase: any,
+  userId: string,
+  accessToken: string,
+  { pages, after }: { pages: number; after?: number },
+): Promise<SyncResult> {
+  const empty = { synced: 0, skipped: 0, total: 0, prsUpdated: 0, detailDeferred: 0, rateLimited: false }
+  let allActivities: any[] = []
+  let rateLimited = false
+  for (let page = 1; page <= pages; page++) {
+    const r = await stravaGet(`/athlete/activities?per_page=100&page=${page}${after ? `&after=${after}` : ''}`, accessToken)
+    if (r.status === 429) { rateLimited = true; break }
+    if (isStravaAppInactive(r.body)) return { ...empty, error: 'app_inactive' }
+    if (isStravaAuthError(r.status, r.body)) return { ...empty, error: 'reauthorize' }
+    if (!r.ok || !Array.isArray(r.body)) {
+      // Nothing fetched at all → surface the real reason; partial pages → keep what we have.
+      if (page === 1) {
+        console.error('Strava activities fetch failed', { status: r.status, snippet: r.snippet })
+        return { ...empty, error: 'fetch_failed', stravaStatus: r.status, stravaBody: r.snippet }
+      }
+      break
+    }
+    if (r.body.length === 0) break
+    allActivities = [...allActivities, ...r.body]
+    if (r.body.length < 100) break
+  }
+
+  // One query for every strava_id we already have — instead of a SELECT per
+  // activity (AUDIT.md P1-1).
+  const { data: existingRows } = await supabase
+    .from('training_sessions')
+    .select('strava_id')
+    .eq('user_id', userId)
+    .eq('source', 'strava')
+    .not('strava_id', 'is', null)
+  const existingIds = new Set((existingRows || []).map((r: any) => String(r.strava_id)))
+
+  const newRows: any[] = []
+  const newRunActs: { id: any; date: string }[] = []
+  let skipped = 0
+
+  for (const act of allActivities) {
+    const date = act.start_date_local?.slice(0, 10)
+    if (!date) continue
+    if (existingIds.has(String(act.id))) { skipped++; continue }
+
+    const distanceKm = act.distance ? Math.round(act.distance / 10) / 100 : null
+    const durationMin = act.moving_time ? Math.round(act.moving_time / 60) : null
+    const pacePerKm = distanceKm && act.moving_time ? Math.round(act.moving_time / distanceKm) : null
+    const elevationM = act.total_elevation_gain || null
+    const avgHr = act.average_heartrate || null
+
+    newRows.push({
+      user_id: userId,
+      date,
+      session_type: TYPE_MAP[act.type] || 'other',
+      duration_minutes: durationMin,
+      distance_km: distanceKm,
+      pace_per_km: pacePerKm,
+      notes: `${act.name}${elevationM ? ` · ${Math.round(elevationM)}m↑` : ''}${avgHr ? ` · ❤️ ${Math.round(avgHr)}bpm` : ''}`,
+      source: 'strava',
+      strava_id: String(act.id),
+      feeling: null,
+    })
+    if (isRunType(act.type)) newRunActs.push({ id: act.id, date })
+  }
+
+  // Batch insert (chunked) instead of one round-trip per activity.
+  let synced = 0
+  for (let i = 0; i < newRows.length; i += 500) {
+    const chunk = newRows.slice(i, i + 500)
+    const { error } = await supabase.from('training_sessions').insert(chunk)
+    if (error) { console.warn('batch insert failed:', error.message); continue }
+    synced += chunk.length
+  }
+
+  // Best-efforts detail calls are rate-limited (100 req / 15 min). Bound them
+  // per invocation; the rest get picked up by fetch_prs over subsequent runs.
+  const DETAIL_BUDGET = 40
+  let prsUpdated = 0
+  let detailCalls = 0
+  let detailDeferred = 0
+  for (const run of newRunActs) {
+    if (detailCalls >= DETAIL_BUDGET) { detailDeferred++; continue }
+    detailCalls++
+    try {
+      prsUpdated += await upsertRunBestEffortsForActivity(supabase, userId, accessToken, run.id, run.date)
+      await new Promise(r => setTimeout(r, 150))
+    } catch (e) {
+      if (e instanceof Error && e.message === 'rate_limited') { rateLimited = true; detailDeferred += (newRunActs.length - detailCalls); break }
+      console.warn(`best_efforts fetch failed for activity ${run.id}:`, e)
+    }
+  }
+
+  return { synced, skipped, total: allActivities.length, prsUpdated, detailDeferred, rateLimited }
+}
+
+// Best-effort: the columns come from post_deploy_21; a missing column must
+// never fail the sync itself.
+async function recordSyncStatus(supabase: any, userId: string, status: string) {
+  const { error } = await supabase.from('strava_tokens')
+    .update({ last_sync_at: new Date().toISOString(), last_sync_status: status })
+    .eq('user_id', userId)
+  if (error) console.warn('recordSyncStatus failed:', error.message)
+}
+
+// Scheduled sync for every connected user (pg_cron → pg_net, see
+// post_deploy_21). Authenticated by a shared secret that lives only in
+// Supabase Vault; the RPC is service-role-only.
+async function handleCron(req: Request, cors: Record<string, string>): Promise<Response> {
+  const supabase = serviceClient()
+  const provided = req.headers.get('x-cron-secret') || ''
+  const { data: expected, error: secretErr } = await supabase.rpc('get_strava_cron_secret')
+  if (secretErr || !expected || provided.length !== String(expected).length || provided !== expected) {
+    return unauthorized(req)
+  }
+
+  const { data: tokens } = await supabase.from('strava_tokens').select('*')
+  const results: Record<string, unknown>[] = []
+  for (const tokenRow of tokens || []) {
+    const userId = tokenRow.user_id
+    const tok = await getValidStravaToken(supabase, tokenRow, userId, cors)
+    if (tok.errorResponse) {
+      await recordSyncStatus(supabase, userId, 'reauthorize')
+      results.push({ userId, error: 'reauthorize' })
+      continue
+    }
+    // Incremental from the newest Strava session we have, minus a 3-day
+    // overlap so late-uploaded watch activities aren't missed.
+    const { data: latest } = await supabase.from('training_sessions')
+      .select('date').eq('user_id', userId).eq('source', 'strava')
+      .order('date', { ascending: false }).limit(1).maybeSingle()
+    const after = latest?.date
+      ? Math.floor(new Date(latest.date + 'T00:00:00Z').getTime() / 1000) - 3 * 86400
+      : undefined
+    const result = await syncActivities(supabase, userId, tok.accessToken!, { pages: after ? 2 : 4, after })
+    await recordSyncStatus(supabase, userId, result.error ? result.error : 'ok')
+    results.push({ userId, ...result })
+  }
+  console.log('strava cron:', JSON.stringify(results))
+  return new Response(JSON.stringify({ ok: true, users: results.length }), { headers: { ...cors, 'Content-Type': 'application/json' } })
+}
+
 serve(async (req) => {
   const cors = corsHeaders(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   const url = new URL(req.url)
   const action = url.searchParams.get('action')
+
+  // Scheduled path — no user session. The function is deployed with
+  // --no-verify-jwt for this; every other action still requires a user below.
+  if (action === 'cron') return handleCron(req, cors)
 
   // Resolve the authenticated user (rejects anon-key-only / anonymous calls).
   // Service-role client is required below to read/write the locked-down
@@ -321,118 +488,28 @@ serve(async (req) => {
     // Refresh token if expired
     const tok = await getValidStravaToken(supabase, tokenRow, user.id, cors)
     if (tok.errorResponse) return tok.errorResponse
-    const accessToken = tok.accessToken!
 
-    // Fetch activities — 100 per page, up to 4 pages (400 most recent).
-    let allActivities: any[] = []
-    let rateLimited = false
-    for (let page = 1; page <= 4; page++) {
-      const r = await stravaGet(`/athlete/activities?per_page=100&page=${page}`, accessToken)
-      if (r.status === 429) { rateLimited = true; break }
-      if (isStravaAppInactive(r.body)) {
-        return new Response(JSON.stringify({
-          error: 'app_inactive',
-          detail: 'Strava-API-appen är inaktiverad hos Strava. Appägaren måste återaktivera den och godkänna API-villkoren på strava.com/settings/api.',
-        }), { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } })
-      }
-      if (isStravaAuthError(r.status, r.body)) {
-        return new Response(JSON.stringify({ error: 'reauthorize', detail: 'Strava-anslutningen behöver kopplas om.' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
-      }
-      if (!r.ok || !Array.isArray(r.body)) {
-        // Nothing fetched at all → surface the real reason; partial pages → keep what we have.
-        if (page === 1) {
-          console.error('Strava activities fetch failed', { status: r.status, snippet: r.snippet })
-          return new Response(JSON.stringify({
-            error: `Strava svarade med HTTP ${r.status || 'okänt'} vid hämtning av aktiviteter.`,
-            stravaStatus: r.status,
-            stravaBody: r.snippet || null,
-          }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } })
-        }
-        break
-      }
-      if (r.body.length === 0) break
-      allActivities = [...allActivities, ...r.body]
+    // Manual sync keeps the full 400-activity sweep so it also fills gaps.
+    const result = await syncActivities(supabase, user.id, tok.accessToken!, { pages: 4 })
+    await recordSyncStatus(supabase, user.id, result.error ? result.error : 'ok')
+    if (result.error === 'app_inactive') {
+      return new Response(JSON.stringify({
+        error: 'app_inactive',
+        detail: 'Strava-API-appen är inaktiverad hos Strava. Appägaren måste återaktivera den och godkänna API-villkoren på strava.com/settings/api.',
+      }), { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } })
     }
-
-    // Map Strava activity types to our session types
-    const typeMap: Record<string, string> = {
-      Run: 'run', TrailRun: 'run', VirtualRun: 'run',
-      Ride: 'other', VirtualRide: 'other', EBikeRide: 'other',
-      Swim: 'other', Walk: 'walk', Hike: 'walk',
-      WeightTraining: 'gym', Workout: 'gym', CrossFit: 'gym',
+    if (result.error === 'reauthorize') {
+      return new Response(JSON.stringify({ error: 'reauthorize', detail: 'Strava-anslutningen behöver kopplas om.' }), { status: 401, headers: { ...cors, 'Content-Type': 'application/json' } })
     }
-
-
-    // One query for every strava_id we already have — instead of a SELECT per
-    // activity (AUDIT.md P1-1).
-    const { data: existingRows } = await supabase
-      .from('training_sessions')
-      .select('strava_id')
-      .eq('user_id', user.id)
-      .eq('source', 'strava')
-      .not('strava_id', 'is', null)
-    const existingIds = new Set((existingRows || []).map((r: any) => String(r.strava_id)))
-
-    const isRunType = (t: string) => t === 'Run' || t === 'TrailRun' || t === 'VirtualRun'
-
-    const newRows: any[] = []
-    const newRunActs: { id: any; date: string }[] = []
-    let skipped = 0
-
-    for (const act of allActivities) {
-      const date = act.start_date_local?.slice(0, 10)
-      if (!date) continue
-      if (existingIds.has(String(act.id))) { skipped++; continue }
-
-      const distanceKm = act.distance ? Math.round(act.distance / 10) / 100 : null
-      const durationMin = act.moving_time ? Math.round(act.moving_time / 60) : null
-      const pacePerKm = distanceKm && act.moving_time ? Math.round(act.moving_time / distanceKm) : null
-      const elevationM = act.total_elevation_gain || null
-      const avgHr = act.average_heartrate || null
-
-      newRows.push({
-        user_id: user.id,
-        date,
-        session_type: typeMap[act.type] || 'other',
-        duration_minutes: durationMin,
-        distance_km: distanceKm,
-        pace_per_km: pacePerKm,
-        notes: `${act.name}${elevationM ? ` · ${Math.round(elevationM)}m↑` : ''}${avgHr ? ` · ❤️ ${Math.round(avgHr)}bpm` : ''}`,
-        source: 'strava',
-        strava_id: String(act.id),
-        feeling: null,
-      })
-      if (isRunType(act.type)) newRunActs.push({ id: act.id, date })
+    if (result.error) {
+      return new Response(JSON.stringify({
+        error: `Strava svarade med HTTP ${result.stravaStatus || 'okänt'} vid hämtning av aktiviteter.`,
+        stravaStatus: result.stravaStatus,
+        stravaBody: result.stravaBody || null,
+      }), { status: 502, headers: { ...cors, 'Content-Type': 'application/json' } })
     }
-
-    // Batch insert (chunked) instead of one round-trip per activity.
-    let synced = 0
-    for (let i = 0; i < newRows.length; i += 500) {
-      const chunk = newRows.slice(i, i + 500)
-      const { error } = await supabase.from('training_sessions').insert(chunk)
-      if (error) { console.warn('batch insert failed:', error.message); continue }
-      synced += chunk.length
-    }
-
-    // Best-efforts detail calls are rate-limited (100 req / 15 min). Bound them
-    // per invocation; the rest get picked up by fetch_prs over subsequent runs.
-    const DETAIL_BUDGET = 40
-    let prsUpdated = 0
-    let detailCalls = 0
-    let detailDeferred = 0
-    for (const run of newRunActs) {
-      if (detailCalls >= DETAIL_BUDGET) { detailDeferred++; continue }
-      detailCalls++
-      try {
-        prsUpdated += await upsertRunBestEffortsForActivity(supabase, user.id, accessToken, run.id, run.date)
-        await new Promise(r => setTimeout(r, 150))
-      } catch (e) {
-        if (e instanceof Error && e.message === 'rate_limited') { rateLimited = true; detailDeferred += (newRunActs.length - detailCalls); break }
-        console.warn(`best_efforts fetch failed for activity ${run.id}:`, e)
-      }
-    }
-
-    return new Response(JSON.stringify({ ok: true, synced, skipped, total: allActivities.length, prsUpdated, detailDeferred, rateLimited }), {
+    const { synced, skipped, total, prsUpdated, detailDeferred, rateLimited } = result
+    return new Response(JSON.stringify({ ok: true, synced, skipped, total, prsUpdated, detailDeferred, rateLimited }), {
       headers: { ...cors, 'Content-Type': 'application/json' }
     })
   }
