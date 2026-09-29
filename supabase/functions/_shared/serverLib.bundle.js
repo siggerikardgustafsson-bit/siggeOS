@@ -3205,6 +3205,207 @@ function getSalaryPeriod(referenceDate, day) {
     label: `${format(periodStart, "d MMM", { locale: sv })} \u2013 ${format(periodEnd, "d MMM yyyy", { locale: sv })}`
   };
 }
+var EARLY_BOOKING_DAYS = 7;
+var RECURRING_TEXT = /(^|[\s/])(lön|csn)($|[\s/])/i;
+function isRecurringPeriodItem(item, kind) {
+  if (!item) return false;
+  if (kind === "income") return item.source === "PA-jobb" || item.source === "CSN" || RECURRING_TEXT.test(item.description || "");
+  return item.category === "hyra";
+}
+function effectivePeriodDate(item, kind, salaryDay) {
+  const date = item?.date;
+  if (!date || !isRecurringPeriodItem(item, kind)) return date;
+  const { end } = getSalaryPeriod(/* @__PURE__ */ new Date(date + "T00:00:00"), salaryDay);
+  const daysToEnd = Math.round((/* @__PURE__ */ new Date(end + "T00:00:00") - /* @__PURE__ */ new Date(date + "T00:00:00")) / 864e5);
+  if (daysToEnd >= EARLY_BOOKING_DAYS) return date;
+  const next = /* @__PURE__ */ new Date(end + "T00:00:00");
+  next.setDate(next.getDate() + 1);
+  return format(next, "yyyy-MM-dd");
+}
+
+// src/lib/experiments.js
+var EXPERIMENT_METRICS = {
+  sleep: { label: "S\xF6mn", unit: "h", dec: 1, zeroFill: false },
+  energy: { label: "Energi", unit: "/10", dec: 1, zeroFill: false },
+  mood: { label: "Hum\xF6r", unit: "/10", dec: 1, zeroFill: false },
+  steps: { label: "Steg", unit: "steg", dec: 0, zeroFill: false },
+  weight: { label: "Vikt", unit: "kg", dec: 1, zeroFill: false },
+  alcohol: { label: "Alkohol", unit: "enheter", dec: 1, zeroFill: false },
+  study: { label: "Pluggtimmar", unit: "h/dag", dec: 1, zeroFill: true },
+  train: { label: "Tr\xE4ningspass", unit: "pass/dag", dec: 2, zeroFill: true },
+  skill: { label: "F\xE4rdighetstid", unit: "min/dag", dec: 0, zeroFill: true },
+  paHours: { label: "PA-timmar", unit: "h/dag", dec: 1, zeroFill: true }
+};
+var addDaysISO = (iso2, n) => {
+  const d = /* @__PURE__ */ new Date(iso2 + "T12:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+var localISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+var mean = (a) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+var round4 = (x, dec = 1) => x == null ? null : Math.round(x * 10 ** dec) / 10 ** dec;
+function buildDailySeries({ health = [], journal = [], study = [], training = [], skills = [], pa = [] } = {}) {
+  const days = {};
+  const touch = (d) => days[d] || (days[d] = {});
+  for (const e of journal) {
+    const r = touch(e.date);
+    if (e.sleep_hours > 0) r.sleep = Number(e.sleep_hours);
+    if (e.energy > 0) r.energy = Number(e.energy);
+    if (e.mood > 0) r.mood = Number(e.mood);
+  }
+  for (const l of health) {
+    const r = touch(l.date);
+    const en = l.energy_level ?? l.energy;
+    if (l.sleep_hours > 0 && r.sleep == null) r.sleep = Number(l.sleep_hours);
+    if (en > 0 && r.energy == null) r.energy = Number(en);
+    if (l.mood > 0 && r.mood == null) r.mood = Number(l.mood);
+    if (l.steps > 0) r.steps = Number(l.steps);
+    if (l.weight_kg > 0) r.weight = Number(l.weight_kg);
+    if (l.alcohol_units != null) r.alcohol = Number(l.alcohol_units);
+  }
+  for (const s of study) {
+    const r = touch(s.date);
+    r.study = (r.study || 0) + (Number(s.hours) || 0);
+  }
+  for (const t of training) {
+    const r = touch(t.date);
+    r.train = (r.train || 0) + 1;
+  }
+  for (const s of skills) {
+    const r = touch(s.date);
+    r.skill = (r.skill || 0) + (Number(s.minutes) || 0);
+  }
+  for (const p of pa) {
+    const r = touch(p.date);
+    r.paHours = (r.paHours || 0) + (Number(p.hours_worked) || 0);
+  }
+  return days;
+}
+async function fetchExperimentDays(supabase2, userId, fromISO, toISO) {
+  const q = (table, cols) => supabase2.from(table).select(cols).eq("user_id", userId).gte("date", fromISO).lte("date", toISO);
+  const [h, j, st, tr, sk, pa] = await Promise.all([
+    q("health_logs", "date,sleep_hours,energy,energy_level,mood,steps,weight_kg,alcohol_units"),
+    q("journal_entries", "date,sleep_hours,energy,mood"),
+    q("study_sessions", "date,hours"),
+    q("training_sessions", "date"),
+    q("skill_logs", "date,minutes"),
+    q("pa_shifts", "date,hours_worked")
+  ]);
+  return buildDailySeries({ health: h.data || [], journal: j.data || [], study: st.data || [], training: tr.data || [], skills: sk.data || [], pa: pa.data || [] });
+}
+function experimentsFetchStart(experiments) {
+  const starts = (experiments || []).map((e) => addDaysISO(e.start_date, -(e.baseline_days || 14)));
+  return starts.length ? starts.sort()[0] : null;
+}
+function permutationP(a, b, iterations = 2e3) {
+  const observed = Math.abs(mean(b) - mean(a));
+  const pool = [...a, ...b];
+  let seed = 1234567;
+  const rand = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+  let extreme = 0;
+  for (let i = 0; i < iterations; i++) {
+    for (let k = pool.length - 1; k > 0; k--) {
+      const j = Math.floor(rand() * (k + 1));
+      [pool[k], pool[j]] = [pool[j], pool[k]];
+    }
+    const d = Math.abs(mean(pool.slice(a.length)) - mean(pool.slice(0, a.length)));
+    if (d >= observed - 1e-12) extreme++;
+  }
+  return (extreme + 1) / (iterations + 1);
+}
+function windowValues(days, metric, from, to) {
+  const def = EXPERIMENT_METRICS[metric];
+  const out = [];
+  for (let d = from; d <= to; d = addDaysISO(d, 1)) {
+    const v = days[d]?.[metric];
+    if (v != null) out.push(v);
+    else if (def?.zeroFill) out.push(0);
+  }
+  return out;
+}
+var MIN_N = 5;
+function evaluateExperiment(exp, days, today = /* @__PURE__ */ new Date()) {
+  const def = EXPERIMENT_METRICS[exp.outcome_metric];
+  const todayISO = localISO(today);
+  const duration = exp.duration_days || 14;
+  const baselineDays = exp.baseline_days || 14;
+  const start = exp.start_date;
+  const end = addDaysISO(start, duration - 1);
+  const baseFrom = addDaysISO(start, -baselineDays), baseTo = addDaysISO(start, -1);
+  const lastDay = exp.status === "active" ? todayISO < end ? todayISO : end : exp.ended_at ? [end, localISO(new Date(exp.ended_at))].sort()[0] : end;
+  const phase = todayISO < start ? "upcoming" : exp.status === "active" && todayISO < end ? "running" : "done";
+  const dayIndex = phase === "upcoming" ? 0 : Math.min(duration, Math.round((/* @__PURE__ */ new Date(lastDay + "T12:00:00Z") - /* @__PURE__ */ new Date(start + "T12:00:00Z")) / 864e5) + 1);
+  const a = windowValues(days, exp.outcome_metric, baseFrom, baseTo);
+  const b = phase === "upcoming" ? [] : windowValues(days, exp.outcome_metric, start, lastDay);
+  const mA = mean(a), mB = mean(b);
+  const delta = mA != null && mB != null ? mB - mA : null;
+  const pct = delta != null && mA ? delta / Math.abs(mA) * 100 : null;
+  const enough = a.length >= MIN_N && b.length >= MIN_N;
+  const p = enough && delta !== 0 ? permutationP(a, b) : enough ? 1 : null;
+  let adherence = null;
+  if (exp.lever_metric && exp.lever_op && exp.lever_target != null && phase !== "upcoming") {
+    const lv = windowValues(days, exp.lever_metric, start, lastDay);
+    const ok = lv.filter((v) => exp.lever_op === ">=" ? v >= Number(exp.lever_target) : v <= Number(exp.lever_target)).length;
+    adherence = { rate: lv.length ? ok / lv.length : null, n: lv.length, days: dayIndex };
+  }
+  const wanted = exp.direction === "down" ? -1 : 1;
+  let verdict;
+  if (phase === "upcoming") verdict = "upcoming";
+  else if (!enough) verdict = phase === "running" ? "interim" : "insufficient";
+  else if (phase === "running") verdict = "interim";
+  else if (p < 0.1 && Math.sign(delta) === wanted) verdict = "improved";
+  else if (p < 0.1 && Math.sign(delta) === -wanted) verdict = "worsened";
+  else verdict = "no_effect";
+  const unit = def?.unit || "";
+  const fmt = (v) => v == null ? "\u2014" : `${round4(v, def?.dec ?? 1).toLocaleString("sv-SE")}${unit.startsWith("/") ? "" : " "}${unit}`.trim();
+  const sign = delta == null ? "" : delta > 0 ? "+" : "";
+  const LABELS = {
+    upcoming: "Startar snart",
+    interim: enough ? "P\xE5g\xE5r \u2013 prelimin\xE4rt" : "P\xE5g\xE5r \u2013 samlar data",
+    insufficient: "F\xF6r lite data",
+    improved: "Tydlig f\xF6rb\xE4ttring",
+    worsened: "Tydlig f\xF6rs\xE4mring",
+    no_effect: "Ingen s\xE4ker effekt"
+  };
+  const lowAdherence = adherence?.rate != null && adherence.rate < 0.6;
+  const parts = [
+    `${def?.label || exp.outcome_metric}: ${fmt(mA)} f\xF6re \u2192 ${fmt(mB)} under (${sign}${fmt(delta)}${pct != null ? `, ${sign}${Math.round(pct).toLocaleString("sv-SE")}%` : ""})`,
+    `n=${a.length}+${b.length}`
+  ];
+  if (p != null && enough) parts.push(`p\u2248${p < 0.01 ? "<0.01" : round4(p, 2)}`);
+  if (adherence?.rate != null) parts.push(`f\xF6ljsamhet ${Math.round(adherence.rate * 100)}% (${adherence.n} dagar med data)`);
+  if (lowAdherence) parts.push("l\xE5g f\xF6ljsamhet \u2013 s\xE4ger lite om hypotesen");
+  if (!enough && phase !== "upcoming") parts.push(`beh\xF6ver \u2265${MIN_N} loggade dagar i b\xE5da perioderna`);
+  return {
+    phase,
+    dayIndex,
+    duration,
+    windows: { baseline: [baseFrom, baseTo], during: [start, end] },
+    baseline: { mean: mA, n: a.length, coverage: a.length / baselineDays },
+    during: { mean: mB, n: b.length, coverage: dayIndex ? b.length / dayIndex : 0 },
+    delta,
+    pct,
+    p,
+    adherence,
+    lowAdherence,
+    verdict,
+    verdictLabel: LABELS[verdict],
+    summary: parts.join(" \xB7 "),
+    fmt
+  };
+}
+function experimentsToPrompt(experiments, days, today = /* @__PURE__ */ new Date()) {
+  const rows = (experiments || []).filter((e) => e.status === "active" || e.ended_at && today - new Date(e.ended_at) < 14 * 864e5);
+  if (!rows.length) return "";
+  return "EXPERIMENT (anv\xE4ndarens egna n-of-1-tester \u2013 f\xF6lj upp, uppmuntra f\xF6ljsamhet, tolka \xE4rligt):\n" + rows.map((e) => {
+    const r = evaluateExperiment(e, days, today);
+    const lever = e.lever_metric ? ` [h\xE4vst\xE5ng: ${EXPERIMENT_METRICS[e.lever_metric]?.label || e.lever_metric} ${e.lever_op} ${e.lever_target}]` : "";
+    return `- "${e.title}"${lever} dag ${r.dayIndex}/${r.duration} \xB7 ${r.verdictLabel} \xB7 ${r.summary}`;
+  }).join("\n");
+}
 
 // src/lib/constants.js
 var TRIP_STATUSES = [
@@ -3351,7 +3552,7 @@ async function fetchTierInputs(supabase2, userId, todayDate = /* @__PURE__ */ ne
     supabase2.from("training_exercises").select("id,session_id,set_number,exercise_name,reps,weight_kg,training_sessions!inner(id,date,user_id)").eq("training_sessions.user_id", userId).gte("training_sessions.date", format(subDays(todayDate, 60), "yyyy-MM-dd")).not("weight_kg", "is", null).not("reps", "is", null),
     supabase2.from("supplement_logs").select("date,supplement_name,taken").eq("user_id", userId).gte("date", since90).then((r) => r).catch(() => ({ data: [] })),
     supabase2.from("tier_snapshots").select("date,kondition,styrka,plugg,ekonomi,somn,valm\xE5ende").eq("user_id", userId).gte("date", format(subDays(todayDate, 180), "yyyy-MM-dd")).order("date", { ascending: true }).then((r) => r).catch(() => ({ data: [] })),
-    supabase2.from("income_logs").select("date,amount,source").eq("user_id", userId).gte("date", prevStart).lte("date", periodEnd).then((r) => r).catch(() => ({ data: [] })),
+    supabase2.from("income_logs").select("date,amount,source,description").eq("user_id", userId).gte("date", addDaysISO(prevStart, -EARLY_BOOKING_DAYS)).lte("date", periodEnd).then((r) => r).catch(() => ({ data: [] })),
     // For resolveTargetWeight — an active Mål-page goal (metric:'body_weight')
     // is the top-priority weight-goal source (user call 2026-09-12).
     supabase2.from("goals").select("metric,target_value,status").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: true }).then((r) => r.data || [], () => [])
@@ -3386,7 +3587,8 @@ async function fetchTierInputs(supabase2, userId, todayDate = /* @__PURE__ */ ne
     nwhData,
     periodStart,
     prevStart,
-    prevEnd
+    prevEnd,
+    salaryDay
   };
 }
 function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
@@ -3409,7 +3611,8 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
     nwhData,
     periodStart,
     prevStart,
-    prevEnd
+    prevEnd,
+    salaryDay = 25
   } = inputs;
   const latestW = (healthData || []).find((h) => h.weight_kg);
   const bw = latestW?.weight_kg || null;
@@ -3643,8 +3846,8 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
   });
   function periodNet(from, to) {
     const inRange = (d) => d >= from && (!to || d <= to);
-    const sumSource = (src) => (incomeData || []).filter((i) => i.source === src && inRange(i.date)).reduce((s, i) => s + (Number(i.amount) || 0), 0);
-    const paLogged = sumSource("PA-jobb") * 0.7;
+    const sumSource = (src) => (incomeData || []).filter((i) => i.source === src && inRange(effectivePeriodDate(i, "income", salaryDay))).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    const paLogged = sumSource("PA-jobb") * 0.7 + sumSource("L\xF6n");
     const paEst = (paData || []).filter((sh) => inRange(sh.date)).reduce((s, sh) => s + (sh.estimated_pay || 0), 0) * 0.7;
     return (paLogged > 0 ? paLogged : paEst) + sumSource("Erik Norling");
   }
@@ -4184,7 +4387,7 @@ function goalLine(g) {
 
 // src/lib/rankUp.js
 var clamp4 = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
-var round4 = (x) => Math.round(x * 10) / 10;
+var round5 = (x) => Math.round(x * 10) / 10;
 var MAX_TIER = 8;
 var EFFORT_RATES = {
   styrka: { unit: "kg", perMonth: 2.5, confidence: 0.6, drives: "styrketr\xE4ning" },
@@ -4207,13 +4410,13 @@ function estimateEffort(catId, { progress = 0, currentTier = 1, gapValue = null,
   }
   const rate = EFFORT_RATES[catId];
   if (rate && gapValue != null && Number.isFinite(gapValue) && gapValue > 0) {
-    const months2 = round4(clamp4(gapValue / rate.perMonth, 0.25, 60) * tierDifficulty(currentTier));
+    const months2 = round5(clamp4(gapValue / rate.perMonth, 0.25, 60) * tierDifficulty(currentTier));
     const b2 = bucketFor(months2);
     return { months: months2, bucket: b2.bucket, label: b2.label, basis: `${rate.perMonth} ${rate.unit}/m\xE5n (${rate.drives})`, confidence: rate.confidence };
   }
   const base = CATEGORY_BASE_MONTHS[catId] ?? 4;
   const remaining = clamp4(1 - (progress || 0) / 100, 0.05, 1);
-  const months = round4(base * remaining * tierDifficulty(currentTier));
+  const months = round5(base * remaining * tierDifficulty(currentTier));
   const b = bucketFor(months);
   return { months, bucket: b.bucket, label: b.label, basis: "progress-kurva (ingen linj\xE4r enhet)", confidence: 0.35 };
 }
@@ -4275,9 +4478,9 @@ function estimateScoreImpact(rankCats, weights, catId, tierDelta = 1) {
     headlineDelta: after.tier - base.tier,
     weightedBefore: base.weightedPercentile,
     weightedAfter: after.weightedPercentile,
-    weightedDelta: round4(after.weightedPercentile - base.weightedPercentile),
+    weightedDelta: round5(after.weightedPercentile - base.weightedPercentile),
     // Raw percentile the category itself gains (before weighting) — useful for UI copy.
-    percentileDelta: round4(tierToPercentile(toTier) - tierToPercentile(fromTier))
+    percentileDelta: round5(tierToPercentile(toTier) - tierToPercentile(fromTier))
   };
 }
 function effortForCategory(category, gap) {
@@ -4401,7 +4604,7 @@ function getRankUpProfile(id) {
 }
 function prioritizeOpportunities(opps, profileId = DEFAULT_RANK_UP_PROFILE) {
   const profile = getRankUpProfile(profileId);
-  return [...opps].map((o) => ({ ...o, priorityScore: round4(profile.weigh(o)) })).sort((a, b) => b.priorityScore - a.priorityScore || b.scoreImpact - a.scoreImpact).map((o, i) => ({ ...o, priority: i + 1 }));
+  return [...opps].map((o) => ({ ...o, priorityScore: round5(profile.weigh(o)) })).sort((a, b) => b.priorityScore - a.priorityScore || b.scoreImpact - a.scoreImpact).map((o, i) => ({ ...o, priority: i + 1 }));
 }
 function buildHowToImprove(score, rankCats, weights, { profile = DEFAULT_RANK_UP_PROFILE } = {}) {
   const cats = (rankCats || []).filter((c) => c?.tier?.tier);
@@ -4769,7 +4972,7 @@ async function loadJarvisContext({ supabase: supabase2, userId, getProfile = nul
 
 // src/lib/correlate.js
 var round1 = (x) => Math.round(x * 10) / 10;
-var mean = (a) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+var mean2 = (a) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
 var parseUTC = (dateStr) => /* @__PURE__ */ new Date(dateStr + "T00:00:00Z");
 var fmtUTC = (d) => d.toISOString().slice(0, 10);
 function addDaysUTC(dateStr, n) {
@@ -4801,13 +5004,13 @@ function toWeeks(days) {
   }
   return Object.values(wk).sort((a, b) => a.week.localeCompare(b.week)).map((w) => ({
     week: w.week,
-    sleep: mean(w._sleep),
-    energy: mean(w._energy),
-    mood: mean(w._mood),
+    sleep: mean2(w._sleep),
+    energy: mean2(w._energy),
+    mood: mean2(w._mood),
     train: w.train,
     study: round1(w.study),
-    steps: w._steps.length ? Math.round(mean(w._steps)) : null,
-    weight: mean(w._weight),
+    steps: w._steps.length ? Math.round(mean2(w._steps)) : null,
+    weight: mean2(w._weight),
     paHours: round1(w.paHours)
   }));
 }
@@ -4817,11 +5020,11 @@ function tercileContrast(rows, valueKey, metricKey, { minPerGroup = 4 } = {}) {
   const cut = Math.max(minPerGroup, Math.floor(clean.length / 3));
   const low = clean.slice(0, cut);
   const high = clean.slice(-cut);
-  const lm = mean(low.map((r) => r[metricKey]));
-  const hm = mean(high.map((r) => r[metricKey]));
+  const lm = mean2(low.map((r) => r[metricKey]));
+  const hm = mean2(high.map((r) => r[metricKey]));
   return {
-    lowVal: round1(mean(low.map((r) => r[valueKey]))),
-    highVal: round1(mean(high.map((r) => r[valueKey]))),
+    lowVal: round1(mean2(low.map((r) => r[valueKey]))),
+    highVal: round1(mean2(high.map((r) => r[valueKey]))),
     lowMetric: round1(lm),
     highMetric: round1(hm),
     delta: round1(hm - lm),
@@ -4835,7 +5038,7 @@ function boolContrast(days, matchFn, metricKey, { minPerGroup = 4 } = {}) {
     (matchFn(d) ? on : off).push(d[metricKey]);
   }
   if (on.length < minPerGroup || off.length < minPerGroup) return null;
-  const om = mean(on), fm = mean(off);
+  const om = mean2(on), fm = mean2(off);
   return { onMetric: round1(om), offMetric: round1(fm), delta: round1(om - fm), nOn: on.length, nOff: off.length };
 }
 function strengthFromDelta(delta, scale2) {
@@ -4853,8 +5056,8 @@ function crossDomainFindings(days) {
       const nd = byDate[addDaysUTC(d.date, 1)];
       if (nd && nd.energy > 0) pairs.push({ sleep: d.sleep, energy: nd.energy });
     }
-    const lowE = mean(pairs.filter((p) => p.sleep < 6).map((p) => p.energy));
-    const hiE = mean(pairs.filter((p) => p.sleep >= 7).map((p) => p.energy));
+    const lowE = mean2(pairs.filter((p) => p.sleep < 6).map((p) => p.energy));
+    const hiE = mean2(pairs.filter((p) => p.sleep >= 7).map((p) => p.energy));
     const nLow = pairs.filter((p) => p.sleep < 6).length;
     const nHi = pairs.filter((p) => p.sleep >= 7).length;
     if (lowE != null && hiE != null && nLow >= 3 && nHi >= 3 && Math.abs(hiE - lowE) >= 0.6) {
@@ -4941,7 +5144,7 @@ function crossDomainFindings(days) {
       (pd && pd.paNight ? afterNight : baseline).push(d.energy);
     }
     if (afterNight.length >= 3 && baseline.length >= 6) {
-      const am = mean(afterNight), bm = mean(baseline);
+      const am = mean2(afterNight), bm = mean2(baseline);
       if (Math.abs(am - bm) >= 0.6) {
         out.push({
           id: "nightshift-energy",
@@ -4967,7 +5170,7 @@ function crossDomainFindings(days) {
     const heavy = deltas.filter((d) => d.train >= 3).map((d) => d.dw);
     const light = deltas.filter((d) => d.train < 3).map((d) => d.dw);
     if (heavy.length >= 4 && light.length >= 4) {
-      const hm = mean(heavy), lm = mean(light);
+      const hm = mean2(heavy), lm = mean2(light);
       if (Math.abs(hm - lm) >= 0.2) {
         out.push({
           id: "train-weight",
@@ -4988,7 +5191,7 @@ function crossDomainFindings(days) {
       const sorted = [...wr].sort((a, b) => b.train - a.train);
       const top = sorted.slice(0, 3);
       const rest = sorted.slice(3);
-      const ts = mean(top.map((w) => w.sleep)), rs = mean(rest.map((w) => w.sleep));
+      const ts = mean2(top.map((w) => w.sleep)), rs = mean2(rest.map((w) => w.sleep));
       if (ts != null && rs != null && Math.abs(ts - rs) >= 0.3) {
         out.push({
           id: "bestweeks-sleep",
@@ -5028,7 +5231,7 @@ function findingsToPrompt(findings) {
 // src/lib/signals.js
 var DAY = 864e5;
 var iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-var mean2 = (a) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
+var mean3 = (a) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
 var r1 = (x) => Math.round(x * 10) / 10;
 function daysBetween(aStr, b) {
   return Math.round((b - /* @__PURE__ */ new Date(aStr + "T00:00:00")) / DAY);
@@ -5055,7 +5258,7 @@ function detectSignals({
   };
   const sleep7 = health.filter((h) => h.sleep_hours > 0 && within(h.date, 7)).map((h) => h.sleep_hours);
   if (sleep7.length >= 4) {
-    const avg = mean2(sleep7);
+    const avg = mean3(sleep7);
     if (avg < 6.5) {
       out.push({
         id: "sleep-deficit",
@@ -5184,190 +5387,6 @@ function detectSignals({
 function signalsToPrompt(signals) {
   if (!signals.length) return "";
   return "SIGNALER (utr\xE4knade, denna vecka):\n" + signals.map((s) => `- [${s.severity}] ${s.headline}. ${s.detail} \u2192 ${s.action}`).join("\n");
-}
-
-// src/lib/experiments.js
-var EXPERIMENT_METRICS = {
-  sleep: { label: "S\xF6mn", unit: "h", dec: 1, zeroFill: false },
-  energy: { label: "Energi", unit: "/10", dec: 1, zeroFill: false },
-  mood: { label: "Hum\xF6r", unit: "/10", dec: 1, zeroFill: false },
-  steps: { label: "Steg", unit: "steg", dec: 0, zeroFill: false },
-  weight: { label: "Vikt", unit: "kg", dec: 1, zeroFill: false },
-  alcohol: { label: "Alkohol", unit: "enheter", dec: 1, zeroFill: false },
-  study: { label: "Pluggtimmar", unit: "h/dag", dec: 1, zeroFill: true },
-  train: { label: "Tr\xE4ningspass", unit: "pass/dag", dec: 2, zeroFill: true },
-  skill: { label: "F\xE4rdighetstid", unit: "min/dag", dec: 0, zeroFill: true },
-  paHours: { label: "PA-timmar", unit: "h/dag", dec: 1, zeroFill: true }
-};
-var addDaysISO = (iso2, n) => {
-  const d = /* @__PURE__ */ new Date(iso2 + "T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-var localISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-var mean3 = (a) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
-var round5 = (x, dec = 1) => x == null ? null : Math.round(x * 10 ** dec) / 10 ** dec;
-function buildDailySeries({ health = [], journal = [], study = [], training = [], skills = [], pa = [] } = {}) {
-  const days = {};
-  const touch = (d) => days[d] || (days[d] = {});
-  for (const e of journal) {
-    const r = touch(e.date);
-    if (e.sleep_hours > 0) r.sleep = Number(e.sleep_hours);
-    if (e.energy > 0) r.energy = Number(e.energy);
-    if (e.mood > 0) r.mood = Number(e.mood);
-  }
-  for (const l of health) {
-    const r = touch(l.date);
-    const en = l.energy_level ?? l.energy;
-    if (l.sleep_hours > 0 && r.sleep == null) r.sleep = Number(l.sleep_hours);
-    if (en > 0 && r.energy == null) r.energy = Number(en);
-    if (l.mood > 0 && r.mood == null) r.mood = Number(l.mood);
-    if (l.steps > 0) r.steps = Number(l.steps);
-    if (l.weight_kg > 0) r.weight = Number(l.weight_kg);
-    if (l.alcohol_units != null) r.alcohol = Number(l.alcohol_units);
-  }
-  for (const s of study) {
-    const r = touch(s.date);
-    r.study = (r.study || 0) + (Number(s.hours) || 0);
-  }
-  for (const t of training) {
-    const r = touch(t.date);
-    r.train = (r.train || 0) + 1;
-  }
-  for (const s of skills) {
-    const r = touch(s.date);
-    r.skill = (r.skill || 0) + (Number(s.minutes) || 0);
-  }
-  for (const p of pa) {
-    const r = touch(p.date);
-    r.paHours = (r.paHours || 0) + (Number(p.hours_worked) || 0);
-  }
-  return days;
-}
-async function fetchExperimentDays(supabase2, userId, fromISO, toISO) {
-  const q = (table, cols) => supabase2.from(table).select(cols).eq("user_id", userId).gte("date", fromISO).lte("date", toISO);
-  const [h, j, st, tr, sk, pa] = await Promise.all([
-    q("health_logs", "date,sleep_hours,energy,energy_level,mood,steps,weight_kg,alcohol_units"),
-    q("journal_entries", "date,sleep_hours,energy,mood"),
-    q("study_sessions", "date,hours"),
-    q("training_sessions", "date"),
-    q("skill_logs", "date,minutes"),
-    q("pa_shifts", "date,hours_worked")
-  ]);
-  return buildDailySeries({ health: h.data || [], journal: j.data || [], study: st.data || [], training: tr.data || [], skills: sk.data || [], pa: pa.data || [] });
-}
-function experimentsFetchStart(experiments) {
-  const starts = (experiments || []).map((e) => addDaysISO(e.start_date, -(e.baseline_days || 14)));
-  return starts.length ? starts.sort()[0] : null;
-}
-function permutationP(a, b, iterations = 2e3) {
-  const observed = Math.abs(mean3(b) - mean3(a));
-  const pool = [...a, ...b];
-  let seed = 1234567;
-  const rand = () => {
-    seed = (seed * 1103515245 + 12345) % 2147483648;
-    return seed / 2147483648;
-  };
-  let extreme = 0;
-  for (let i = 0; i < iterations; i++) {
-    for (let k = pool.length - 1; k > 0; k--) {
-      const j = Math.floor(rand() * (k + 1));
-      [pool[k], pool[j]] = [pool[j], pool[k]];
-    }
-    const d = Math.abs(mean3(pool.slice(a.length)) - mean3(pool.slice(0, a.length)));
-    if (d >= observed - 1e-12) extreme++;
-  }
-  return (extreme + 1) / (iterations + 1);
-}
-function windowValues(days, metric, from, to) {
-  const def = EXPERIMENT_METRICS[metric];
-  const out = [];
-  for (let d = from; d <= to; d = addDaysISO(d, 1)) {
-    const v = days[d]?.[metric];
-    if (v != null) out.push(v);
-    else if (def?.zeroFill) out.push(0);
-  }
-  return out;
-}
-var MIN_N = 5;
-function evaluateExperiment(exp, days, today = /* @__PURE__ */ new Date()) {
-  const def = EXPERIMENT_METRICS[exp.outcome_metric];
-  const todayISO = localISO(today);
-  const duration = exp.duration_days || 14;
-  const baselineDays = exp.baseline_days || 14;
-  const start = exp.start_date;
-  const end = addDaysISO(start, duration - 1);
-  const baseFrom = addDaysISO(start, -baselineDays), baseTo = addDaysISO(start, -1);
-  const lastDay = exp.status === "active" ? todayISO < end ? todayISO : end : exp.ended_at ? [end, localISO(new Date(exp.ended_at))].sort()[0] : end;
-  const phase = todayISO < start ? "upcoming" : exp.status === "active" && todayISO < end ? "running" : "done";
-  const dayIndex = phase === "upcoming" ? 0 : Math.min(duration, Math.round((/* @__PURE__ */ new Date(lastDay + "T12:00:00Z") - /* @__PURE__ */ new Date(start + "T12:00:00Z")) / 864e5) + 1);
-  const a = windowValues(days, exp.outcome_metric, baseFrom, baseTo);
-  const b = phase === "upcoming" ? [] : windowValues(days, exp.outcome_metric, start, lastDay);
-  const mA = mean3(a), mB = mean3(b);
-  const delta = mA != null && mB != null ? mB - mA : null;
-  const pct = delta != null && mA ? delta / Math.abs(mA) * 100 : null;
-  const enough = a.length >= MIN_N && b.length >= MIN_N;
-  const p = enough && delta !== 0 ? permutationP(a, b) : enough ? 1 : null;
-  let adherence = null;
-  if (exp.lever_metric && exp.lever_op && exp.lever_target != null && phase !== "upcoming") {
-    const lv = windowValues(days, exp.lever_metric, start, lastDay);
-    const ok = lv.filter((v) => exp.lever_op === ">=" ? v >= Number(exp.lever_target) : v <= Number(exp.lever_target)).length;
-    adherence = { rate: lv.length ? ok / lv.length : null, n: lv.length, days: dayIndex };
-  }
-  const wanted = exp.direction === "down" ? -1 : 1;
-  let verdict;
-  if (phase === "upcoming") verdict = "upcoming";
-  else if (!enough) verdict = phase === "running" ? "interim" : "insufficient";
-  else if (phase === "running") verdict = "interim";
-  else if (p < 0.1 && Math.sign(delta) === wanted) verdict = "improved";
-  else if (p < 0.1 && Math.sign(delta) === -wanted) verdict = "worsened";
-  else verdict = "no_effect";
-  const unit = def?.unit || "";
-  const fmt = (v) => v == null ? "\u2014" : `${round5(v, def?.dec ?? 1).toLocaleString("sv-SE")}${unit.startsWith("/") ? "" : " "}${unit}`.trim();
-  const sign = delta == null ? "" : delta > 0 ? "+" : "";
-  const LABELS = {
-    upcoming: "Startar snart",
-    interim: enough ? "P\xE5g\xE5r \u2013 prelimin\xE4rt" : "P\xE5g\xE5r \u2013 samlar data",
-    insufficient: "F\xF6r lite data",
-    improved: "Tydlig f\xF6rb\xE4ttring",
-    worsened: "Tydlig f\xF6rs\xE4mring",
-    no_effect: "Ingen s\xE4ker effekt"
-  };
-  const lowAdherence = adherence?.rate != null && adherence.rate < 0.6;
-  const parts = [
-    `${def?.label || exp.outcome_metric}: ${fmt(mA)} f\xF6re \u2192 ${fmt(mB)} under (${sign}${fmt(delta)}${pct != null ? `, ${sign}${Math.round(pct).toLocaleString("sv-SE")}%` : ""})`,
-    `n=${a.length}+${b.length}`
-  ];
-  if (p != null && enough) parts.push(`p\u2248${p < 0.01 ? "<0.01" : round5(p, 2)}`);
-  if (adherence?.rate != null) parts.push(`f\xF6ljsamhet ${Math.round(adherence.rate * 100)}% (${adherence.n} dagar med data)`);
-  if (lowAdherence) parts.push("l\xE5g f\xF6ljsamhet \u2013 s\xE4ger lite om hypotesen");
-  if (!enough && phase !== "upcoming") parts.push(`beh\xF6ver \u2265${MIN_N} loggade dagar i b\xE5da perioderna`);
-  return {
-    phase,
-    dayIndex,
-    duration,
-    windows: { baseline: [baseFrom, baseTo], during: [start, end] },
-    baseline: { mean: mA, n: a.length, coverage: a.length / baselineDays },
-    during: { mean: mB, n: b.length, coverage: dayIndex ? b.length / dayIndex : 0 },
-    delta,
-    pct,
-    p,
-    adherence,
-    lowAdherence,
-    verdict,
-    verdictLabel: LABELS[verdict],
-    summary: parts.join(" \xB7 "),
-    fmt
-  };
-}
-function experimentsToPrompt(experiments, days, today = /* @__PURE__ */ new Date()) {
-  const rows = (experiments || []).filter((e) => e.status === "active" || e.ended_at && today - new Date(e.ended_at) < 14 * 864e5);
-  if (!rows.length) return "";
-  return "EXPERIMENT (anv\xE4ndarens egna n-of-1-tester \u2013 f\xF6lj upp, uppmuntra f\xF6ljsamhet, tolka \xE4rligt):\n" + rows.map((e) => {
-    const r = evaluateExperiment(e, days, today);
-    const lever = e.lever_metric ? ` [h\xE4vst\xE5ng: ${EXPERIMENT_METRICS[e.lever_metric]?.label || e.lever_metric} ${e.lever_op} ${e.lever_target}]` : "";
-    return `- "${e.title}"${lever} dag ${r.dayIndex}/${r.duration} \xB7 ${r.verdictLabel} \xB7 ${r.summary}`;
-  }).join("\n");
 }
 
 // src/lib/jarvis/nowContext.js

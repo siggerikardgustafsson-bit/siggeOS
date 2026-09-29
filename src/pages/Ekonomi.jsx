@@ -11,6 +11,7 @@ import GoalsSection from '../components/GoalsSection'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, X, Save, Loader, AlertTriangle, Target, RefreshCw, Edit2, Trash2, Search, Zap } from 'lucide-react'
 import { getSalaryPeriod, effectivePeriodDate, EARLY_BOOKING_DAYS } from '../lib/salaryPeriod'
+import { fribeloppAmount } from '../lib/csn'
 
 const EXPENSE_CATEGORIES = [
   { id: 'mat',             label: 'Matvaror',        color: '#f97316', emoji: '' },
@@ -24,7 +25,8 @@ const EXPENSE_CATEGORIES = [
   { id: 'övrigt',          label: 'Övrigt',          color: '#6b7280', emoji: '' },
 ]
 
-const INCOME_SOURCES = ['PA-jobb', 'Erik Norling', 'CSN', 'Skatteåterbäring', 'Övrigt']
+// 'Lön' = net salary as it lands in the bank (bank sync); 'PA-jobb' = gross, logged by hand.
+const INCOME_SOURCES = ['PA-jobb', 'Lön', 'Erik Norling', 'CSN', 'Skatteåterbäring', 'Övrigt']
 
 function DonutChart({ data, size = 140 }) {
   const total = data.reduce((sum, d) => sum + d.value, 0)
@@ -824,11 +826,12 @@ export default function EkonomiPage() {
       supabase.from('income_logs').select('*').eq('user_id', user.id).gte('date', fetchStart).lte('date', end).order('date', { ascending: false }),
       supabase.from('expense_logs').select('*').eq('user_id', user.id).gte('date', fetchStart).lte('date', end).order('date', { ascending: false }),
       supabase.from('fixed_costs').select('*').eq('user_id', user.id).eq('active', true),
-      supabase.from('income_logs').select('amount').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', halfEnd),
+      supabase.from('income_logs').select('amount,source,counts_toward_csn').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', halfEnd),
       supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle(),
     ])
 
-    const totalCsn = (csnRes.data || []).reduce((sum, r) => sum + (r.amount || 0), 0)
+    // Net 'Lön' is grossed up — the fribelopp is about income before tax (src/lib/csn.js).
+    const totalCsn = Math.round((csnRes.data || []).reduce((sum, r) => sum + fribeloppAmount(r), 0))
     const limit = settingsRes.data?.goals?.csn_fribelopp || 114500
     // salary_day is loaded in its own effect above — not re-read here.
 
@@ -1310,7 +1313,7 @@ export default function EkonomiPage() {
                   {INCOME_SOURCES.map(src => (
                     <button key={src} onClick={() => setIncomeForm(f => ({
                       ...f, source: src,
-                      counts_toward_csn: src !== 'Erik Norling',
+                      counts_toward_csn: ['PA-jobb', 'Lön'].includes(src),
                     }))} className={`ek-chip-btn ${incomeForm.source === src ? 'active' : ''}`}>{src}</button>
                   ))}
                 </div>

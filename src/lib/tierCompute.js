@@ -33,7 +33,8 @@ import {
 } from './tierEngine'
 import { suggestTierProfile } from './tierProfiles'
 import { tierToPercentile, SCORE_VERSION } from './maxxScore'
-import { getSalaryPeriod } from './salaryPeriod'
+import { getSalaryPeriod, effectivePeriodDate, EARLY_BOOKING_DAYS } from './salaryPeriod'
+import { addDaysISO } from './experiments'
 import { DEFAULT_SUPPLEMENTS } from './constants'
 import {
   languageBlend, languageLabel, languageTier,
@@ -97,9 +98,9 @@ export async function fetchTierInputs(supabase, userId, todayDate = new Date()) 
       .then(r => r)
       .catch(() => ({ data: [] })),
     supabase.from('income_logs')
-      .select('date,amount,source')
+      .select('date,amount,source,description')
       .eq('user_id', userId)
-      .gte('date', prevStart)
+      .gte('date', addDaysISO(prevStart, -EARLY_BOOKING_DAYS)) // early-booked lön counts toward the next period
       .lte('date', periodEnd)
       .then(r => r)
       .catch(() => ({ data: [] })),
@@ -127,7 +128,7 @@ export async function fetchTierInputs(supabase, userId, todayDate = new Date()) 
     since90, runData, runPrData, prData, healthData, studyData, paData, skillData,
     userSettings, exData, supplementLogs, snapshots, incomeData, activeGoals,
     profile, assetsData, nwhData,
-    periodStart, prevStart, prevEnd,
+    periodStart, prevStart, prevEnd, salaryDay,
   }
 }
 
@@ -136,7 +137,7 @@ export function computeTierCategories(inputs, todayDate = new Date()) {
     since90, runData, runPrData, prData, healthData, studyData, paData, skillData,
     userSettings, exData, supplementLogs, incomeData, activeGoals,
     profile, assetsData, nwhData,
-    periodStart, prevStart, prevEnd,
+    periodStart, prevStart, prevEnd, salaryDay = 25,
   } = inputs
   const latestW = (healthData||[]).find(h=>h.weight_kg)
   const bw = latestW?.weight_kg || null
@@ -457,12 +458,15 @@ export function computeTierCategories(inputs, todayDate = new Date()) {
   // net) or, when none is logged, the shift estimate; Erik Norling is added
   // on top. (Previously ANY logged income — e.g. one Erik payment — replaced
   // the whole PA estimate, so the PA salary silently vanished.)
+  // Bank-synced net salary ('Lön') counts as logged PA income as is, and
+  // income booked just before payday belongs to the period it pays for
+  // (same rule as the Ekonomi page — effectivePeriodDate).
   function periodNet(from, to) {
     const inRange = (d) => d >= from && (!to || d <= to)
     const sumSource = (src) => (incomeData||[])
-      .filter(i => i.source === src && inRange(i.date))
+      .filter(i => i.source === src && inRange(effectivePeriodDate(i, 'income', salaryDay)))
       .reduce((s,i) => s + (Number(i.amount) || 0), 0)
-    const paLogged = sumSource('PA-jobb') * 0.7
+    const paLogged = sumSource('PA-jobb') * 0.7 + sumSource('Lön')
     const paEst = (paData||[]).filter(sh => inRange(sh.date)).reduce((s,sh) => s + (sh.estimated_pay||0), 0) * 0.7
     return (paLogged > 0 ? paLogged : paEst) + sumSource('Erik Norling')
   }

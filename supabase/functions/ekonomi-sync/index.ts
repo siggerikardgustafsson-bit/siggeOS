@@ -130,6 +130,19 @@ function foldSwedish(s: string): string {
     .replace(/ü/g, 'u')
 }
 
+// Bank credits → income source + CSN flag (2026-09-29). Every credit used to
+// be 'Övrigt' with counts_toward_csn defaulting to true, so the CSN payout,
+// Swish from friends and cash deposits all ate into the fribelopp. Net salary
+// is tagged 'Lön' (the app grosses it up for the fribelopp). Mirrors
+// src/lib/csn.js classifyBankIncome — keep the two in sync.
+function classifyIncome(description: string): { source: string; counts_toward_csn: boolean } {
+  const d = description.toLowerCase()
+  if (/(^|[\s/])lön($|[\s/])/.test(d)) return { source: 'Lön', counts_toward_csn: true }
+  if (/(^|[\s/])csn($|[\s/])/.test(d)) return { source: 'CSN', counts_toward_csn: false }
+  if (/skatteverket|skatteåterb|(^|\s)skv(\s|$)/.test(d)) return { source: 'Skatteåterbäring', counts_toward_csn: false }
+  return { source: 'Övrigt', counts_toward_csn: false }
+}
+
 // Best-effort keyword categorizer against Ekonomi.jsx's real EXPENSE_CATEGORIES
 // ids. Unmatched → 'övrigt', exactly what a user would pick manually when
 // unsure — not a bug. 'mat' (groceries) vs 'restaurang' (eating out) are
@@ -382,7 +395,7 @@ serve(async (req) => {
 
         if (isCredit) {
           incomeRows.push({
-            user_id: conn.user_id, date, amount, source: 'Övrigt',
+            user_id: conn.user_id, date, amount, ...classifyIncome(description || ''),
             description, external_id: externalId, sync_origin: 'enable_banking',
           })
         } else {
@@ -399,7 +412,10 @@ serve(async (req) => {
       // reported "85 synced" while writing zero rows.
       let written = 0
       if (incomeRows.length) {
-        const { error: incErr, count } = await svc.from('income_logs').upsert(incomeRows, { onConflict: 'user_id,external_id', count: 'exact' })
+        // ignoreDuplicates: a bank transaction never changes, and the user may
+        // have re-classified the row (source / counts_toward_csn) — a re-sync
+        // must not overwrite that.
+        const { error: incErr, count } = await svc.from('income_logs').upsert(incomeRows, { onConflict: 'user_id,external_id', ignoreDuplicates: true, count: 'exact' })
         if (incErr) throw new Error(`income_logs upsert: ${incErr.message}`)
         written += count ?? incomeRows.length
       }

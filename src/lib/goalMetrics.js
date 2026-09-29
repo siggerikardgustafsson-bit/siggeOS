@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { fribeloppAmount } from './csn'
 
 // ============================================================================
 // Goal metrics — maps a goal's `metric` key to its live current value.
@@ -103,10 +104,10 @@ async function monthAggregate(userId, kind) {
 async function csnHalfYearUsed(userId) {
   const now = new Date()
   const halfStart = now.getMonth() < 6 ? `${now.getFullYear()}-01-01` : `${now.getFullYear()}-07-01`
-  const { data } = await supabase.from('income_logs').select('amount')
+  const { data } = await supabase.from('income_logs').select('amount,source,counts_toward_csn')
     .eq('user_id', userId).eq('counts_toward_csn', true).gte('date', halfStart)
   if (!data) return null
-  const used = data.reduce((a, r) => a + Number(r.amount || 0), 0)
+  const used = data.reduce((a, r) => a + fribeloppAmount(r), 0) // net 'Lön' grossed up
   return { value: Math.round(used), asOf: now.getMonth() < 6 ? 'vårterminen' : 'höstterminen' }
 }
 
