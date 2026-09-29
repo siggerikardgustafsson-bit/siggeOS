@@ -8,7 +8,7 @@
  *
  * Bump CACHE_VERSION to force clients onto a fresh set of caches.
  */
-const CACHE_VERSION = 'v2'
+const CACHE_VERSION = 'v3'
 const SHELL_CACHE = `maxxit-shell-${CACHE_VERSION}`
 const ASSET_CACHE = `maxxit-assets-${CACHE_VERSION}`
 const FONT_CACHE = `maxxit-fonts-${CACHE_VERSION}`
@@ -135,3 +135,33 @@ function staleWhileRevalidate(request, cacheName) {
     }),
   )
 }
+
+// ── Web push (post_deploy_27, push-notify function) ─────────────────────────
+// Payload: { title, body, url, tag }. One notification per tag, so a repeated
+// reminder replaces the old one instead of stacking.
+self.addEventListener('push', (event) => {
+  let data = {}
+  try { data = event.data ? event.data.json() : {} } catch { data = { body: event.data?.text() } }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'MaxxIt', {
+      body: data.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: data.tag || 'maxxit',
+      data: { url: data.url || '/' },
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = event.notification.data?.url || '/'
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) {
+        if ('focus' in w) { w.navigate(url).catch(() => {}); return w.focus() }
+      }
+      return self.clients.openWindow(url)
+    }),
+  )
+})

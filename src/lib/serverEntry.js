@@ -3,3 +3,4 @@
 // must be runtime-agnostic: no ./supabase import, no React, no DOM.
 export { fetchTierInputs, computeTierCategories, tierSnapshotRow } from './tierCompute'
 export { buildJarvisNowContext } from './jarvis/nowContext'
+export { evaluateExperiment, fetchExperimentDays, experimentsFetchStart } from './experiments'

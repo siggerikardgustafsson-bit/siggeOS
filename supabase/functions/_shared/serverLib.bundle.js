@@ -5668,6 +5668,9 @@ async function buildJarvisNowContext(supabase2, userId, now = /* @__PURE__ */ ne
 export {
   buildJarvisNowContext,
   computeTierCategories,
+  evaluateExperiment,
+  experimentsFetchStart,
+  fetchExperimentDays,
   fetchTierInputs,
   tierSnapshotRow
 };

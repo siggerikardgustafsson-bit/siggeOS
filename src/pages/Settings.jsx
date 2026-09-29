@@ -12,6 +12,7 @@ import { usePwaInstall } from '../hooks/usePwaInstall'
 import { getIngestStatus, getOrCreateIngestToken, rotateIngestToken, disableIngest, ingestSetup } from '../lib/healthIngest'
 import SectionHeader from '../components/ui/SectionHeader'
 import AiUsageCard from '../components/AiUsageCard'
+import NotificationsCard from '../components/NotificationsCard'
 import { generateProfileSummary, SUMMARY_THRESHOLD } from '../lib/profileSummary'
 import { resolveTargetWeight } from '../lib/personalization'
 import { listGoals } from '../lib/goals'
@@ -327,8 +328,6 @@ export default function SettingsPage() {
   const [jarvisPersonality, setJarvisPersonality] = useState('')
 
   // Notifications
-  const [notifJournal, setNotifJournal] = useState(false)
-  const [notifTraining, setNotifTraining] = useState(false)
   const [resolvedTargetWeight, setResolvedTargetWeight] = useState(null)
   const [targetWeightSource, setTargetWeightSource] = useState(null) // 'goal' | 'profile' | null
 
@@ -359,8 +358,6 @@ export default function SettingsPage() {
       setJarvisStyle(data.jarvis_style ?? 70)
       setJarvisLang(data.jarvis_lang || 'svenska')
       setJarvisPersonality(data.jarvis_personality || '')
-      setNotifJournal(data.notif_journal || false)
-      setNotifTraining(data.notif_training || false)
     }
   }
 
@@ -379,8 +376,6 @@ export default function SettingsPage() {
         jarvis_style: jarvisStyle,
         jarvis_lang: jarvisLang,
         jarvis_personality: jarvisPersonality,
-        notif_journal: notifJournal,
-        notif_training: notifTraining,
       }, { onConflict: 'user_id' }),
       // display_name is canonical on profiles (Phase 16).
       supabase.from('profiles').upsert({ id: user.id, display_name: displayName || null }, { onConflict: 'id' }),
@@ -834,22 +829,7 @@ export default function SettingsPage() {
           )}
 
           {/* ===== NOTISER ===== */}
-          {activeSection === 'notiser' && (
-            <div className="card">
-              <SectionHeader icon={Bell} title="Påminnelser" subtitle="Kommer snart — push-notiser är inte aktiverade än" />
-              <div style={{ opacity: 0.5, pointerEvents: 'none' }}>
-                <SettingRow label="Journal-påminnelse" sub="Påminn mig att logga journal varje kväll">
-                  <Toggle value={notifJournal} onChange={() => {}} />
-                </SettingRow>
-                <SettingRow label="Tränings-påminnelse" sub="Påminn mig om jag inte tränat på 3 dagar">
-                  <Toggle value={notifTraining} onChange={() => {}} />
-                </SettingRow>
-              </div>
-              <div style={{ marginTop: '14px', padding: '12px', background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '8px', fontSize: '12px', color: 'var(--amber)' }}>
-                Påminnelser är inte igång än — det kräver push-infrastruktur (service worker + schemalagt utskick) som inte är byggd. Växlarna sparar din preferens tills det finns på plats.
-              </div>
-            </div>
-          )}
+          {activeSection === 'notiser' && <NotificationsCard userId={user?.id} />}
 
           {/* ===== APPEN ===== */}
           {activeSection === 'app' && (
