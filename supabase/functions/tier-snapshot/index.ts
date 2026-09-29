@@ -50,7 +50,12 @@ serve(async (req) => {
         const { error } = await supabase.from('tier_snapshots').upsert(row, { onConflict: 'user_id,date' })
         if (error) { results.push({ userId, error: error.message }); continue }
       }
-      results.push(dry ? { userId, row, cats: cats.map((c: any) => ({ id: c.id, tier: c.tier?.tier ?? null, hasData: c.hasData })) } : { userId, ok: true })
+      results.push(dry ? { userId, row, cats: cats.map((c: any) => ({
+        id: c.id, tier: c.tier?.tier ?? null, hasData: c.hasData,
+        bottleneck: c.levelUp?.primaryBottleneck ?? null,
+        requirements: (c.levelUp?.requirements || []).map((r: any) => `${r.label}: ${r.currentLabel} / ${r.targetLabel} (${r.gapLabel})`),
+        details: (c.details || []).map((d: any) => `${d.label}: ${typeof d.value === 'string' || typeof d.value === 'number' ? d.value : '?'}${d.tierInfo?.tier != null ? ' [T' + d.tierInfo.tier + ']' : ''}`),
+      })) } : { userId, ok: true })
     } catch (e) {
       results.push({ userId, error: e instanceof Error ? e.message : String(e) })
     }

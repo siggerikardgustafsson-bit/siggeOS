@@ -48,6 +48,9 @@ export async function fetchTierInputs(supabase, userId, todayDate = new Date()) 
   const { data: settingsQuick } = await supabase.from('user_settings').select('goals').eq('user_id',userId).maybeSingle()
   const salaryDay = settingsQuick?.goals?.salary_day || 25
   const { start: periodStart, end: periodEnd } = getSalaryPeriod(todayDate, salaryDay)
+  // The income tier uses the last COMPLETE salary period — a few days after
+  // payday the current period is near-empty and always read as T1. Fetch both.
+  const { start: prevStart, end: prevEnd } = getSalaryPeriod(subDays(new Date(periodStart + 'T00:00:00'), 1), salaryDay)
 
   const [
     { data: runData }, { data: runPrData }, { data: prData }, { data: healthData },
@@ -60,7 +63,7 @@ export async function fetchTierInputs(supabase, userId, todayDate = new Date()) 
     supabase.from('personal_records').select('id,exercise_name,weight_kg,reps,date,exercise_id').eq('user_id',userId).order('weight_kg',{ascending:false}),
     supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
     supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
-    supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',periodStart).lte('date',periodEnd),
+    supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',prevStart).lte('date',periodEnd),
     // Graceful until post_deploy_11/12 (activity_type/cards columns) are
     // migrated — a SELECT naming an unknown column fails the whole query.
     // No date floor (user call 2026-09-11): languageTier()'s cards/CI
@@ -96,7 +99,7 @@ export async function fetchTierInputs(supabase, userId, todayDate = new Date()) 
     supabase.from('income_logs')
       .select('date,amount,source')
       .eq('user_id', userId)
-      .gte('date', periodStart)
+      .gte('date', prevStart)
       .lte('date', periodEnd)
       .then(r => r)
       .catch(() => ({ data: [] })),
@@ -124,6 +127,7 @@ export async function fetchTierInputs(supabase, userId, todayDate = new Date()) 
     since90, runData, runPrData, prData, healthData, studyData, paData, skillData,
     userSettings, exData, supplementLogs, snapshots, incomeData, activeGoals,
     profile, assetsData, nwhData,
+    periodStart, prevStart, prevEnd,
   }
 }
 
@@ -132,6 +136,7 @@ export function computeTierCategories(inputs, todayDate = new Date()) {
     since90, runData, runPrData, prData, healthData, studyData, paData, skillData,
     userSettings, exData, supplementLogs, incomeData, activeGoals,
     profile, assetsData, nwhData,
+    periodStart, prevStart, prevEnd,
   } = inputs
   const latestW = (healthData||[]).find(h=>h.weight_kg)
   const bw = latestW?.weight_kg || null
@@ -448,15 +453,24 @@ export function computeTierCategories(inputs, todayDate = new Date()) {
   const byCourse={}
   aG.forEach(g=>{const cn=g.courses?.name||'Okänd';if(!byCourse[cn])byCourse[cn]=[];byCourse[cn].push(g.mastery||0)})
 
-  const INCOME_SOURCES = ['PA-jobb', 'Erik Norling']
-  const totIncomeLogged = (incomeData||[])
-    .filter(i => INCOME_SOURCES.includes(i.source))
-    .reduce((s,i) => {
-      const amt = Number(i.amount) || 0
-      return s + (i.source === 'PA-jobb' ? amt * 0.7 : amt)
-    }, 0)
-  const totPAEst = (paData||[]).reduce((s,sh) => s + (sh.estimated_pay||0), 0) * 0.7
-  const totPA = totIncomeLogged > 0 ? totIncomeLogged : totPAEst
+  // Net income for [from, to], per source: PA = logged PA-jobb income (×0.7
+  // net) or, when none is logged, the shift estimate; Erik Norling is added
+  // on top. (Previously ANY logged income — e.g. one Erik payment — replaced
+  // the whole PA estimate, so the PA salary silently vanished.)
+  function periodNet(from, to) {
+    const inRange = (d) => d >= from && (!to || d <= to)
+    const sumSource = (src) => (incomeData||[])
+      .filter(i => i.source === src && inRange(i.date))
+      .reduce((s,i) => s + (Number(i.amount) || 0), 0)
+    const paLogged = sumSource('PA-jobb') * 0.7
+    const paEst = (paData||[]).filter(sh => inRange(sh.date)).reduce((s,sh) => s + (sh.estimated_pay||0), 0) * 0.7
+    return (paLogged > 0 ? paLogged : paEst) + sumSource('Erik Norling')
+  }
+  const totCurrent = periodNet(periodStart, null)
+  const totPrev = (prevStart && prevEnd) ? periodNet(prevStart, prevEnd) : 0
+  // Tier on the last complete period; fall back to the current one only when
+  // there is no previous data at all (new user).
+  const totPA = totPrev > 0 ? totPrev : totCurrent
 
   // Savings: latest net_worth_history snapshot if available, otherwise sum cash assets
   const sav = nwhData?.[0]?.total_sek || (assetsData||[]).reduce((s,a) => s + (a.type === 'cash' ? (a.manual_price_sek||0) : 0), 0) || null
@@ -605,7 +619,7 @@ export function computeTierCategories(inputs, todayDate = new Date()) {
   const nextEconTier = Math.min((currentEconTier || 1) + 1, 8)
   const econIdx = Math.max(0, nextEconTier - 2)
   const econLevelUp = (totPA || sav != null) ? makeLevelUp(currentEconTier, 8, [
-    makeReq({ label:'Månadsnetto', current:totPA || null, target:INCOME_THRESHOLDS[econIdx], unit:'kr' }),
+    makeReq({ label:totPrev>0?'Månadsnetto (förra perioden)':'Månadsnetto', current:totPA || null, target:INCOME_THRESHOLDS[econIdx], unit:'kr' }),
     makeReq({ label:'Sparkapital', current:sav, target:SAVINGS_THRESHOLDS[econIdx], unit:'kr' }),
   ], 'T') : null
 
@@ -743,8 +757,8 @@ export function computeTierCategories(inputs, todayDate = new Date()) {
       ],
       chartData:[],chartLines:[],levelUp:skillLevelUp,navTarget:'/plugg',navLabel:'Plugg'},
     {id:'ekonomi',name:'Ekonomi',icon:'ekonomi',tier:eTop,hasData:!!(totPA||sav!=null),pct:eTop?Math.round((eTop.tier/8)*100):0,decayWarning:false,trend:'neutral',
-      metrics:[{label:'Inkomst/period',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',highlight:true},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—'}],
-      details:[{label:'Netto denna period',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',tierInfo:incT},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—',tierInfo:savT}],
+      metrics:[{label:totPrev>0?'Netto förra perioden':'Netto denna period',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',highlight:true},{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—'}],
+      details:[{label:totPrev>0?'Netto förra perioden':'Netto denna period',value:totPA?Math.round(totPA).toLocaleString('sv-SE')+' kr':'—',tierInfo:incT},...(totPrev>0?[{label:'Netto denna period (hittills)',value:Math.round(totCurrent).toLocaleString('sv-SE')+' kr'}]:[]),{label:'Sparkapital',value:sav!=null?sav.toLocaleString('sv-SE')+' kr':'—',tierInfo:savT}],
       chartData:[],chartLines:[],levelUp:econLevelUp,navTarget:'/ekonomi',navLabel:'Ekonomi'},
     {id:'halsa',name:'Hälsa',icon:'halsa',tier:wTop,hasData:wTs.length>0 || !!latestW?.weight_kg,pct:wTop?Math.round((wTop.tier/8)*100):(latestW?.weight_kg?wP:0),decayWarning:false,trend:'neutral',
       // Sömn+Hälsa merge (user call 2026-09-11): tier now driven by sömn/

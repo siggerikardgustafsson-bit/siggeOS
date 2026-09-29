@@ -3054,6 +3054,7 @@ async function fetchTierInputs(supabase2, userId, todayDate = /* @__PURE__ */ ne
   const { data: settingsQuick } = await supabase2.from("user_settings").select("goals").eq("user_id", userId).maybeSingle();
   const salaryDay = settingsQuick?.goals?.salary_day || 25;
   const { start: periodStart, end: periodEnd } = getSalaryPeriod(todayDate, salaryDay);
+  const { start: prevStart, end: prevEnd } = getSalaryPeriod(subDays(/* @__PURE__ */ new Date(periodStart + "T00:00:00"), 1), salaryDay);
   const [
     { data: runData },
     { data: runPrData },
@@ -3074,7 +3075,7 @@ async function fetchTierInputs(supabase2, userId, todayDate = /* @__PURE__ */ ne
     supabase2.from("personal_records").select("id,exercise_name,weight_kg,reps,date,exercise_id").eq("user_id", userId).order("weight_kg", { ascending: false }),
     supabase2.from("health_logs").select("date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units").eq("user_id", userId).gte("date", since90).order("date", { ascending: false }),
     supabase2.from("learning_goals").select("id,mastery,course_id,courses(name,active)").eq("user_id", userId),
-    supabase2.from("pa_shifts").select("date,estimated_pay").eq("user_id", userId).gte("date", periodStart).lte("date", periodEnd),
+    supabase2.from("pa_shifts").select("date,estimated_pay").eq("user_id", userId).gte("date", prevStart).lte("date", periodEnd),
     // Graceful until post_deploy_11/12 (activity_type/cards columns) are
     // migrated — a SELECT naming an unknown column fails the whole query.
     // No date floor (user call 2026-09-11): languageTier()'s cards/CI
@@ -3092,7 +3093,7 @@ async function fetchTierInputs(supabase2, userId, todayDate = /* @__PURE__ */ ne
     supabase2.from("training_exercises").select("id,session_id,set_number,exercise_name,reps,weight_kg,training_sessions!inner(id,date,user_id)").eq("training_sessions.user_id", userId).gte("training_sessions.date", format(subDays(todayDate, 60), "yyyy-MM-dd")).not("weight_kg", "is", null).not("reps", "is", null),
     supabase2.from("supplement_logs").select("date,supplement_name,taken").eq("user_id", userId).gte("date", since90).then((r) => r).catch(() => ({ data: [] })),
     supabase2.from("tier_snapshots").select("date,kondition,styrka,plugg,ekonomi,somn,valm\xE5ende").eq("user_id", userId).gte("date", format(subDays(todayDate, 180), "yyyy-MM-dd")).order("date", { ascending: true }).then((r) => r).catch(() => ({ data: [] })),
-    supabase2.from("income_logs").select("date,amount,source").eq("user_id", userId).gte("date", periodStart).lte("date", periodEnd).then((r) => r).catch(() => ({ data: [] })),
+    supabase2.from("income_logs").select("date,amount,source").eq("user_id", userId).gte("date", prevStart).lte("date", periodEnd).then((r) => r).catch(() => ({ data: [] })),
     // For resolveTargetWeight — an active Mål-page goal (metric:'body_weight')
     // is the top-priority weight-goal source (user call 2026-09-12).
     supabase2.from("goals").select("metric,target_value,status").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: true }).then((r) => r.data || [], () => [])
@@ -3124,7 +3125,10 @@ async function fetchTierInputs(supabase2, userId, todayDate = /* @__PURE__ */ ne
     activeGoals,
     profile,
     assetsData,
-    nwhData
+    nwhData,
+    periodStart,
+    prevStart,
+    prevEnd
   };
 }
 function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
@@ -3144,7 +3148,10 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
     activeGoals,
     profile,
     assetsData,
-    nwhData
+    nwhData,
+    periodStart,
+    prevStart,
+    prevEnd
   } = inputs;
   const latestW = (healthData || []).find((h) => h.weight_kg);
   const bw = latestW?.weight_kg || null;
@@ -3376,13 +3383,16 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
     if (!byCourse[cn]) byCourse[cn] = [];
     byCourse[cn].push(g.mastery || 0);
   });
-  const INCOME_SOURCES = ["PA-jobb", "Erik Norling"];
-  const totIncomeLogged = (incomeData || []).filter((i) => INCOME_SOURCES.includes(i.source)).reduce((s, i) => {
-    const amt = Number(i.amount) || 0;
-    return s + (i.source === "PA-jobb" ? amt * 0.7 : amt);
-  }, 0);
-  const totPAEst = (paData || []).reduce((s, sh) => s + (sh.estimated_pay || 0), 0) * 0.7;
-  const totPA = totIncomeLogged > 0 ? totIncomeLogged : totPAEst;
+  function periodNet(from, to) {
+    const inRange = (d) => d >= from && (!to || d <= to);
+    const sumSource = (src) => (incomeData || []).filter((i) => i.source === src && inRange(i.date)).reduce((s, i) => s + (Number(i.amount) || 0), 0);
+    const paLogged = sumSource("PA-jobb") * 0.7;
+    const paEst = (paData || []).filter((sh) => inRange(sh.date)).reduce((s, sh) => s + (sh.estimated_pay || 0), 0) * 0.7;
+    return (paLogged > 0 ? paLogged : paEst) + sumSource("Erik Norling");
+  }
+  const totCurrent = periodNet(periodStart, null);
+  const totPrev = prevStart && prevEnd ? periodNet(prevStart, prevEnd) : 0;
+  const totPA = totPrev > 0 ? totPrev : totCurrent;
   const sav = nwhData?.[0]?.total_sek || (assetsData || []).reduce((s, a) => s + (a.type === "cash" ? a.manual_price_sek || 0 : 0), 0) || null;
   const incT = totPA ? calculateEconomyTier("income", totPA, ctx) : null;
   const savT = sav != null ? calculateEconomyTier("savings", sav, ctx) : null;
@@ -3498,7 +3508,7 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
   const nextEconTier = Math.min((currentEconTier || 1) + 1, 8);
   const econIdx = Math.max(0, nextEconTier - 2);
   const econLevelUp = totPA || sav != null ? makeLevelUp(currentEconTier, 8, [
-    makeReq({ label: "M\xE5nadsnetto", current: totPA || null, target: INCOME_THRESHOLDS[econIdx], unit: "kr" }),
+    makeReq({ label: totPrev > 0 ? "M\xE5nadsnetto (f\xF6rra perioden)" : "M\xE5nadsnetto", current: totPA || null, target: INCOME_THRESHOLDS[econIdx], unit: "kr" }),
     makeReq({ label: "Sparkapital", current: sav, target: SAVINGS_THRESHOLDS[econIdx], unit: "kr" })
   ], "T") : null;
   const currentWellTier = wTop?.tier || (wTs.length ? 1 : 0);
@@ -3682,8 +3692,8 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
       pct: eTop ? Math.round(eTop.tier / 8 * 100) : 0,
       decayWarning: false,
       trend: "neutral",
-      metrics: [{ label: "Inkomst/period", value: totPA ? Math.round(totPA).toLocaleString("sv-SE") + " kr" : "\u2014", highlight: true }, { label: "Sparkapital", value: sav != null ? sav.toLocaleString("sv-SE") + " kr" : "\u2014" }],
-      details: [{ label: "Netto denna period", value: totPA ? Math.round(totPA).toLocaleString("sv-SE") + " kr" : "\u2014", tierInfo: incT }, { label: "Sparkapital", value: sav != null ? sav.toLocaleString("sv-SE") + " kr" : "\u2014", tierInfo: savT }],
+      metrics: [{ label: totPrev > 0 ? "Netto f\xF6rra perioden" : "Netto denna period", value: totPA ? Math.round(totPA).toLocaleString("sv-SE") + " kr" : "\u2014", highlight: true }, { label: "Sparkapital", value: sav != null ? sav.toLocaleString("sv-SE") + " kr" : "\u2014" }],
+      details: [{ label: totPrev > 0 ? "Netto f\xF6rra perioden" : "Netto denna period", value: totPA ? Math.round(totPA).toLocaleString("sv-SE") + " kr" : "\u2014", tierInfo: incT }, ...totPrev > 0 ? [{ label: "Netto denna period (hittills)", value: Math.round(totCurrent).toLocaleString("sv-SE") + " kr" }] : [], { label: "Sparkapital", value: sav != null ? sav.toLocaleString("sv-SE") + " kr" : "\u2014", tierInfo: savT }],
       chartData: [],
       chartLines: [],
       levelUp: econLevelUp,
