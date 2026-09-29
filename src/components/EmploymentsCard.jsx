@@ -12,7 +12,7 @@ import { priceShift } from '../lib/pay'
 const DAY_LABELS = [['Mån', 1], ['Tis', 2], ['Ons', 3], ['Tor', 4], ['Fre', 5], ['Lör', 6], ['Sön', 0]]
 const EMPTY = {
   name: '', employer: '', kind: 'hourly', hourly_rate: '', monthly_salary: '', ob_rules: [], ob_mode: 'sum',
-  jour_rate: '', jour_from: '22:00', jour_to: '06:00', jour_ob: false, holiday_pay_pct: 0, tax_rate: 0.3,
+  jour_rate: '', jour_rules: [], jour_from: '22:00', jour_to: '06:00', jour_ob: false, holiday_pay_pct: 0, tax_rate: 0.3,
   match_keywords: [], is_default: false, active: true, notes: '',
 }
 const numOrNull = (v) => (v === '' || v == null || isNaN(Number(v)) ? null : Number(v))
@@ -32,6 +32,7 @@ function ObRuleRow({ rule, onChange, onRemove }) {
   const toggleDay = (d) => onChange({ ...rule, days: days.includes(d) ? days.filter(x => x !== d) : [...days, d] })
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* OB and jour rules share this row; "Ersätter andra OB" only means something for OB. */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 70px 70px auto', gap: 6, alignItems: 'center' }}>
         <input className="input" placeholder="Namn, t.ex. OB natt" value={rule.label || ''} onChange={e => onChange({ ...rule, label: e.target.value })} />
         <input className="input mono" type="number" step="0.01" placeholder="kr/h" value={rule.kr ?? ''} onChange={e => onChange({ ...rule, kr: numOrNull(e.target.value) })} />
@@ -59,7 +60,7 @@ function ObRuleRow({ rule, onChange, onRemove }) {
 }
 
 function EmploymentForm({ initial, onSave, onCancel, onDelete, saving }) {
-  const [f, setF] = useState(() => ({ ...EMPTY, ...initial, match_keywords: initial?.match_keywords || [] }))
+  const [f, setF] = useState(() => ({ ...EMPTY, ...initial, match_keywords: initial?.match_keywords || [], jour_rules: initial?.jour_rules || [] }))
   const set = (k, v) => setF(p => ({ ...p, [k]: v }))
   const setRule = (i, r) => set('ob_rules', f.ob_rules.map((x, j) => (j === i ? r : x)))
   // Live example: a weekday night 22–07 on this model, so edits are tangible.
@@ -110,6 +111,17 @@ function EmploymentForm({ initial, onSave, onCancel, onDelete, saving }) {
             </label>
           </Field>
         </div>
+        <div>
+          <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>Avvikande jourtaxa</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>T.ex. söndag eller storhelg. Högsta matchande taxa gäller, annars jourtaxan ovan. Tider över midnatt räknas till dagen de börjar.</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {f.jour_rules.map((r, i) => <ObRuleRow key={i} rule={r} onChange={r2 => set('jour_rules', f.jour_rules.map((x, j) => (j === i ? r2 : x)))} onRemove={() => set('jour_rules', f.jour_rules.filter((_, j) => j !== i))} />)}
+            <button type="button" className="btn btn-ghost" style={{ alignSelf: 'flex-start' }}
+              onClick={() => set('jour_rules', [...f.jour_rules, { label: '', kr: null, days: [0], from: '00:00', to: '24:00' }])}>
+              <Plus size={13} /> Lägg till jourtaxa
+            </button>
+          </div>
+        </div>
       </>)}
 
       <div style={grid2}>
@@ -152,7 +164,8 @@ export default function EmploymentsCard({ userId, employments, onChanged }) {
       name: f.name.trim(), employer: f.employer?.trim() || null, kind: f.kind,
       hourly_rate: numOrNull(f.hourly_rate), monthly_salary: numOrNull(f.monthly_salary),
       ob_rules: (f.ob_rules || []).filter(r => r.label || r.kr).map(r => ({ ...r, kr: numOrNull(r.kr) })),
-      ob_mode: f.ob_mode, jour_rate: numOrNull(f.jour_rate), jour_from: f.jour_from || null, jour_to: f.jour_to || null,
+      ob_mode: f.ob_mode, jour_rate: numOrNull(f.jour_rate),
+      jour_rules: (f.jour_rules || []).filter(r => r.label || r.kr).map(({ exclusive, ...r }) => ({ ...r, kr: numOrNull(r.kr) })), jour_from: f.jour_from || null, jour_to: f.jour_to || null,
       jour_ob: !!f.jour_ob, holiday_pay_pct: numOrNull(f.holiday_pay_pct) ?? 0, tax_rate: f.tax_rate ?? 0.3,
       match_keywords: f.match_keywords || [], is_default: !!f.is_default, active: f.active !== false,
       notes: f.notes || null, updated_at: new Date().toISOString(),
@@ -181,7 +194,7 @@ export default function EmploymentsCard({ userId, employments, onChanged }) {
 
   const summary = (e) => e.kind === 'monthly'
     ? `${Number(e.monthly_salary || 0).toLocaleString('sv-SE')} kr/mån`
-    : `${e.hourly_rate ?? '?'} kr/h · ${(e.ob_rules || []).length} OB-regler${e.jour_rate ? ` · jour ${e.jour_rate}` : ''}${Number(e.holiday_pay_pct) ? ` · sem ${e.holiday_pay_pct}%` : ''} · skatt ${Math.round((e.tax_rate ?? 0.3) * 100)}%`
+    : `${e.hourly_rate ?? '?'} kr/h · ${(e.ob_rules || []).length} OB-regler${e.jour_rate ? ` · jour ${e.jour_rate}` : ''}${(e.jour_rules || []).length ? ` (+${e.jour_rules.length} taxor)` : ''}${Number(e.holiday_pay_pct) ? ` · sem ${e.holiday_pay_pct}%` : ''} · skatt ${Math.round((e.tax_rate ?? 0.3) * 100)}%`
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>

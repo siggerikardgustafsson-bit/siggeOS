@@ -79,6 +79,20 @@ ok('no match → null', matchEmployment('Tandläkare', [other, HUMANA]) === null
 ok('employmentFor falls back to default', employmentFor({ employment_id: null }, [other, HUMANA])?.id === 'h')
 ok('employmentFor honours link', employmentFor({ employment_id: 'o' }, [other, HUMANA])?.id === 'o')
 
+// Cross-midnight rule belongs to its start day: fre 19–06 → Fri 23:00 and Sat 03:00 match, Fri 03:00 does not
+const FRI = { ...HUMANA, ob_mode: 'sum', ob_rules: [{ label: 'fredagkväll', kr: 10, days: [5], from: '19:00', to: '06:00' }] }
+const at = (iso) => priceShift({ start_time: iso, end_time: new Date(new Date(iso).getTime() + 3600000).toISOString(), shift_type: 'vaken' }, FRI).breakdown.ob
+ok('fre 23:00 matches', at('2026-10-02T21:00:00Z') === 10)
+ok('lör 03:00 matches (from Friday)', at('2026-10-03T01:00:00Z') === 10)
+ok('fre 03:00 does not', at('2026-10-02T01:00:00Z') === 0)
+
+// jour_rules: Sunday jour 82 overrides flat 41.08 (Sun 2026-10-04 22:00 → Mon 06:00)
+const J = { ...HUMANA, ob_rules: [], jour_rules: [{ label: 'Söndagsjour', kr: 82, days: [0], from: '22:00', to: '06:00' }] }
+const sun = priceShift({ start_time: '2026-10-04T20:00:00Z', end_time: '2026-10-05T04:00:00Z', shift_type: 'sov' }, J)
+ok('sunday jour 8h × 82', sun.breakdown.jour === 656, String(sun.breakdown.jour))
+const mon = priceShift({ start_time: '2026-10-05T20:00:00Z', end_time: '2026-10-06T04:00:00Z', shift_type: 'sov' }, J)
+ok('monday jour uses flat rate', mon.breakdown.jour === Math.round(8 * 41.08), String(mon.breakdown.jour))
+
 // Night shifts
 ok('19:30→08:00 is a night shift', isNightShift({ start_time: '2026-09-28T17:30:00Z', end_time: '2026-09-29T06:00:00Z' }))
 ok('night hours 8', nightHours({ start_time: '2026-09-28T17:30:00Z', end_time: '2026-09-29T06:00:00Z' }) === 8)

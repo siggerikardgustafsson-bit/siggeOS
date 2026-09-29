@@ -56,7 +56,9 @@ const clean = (value: any) => value == null || value === '' ? null : value
 // across the loop (prompt-caching only covers tools+system). See AUDIT.md P1-4.
 const TOOL_RESULT_CAP = 20000
 const capToolResult = (value: any): string => {
-  const s = typeof value === 'string' ? value : String(value ?? '')
+  // Objects must be JSON — String() made every fetch_records result the literal
+  // "[object Object]" (2026-09-29 fix).
+  const s = typeof value === 'string' ? value : value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value)
   if (s.length <= TOOL_RESULT_CAP) return s
   const kept = s.slice(0, TOOL_RESULT_CAP)
   const omittedLines = (s.slice(TOOL_RESULT_CAP).match(/\n/g) || []).length
@@ -122,7 +124,7 @@ course_materials(id:uuid,exam_id:uuid,course_id:uuid,file_name:text,content:text
 courses(id:uuid,name:text,term:text,exam_date:date,active:bool,grade:text,goal_hours:num,ai_time_estimate:text,ai_time_hours:num)
 erik_contact_log(id:uuid,date:date,channel:text,summary:text)
 erik_payments(id:uuid,date:date,amount:num,description:text,task_id:uuid)
-employments(id:uuid,name:text,employer:text,kind:text,hourly_rate:num,monthly_salary:num,ob_rules:json,ob_mode:text,jour_rate:num,jour_from:text,jour_to:text,jour_ob:bool,holiday_pay_pct:num,tax_rate:num,match_keywords:arr,is_default:bool,active:bool,notes:text)
+employments(id:uuid,name:text,employer:text,kind:text,hourly_rate:num,monthly_salary:num,ob_rules:json,ob_mode:text,jour_rate:num,jour_rules:json,jour_from:text,jour_to:text,jour_ob:bool,holiday_pay_pct:num,tax_rate:num,match_keywords:arr,is_default:bool,active:bool,notes:text)
 erik_tasks(id:uuid,title:text,description:text,deadline:date,status:text,priority:text,tag:text,notes:text)
 experiments(id:uuid,title:text,hypothesis:text,outcome_metric:text,direction:text,lever_metric:text,lever_op:text,lever_target:num,start_date:date,duration_days:int,baseline_days:int,status:text,ended_at:ts)
 expense_logs(id:uuid,date:date,amount:num,category:text,description:text,source:text,external_id:text,sync_origin:text)
@@ -1419,7 +1421,7 @@ COACHNING – tänk som en vass personlig coach som känner ${userName}, inte en
 - Avsluta coachning med EN konkret, mätbar nästa åtgärd för idag eller denna vecka.
 - Lyft framsteg, inte bara brister – resan ska vara värd att gå, inte bara mätas.
 
-LÖN & TJÄNSTER: Varje jobb är en rad i employments (Jobb → Tjänster); PA-pass (pa_shifts) kopplas via employment_id och lönen räknas automatiskt ur tjänstens regler – ändra reglerna, aldrig estimated_pay. Fält: hourly_rate (kr/h), ob_rules = hela listan [{label, kr, days:[0-6] där 0=sön, from:"HH:MM", to:"HH:MM" (to ≤ from = över midnatt, "00:00"–"24:00" = hela dygnet), holiday:true för storhelg, exclusive:true om regeln ersätter alla andra OB när den gäller}], ob_mode "sum" (tilläggen läggs ihop) eller "highest" (bara det högsta), jour_rate/jour_from/jour_to (ersätter timlönen på sovpass), jour_ob (OB även under jour), holiday_pay_pct (semesterersättning i %), tax_rate (decimal, t.ex. 0.27), match_keywords (ord i kalendertiteln som gör ett event till ett pass). Avtal/lönespec bifogat → hämta tjänsten med fetch_records(employments), skicka sedan update_record med hela nya ob_rules-listan (eller create_record om jobbet saknas). Ur en lönespec: tax_rate = dragen skatt / bruttolön; jämför postrader (timlön, OB-typer, jour, semesterersättning) med reglerna och rätta skillnader.
+LÖN & TJÄNSTER: Varje jobb är en rad i employments (Jobb → Tjänster); PA-pass (pa_shifts) kopplas via employment_id och lönen räknas automatiskt ur tjänstens regler – ändra reglerna, aldrig estimated_pay. Fält: hourly_rate (kr/h), ob_rules = hela listan [{label, kr, days:[0-6] där 0=sön, from:"HH:MM", to:"HH:MM" (to ≤ from = över midnatt, "00:00"–"24:00" = hela dygnet), holiday:true för storhelg, exclusive:true om regeln ersätter alla andra OB när den gäller}]. Regler bedöms per kvart efter den timmens klockslag och veckodag; ett fönster över midnatt hör till dagen det BÖRJAR (days:[5], 19:00–06:00 = fredag kväll till lördag morgon). Ett spann över flera dygn delas upp i flera regler, t.ex. "fredag 19 till måndag 06" = {days:[5],19:00–24:00} + {days:[6,0],00:00–24:00} + {days:[1],00:00–06:00}. ob_mode "sum" (tilläggen läggs ihop) eller "highest" (bara det högsta). jour_from/jour_to = jourtiden på sovpass (ersätter timlönen), jour_rate = jourtaxa, jour_rules = taxor som skiljer sig per dag/storhelg i samma format som ob_rules (högsta matchande gäller, annars jour_rate) – t.ex. söndagsjour 82 kr: {label:"Söndagsjour",kr:82,days:[0],from:"00:00",to:"24:00"}. jour_ob (OB även under jour), holiday_pay_pct (semesterersättning i %), tax_rate (decimal, t.ex. 0.27), match_keywords (ord i kalendertiteln som gör ett event till ett pass). Avtal/lönespec bifogat → hämta tjänsten med fetch_records(table:"employments") – finns bara en tjänst, uppdatera den utan att fråga om id, skicka sedan update_record med hela nya ob_rules-listan (eller create_record om jobbet saknas). Ur en lönespec: tax_rate = dragen skatt / bruttolön; jämför postrader (timlön, OB-typer, jour, semesterersättning) med reglerna och rätta skillnader.
 
 DATUM: Ett "TID:"-block sist i denna systemprompt (efter NU) är exakt nu. Meddelanden i historiken som börjar med [ÅÅÅÅ-MM-DD] skrevs det datumet, inte idag – räkna "imorgon", "nästa vecka", "om 3 dagar" osv från när meddelandet skrevs, inte från idag, om inget annat sägs. Utan datumtagg = idag.
 

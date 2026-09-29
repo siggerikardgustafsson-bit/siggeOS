@@ -71,7 +71,7 @@ Stack: React + Vite (Vercel, deploys on push to `main`) · Supabase (Postgres + 
   - Lön, CSN or hyra booked within 7 days before payday counts toward the next period (`effectivePeriodDate`).
   - Bank credits are classified by `classifyIncome` in `ekonomi-sync`, **mirrored in `src/lib/csn.js`. Keep the two in sync.**
   - CSN fribelopp counts only salary. Net `Lön` is grossed up at 30%.
-  - **Pay is never hardcoded.** Each job is an `employments` row (Jobb → Tjänster) with its own rules: hourly rate, OB rules, jour, semesterersättning, tax rate and calendar keywords. `pa_shifts.employment_id` links a shift to its job. `src/lib/pay.js` `priceShift`/`shiftPay` prices shifts live everywhere. `estimated_pay` is only a cache for Export and is refreshed when a job is saved.
+  - **Pay is never hardcoded.** Each job is an `employments` row (Jobb → Tjänster) with its own rules: hourly rate, OB rules, jour (flat rate plus per-day `jour_rules`), semesterersättning, tax rate and calendar keywords. `pa_shifts.employment_id` links a shift to its job. `src/lib/pay.js` `priceShift`/`shiftPay` prices shifts live everywhere. `estimated_pay` is only a cache for Export and is refreshed when a job is saved. A rule window that crosses midnight belongs to the day it starts.
 - **Journal and Hälsa ratings** start as null. Never default a rating to a made-up value.
 - **Do not re-add** the idea trips the user deleted (Kilimanjaro, Skottland). The Dashboard is a score cockpit, not a life-briefing page.
 

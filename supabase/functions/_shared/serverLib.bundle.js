@@ -1782,12 +1782,15 @@ function inWindow(minute, from, to) {
 }
 function ruleMatches(rule, s, holiday) {
   if (!inWindow(s.minute, rule.from, rule.to)) return false;
-  if (rule.holiday) return holiday;
+  const f = toMin(rule.from, 0), t = toMin(rule.to, 1440);
+  const fromPrevDay = f > t && s.minute < t;
+  if (rule.holiday) return fromPrevDay ? s.prevHoliday : holiday;
   const days = Array.isArray(rule.days) && rule.days.length ? rule.days : [0, 1, 2, 3, 4, 5, 6];
-  return days.map(Number).includes(s.weekday);
+  return days.map(Number).includes(fromPrevDay ? (s.weekday + 6) % 7 : s.weekday);
 }
+var matchingKr = (rules, s, holiday) => (rules || []).filter((r) => Number(r.kr) > 0 && ruleMatches(r, s, holiday));
 function obAt(emp, s, holiday) {
-  const matched = (emp.ob_rules || []).filter((r) => Number(r.kr) > 0 && ruleMatches(r, s, holiday));
+  const matched = matchingKr(emp.ob_rules, s, holiday);
   if (!matched.length) return 0;
   const excl = matched.filter((r) => r.exclusive);
   if (excl.length) return Math.max(...excl.map((r) => Number(r.kr)));
@@ -1802,14 +1805,18 @@ function priceShift(shift, emp) {
   const base = Number(emp.hourly_rate) || 0;
   const jourRate = emp.jour_rate != null && emp.jour_rate !== "" ? Number(emp.jour_rate) : null;
   const sov = shift.shift_type === "sov";
+  const hasJour = jourRate != null || (emp.jour_rules || []).some((r2) => Number(r2.kr) > 0);
   const out = { base: 0, ob: 0, jour: 0, holiday: 0, hours: 0, jourHours: 0 };
   for (let t = start; t < end; ) {
     const next = Math.min(end, (Math.floor(t / SLICE_MS) + 1) * SLICE_MS);
     const hours = (next - t) / 36e5;
     const at = new Date(t), s = stockholm(at), holiday = holidaysFor(s.year).has(s.mmdd);
-    const isJour = sov && jourRate != null && inWindow(s.minute, emp.jour_from || "22:00", emp.jour_to || "06:00");
+    const prev = stockholm(new Date(t - 864e5));
+    s.prevHoliday = holidaysFor(prev.year).has(prev.mmdd);
+    const isJour = sov && hasJour && inWindow(s.minute, emp.jour_from || "22:00", emp.jour_to || "06:00");
     if (isJour) {
-      out.jour += jourRate * hours;
+      const special = matchingKr(emp.jour_rules, s, holiday);
+      out.jour += (special.length ? Math.max(...special.map((r2) => Number(r2.kr))) : jourRate || 0) * hours;
       out.jourHours += hours;
     } else out.base += base * hours;
     if (!isJour || emp.jour_ob) out.ob += obAt(emp, s, holiday) * hours;
