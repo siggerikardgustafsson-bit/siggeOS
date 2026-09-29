@@ -43,21 +43,33 @@ const ACTIVITY_TYPES = [
 ]
 
 const EMPTY_FORM = {
-  content: '', mood: 7, energy: 7, sleep_hours: 7.5,
-  sleep_type: 'normal', sleep_note: '', social_score: 7, is_travel_entry: false,
+  // Ratings start empty (null) — an untouched slider must not log a made-up 7.
+  content: '', mood: null, energy: null, sleep_hours: null,
+  sleep_type: 'normal', sleep_note: '', social_score: null, is_travel_entry: false,
   skills: [], // [{ id, minutes }]
 }
 
-function Slider({ label, value, onChange, color = '#3b82f6' }) {
+// Optional rating: null = "ej angivet". The thumb sits dimmed mid-range until
+// touched; a tap without dragging still sets that value (pointerup), and
+// "Rensa" returns it to null.
+function Slider({ label, value, onChange, color = '#3b82f6', min = 1, max = 10, step = 1, suffix = '' }) {
+  const empty = value == null
+  const parse = (v) => (step % 1 ? parseFloat(v) : parseInt(v))
   return (
     <div style={{ marginBottom: '14px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
         <span style={{ fontSize: '12px', color: 'var(--muted)' }}>{label}</span>
-        <span style={{ fontSize: '12px', color, fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>{value ?? '—'}</span>
+        <span style={{ display: 'flex', gap: '8px', alignItems: 'baseline' }}>
+          {!empty && (
+            <button type="button" onClick={() => onChange(null)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '11px', color: 'var(--muted)', fontFamily: 'inherit' }}>Rensa</button>
+          )}
+          <span style={{ fontSize: '12px', color: empty ? 'var(--muted)' : color, fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>{empty ? '—' : value + suffix}</span>
+        </span>
       </div>
-      <input type="range" min="1" max="10" value={value ?? 5}
-        onChange={e => onChange(parseInt(e.target.value))}
-        style={{ width: '100%', accentColor: color, height: '3px', cursor: 'pointer' }} />
+      <input type="range" min={min} max={max} step={step} value={empty ? (min + max) / 2 : value}
+        onChange={e => onChange(parse(e.target.value))}
+        onPointerUp={e => { if (empty) onChange(parse(e.target.value)) }}
+        style={{ width: '100%', accentColor: color, height: '3px', cursor: 'pointer', opacity: empty ? 0.35 : 1 }} />
     </div>
   )
 }
@@ -158,12 +170,12 @@ export default function JournalPage() {
       .select('skill,minutes,activity_type').eq('user_id', user.id).eq('date', entry.date)
     setForm({
       content: entry.content || '',
-      mood: entry.mood || 7,
-      energy: entry.energy || 7,
-      sleep_hours: entry.sleep_hours || 7.5,
+      mood: entry.mood ?? null,
+      energy: entry.energy ?? null,
+      sleep_hours: entry.sleep_hours ?? null,
       sleep_type: entry.sleep_type || 'normal',
       sleep_note: entry.sleep_note || '',
-      social_score: entry.social_score || 7,
+      social_score: entry.social_score ?? null,
       is_travel_entry: entry.is_travel_entry || false,
       skills: (skillRows || []).map(r => ({ id: r.skill, minutes: r.minutes, activity_type: r.activity_type || '' })),
     })
@@ -239,12 +251,18 @@ export default function JournalPage() {
       }).select().single()
 
       if (!error && data) {
-        await supabase.from('health_logs').upsert({
-          user_id: user.id, date: dateStr, sleep_hours: form.sleep_hours,
+        // Only mirror what was actually filled in — an empty journal field
+        // must not overwrite sleep/energy already logged (e.g. Apple Health).
+        const healthPatch = {}
+        if (form.sleep_hours != null) Object.assign(healthPatch, {
+          sleep_hours: form.sleep_hours,
           sleep_quality: form.sleep_type === 'normal' ? 8 : form.sleep_type === 'uppdelad' ? 5 : 6,
           sleep_type: form.sleep_type, sleep_note: form.sleep_note,
-          energy: form.energy, energy_level: form.energy, source: 'journal',
-        }, { onConflict: 'user_id,date' })
+        })
+        if (form.energy != null) Object.assign(healthPatch, { energy: form.energy, energy_level: form.energy })
+        if (Object.keys(healthPatch).length) {
+          await supabase.from('health_logs').upsert({ user_id: user.id, date: dateStr, source: 'journal', ...healthPatch }, { onConflict: 'user_id,date' })
+        }
         if (form.skills?.length) {
           await supabase.from('skill_logs').delete().eq('user_id', user.id).eq('date', dateStr)
           const rows = form.skills.filter(s => s.minutes > 0).map(s => ({ user_id: user.id, date: dateStr, skill: s.id, minutes: s.minutes, activity_type: s.activity_type || null }))
@@ -312,10 +330,13 @@ export default function JournalPage() {
     const contentScore = Math.min(formData.content.length / 5, 25)
     const journalScore = Math.min(75 + contentScore, 100)
     const { data: existing } = await supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', dateStr).maybeSingle()
+    const energyScore = formData.energy != null ? (formData.energy / 10) * 100 : null
     if (existing) {
-      await supabase.from('daily_scores').update({ score_journal: journalScore, score_health: Math.max(existing.score_health, (formData.energy / 10) * 100) }).eq('id', existing.id).eq('user_id', user.id)
+      const patch = { score_journal: journalScore }
+      if (energyScore != null) patch.score_health = Math.max(existing.score_health || 0, energyScore)
+      await supabase.from('daily_scores').update(patch).eq('id', existing.id).eq('user_id', user.id)
     } else {
-      await supabase.from('daily_scores').insert({ user_id: user.id, date: dateStr, score_journal: journalScore, score_health: (formData.energy / 10) * 100 })
+      await supabase.from('daily_scores').insert({ user_id: user.id, date: dateStr, score_journal: journalScore, ...(energyScore != null && { score_health: energyScore }) })
     }
   }
 
@@ -669,15 +690,7 @@ export default function JournalPage() {
                     <Slider label="Humör" value={form.mood} onChange={v => setForm(f => ({ ...f, mood: v }))} color="#ec4899" />
                     <Slider label="Energi" value={form.energy} onChange={v => setForm(f => ({ ...f, energy: v }))} color="#f59e0b" />
                     <Slider label="Socialt umgänge" value={form.social_score} onChange={v => setForm(f => ({ ...f, social_score: v }))} color="#10b981" />
-                    <div style={{ marginBottom: '14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                        <span style={{ fontSize: '12px', color: 'var(--muted)' }}>Sömn</span>
-                        <span style={{ fontSize: '12px', color: '#06b6d4', fontWeight: '600' }}>{form.sleep_hours}h</span>
-                      </div>
-                      <input type="range" min="3" max="12" step="0.5" value={form.sleep_hours}
-                        onChange={e => setForm(f => ({ ...f, sleep_hours: parseFloat(e.target.value) }))}
-                        style={{ width: '100%', accentColor: '#06b6d4', cursor: 'pointer' }} />
-                    </div>
+                    <Slider label="Sömn" value={form.sleep_hours} onChange={v => setForm(f => ({ ...f, sleep_hours: v }))} color="#06b6d4" min={3} max={12} step={0.5} suffix="h" />
                   </div>
 
                   <div style={{ display: 'flex', gap: '6px', marginBottom: '14px' }}>

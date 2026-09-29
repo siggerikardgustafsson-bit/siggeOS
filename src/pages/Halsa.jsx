@@ -74,7 +74,7 @@ export default function HalsaPage() {
 
   // Per-widget form state
   const [weightForm, setWeightForm] = useState({ date: today, weight_kg: '' })
-  const [sleepForm, setSleepForm] = useState({ date: today, sleep_hours: '', sleep_quality: 7 })
+  const [sleepForm, setSleepForm] = useState({ date: today, sleep_hours: '', sleep_quality: null })
   const [substanceForm, setSubstanceForm] = useState({ date: today, alcohol_units: '', nicotine: [], marijuana: false })
   const [retForm, setRetForm] = useState({ date: today, retatrutide_injected: false, retatrutide_dose_mg: '' })
   const [nutritionForm, setNutritionForm] = useState({ date: today, fasting: false, calories: '', protein_g: '', water_liters: '' })
@@ -121,7 +121,7 @@ export default function HalsaPage() {
     if (data) {
       setTodayLog(data)
       setWeightForm(f => ({ ...f, weight_kg: data.weight_kg || '' }))
-      setSleepForm(f => ({ ...f, sleep_hours: data.sleep_hours || '', sleep_quality: data.sleep_quality || 7 }))
+      setSleepForm(f => ({ ...f, sleep_hours: data.sleep_hours || '', sleep_quality: data.sleep_quality ?? null }))
       setSubstanceForm(f => ({ ...f, alcohol_units: data.alcohol_units || '', nicotine: nicotineFromRow(data), marijuana: !!data.marijuana }))
       if (data.retatrutide_dose_mg) setRetForm(f => ({ ...f, retatrutide_injected: true, retatrutide_dose_mg: data.retatrutide_dose_mg }))
     }
@@ -234,7 +234,7 @@ export default function HalsaPage() {
       isSupplementOnly: String(log.id || '').startsWith('supp-'),
       weight_kg: log.weight_kg || '',
       sleep_hours: log.sleep_hours || '',
-      sleep_quality: log.sleep_quality || 7,
+      sleep_quality: log.sleep_quality ?? null,
       alcohol_units: log.alcohol_units || '',
       nicotine: nicotineFromRow(log),
       marijuana: !!log.marijuana,
@@ -534,9 +534,10 @@ export default function HalsaPage() {
                 </div>
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'4px' }}>
                   <span style={{ fontSize:'11px', color:'var(--muted)' }}>Kvalitet</span>
-                  <span style={{ fontSize:'11px', color:'#8b5cf6', fontWeight:'600' }}>{sleepForm.sleep_quality}/10</span>
+                  <span style={{ fontSize:'11px', color: sleepForm.sleep_quality == null ? 'var(--muted)' : '#8b5cf6', fontWeight:'600' }}>{sleepForm.sleep_quality == null ? '—' : sleepForm.sleep_quality + '/10'}</span>
                 </div>
-                <input type="range" min="1" max="10" value={sleepForm.sleep_quality} onChange={e => setSleepForm(f => ({...f, sleep_quality:parseInt(e.target.value)}))} style={{ width:'100%', accentColor:'#8b5cf6' }} />
+                {/* null until touched — an untouched slider must not log a made-up 7 */}
+                <input type="range" min="1" max="10" value={sleepForm.sleep_quality ?? 5} onChange={e => setSleepForm(f => ({...f, sleep_quality:parseInt(e.target.value)}))} onPointerUp={e => { if (sleepForm.sleep_quality == null) setSleepForm(f => ({...f, sleep_quality:parseInt(e.target.value)})) }} style={{ width:'100%', accentColor:'#8b5cf6', opacity: sleepForm.sleep_quality == null ? 0.35 : 1 }} />
               </Widget>
 
               {/* SUBSTANSER */}
