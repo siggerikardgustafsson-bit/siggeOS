@@ -70,15 +70,16 @@ export function ingestSetup(token) {
     // What the Shortcut's "Get Contents of URL" action should send.
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    // Morning run: last night's sleep + today's weight/resting HR on today's
+    // date, and YESTERDAY's full step total via yesterday_steps (today's steps
+    // are ~0 in the morning — sending them as `steps` wrote 0s).
     exampleBody: {
-      date: '2026-09-09',
       weight_kg: 71.6,
-      body_fat_pct: 14.2,
-      steps: 8432,
       sleep_hours: 7.3,
       resting_hr: 52,
+      yesterday_steps: 8432,
     },
-    acceptedFields: ['weight_kg', 'body_fat_pct', 'steps', 'sleep_hours', 'resting_hr', 'caffeine_mg'],
+    acceptedFields: ['weight_kg', 'body_fat_pct', 'sleep_hours', 'resting_hr', 'caffeine_mg', 'yesterday_steps', 'steps'],
     note: 'Kör Shortcut:en varje morgon (t.ex. via en Automation). Bara fälten du skickar skrivs — resten av dagens rad rörs inte.',
   }
 }

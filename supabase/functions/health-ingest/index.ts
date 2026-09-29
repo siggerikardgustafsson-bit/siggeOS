@@ -34,6 +34,19 @@ const FIELD_BOUNDS: Record<string, [number, number]> = {
   caffeine_mg:  [0, 2000],
 }
 
+// A morning run sees ~0 steps and no sleep for "today" — a 0 there means
+// "no sample yet", not a real value, and must never overwrite a real count.
+const ZERO_IS_MISSING = new Set(['steps', 'sleep_hours'])
+
+// Calendar dates in Europe/Stockholm (toISOString() is UTC → a run just after
+// midnight wrote yesterday's date).
+const STOCKHOLM_DATE = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' })
+const dayBefore = (iso: string) => {
+  const d = new Date(iso + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() - 1)
+  return d.toISOString().slice(0, 10)
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 serve(async (req) => {
@@ -72,7 +85,7 @@ serve(async (req) => {
 
   const date = typeof body.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.date)
     ? body.date
-    : new Date().toISOString().slice(0, 10)
+    : STOCKHOLM_DATE.format(new Date())
 
   const accepted: string[] = []
   const rejected: string[] = []
@@ -80,13 +93,36 @@ serve(async (req) => {
   for (const [field, [lo, hi]] of Object.entries(FIELD_BOUNDS)) {
     if (body[field] == null || body[field] === '') continue
     const n = Number(body[field])
+    if (n === 0 && ZERO_IS_MISSING.has(field)) continue
     if (!Number.isFinite(n) || n < lo || n > hi) { rejected.push(field); continue }
     row[field] = field === 'steps' || field === 'caffeine_mg' || field === 'resting_hr'
       ? Math.round(n)
       : Math.round(n * 100) / 100
     accepted.push(field)
   }
+  // `yesterday_steps`: the whole previous day's step total, written to date-1.
+  // This is what a MORNING run should send (today's steps are ~0 then).
+  let yesterdaySteps: number | null = null
+  if (body.yesterday_steps != null && body.yesterday_steps !== '') {
+    const n = Number(body.yesterday_steps)
+    if (Number.isFinite(n) && n > 0 && n <= 100000) { yesterdaySteps = Math.round(n); accepted.push('yesterday_steps') }
+    else if (n !== 0) rejected.push('yesterday_steps')
+  }
   if (!accepted.length) return jsonResponse({ ok: false, error: 'no valid fields', rejected }, 400, req)
+
+  if (yesterdaySteps != null) {
+    const yDate = dayBefore(date)
+    const { data: yExisting } = await svc.from('health_logs').select('id').eq('user_id', userId).eq('date', yDate).maybeSingle()
+    const yRow: Record<string, unknown> = { user_id: userId, date: yDate, steps: yesterdaySteps }
+    if (!yExisting) yRow.source = 'apple_health_shortcut'
+    const { error: yErr } = await svc.from('health_logs').upsert(yRow, { onConflict: 'user_id,date' })
+    if (yErr) return jsonResponse({ ok: false, error: yErr.message }, 500, req)
+  }
+  // Nothing left for today's row (only yesterday_steps was sent) → done.
+  if (Object.keys(row).length === 2) {
+    await svc.from('user_settings').update({ last_ingest_at: new Date().toISOString() }).eq('health_ingest_token', token)
+    return jsonResponse({ ok: true, date, updated: 'yesterday_only', fields: accepted, rejected }, 200, req)
+  }
 
   const { data: existing } = await svc
     .from('health_logs').select('id,source').eq('user_id', userId).eq('date', date).maybeSingle()

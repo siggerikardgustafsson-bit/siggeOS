@@ -268,7 +268,7 @@ function AppleHealthPanel({ userId, toast }) {
           </div>
           <ol style={{ fontSize: '13px', color: 'var(--muted2)', lineHeight: 1.75, paddingLeft: '20px', margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <li>Öppna <strong>Genvägar</strong> på iPhone → ny genväg.</li>
-            <li>Lägg till en <strong>Hämta hälsoprov</strong>-åtgärd per mätvärde du vill skicka (Vikt, Sömnanalys, Steg, Vilopuls, Kroppsfett). Sätt varje till <em>senaste</em> provet och spara i en variabel.</li>
+            <li>Lägg till en <strong>Hämta hälsoprov</strong>-åtgärd per mätvärde: <strong>Vikt</strong>, <strong>Vilopuls</strong> och <strong>Kroppsfett</strong> = <em>senaste</em> provet. <strong>Sömnanalys</strong> = senaste natten, summerad i timmar. <strong>Steg</strong> = <em>igår</em> (hela dagen), summerad — skicka den som <code>yesterday_steps</code>. Dagens steg är nära 0 på morgonen och ska inte skickas.</li>
             <li>Lägg till <strong>Hämta innehåll från URL</strong>:
               <ul style={{ paddingLeft: '18px', marginTop: '2px' }}>
                 <li>URL = endpointen ovan</li>
@@ -283,7 +283,7 @@ function AppleHealthPanel({ userId, toast }) {
           <div style={{ marginTop: '14px' }}>
             <CopyField label="EXEMPEL PÅ JSON-KROPP" value={exampleJson} />
             <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '-4px' }}>
-              Fält som tas emot: {setup.acceptedFields.join(', ')}. <code>date</code> är valfritt (default = idag).
+              Fält som tas emot: {setup.acceptedFields.join(', ')}. <code>date</code> är valfritt (default = idag, svensk tid). <code>yesterday_steps</code> skrivs på gårdagens datum. 0 steg/sömn räknas som saknat och skriver aldrig över ett riktigt värde.
             </div>
           </div>
 
