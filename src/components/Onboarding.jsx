@@ -108,9 +108,11 @@ export default function Onboarding({ onComplete }) {
     // Merge onto any existing goals — normally empty at onboarding, but a
     // blind write must never be able to drop keys (AUDIT.md P0-5).
     const { data: fresh } = await supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle()
-    await supabase.from('user_settings').upsert({
+    // No display_name here — it lives on `profiles` since Phase 16 and the
+    // user_settings column no longer exists. Writing it made this whole upsert
+    // fail silently, so onboarding_done never stuck and onboarding reappeared.
+    const { error: settingsError } = await supabase.from('user_settings').upsert({
       user_id: user.id,
-      display_name: displayName.trim(),
       about_me: aboutMe.trim(),
       goals: {
         ...(fresh?.goals || {}),
@@ -124,6 +126,7 @@ export default function Onboarding({ onComplete }) {
       jarvis_personality: jarvisPersonality,
       onboarding_done: true,
     }, { onConflict: 'user_id' })
+    if (settingsError) console.warn('[onboarding] settings save failed:', settingsError.message)
 
     // Phase 8 — persist the personalization profile so Tier Engine v2 / Maxx
     // Score v2 activate immediately. Wrapped + non-blocking: if the Phase-5
