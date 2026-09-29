@@ -64,6 +64,84 @@ async function upsertDailyScore(supabase: any, userId: string, date: string, pat
 // Sharp, unambiguous descriptions so Jarvis
 // knows exactly when to fetch vs rely on context.
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// GENERIC RECORD ACCESS (2026-09-29)
+// Jarvis must be able to read/add/edit/delete data anywhere in the app, not
+// only through the ~45 hand-written actions above (which stay preferred where
+// they exist — they carry side effects like PR tracking). Whitelisted,
+// user-owned tables only; user_id is always forced/filtered, id/user_id/
+// timestamps can never be written, unknown columns are rejected with the
+// valid list, and the per-request RLS client is the last line of defence.
+// Excluded on purpose: OAuth/bank token tables, profiles/user_settings (own
+// actions), computed tables (tier_snapshots, daily_scores), chat history.
+// Schema snapshot from information_schema (post_deploy_22) — keep in sync.
+// ─────────────────────────────────────────────
+const RECORD_SCHEMA = `adventures(id:uuid,title:text,description:text,date:date,location:text,category:text,rating:int)
+assets(id:uuid,name:text,ticker:text,type:text,quantity:num,manual_price_sek:num)
+course_exams(id:uuid,course_id:uuid,name:text,exam_date:date,grade:text,notes:text,learning_goals_pdf:text,old_exam_pdf:text,old_exam_content:text,old_exam_filename:text,points_earned:num,points_max:num)
+course_materials(id:uuid,exam_id:uuid,course_id:uuid,file_name:text,content:text)
+courses(id:uuid,name:text,term:text,exam_date:date,active:bool,grade:text,goal_hours:num,ai_time_estimate:text,ai_time_hours:num)
+erik_contact_log(id:uuid,date:date,channel:text,summary:text)
+erik_payments(id:uuid,date:date,amount:num,description:text,task_id:uuid)
+erik_tasks(id:uuid,title:text,description:text,deadline:date,status:text,priority:text,tag:text,notes:text)
+expense_logs(id:uuid,date:date,amount:num,category:text,description:text,source:text,external_id:text,sync_origin:text)
+fixed_costs(id:uuid,name:text,amount:num,category:text,active:bool)
+friends(id:uuid,name:text,nickname:text,relationship:text,location:text,notes:text,reminder_days:int,last_contact_date:date)
+goals(id:uuid,title:text,description:text,category:text,target_value:num,current_value:num,unit:text,deadline:date,status:text,metric:text,direction:text,pinned:bool,linked_trip_id:uuid,sort_order:int,completed_at:ts,start_value:num,baseline_date:date)
+health_logs(id:uuid,date:date,weight_kg:num,body_fat_pct:num,steps:int,sleep_hours:num,sleep_quality:int,resting_hr:int,screen_time_minutes:int,alcohol_units:num,nicotine:bool,caffeine_mg:int,retatrutide_dose_mg:num,energy:int,source:text,sleep_type:text,sleep_note:text,energy_level:int,stress_level:int,mood:int,sleep_time:text,nicotine_type:text,marijuana:bool)
+income_logs(id:uuid,date:date,amount:num,source:text,counts_toward_csn:bool,notes:text,description:text,external_id:text,sync_origin:text)
+jarvis_insights(id:uuid,insight:text,category:text,confidence:int)
+journal_entries(id:uuid,date:date,content:text,mood:int,sleep_hours:num,energy:int,social_score:int,is_travel_entry:bool,ai_extracted_people:arr,ai_extracted_activities:arr,ai_extracted_keywords:arr,ai_summary:text,sleep_type:text,sleep_note:text)
+learning_goals(id:uuid,course_id:uuid,description:text,completed:bool,completed_at:ts,source:text,source_file:text,exam_id:uuid,mastery:int,last_studied:ts,study_count:int)
+mandatory_sessions(id:uuid,course_id:uuid,google_event_id:text,title:text,date:date,start_time:ts,end_time:ts,attended:bool,course_hint:text,custom_title:text)
+meal_logs(id:uuid,date:date,meal_time:text,description:text,calories_estimate:int,protein_estimate_g:int,photo_url:text,ai_analysis:text,source:text)
+net_worth_history(id:uuid,date:date,total_sek:num)
+nutrition_logs(id:uuid,date:date,total_calories:int,protein_g:int,water_liters:num)
+pa_shifts(id:uuid,date:date,client_name:text,start_time:ts,end_time:ts,hours_worked:num,hourly_rate:num,total_pay:num,is_night_shift:bool,notes:text,google_event_id:text,synced_from_google:bool,shift_type:text,estimated_pay:num)
+personal_records(id:uuid,exercise_name:text,weight_kg:num,reps:int,date:date,time_seconds:int,distance_km:num,pace_per_km:int,exercise_id:uuid)
+project_tasks(id:uuid,project_id:uuid,title:text,description:text,deadline:date,priority:text,status:text,notes:text)
+projects(id:uuid,name:text,type:text,client:text,color:text,description:text,status:text,notes:text)
+run_personal_records(id:uuid,distance_key:text,label:text,distance_km:num,time_seconds:int,pace_per_km:int,date:date,strava_activity_id:text,strava_effort_name:text,source:text)
+schedule_events(id:uuid,title:text,event_type:text,course_id:uuid,starts_at:ts,ends_at:ts,location:text,recurring:bool,recurrence_rule:text)
+side_quests(id:uuid,title:text,description:text,category:text,difficulty:text,status:text,suggested_by:text,completed_at:ts)
+skill_logs(id:uuid,date:date,skill:text,minutes:int,notes:text,activity_type:text,cards:int,source:text)
+social_interactions(id:uuid,date:date,friend_ids:arr,friend_names:arr,activity:text,duration_hours:num,quality:int,source:text,notes:text)
+study_sessions(id:uuid,date:date,course_id:uuid,subject:text,hours:num,notes:text)
+study_task_deadlines(id:uuid,task_id:uuid,name:text,due_date:date,completed:bool,completed_at:ts,sort_order:int)
+study_tasks(id:uuid,course_id:uuid,title:text,task_type:text,status:text,priority:text,estimated_minutes:int,notes:text)
+supplement_logs(id:uuid,date:date,supplement_name:text,taken:bool,dose:num,unit:text,notes:text)
+tenta_sessions(id:uuid,exam_id:uuid,old_exam_file_id:uuid,file_name:text,completed_at:ts,score_summary:text)
+training_exercises(id:uuid,session_id:uuid,exercise_name:text,set_number:int,reps:int,weight_kg:num,is_dropset:bool,exercise_id:uuid)
+training_sessions(id:uuid,date:date,session_type:text,duration_minutes:int,feeling:int,notes:text,distance_km:num,time_seconds:int,pace_per_km:int,source:text,strava_id:text)
+trips(id:uuid,title:text,country:text,city:text,start_date:date,end_date:date,highlights:text,rating:int,status:text,budget_sek:int,notes:text,countries:arr,planning_doc:text,budget_items:json,saved_sek:num,cities:json)`
+const RECORD_TABLES: Record<string, Set<string>> = Object.fromEntries(
+  RECORD_SCHEMA.split('\n').map((line) => {
+    const m = /^(\w+)\((.*)\)$/.exec(line.trim())
+    return m ? [m[1], new Set(m[2].split(',').map((c) => c.split(':')[0]))] : null
+  }).filter(Boolean) as [string, Set<string>][],
+)
+const PROTECTED_COLUMNS = new Set(['id', 'user_id', 'created_at', 'updated_at'])
+
+function recordTable(table: any): Set<string> {
+  const cols = RECORD_TABLES[String(table || '')]
+  if (!cols) throw new Error(`Okänd eller otillåten tabell "${table}". Tillåtna: ${Object.keys(RECORD_TABLES).join(', ')}`)
+  return cols
+}
+function recordValues(table: string, values: any): Record<string, unknown> {
+  const cols = recordTable(table)
+  if (!values || typeof values !== 'object' || Array.isArray(values)) throw new Error('values/fields måste vara ett objekt.')
+  const out: Record<string, unknown> = {}
+  const unknown: string[] = []
+  for (const [k, v] of Object.entries(values)) {
+    if (PROTECTED_COLUMNS.has(k)) continue
+    if (!cols.has(k)) { unknown.push(k); continue }
+    out[k] = v === '' ? null : v
+  }
+  if (unknown.length) throw new Error(`Okända kolumner i ${table}: ${unknown.join(', ')}. Giltiga: ${[...cols].filter((c) => !PROTECTED_COLUMNS.has(c)).join(', ')}`)
+  if (!Object.keys(out).length) throw new Error('Inga fält att skriva.')
+  return out
+}
+
 const TOOLS = [
   {
     name: 'fetch_workouts',
@@ -225,6 +303,26 @@ const TOOLS = [
     },
   },
   {
+    name: 'fetch_records',
+    description: 'Generisk läsning ur valfri tabell i appen (se execute_action → create_record för tabell/kolumn-listan). Använd när de specifika fetch_-verktygen inte täcker det (t.ex. skill_logs, fixed_costs, pa_shifts, study_tasks, erik_payments, learning_goals, training_exercises) eller när du behöver ett id för att redigera/ta bort.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        table: { type: 'string' },
+        id: { type: 'string', description: 'hämta en rad' },
+        filters: { type: 'object', description: 'kolumn → exakt värde, t.ex. {"course_id":"…"}' },
+        date_from: { type: 'string', description: 'YYYY-MM-DD, på tabellens datumkolumn (date, annars created_at)' },
+        date_to: { type: 'string' },
+        search: { type: 'object', description: '{column, text} — ilike-sökning' },
+        columns: { type: 'string', description: 'kommaseparerat, default *' },
+        order_by: { type: 'string' },
+        ascending: { type: 'boolean' },
+        limit: { type: 'number', description: 'default 50, max 200' },
+      },
+      required: ['table'],
+    },
+  },
+  {
     name: 'execute_action',
     description: 'Skriv till DB. Kör direkt, ingen bekräftelse. Saknar ID → hämta det först.',
     input_schema: {
@@ -248,11 +346,12 @@ const TOOLS = [
             'add_journal_entry',
             'save_insight', 'update_insight', 'delete_insight',
             'update_friend', 'save_preference', 'update_memory_context',
+            'create_record', 'update_record', 'delete_record',
           ],
         },
         data: {
           type: 'object',
-          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} (fields kan innehålla saved_sek = avsatt hittills) | delete_trip:{id} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,steps?,notes?,exercises?:[{name,sets:[{reps,weight_kg}]}] för gympass — ger PR-koll} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,description?} | update_income:{id,fields} | log_nutrition:{date?,total_calories?,protein_g?,water_liters?} | log_supplement:{date?,supplement_name,taken?(default true)} | create_goal:{title,category(traning|halsa|ekonomi|plugg|resor|jobb|livet),description?,target_value?,unit?,current_value?,start_value?(nuläget när målet sätts — progress mäts härifrån, ej från 0),direction?(up|down),deadline?,metric?,pinned?} | update_goal:{id,fields} | complete_goal:{id} | delete_goal:{id} | update_life_goal:{key(one_year|three_year|ten_year|monthly_income_goal|target_weight),value} — fritext-livsmålen i profilen | log_study:{date?,hours,subject?,course_id?,notes?} | create_course:{name,term?,exam_date?} | add_exam:{course_id,name,exam_date?,notes?} | log_social:{date?,friend_names[],activity?,quality?,notes?} | create_side_quest:{title,description?,category?,difficulty?,status?} | update_side_quest:{id,fields} | create_adventure:{title,description?,date?,location?,category?,rating?} | update_adventure:{id,fields} | delete_adventure:{id} | add_journal_entry:{date?,content,mood?,energy?,sleep_hours?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text}',
+          description: 'create_project_task:{project_id,title,description?,priority?,deadline?,status?} | update_project_task:{id,fields} | delete_project_task:{id} | create_trip:{title,countries[],status?,start_date?,end_date?,planning_doc?,budget_sek?} | update_trip:{id,fields} (fields kan innehålla saved_sek = avsatt hittills) | delete_trip:{id} | create_erik_task:{title,description?,deadline?,tag?,priority?} | update_erik_task:{id,fields} | log_training:{date?,session_type(run|gym|walk|other),duration_minutes?,distance_km?,feeling?,steps?,notes?,exercises?:[{name,sets:[{reps,weight_kg}]}] för gympass — ger PR-koll} | log_health:{date?,weight_kg?,sleep_hours?,energy?,steps?,mood?,stress_level?,alcohol_units?} | log_expense:{date?,amount,category,description?} | log_income:{date?,amount,source,description?} | update_income:{id,fields} | log_nutrition:{date?,total_calories?,protein_g?,water_liters?} | log_supplement:{date?,supplement_name,taken?(default true)} | create_goal:{title,category(traning|halsa|ekonomi|plugg|resor|jobb|livet),description?,target_value?,unit?,current_value?,start_value?(nuläget när målet sätts — progress mäts härifrån, ej från 0),direction?(up|down),deadline?,metric?,pinned?} | update_goal:{id,fields} | complete_goal:{id} | delete_goal:{id} | update_life_goal:{key(one_year|three_year|ten_year|monthly_income_goal|target_weight),value} — fritext-livsmålen i profilen | log_study:{date?,hours,subject?,course_id?,notes?} | create_course:{name,term?,exam_date?} | add_exam:{course_id,name,exam_date?,notes?} | log_social:{date?,friend_names[],activity?,quality?,notes?} | create_side_quest:{title,description?,category?,difficulty?,status?} | update_side_quest:{id,fields} | create_adventure:{title,description?,date?,location?,category?,rating?} | update_adventure:{id,fields} | delete_adventure:{id} | add_journal_entry:{date?,content,mood?,energy?,sleep_hours?} | save_insight:{insight_text,category,confidence?} | update_insight:{id,insight_text?,category?,confidence?} | delete_insight:{id} | update_friend:{friend_name,new_info} | save_preference:{preference_text,category} | update_memory_context:{context_area,update_text} | GENERISKT (för allt utan egen action): create_record:{table,values} | update_record:{table,id,fields} | delete_record:{table,id} — tabeller(kolumner:typ):\n' + RECORD_SCHEMA,
         },
         confirm_message: { type: 'string' },
       },
@@ -680,6 +779,29 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
       const nutrition = (nutritionRes.data || []).map((n: any) => `${n.date} | ${n.total_calories || '?'}kcal | protein:${n.protein_g || '?'}g | vatten:${n.water_liters || '?'}L [id:${n.id}]`).join('\n')
       const meals = (mealsRes.data || []).map((m: any) => `${m.date} ${m.meal_time || ''} | ${m.description || ''}${m.calories_estimate ? ' | ~'+m.calories_estimate+'kcal' : ''}${m.ai_analysis ? ' | '+m.ai_analysis.slice(0,80) : ''} [id:${m.id}]`).join('\n')
       return `Nutrition ${from}→${to}\nDAGAR:\n${nutrition || '—'}\nMÅLTIDER:\n${meals || '—'}`
+    }
+
+    if (toolName === 'fetch_records') {
+      const table = String(input.table || '')
+      const cols = recordTable(table)
+      const dateCol = cols.has('date') ? 'date' : 'created_at'
+      let q = supabase.from(table).select(input.columns || '*').eq('user_id', userId)
+      if (input.id) q = q.eq('id', input.id)
+      for (const [k, v] of Object.entries(input.filters || {})) {
+        if (!cols.has(k) && k !== 'created_at') throw new Error(`Okänd kolumn ${table}.${k}`)
+        q = q.eq(k, v)
+      }
+      if (input.date_from) q = q.gte(dateCol, input.date_from)
+      if (input.date_to) q = q.lte(dateCol, dateCol === 'date' ? input.date_to : input.date_to + 'T23:59:59')
+      if (input.search?.column && input.search?.text) {
+        if (!cols.has(input.search.column)) throw new Error(`Okänd kolumn ${table}.${input.search.column}`)
+        q = q.ilike(input.search.column, `%${input.search.text}%`)
+      }
+      const orderCol = input.order_by && (cols.has(input.order_by) || input.order_by === 'created_at') ? input.order_by : dateCol
+      q = q.order(orderCol, { ascending: !!input.ascending }).limit(asLimit(input.limit, 50, 200))
+      const { data, error } = await q
+      if (error) throw error
+      return capToolResult({ table, count: data?.length || 0, rows: data || [] })
     }
 
     if (toolName === 'execute_action') {
@@ -1119,6 +1241,31 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           result = `Journalanteckning sparad för ${date}.`
           break
         }
+        case 'create_record': {
+          const values = recordValues(d.table, d.values)
+          const { data: row, error } = await supabase.from(d.table).insert({ ...values, user_id: userId }).select('id').single()
+          if (error) throw error
+          result = `Skapade rad i ${d.table} (id ${row?.id}).`
+          break
+        }
+        case 'update_record': {
+          if (!d.id) throw new Error('update_record kräver id — hämta det först med fetch_records.')
+          const fields = recordValues(d.table, d.fields)
+          const { data: rows, error } = await supabase.from(d.table).update(fields).eq('id', d.id).eq('user_id', userId).select('id')
+          if (error) throw error
+          if (!rows?.length) throw new Error(`Ingen rad med id ${d.id} i ${d.table}.`)
+          result = `Uppdaterade ${d.table} (id ${d.id}): ${Object.keys(fields).join(', ')}.`
+          break
+        }
+        case 'delete_record': {
+          recordTable(d.table)
+          if (!d.id) throw new Error('delete_record kräver id — hämta det först med fetch_records.')
+          const { data: rows, error } = await supabase.from(d.table).delete().eq('id', d.id).eq('user_id', userId).select('id')
+          if (error) throw error
+          if (!rows?.length) throw new Error(`Ingen rad med id ${d.id} i ${d.table}.`)
+          result = `Raderade rad i ${d.table} (id ${d.id}).`
+          break
+        }
         default:
           throw new Error(`Okänd action: ${action}`)
       }
@@ -1195,7 +1342,7 @@ SPARA TYST (execute_action, nämn ej): faktum om användaren → save_insight | 
 PR/rekord (styrka+löp) → fetch_workouts(include_prs=true) ger all-time PR-tavla.
 
 ÅTGÄRDER: execute_action direkt utan bekräftelse. Saknas ID → hämta först. delete → bekräfta vad raderas.
-Du kan skriva till i stort sett hela appen när användaren ber om det: pass, hälsa, näring, kosttillskott, utgifter, inkomster, plugg-sessioner, kurser/tentor, mål (skapa/uppdatera/klarmarkera), resor, upplevelser, side quests, sociala loggar, journalanteckningar, tasks, insikter. Logga på det datum användaren säger (default idag). När du skapar ett mål: sätt category till rätt domän och koppla metric om ett sådant passar (t.ex. body_weight, bench_pr, net_worth, study_hours_7d) så progressen uppdateras automatiskt. Efter en skrivning: bekräfta kort vad som sparades och var det syns.
+Du kan läsa, lägga till, ändra och ta bort data i HELA appen när användaren ber om det. Använd den specifika actionen när den finns (log_training ger PR-koll, create_goal kopplar metric osv.); för allt annat create_record/update_record/delete_record + fetch_records (t.ex. journal, pluggpass, kurser/tentor, lärandemål & mastery, PA-pass, kalender, färdighetsloggar/kort, fasta kostnader, tillgångar, Erik-betalningar, studieuppgifter, gymset). Redigera/radera: hämta id först, ändra bara de fält som efterfrågats. Logga på det datum användaren säger (default idag). När du skapar ett mål: sätt category till rätt domän och koppla metric om ett sådant passar (t.ex. body_weight, bench_pr, net_worth, study_hours_7d) så progressen uppdateras automatiskt. Efter en skrivning: bekräfta kort vad som sparades och var det syns.
 
 LÄNKAR: När du hänvisar till en sida, länka med markdown så användaren kan klicka dit direkt: [Träning](/traning), [Hälsa](/halsa), [Ekonomi](/ekonomi), [Plugg](/plugg), [Jobb](/jobb), [Kalender](/kalender), [Insights](/insights), [Upplevelser](/upplevelser), [Journal](/journal), [Mål](/mal), [Dashboard](/). Max 1–2 länkar/svar, bara när det tillför.
 
