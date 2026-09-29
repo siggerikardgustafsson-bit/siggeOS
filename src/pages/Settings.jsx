@@ -11,6 +11,7 @@ import {
 import { usePwaInstall } from '../hooks/usePwaInstall'
 import { getIngestStatus, getOrCreateIngestToken, rotateIngestToken, disableIngest, ingestSetup } from '../lib/healthIngest'
 import SectionHeader from '../components/ui/SectionHeader'
+import AiUsageCard from '../components/AiUsageCard'
 import { resolveTargetWeight } from '../lib/personalization'
 import { listGoals } from '../lib/goals'
 
@@ -636,6 +637,11 @@ export default function SettingsPage() {
                   <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>Visas i Dashboard-headern</div>
                 </div>
                 <textarea className="input" rows={5} placeholder="Berätta om dig själv — vem du är, vad du jobbar med, vad som driver dig..." value={aboutMe} onChange={e => setAboutMe(e.target.value)} style={{ resize: 'vertical', lineHeight: '1.6' }} />
+                {/* Sent with EVERY Jarvis request (cached, but still billed at 10% per call) — show the size. */}
+                <div style={{ fontSize: '11px', color: aboutMe.length > 8000 ? '#f59e0b' : 'var(--muted)', marginTop: '4px' }}>
+                  {aboutMe.length.toLocaleString('sv-SE')} tecken ≈ {Math.round(aboutMe.length / 3).toLocaleString('sv-SE')} tokens som skickas med i varje Jarvis-anrop
+                  {aboutMe.length > 8000 ? ' — en kortare profil gör Jarvis billigare.' : '.'}
+                </div>
                 <ContextFileUpload field="about_me" files={getContextFiles('about_me')} onUpload={handleContextFileUpload} onRemove={removeContextFile} />
               </div>
 
@@ -710,6 +716,7 @@ export default function SettingsPage() {
           {/* ===== JARVIS AI ===== */}
           {activeSection === 'jarvis' && (
             <>
+              <AiUsageCard userId={user?.id} />
               <div className="card">
                 <SectionHeader icon={Brain} title="Jarvis beteende" subtitle="Hur ska din AI uppföra sig?" />
 
