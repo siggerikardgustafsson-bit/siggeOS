@@ -17,6 +17,7 @@
 // server job is scheduled so that UTC and Stockholm share the calendar date.
 // ============================================================================
 import { subDays, format } from 'date-fns'
+import { shiftPay } from './pay'
 import {
   getTier, getSkillTier, getDecayedValue,
   formatRunTime,
@@ -64,7 +65,7 @@ export async function fetchTierInputs(supabase, userId, todayDate = new Date()) 
     supabase.from('personal_records').select('id,exercise_name,weight_kg,reps,date,exercise_id').eq('user_id',userId).order('weight_kg',{ascending:false}),
     supabase.from('health_logs').select('date,weight_kg,sleep_hours,energy,energy_level,stress_level,mood,steps,alcohol_units').eq('user_id',userId).gte('date',since90).order('date',{ascending:false}),
     supabase.from('learning_goals').select('id,mastery,course_id,courses(name,active)').eq('user_id',userId),
-    supabase.from('pa_shifts').select('date,estimated_pay').eq('user_id',userId).gte('date',prevStart).lte('date',periodEnd),
+    supabase.from('pa_shifts').select('date,start_time,end_time,shift_type,employment_id,estimated_pay,hours_worked').eq('user_id',userId).gte('date',prevStart).lte('date',periodEnd),
     // Graceful until post_deploy_11/12 (activity_type/cards columns) are
     // migrated — a SELECT naming an unknown column fails the whole query.
     // No date floor (user call 2026-09-11): languageTier()'s cards/CI
@@ -119,15 +120,17 @@ export async function fetchTierInputs(supabase, userId, todayDate = new Date()) 
     if (!error) profile = data
   } catch { /* degrade to no profile */ }
 
-  const [{ data: assetsData }, { data: nwhData }] = await Promise.all([
+  const [{ data: assetsData }, { data: nwhData }, { data: employments }] = await Promise.all([
     supabase.from('assets').select('type,quantity,manual_price_sek').eq('user_id', userId),
     supabase.from('net_worth_history').select('total_sek').eq('user_id', userId).order('date', { ascending: false }).limit(1),
+    // Graceful until post_deploy_28 (employments) is everywhere.
+    supabase.from('employments').select('*').eq('user_id', userId).then(r => r).catch(() => ({ data: [] })),
   ])
 
   return {
     since90, runData, runPrData, prData, healthData, studyData, paData, skillData,
     userSettings, exData, supplementLogs, snapshots, incomeData, activeGoals,
-    profile, assetsData, nwhData,
+    profile, assetsData, nwhData, employments,
     periodStart, prevStart, prevEnd, salaryDay,
   }
 }
@@ -136,7 +139,7 @@ export function computeTierCategories(inputs, todayDate = new Date()) {
   const {
     since90, runData, runPrData, prData, healthData, studyData, paData, skillData,
     userSettings, exData, supplementLogs, incomeData, activeGoals,
-    profile, assetsData, nwhData,
+    profile, assetsData, nwhData, employments = [],
     periodStart, prevStart, prevEnd, salaryDay = 25,
   } = inputs
   const latestW = (healthData||[]).find(h=>h.weight_kg)
@@ -455,7 +458,9 @@ export function computeTierCategories(inputs, todayDate = new Date()) {
   aG.forEach(g=>{const cn=g.courses?.name||'Okänd';if(!byCourse[cn])byCourse[cn]=[];byCourse[cn].push(g.mastery||0)})
 
   // Net income for [from, to], per source: PA = logged PA-jobb income (×0.7
-  // net) or, when none is logged, the shift estimate; Erik Norling is added
+  // net) or, when none is logged, the shifts priced by their employment's pay
+  // rules (pay.js — every shift, not only those with a stored estimate, and
+  // net at the employment's own tax rate); Erik Norling is added
   // on top. (Previously ANY logged income — e.g. one Erik payment — replaced
   // the whole PA estimate, so the PA salary silently vanished.)
   // Bank-synced net salary ('Lön') counts as logged PA income as is, and
@@ -467,7 +472,7 @@ export function computeTierCategories(inputs, todayDate = new Date()) {
       .filter(i => i.source === src && inRange(effectivePeriodDate(i, 'income', salaryDay)))
       .reduce((s,i) => s + (Number(i.amount) || 0), 0)
     const paLogged = sumSource('PA-jobb') * 0.7 + sumSource('Lön')
-    const paEst = (paData||[]).filter(sh => inRange(sh.date)).reduce((s,sh) => s + (sh.estimated_pay||0), 0) * 0.7
+    const paEst = (paData||[]).filter(sh => inRange(sh.date)).reduce((s,sh) => s + (shiftPay(sh, employments)?.net || 0), 0)
     return (paLogged > 0 ? paLogged : paEst) + sumSource('Erik Norling')
   }
   const totCurrent = periodNet(periodStart, null)

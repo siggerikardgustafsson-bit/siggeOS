@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { priceShift, shiftPay, employmentFor } from '../lib/pay'
+import EmploymentsCard from '../components/EmploymentsCard'
 import { sv } from 'date-fns/locale'
 import {
   Plus, X, Save, Loader, Calendar, Briefcase,
@@ -19,144 +21,7 @@ const ERIK_TAGS = [
   'Personal',
 ]
 
-// ===== LÖNEMODELL (Humana / Vårdföretagarna 2025-2027) =====
-const PAY = {
-  timlön:       149.00,
-  ob_kväll:      25.87,  // 18:00–22:00
-  ob_natt:       52.41,  // 22:00–06:00
-  ob_helg:       64.64,  // lör/sön alla timmar
-  ob_storhelg:  129.39,  // storhelger
-  jour:          41.08,  // sovpass 22:00–06:00
-}
-
-// Fasta storhelger (samma datum varje år)
-const FASTA_STORHELGER = [
-  '01-01', // Nyårsdagen
-  '01-06', // Trettondedag jul
-  '05-01', // Första maj
-  '06-06', // Nationaldagen
-  '12-24', // Julafton
-  '12-25', // Juldagen
-  '12-26', // Annandag jul
-  '12-31', // Nyårsafton
-]
-
-// Beräkna påskdagen (Computus, Meeus/Jones/Butcher-algoritmen) → Date
-function getEasterSunday(year) {
-  const a = year % 19
-  const b = Math.floor(year / 100)
-  const c = year % 100
-  const d = Math.floor(b / 4)
-  const e = b % 4
-  const f = Math.floor((b + 8) / 25)
-  const g = Math.floor((b - f + 1) / 3)
-  const h = (19 * a + b - d - g + 15) % 30
-  const i = Math.floor(c / 4)
-  const k = c % 4
-  const l = (32 + 2 * e + 2 * i - h - k) % 7
-  const m = Math.floor((a + 11 * h + 22 * l) / 451)
-  const month = Math.floor((h + l - 7 * m + 114) / 31) // 3 = mars, 4 = april
-  const day = ((h + l - 7 * m + 114) % 31) + 1
-  return new Date(year, month - 1, day)
-}
-
-function addDays(date, days) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + days)
-  return d
-}
-
-// Beräkna alla rörliga storhelger för ett givet år → Set av 'MM-dd'
-function getRorligaStorhelger(year) {
-  const easter = getEasterSunday(year)
-  const dates = [
-    addDays(easter, -2), // Långfredag
-    addDays(easter, -1), // Påskafton
-    easter,              // Påskdagen
-    addDays(easter, 1),  // Annandag påsk
-    addDays(easter, 39), // Kristi himmelsfärdsdag
-  ]
-  // Midsommarafton = fredag mellan 19–25 juni
-  for (let day = 19; day <= 25; day++) {
-    const d = new Date(year, 5, day)
-    if (d.getDay() === 5) { dates.push(d); break }
-  }
-  return new Set(dates.map(d => format(d, 'MM-dd')))
-}
-
-// Cache per år så vi inte räknar om för varje pass
-const _storhelgCache = {}
-function getStorhelgerForYear(year) {
-  if (!_storhelgCache[year]) {
-    _storhelgCache[year] = new Set([...FASTA_STORHELGER, ...getRorligaStorhelger(year)])
-  }
-  return _storhelgCache[year]
-}
-
-function isStorhelg(date) {
-  const mmdd = format(date, 'MM-dd')
-  return getStorhelgerForYear(date.getFullYear()).has(mmdd)
-}
-
-function isHelg(date) {
-  const day = date.getDay()
-  return day === 0 || day === 6
-}
-
-// Beräkna OB-tillägg för ett specifikt klockslag-intervall
-function calcOBForHour(hourStart, date, shiftType) {
-  const h = hourStart
-  const isNatt = h >= 22 || h < 6
-  const isKväll = h >= 18 && h < 22
-  const storhelg = isStorhelg(date)
-  const helg = isHelg(date)
-
-  let ob = 0
-  if (storhelg) ob += PAY.ob_storhelg
-  else if (helg) ob += PAY.ob_helg
-
-  if (isNatt && !storhelg) ob += PAY.ob_natt
-  else if (isKväll && !storhelg) ob += PAY.ob_kväll
-
-  return ob
-}
-
-// Huvudfunktion — beräkna estimerad bruttolön för ett pass
-function calculateShiftPay(startTime, endTime, shiftType) {
-  if (!startTime || !endTime) return null
-  const start = new Date(startTime)
-  const end = new Date(endTime)
-  if (end <= start) return null
-
-  let totalPay = 0
-  let current = new Date(start)
-
-  while (current < end) {
-    const next = new Date(current)
-    next.setMinutes(0, 0, 0)
-    next.setHours(next.getHours() + 1)
-    const sliceEnd = next < end ? next : end
-    const fraction = (sliceEnd - current) / 3600000 // timmar som decimal
-    const h = current.getHours()
-    const isNatt = h >= 22 || h < 6
-
-    let rate
-    if (shiftType === 'sov' && isNatt) {
-      // Sovpass: jourersättning under nattimmarna (22-06)
-      rate = PAY.jour
-    } else {
-      // Vaken eller dag-del av sovpass: full timlön
-      rate = PAY.timlön
-    }
-
-    // OB ovanpå
-    const ob = calcOBForHour(h, current, shiftType)
-    totalPay += (rate + ob) * fraction
-    current = next
-  }
-
-  return Math.round(totalPay)
-}
+// Pay is computed from each job's own rules (Jobb → Tjänster, pay.js).
 
 const TASK_STATUSES = [
   { id: 'ej_påbörjat', label: 'Ej påbörjat', color: '#6b7280' },
@@ -320,6 +185,7 @@ export default function JobbPage() {
 
   // PA state
   const [paShifts, setPaShifts] = useState([])
+  const [employments, setEmployments] = useState([])
   const [calendarEvents, setCalendarEvents] = useState([])
   const [calendarConnected, setCalendarConnected] = useState(false)
   const [loadingCalendar, setLoadingCalendar] = useState(false)
@@ -374,7 +240,7 @@ export default function JobbPage() {
     const start = format(startOfMonth(selectedMonth), 'yyyy-MM-dd')
     const end = format(endOfMonth(selectedMonth), 'yyyy-MM-dd')
 
-    const [shiftsRes, tasksRes, paymentsRes, contactsRes] = await Promise.all([
+    const [shiftsRes, tasksRes, paymentsRes, contactsRes, empRes] = await Promise.all([
       supabase.from('pa_shifts').select('*').eq('user_id', user.id)
         .gte('date', start).lte('date', end).order('date', { ascending: false }),
       supabase.from('erik_tasks').select('*').eq('user_id', user.id).order('status').order('deadline'),
@@ -382,9 +248,11 @@ export default function JobbPage() {
         .gte('date', start).lte('date', end).order('date', { ascending: false }),
       supabase.from('erik_contact_log').select('*').eq('user_id', user.id)
         .order('date', { ascending: false }).limit(20),
+      supabase.from('employments').select('*').eq('user_id', user.id).order('created_at'),
     ])
 
     setPaShifts(shiftsRes.data || [])
+    setEmployments(empRes.data || [])
     setErikTasks(tasksRes.data || [])
     setErikPayments(paymentsRes.data || [])
     setErikContacts(contactsRes.data || [])
@@ -453,7 +321,8 @@ export default function JobbPage() {
     }
     const endDt = new Date(`${endDate}T${shiftForm.end_time}`)
     const hours = (endDt - startDt) / 3600000
-    const estimatedPay = calculateShiftPay(startDt.toISOString(), endDt.toISOString(), shiftForm.shift_type)
+    const emp = employmentFor({}, employments)
+    const estimatedPay = emp ? priceShift({ start_time: startDt.toISOString(), end_time: endDt.toISOString(), shift_type: shiftForm.shift_type }, emp)?.gross ?? null : null
 
     await supabase.from('pa_shifts').insert({
       user_id: user.id,
@@ -465,6 +334,7 @@ export default function JobbPage() {
       notes: shiftForm.notes,
       shift_type: shiftForm.shift_type,
       estimated_pay: estimatedPay,
+      employment_id: emp?.id || null,
       is_night_shift: shiftForm.start_time >= '20:00' || shiftForm.start_time <= '06:00',
     })
 
@@ -729,7 +599,7 @@ export default function JobbPage() {
               { label: 'Timmar', value: `${totalHours.toFixed(1)}h`, color: '#10b981' },
               { label: 'Nattpass', value: paShifts.filter(s => s.is_night_shift).length, color: '#8b5cf6' },
               { label: 'Est. bruttolön', value: (() => {
-                const total = paShifts.reduce((sum, s) => sum + (s.estimated_pay || calculateShiftPay(s.start_time, s.end_time, s.shift_type || 'sov') || 0), 0)
+                const total = paShifts.reduce((sum, s) => sum + (shiftPay(s, employments)?.gross || 0), 0)
                 return total > 0 ? `~${Math.round(total).toLocaleString('sv-SE')} kr` : '—'
               })(), color: '#f59e0b' },
             ].map(({ label, value, color }) => (
@@ -771,10 +641,17 @@ export default function JobbPage() {
             </div>
             {calendarConnected && (
               <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--muted)', padding: '8px 10px', background: 'rgba(16,185,129,0.06)', borderRadius: '6px' }}>
-                Pass som innehåller "assistanstid" eller "hos hw" i titeln importeras automatiskt. Synka varannan vecka för att hålla listan uppdaterad.
+                {(() => {
+                  const kws = [...new Set(employments.flatMap(e => e.match_keywords || []))]
+                  return kws.length
+                    ? <>Pass vars titel innehåller {kws.map(k => `"${k}"`).join(' eller ')} importeras automatiskt (ändras under Tjänster). Synka varannan vecka för att hålla listan uppdaterad.</>
+                    : <>Lägg till kalenderord på en tjänst nedan för att importera pass.</>
+                })()}
               </div>
             )}
           </div>
+
+          <EmploymentsCard userId={user.id} employments={employments} onChanged={fetchAll} />
 
           {/* Shifts list */}
           {paShifts.length === 0 ? (
@@ -785,16 +662,15 @@ export default function JobbPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {paShifts.map(shift => {
-                // Calculate on the fly if not stored
-                const pay = shift.estimated_pay || calculateShiftPay(shift.start_time, shift.end_time, shift.shift_type || 'sov')
+                // Always priced live from the job's current rules.
+                const pay = shiftPay(shift, employments)?.gross
                 const isSov = shift.shift_type === 'sov'
                 return (
                   <div key={shift.id} className="card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {isSov ? 'Sovpass' : 'Vak'}
-                          {format(parseISO(shift.date), 'EEEE d MMM', { locale: sv })}
+                          <span style={{ textTransform: 'capitalize' }}>{format(parseISO(shift.date), 'EEEE d MMM', { locale: sv })}</span>
                           {shift.client_name && ` · ${shift.client_name}`}
                           <span style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px',
                             background: isSov ? 'rgba(139,92,246,0.15)' : 'rgba(59,130,246,0.15)',
@@ -825,7 +701,8 @@ export default function JobbPage() {
                         </button>
                         <button onClick={async () => {
                           const newType = isSov ? 'vaken' : 'sov'
-                          const newPay = calculateShiftPay(shift.start_time, shift.end_time, newType)
+                          const emp = employmentFor(shift, employments)
+                          const newPay = emp ? priceShift({ ...shift, shift_type: newType }, emp)?.gross ?? null : null
                           await supabase.from('pa_shifts').update({ shift_type: newType, estimated_pay: newPay }).eq('id', shift.id).eq('user_id', user.id)
                           await fetchAll()
                         }} style={{
@@ -835,6 +712,16 @@ export default function JobbPage() {
                         }}>
                           {isSov ? '→ Vaken' : '→ Sov'}
                         </button>
+                        {employments.length > 1 && (
+                          <select className="input" aria-label="Tjänst" value={employmentFor(shift, employments)?.id || ''} style={{ width: 'auto', fontSize: '11px', padding: '3px 6px' }}
+                            onChange={async e => {
+                              const emp = employments.find(x => x.id === e.target.value)
+                              await supabase.from('pa_shifts').update({ employment_id: emp?.id || null, estimated_pay: emp ? priceShift(shift, emp)?.gross ?? null : null }).eq('id', shift.id).eq('user_id', user.id)
+                              await fetchAll()
+                            }}>
+                            {employments.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                          </select>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -843,14 +730,16 @@ export default function JobbPage() {
 
               {/* Monthly pay summary */}
               {(() => {
-                const totalPay = paShifts.reduce((sum, s) => {
-                  const pay = s.estimated_pay || calculateShiftPay(s.start_time, s.end_time, s.shift_type || 'sov') || 0
-                  return sum + pay
-                }, 0)
+                const priced = paShifts.map(s => shiftPay(s, employments)).filter(Boolean)
+                const totalPay = priced.reduce((sum, p) => sum + p.gross, 0)
+                const totalNet = priced.reduce((sum, p) => sum + p.net, 0)
                 return totalPay > 0 ? (
-                  <div style={{ padding: '12px 16px', background: 'rgba(245,158,11,0.08)', borderRadius: '8px', border: '1px solid rgba(245,158,11,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Estimerad bruttolön denna månad</div>
-                    <div className="mono" style={{ fontSize: '16px', fontWeight: '700', color: '#f59e0b' }}>~{Math.round(totalPay).toLocaleString('sv-SE')} kr</div>
+                  <div style={{ padding: '12px 16px', background: 'rgba(245,158,11,0.08)', borderRadius: '8px', border: '1px solid rgba(245,158,11,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                    <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Estimerad lön denna månad</div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="mono" style={{ fontSize: '16px', fontWeight: '700', color: '#f59e0b' }}>~{Math.round(totalPay).toLocaleString('sv-SE')} kr</div>
+                      <div className="mono" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>netto ~{Math.round(totalNet).toLocaleString('sv-SE')} kr</div>
+                    </div>
                   </div>
                 ) : null
               })()}

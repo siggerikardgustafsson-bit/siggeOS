@@ -1,6 +1,10 @@
 // supabase/functions/google-calendar-sync/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { corsHeaders, unauthorized, getAuthedUser, serviceClient } from '../_shared/auth.ts'
+// @ts-ignore — generated plain-JS bundle (src/lib/pay.js)
+import { matchEmployment, priceShift } from '../_shared/serverLib.bundle.js'
+
+const STOCKHOLM_DATE = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' })
 
 const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') ?? ''
 const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') ?? ''
@@ -53,10 +57,10 @@ async function fetchCalendarEvents(accessToken: string, monthsBack = 2): Promise
   return allEvents
 }
 
-function isPaShift(event: any): boolean {
-  const title = (event.summary || '').toLowerCase()
-  return title.includes('assistanstid') || title.includes('hos hw')
-}
+// Which events are shifts is decided per employment (match_keywords, Jobb →
+// Tjänster, post_deploy_28); these are only the fallback for a user with no
+// employment yet.
+const LEGACY_KEYWORDS = ['assistanstid', 'hos hw']
 
 function parseShiftHours(event: any): { start: string; end: string; hours: number; isNight: boolean } | null {
   const startStr = event.start?.dateTime
@@ -66,7 +70,7 @@ function parseShiftHours(event: any): { start: string; end: string; hours: numbe
   const start = new Date(startStr)
   const end = new Date(endStr)
   const hours = (end.getTime() - start.getTime()) / 3600000
-  const hour = start.getHours()
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm', hour: '2-digit', hourCycle: 'h23' }).format(start))
   const isNight = hour >= 20 || hour <= 6
 
   return {
@@ -164,7 +168,13 @@ serve(async (req) => {
       }
 
       const events = await fetchCalendarEvents(accessToken)
-      const paEvents = events.filter(isPaShift)
+      const { data: employments } = await supabase.from('employments').select('*').eq('user_id', user.id)
+      const emps = (employments || []).length ? employments : [{ id: null, active: true, match_keywords: LEGACY_KEYWORDS }]
+      const paEvents = events.filter((e: any) => matchEmployment(e.summary, emps))
+      // Keep what the user set by hand on an already-synced shift (job, sov/vaken).
+      const { data: existing } = await supabase.from('pa_shifts').select('google_event_id,employment_id,shift_type')
+        .eq('user_id', user.id).not('google_event_id', 'is', null)
+      const prior = new Map((existing || []).map((r: any) => [r.google_event_id, r]))
       // Log counts only — event titles can contain client names / private
       // details and function logs have different retention than RLS tables
       // (AUDIT.md P3-7).
@@ -175,9 +185,13 @@ serve(async (req) => {
       for (const event of paEvents) {
         const parsed = parseShiftHours(event)
         if (!parsed) continue
+        // Stockholm calendar date (a 00:30 shift is not yesterday's UTC date).
         const date = event.start.dateTime
-          ? new Date(event.start.dateTime).toISOString().slice(0, 10)
+          ? STOCKHOLM_DATE.format(new Date(event.start.dateTime))
           : event.start.date
+        const before: any = prior.get(event.id)
+        const emp = (before?.employment_id && emps.find((e: any) => e.id === before.employment_id)) || matchEmployment(event.summary, emps)
+        const shiftType = before?.shift_type || 'vaken' // column default for new rows
         rows.push({
           user_id: user.id,
           date,
@@ -189,6 +203,8 @@ serve(async (req) => {
           notes: event.description || null,
           google_event_id: event.id,
           synced_from_google: true,
+          employment_id: emp?.id || null,
+          estimated_pay: emp?.id ? (priceShift({ start_time: parsed.start, end_time: parsed.end, shift_type: shiftType }, emp)?.gross ?? null) : null,
         })
       }
       let synced = 0
