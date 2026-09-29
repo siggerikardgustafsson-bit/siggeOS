@@ -3755,7 +3755,7 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
             const r = reqFor(c, t);
             return `${r.met ? "\u2713 " : ""}${c.label}: ${r.targetLabel}`;
           }),
-          ...t === 2 ? notes : []
+          ...t === 2 ? notes.map((n) => "\u2139 " + n) : []
         ]
       });
     }

@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react'
+import { Target } from 'lucide-react'
 import { TIER_COLORS, CAT_PATHS } from './tierUtils'
 
 const NEXT_TIER_SHORT = {
@@ -166,8 +166,9 @@ export default function CategoryCard({ category, onClick, onMetricClick }) {
           </div>
         ) : nextReq ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 7px', borderRadius: '7px', background: nextColor + '08', border: '1px solid ' + nextColor + '20' }}>
-            <Check size={9} color={nextColor} />
-            <span style={{ fontSize: '9px', color: nextColor, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nextReq}</span>
+            {/* Target, not a check mark — this is the NEXT unmet requirement. */}
+            <Target size={9} color={nextColor} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '9px', color: nextColor, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Nästa: {nextReq}</span>
           </div>
         ) : null}
       </div>

@@ -610,7 +610,7 @@ export function computeTierCategories(inputs, todayDate = new Date()) {
             const r = reqFor(c, t)
             return `${r.met ? '✓ ' : ''}${c.label}: ${r.targetLabel}`
           }),
-          ...(t === 2 ? notes : []),
+          ...(t === 2 ? notes.map(n => 'ℹ ' + n) : []),
         ],
       })
     }

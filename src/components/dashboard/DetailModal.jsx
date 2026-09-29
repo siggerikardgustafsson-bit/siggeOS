@@ -351,7 +351,13 @@ export default function DetailModal({ category, onClose, insightCtx = null, onAs
                         {isNext && !isCurrent && <span style={{ marginLeft:'auto', fontSize:9.5, fontWeight:800, letterSpacing:'0.08em', textTransform:'uppercase', color:c }}>nästa</span>}
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', gap:4, paddingLeft:3 }}>
-                        {t.reqs.map((r, j) => <div key={j} style={{ display:'flex', gap:7, alignItems:'flex-start', fontSize:12, color:isPast ? 'var(--green)' : isCurrent || isNext ? 'var(--muted2)' : 'var(--muted)' }}><span style={{ color:isPast ? 'var(--green)' : c, opacity:isPast||isCurrent||isNext?1:.6 }}>•</span><span>{r}</span></div>)}
+                        {/* tierGuide rows: '✓ ' = already met, 'ℹ ' = rule note (tierCompute ladder) */}
+                        {t.reqs.map((r, j) => {
+                          const met = r.startsWith('✓ '), note = r.startsWith('ℹ ')
+                          const text = met || note ? r.slice(2) : r
+                          if (note) return <div key={j} style={{ fontSize:11, color:'var(--muted)', fontStyle:'italic', lineHeight:1.45, marginTop:3 }}>{text}</div>
+                          return <div key={j} style={{ display:'flex', gap:7, alignItems:'flex-start', fontSize:12, color:isPast || met ? 'var(--green)' : isCurrent || isNext ? 'var(--muted2)' : 'var(--muted)' }}><span style={{ color:isPast || met ? 'var(--green)' : c, opacity:isPast||isCurrent||isNext||met?1:.6, width:10, flexShrink:0 }}>{met ? '✓' : '○'}</span><span>{text}</span></div>
+                        })}
                       </div>
                     </div>
                   )
