@@ -3688,147 +3688,253 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
   const skH = !!skillData?.length;
   const skWeakest = [spT, srT, gtT, gnT].reduce((b, t) => t.tier < b.tier ? t : b, spT);
   const skTop = skH && skWeakest.tier === 0 ? { tier: 1, label: "Har b\xF6rjat", color: "#4b5563" } : skWeakest;
-  const tierMeta = (n) => n ? { tier: n, label: TIER_NAMES[n] || `T${n}`, color: TIER_COLORS[n] || "#6b7280" } : null;
   const clampPct = (n) => Math.max(0, Math.min(100, Math.round(n || 0)));
-  const fmtNum = (n, decimals = 0) => n == null ? "\u2014" : Number(n).toLocaleString("sv-SE", { maximumFractionDigits: decimals });
-  const fmtKg = (n) => n == null ? "\u2014" : `${Math.round(n)} kg`;
-  const fmtMult = (n) => n == null ? "\u2014" : `${Math.round(n * 100) / 100}x BW`;
-  const fmtSecGap = (sec) => sec == null ? "\u2014" : formatRunTime(Math.max(0, Math.round(sec)));
-  function makeReq({ label, current, target, higherIsBetter = true, unit = "", currentLabel, targetLabel }) {
-    const missing = current == null || Number.isNaN(current);
-    const met = !missing && (higherIsBetter ? current >= target : current <= target);
-    const progress = missing ? 0 : met ? 100 : higherIsBetter ? current / target * 100 : target / current * 100;
-    let gapLabel = "Saknas";
-    if (!missing) {
-      if (met) gapLabel = "Klar";
-      else if (!higherIsBetter && unit === "sec") gapLabel = `${fmtSecGap(current - target)} snabbare`;
-      else if (higherIsBetter && unit === "kg") gapLabel = `+${Math.ceil(target - current)} kg`;
-      else if (higherIsBetter && unit === "%") gapLabel = `+${Math.ceil(target - current)}%`;
-      else if (higherIsBetter && unit === "h") gapLabel = `+${Math.round((target - current) * 10) / 10}h`;
-      else if (higherIsBetter && unit === "kr") gapLabel = `+${Math.ceil(target - current).toLocaleString("sv-SE")} kr`;
-      else if (higherIsBetter) gapLabel = `+${Math.ceil(target - current).toLocaleString("sv-SE")} ${unit}`.trim();
-      else gapLabel = `${Math.round((current - target) * 10) / 10} ${unit} l\xE4gre`.trim();
-    }
-    return {
-      label,
-      current,
-      target,
-      met,
-      missing,
-      progress: clampPct(progress),
-      gapLabel,
-      currentLabel: currentLabel || (missing ? "\u2014" : unit === "sec" ? formatRunTime(Math.round(current)) : `${fmtNum(current, unit === "h" ? 1 : 0)}${unit && unit !== "sec" ? " " + unit : ""}`),
-      targetLabel: targetLabel || (unit === "sec" ? formatRunTime(Math.round(target)) : `${fmtNum(target, unit === "h" ? 1 : 0)}${unit && unit !== "sec" ? " " + unit : ""}`)
+  const fmtKr = (n) => `${Math.round(n).toLocaleString("sv-SE")} kr`;
+  const thr = (tierObj, fallback) => Array.isArray(tierObj?.thresholds) ? tierObj.thresholds : fallback;
+  function ladder(components, currentTier, maxTier, { notes = [] } = {}) {
+    const comps = components.filter((c) => c.mode === "required" || c.value != null);
+    if (!comps.length) return { levelUp: null, tierGuide: null };
+    const cur = currentTier || 1;
+    const next = Math.min(cur + 1, maxTier);
+    const reqFor = (c, t) => {
+      const target = c.thresholds[t - 2];
+      const missing = c.value == null;
+      if (target === Infinity) {
+        return {
+          label: c.label,
+          current: c.value,
+          target: null,
+          met: !missing,
+          missing,
+          progress: missing ? 0 : 100,
+          gapLabel: missing ? "Saknas" : "Klar",
+          currentLabel: missing ? c.hint || "\u2014" : c.fmt(c.value),
+          targetLabel: "inget krav"
+        };
+      }
+      const met = !missing && (c.tier ?? 0) >= t;
+      let progress = 0;
+      if (!missing) {
+        progress = met ? 100 : c.higherIsBetter ? target > 0 ? c.value / target * 100 : 0 : c.value > 0 ? target / c.value * 100 : 0;
+      }
+      const gapLabel = missing ? "Saknas" : met ? "Klar" : c.gapFmt ? c.gapFmt(c.value, target) : c.higherIsBetter ? `+${c.fmt(target - c.value)}` : `\u2212${c.fmt(c.value - target)}`;
+      const k = c.reqScale || 1;
+      return {
+        label: c.label,
+        current: missing ? null : c.value * k,
+        target: target * k,
+        met,
+        missing,
+        progress: clampPct(progress),
+        gapLabel,
+        currentLabel: missing ? c.hint || "\u2014" : c.fmt(c.value),
+        targetLabel: `${c.higherIsBetter ? "\u2265" : "\u2264"} ${c.fmt(target)}`
+      };
     };
-  }
-  function makeLevelUp(currentTier, maxTier, reqs, labelPrefix = "Tier") {
-    if (!reqs?.length) return null;
-    const safeTier = currentTier || 1;
-    const nextTier = safeTier >= maxTier ? safeTier : safeTier + 1;
-    const blockers = reqs.filter((r) => !r.met);
-    const primary = blockers.find((r) => r.missing) || blockers.sort((a, b) => a.progress - b.progress)[0] || null;
-    const progressPct = clampPct(reqs.reduce((min, r) => Math.min(min, r.progress), 100));
-    return {
-      currentTier: safeTier,
-      nextTier,
+    const atMax = cur >= maxTier;
+    const requirements = comps.map((c) => reqFor(c, next));
+    const blockers = atMax ? [] : requirements.filter((r) => !r.met);
+    const ordered = [...blockers].sort((x, y) => y.missing - x.missing || y.progress - x.progress);
+    const levelUp = {
+      currentTier: cur,
+      nextTier: next,
       maxTier,
-      title: safeTier >= maxTier ? "Maxxad niv\xE5" : `${labelPrefix} ${safeTier} \u2192 ${labelPrefix} ${nextTier}`,
-      progressPct: safeTier >= maxTier ? 100 : progressPct,
-      primaryBottleneck: primary ? `${primary.label}${primary.gapLabel && primary.gapLabel !== "Klar" ? ": " + primary.gapLabel : ""}` : "Inget blockerar n\xE4sta niv\xE5",
-      requirements: reqs,
-      blockers
+      title: atMax ? "Maxxad niv\xE5" : `T${cur} \u2192 T${next}`,
+      progressPct: atMax ? 100 : clampPct(requirements.reduce((m, r) => Math.min(m, r.progress), 100)),
+      primaryBottleneck: atMax ? "Maxxad niv\xE5" : ordered.length ? ordered.map((r) => `${r.label}: ${r.gapLabel}`).join(" \xB7 ") : "Inget blockerar n\xE4sta niv\xE5",
+      requirements: atMax ? requirements : [...ordered, ...requirements.filter((r) => r.met)],
+      blockers: ordered
     };
+    const tierGuide = [];
+    for (let t = 2; t <= maxTier; t++) {
+      tierGuide.push({
+        tier: t,
+        label: TIER_NAMES[t] || `T${t}`,
+        reqs: [
+          ...comps.map((c) => {
+            const r = reqFor(c, t);
+            return `${r.met ? "\u2713 " : ""}${c.label}: ${r.targetLabel}`;
+          }),
+          ...t === 2 ? notes : []
+        ]
+      });
+    }
+    return { levelUp, tierGuide };
   }
-  const currentStrengthTier = stTop?.tier || (hasStrengthData ? 1 : 0);
-  const nextStrengthTier = Math.min((currentStrengthTier || 1) + 1, 8);
-  const strIdx = Math.max(0, nextStrengthTier - 2);
-  const strengthLevelUp = hasStrengthData && bw ? makeLevelUp(currentStrengthTier, 8, [
-    makeReq({ label: "B\xE4nkpress", current: bE1RM, target: BENCH_THRESHOLDS[strIdx] * bw, unit: "kg", currentLabel: bE1RM ? `${fmtKg(bE1RM)} (${fmtMult(bE1RM / bw)})` : "\u2014", targetLabel: `${fmtKg(BENCH_THRESHOLDS[strIdx] * bw)} (${BENCH_THRESHOLDS[strIdx]}x BW)` }),
-    makeReq({ label: "Kn\xE4b\xF6j", current: sE1RM, target: SQUAT_THRESHOLDS[strIdx] * bw, unit: "kg", currentLabel: sE1RM ? `${fmtKg(sE1RM)} (${fmtMult(sE1RM / bw)})` : "\u2014", targetLabel: `${fmtKg(SQUAT_THRESHOLDS[strIdx] * bw)} (${SQUAT_THRESHOLDS[strIdx]}x BW)` }),
-    makeReq({ label: "Marklyft", current: dlE1RM, target: DEADLIFT_THRESHOLDS[strIdx] * bw, unit: "kg", currentLabel: dlE1RM ? `${fmtKg(dlE1RM)} (${fmtMult(dlE1RM / bw)})` : "\u2014", targetLabel: `${fmtKg(DEADLIFT_THRESHOLDS[strIdx] * bw)} (${DEADLIFT_THRESHOLDS[strIdx]}x BW)` })
-  ], "T") : null;
-  const currentKondTier = kTop?.tier || (hasRunData ? 1 : 0);
-  const nextKondTier = Math.min((currentKondTier || 1) + 1, 8);
-  const runIdx = Math.max(0, nextKondTier - 2);
-  const kondLevelUp = hasRunData ? makeLevelUp(currentKondTier, 8, [
-    makeReq({ label: "1 km", current: r1ShowD?.value, target: RUN_5K_THRESHOLDS[runIdx] * 0.195, higherIsBetter: false, unit: "sec" }),
-    makeReq({ label: "5 km", current: r5ShowD?.value, target: RUN_5K_THRESHOLDS[runIdx], higherIsBetter: false, unit: "sec" }),
-    makeReq({ label: "10 km", current: r10ShowD?.value, target: RUN_10K_THRESHOLDS[runIdx], higherIsBetter: false, unit: "sec" }),
-    makeReq({ label: "Halvmara", current: rHShowD?.value, target: RUN_HALF_THRESHOLDS[runIdx], higherIsBetter: false, unit: "sec" })
-  ], "T") : null;
-  const studyTargetByNextTier = { 2: 20, 3: 40, 4: 60, 5: 80 };
-  const currentStudyTier = pT?.tier || (avgM != null ? 1 : 0);
-  const nextStudyTier = Math.min((currentStudyTier || 1) + 1, 5);
-  const studyLevelUp = avgM != null ? makeLevelUp(currentStudyTier, 5, [
-    makeReq({ label: "Mastery snitt", current: avgM, target: studyTargetByNextTier[nextStudyTier] || 80, unit: "%" })
-  ], "T") : null;
-  const currentEconTier = eTop?.tier || (totPA || sav != null ? 1 : 0);
-  const nextEconTier = Math.min((currentEconTier || 1) + 1, 8);
-  const econIdx = Math.max(0, nextEconTier - 2);
-  const econLevelUp = totPA || sav != null ? makeLevelUp(currentEconTier, 8, [
-    makeReq({ label: totPrev > 0 ? "M\xE5nadsnetto (f\xF6rra perioden)" : "M\xE5nadsnetto", current: totPA || null, target: INCOME_THRESHOLDS[econIdx], unit: "kr" }),
-    makeReq({ label: "Sparkapital", current: sav, target: SAVINGS_THRESHOLDS[econIdx], unit: "kr" })
-  ], "T") : null;
-  const currentWellTier = wTop?.tier || (wTs.length ? 1 : 0);
-  const nextWellTier = Math.min((currentWellTier || 1) + 1, 8);
-  const wellIdx = Math.max(0, nextWellTier - 2);
-  const healthReqs = [
-    makeReq({ label: "S\xF6mnsnitt 7d", current: avgSl, target: SLEEP_DURATION_THRESHOLDS[wellIdx], unit: "h" }),
-    makeReq({ label: "Steg/dag (7d)", current: aSteps, target: STEPS_THRESHOLDS[wellIdx], unit: "steg" }),
-    ...bw ? [makeReq({ label: "Vikt mot m\xE5l", current: wK, target: 0, higherIsBetter: false, unit: "kg", currentLabel: wK <= 0 ? "Klar" : `${wK} kg kvar`, targetLabel: "N\xE5tt m\xE5lvikt" })] : [],
-    ...alcoholLogged ? [makeReq({ label: "Alkohol 7d", current: alcohol7, target: [14, 10, 7, 5, 3, 1, 0.1][wellIdx], higherIsBetter: false, unit: "enheter", currentLabel: `${Math.round(alcohol7 * 10) / 10} enheter`, targetLabel: `\u2264 ${[14, 10, 7, 5, 3, 1, 0.1][wellIdx]} enheter` })] : [],
-    ...supplementCompliance != null ? [makeReq({ label: "Kosttillskott", current: supplementCompliance, target: [50, 60, 70, 80, 90, 95, 99][wellIdx], unit: "%", currentLabel: `${supplementCompliance}%`, targetLabel: `${[50, 60, 70, 80, 90, 95, 99][wellIdx]}%` })] : []
+  const RUN_BASE_FALLBACK = { "1k": RUN_5K_THRESHOLDS.map((t) => Math.round(t * 0.195)), "5k": RUN_5K_THRESHOLDS, "10k": RUN_10K_THRESHOLDS, half_marathon: RUN_HALF_THRESHOLDS };
+  const runComp = (label, key, showD, tierObj, km) => ({
+    label,
+    value: showD?.value ?? null,
+    tier: tierObj?.tier ?? null,
+    thresholds: thr(tierObj, thr(calculateConditioningTier(key, null, ctx), RUN_BASE_FALLBACK[key])),
+    higherIsBetter: false,
+    mode: "required",
+    fmt: (v) => formatRunTime(Math.round(v)),
+    gapFmt: (v, t) => `${formatRunTime(Math.round(v - t))} snabbare`,
+    hint: `Saknas \u2013 spring \u2265 ${km} km i ett pass`
+  });
+  const kondLadder = hasRunData ? ladder([
+    runComp("1 km", "1k", r1ShowD, r1T, 1),
+    runComp("5 km", "5k", r5ShowD, r5T, 5),
+    runComp("10 km", "10k", r10ShowD, r10T, 10),
+    runComp("Halvmara", "half_marathon", rHShowD, rHT, 21.1)
+  ], kTop?.tier || 1, 8, { notes: ["Alla fyra distanser m\xE5ste finnas (Strava-segment eller snittfart fr\xE5n ett l\xE4ngre pass, senaste 90 dagarna) \u2013 annars max T1"] }) : { levelUp: null, tierGuide: null };
+  const multFmt = (m) => `${Math.round(m * 100) / 100}x BW${bw ? ` (${Math.round(m * bw)} kg)` : ""}`;
+  const LIFT_BASE_FALLBACK = { bench: BENCH_THRESHOLDS, squat: SQUAT_THRESHOLDS, deadlift: DEADLIFT_THRESHOLDS, ohp: OHP_THRESHOLDS };
+  const liftComp = (label, lift, e1rm, tierObj, mode) => ({
+    label,
+    value: e1rm != null && bw ? Math.round(e1rm / bw * 100) / 100 : null,
+    tier: tierObj?.tier ?? null,
+    thresholds: thr(tierObj, thr(calculateStrengthTier(lift, { multiple: null }, ctx), LIFT_BASE_FALLBACK[lift])),
+    higherIsBetter: true,
+    mode,
+    fmt: multFmt,
+    reqScale: bw || 1,
+    gapFmt: (v, t) => bw ? `+${Math.ceil((t - v) * bw)} kg` : `+${Math.round((t - v) * 100) / 100}x BW`,
+    hint: "Saknas \u2013 logga ett tungt set (senaste 60 dagarna)"
+  });
+  const addedFmt = (v) => `+${Math.round(v)} kg`;
+  const bwComp = (label, lift, e1rm, tierObj) => ({
+    label,
+    value: e1rm ?? null,
+    tier: tierObj?.tier ?? null,
+    thresholds: thr(tierObj, thr(calculateStrengthTier(lift, { value: null }, ctx), PULLUP_THRESHOLDS)),
+    higherIsBetter: true,
+    mode: "ifLogged",
+    fmt: addedFmt,
+    gapFmt: (v, t) => `+${Math.ceil(t - v)} kg`
+  });
+  const strengthLadder = hasStrengthData && bw ? ladder([
+    liftComp("B\xE4nkpress", "bench", bE1RM, bT, "required"),
+    liftComp("Kn\xE4b\xF6j", "squat", sE1RM, sT, "required"),
+    liftComp("Marklyft", "deadlift", dlE1RM, dlT, "required"),
+    liftComp("Milit\xE4rpress", "ohp", oE1RM, oT, "ifLogged"),
+    bwComp("Pull-up (extravikt)", "pullup", puE1RM, puT),
+    bwComp("Dips (extravikt)", "dip", dipE1RM, dipT)
+  ], stTop?.tier || 1, 8, { notes: ["B\xE4nk, kn\xE4b\xF6j och marklyft kr\xE4vs alla (e1RM, senaste 60 dagarna) \u2013 saknas en \xE4r max T1. \xD6vriga \xF6vningar kan bara s\xE4nka, och bara om de loggats."] }) : { levelUp: null, tierGuide: null };
+  const studyLadder = avgM != null ? ladder([
+    {
+      label: "Mastery snitt",
+      value: avgM,
+      tier: pT?.tier ?? null,
+      thresholds: [20, 40, 60, 80],
+      higherIsBetter: true,
+      mode: "required",
+      fmt: (v) => `${Math.round(v)}%`
+    }
+  ], pT?.tier || 1, 5) : { levelUp: null, tierGuide: null };
+  const econLadder = totPA || sav != null ? ladder([
+    {
+      label: totPrev > 0 ? "M\xE5nadsnetto (f\xF6rra perioden)" : "M\xE5nadsnetto",
+      value: totPA || null,
+      tier: incT?.tier ?? null,
+      thresholds: thr(incT, thr(calculateEconomyTier("income", null, ctx), INCOME_THRESHOLDS)),
+      higherIsBetter: true,
+      mode: "ifLogged",
+      fmt: fmtKr
+    },
+    {
+      label: "Sparkapital",
+      value: sav,
+      tier: savT?.tier ?? null,
+      thresholds: thr(savT, thr(calculateEconomyTier("savings", null, ctx), SAVINGS_THRESHOLDS)),
+      higherIsBetter: true,
+      mode: "ifLogged",
+      fmt: fmtKr
+    }
+  ], eTop?.tier || 1, 8) : { levelUp: null, tierGuide: null };
+  const weightGap = bw && wGoal ? Math.round(Math.abs(bw - wGoal) * 10) / 10 : null;
+  const wellLadder = wTs.length ? ladder([
+    {
+      label: "S\xF6mnsnitt 7d",
+      value: avgSl,
+      tier: slT?.tier ?? null,
+      thresholds: thr(slT, SLEEP_DURATION_THRESHOLDS),
+      higherIsBetter: true,
+      mode: "ifLogged",
+      fmt: (v) => `${Math.round(v * 100) / 100} h`
+    },
+    {
+      label: "Steg/dag 7d",
+      value: aSteps,
+      tier: stepsT?.tier ?? null,
+      thresholds: thr(stepsT, STEPS_THRESHOLDS),
+      higherIsBetter: true,
+      mode: "ifLogged",
+      fmt: (v) => `${Math.round(v).toLocaleString("sv-SE")} steg`
+    },
+    {
+      label: "Avst\xE5nd till m\xE5lvikt",
+      value: weightGap,
+      tier: wgT?.tier ?? null,
+      thresholds: wGoal ? [Infinity, ...[0.18, 0.12, 0.08, 0.05, 0.03, 0.01].map((p) => Math.round(wGoal * p * 10) / 10)] : [],
+      higherIsBetter: false,
+      mode: "ifLogged",
+      fmt: (v) => `${Math.round(v * 10) / 10} kg`,
+      gapFmt: (v, t) => `${Math.round((v - t) * 10) / 10} kg kvar`
+    },
+    {
+      label: "Alkohol 7d",
+      value: alcoholLogged ? Math.round(alcohol7 * 10) / 10 : null,
+      tier: alcoholT?.tier ?? null,
+      thresholds: [14, 10, 7, 5, 3, 1, 0.1],
+      higherIsBetter: false,
+      mode: "ifLogged",
+      fmt: (v) => `${v} enheter`
+    },
+    {
+      label: "Kosttillskott 7d",
+      value: supplementCompliance,
+      tier: supplementT?.tier ?? null,
+      thresholds: [50, 60, 70, 80, 90, 95, 99],
+      higherIsBetter: true,
+      mode: "ifLogged",
+      fmt: (v) => `${Math.round(v)}%`
+    }
+  ], wTop?.tier || 1, 8, { notes: [`S\xF6mn r\xE4knas som snitt av loggade n\xE4tter (${sl7.length} av 7 senaste). M\xE5tt utan data r\xE4knas inte.`] }) : { levelUp: null, tierGuide: null };
+  const langComps = (name, t) => [
+    {
+      label: `${name} \xB7 kort`,
+      value: t.cardsTotal,
+      tier: t.tier === 0 ? 0 : t.cardsTier,
+      thresholds: CARDS_THRESHOLDS,
+      higherIsBetter: true,
+      mode: "required",
+      fmt: (v) => `${Math.round(v).toLocaleString("sv-SE")} kort`
+    },
+    {
+      label: `${name} \xB7 CI`,
+      value: t.ciHoursTotal,
+      tier: t.tier === 0 ? 0 : t.ciTier,
+      thresholds: CI_HOURS_THRESHOLDS,
+      higherIsBetter: true,
+      mode: "required",
+      fmt: (v) => `${Math.round(v * 10) / 10} h`
+    },
+    {
+      label: `${name} \xB7 aktiva dagar/28`,
+      value: t.activeDays,
+      tier: t.tier === 0 ? 0 : t.consistencyTier,
+      thresholds: CONSISTENCY_DAY_THRESHOLDS,
+      higherIsBetter: true,
+      mode: "required",
+      fmt: (v) => `${Math.round(v)} dagar`
+    }
   ];
-  const wellLevelUp = wTs.length ? makeLevelUp(currentWellTier, 8, healthReqs, "T") : null;
-  function langBindingReq(label, t) {
-    if (!t || t.tier === 0) return makeReq({ label, current: 0, target: 1, unit: "kort", currentLabel: "Inget loggat", targetLabel: "B\xF6rja logga" });
-    if (t.tier >= 6) return makeReq({ label, current: 1, target: 1 });
-    const idx = Math.max(0, t.tier - 1);
-    if (t.cardsTier <= t.ciTier && t.cardsTier <= t.consistencyTier) {
-      return makeReq({ label: `${label} (kort)`, current: t.cardsTotal, target: CARDS_THRESHOLDS[idx], unit: "kort" });
+  const skillLadder = skH ? ladder([
+    ...langComps("Spanska", spT),
+    ...langComps("Serbiska", srT),
+    ...langComps("Tyska", gnT),
+    {
+      label: "Gitarr",
+      value: gtM,
+      tier: gtT?.tier ?? 0,
+      thresholds: [1, 30, 60, 120, 240],
+      higherIsBetter: true,
+      mode: "required",
+      fmt: (v) => `${Math.round(v)} min/v`
     }
-    if (t.ciTier <= t.consistencyTier) {
-      return makeReq({ label: `${label} (CI)`, current: t.ciHoursTotal, target: CI_HOURS_THRESHOLDS[idx], unit: "h" });
-    }
-    return makeReq({ label: `${label} (regelbundenhet)`, current: t.activeDays, target: CONSISTENCY_DAY_THRESHOLDS[idx], unit: "dagar/28" });
-  }
-  const GUITAR_MIN_TARGETS = { 2: 30, 3: 60, 4: 120, 5: 240, 6: 240 };
-  function guitarReq(t, minutesPerWeek) {
-    if (!t || t.tier === 0) return makeReq({ label: "Gitarr", current: 0, target: 1, unit: "min/v", currentLabel: "Inget loggat", targetLabel: "B\xF6rja spela" });
-    if (t.tier >= 6) return makeReq({ label: "Gitarr", current: 1, target: 1 });
-    const nextTier = Math.min(t.tier + 1, 6);
-    return makeReq({ label: "Gitarr", current: minutesPerWeek, target: GUITAR_MIN_TARGETS[nextTier], unit: "min/v" });
-  }
-  const currentSkillTier = skH ? skTop.tier : 0;
-  const skillLevelUp = skH ? makeLevelUp(currentSkillTier, 6, [
-    langBindingReq("Spanska", spT),
-    langBindingReq("Serbiska", srT),
-    langBindingReq("Tyska", gnT),
-    guitarReq(gtT, gtM)
-  ], "T") : null;
-  const skillsTierVal = skH ? skTop?.tier ?? 0 : 0;
-  const bodyLevelUp = latestW?.weight_kg ? {
-    currentTier: null,
-    nextTier: null,
-    maxTier: null,
-    title: "Kroppsstatus",
-    progressPct: wP,
-    primaryBottleneck: wK <= 0 ? "P\xE5 m\xE5l" : `${wK} kg kvar till m\xE5l`,
-    requirements: [
-      { label: "Aktuell vikt", currentLabel: `${bw} kg`, targetLabel: `${wGoal} kg`, gapLabel: wK <= 0 ? "Klar" : `${wK} kg kvar`, met: wK <= 0, missing: false, progress: wP },
-      { label: "Trend 14d", currentLabel: (wD > 0 ? "+" : "") + wD + " kg", targetLabel: "Ned\xE5t/stabil", gapLabel: wD <= 0 ? "Bra trend" : "Fel riktning", met: wD <= 0, missing: false, progress: wD <= 0 ? 100 : 35 }
-    ],
-    blockers: []
-  } : null;
-  const strengthTierGuide = bw ? [2, 3, 4, 5, 6, 7, 8].map((t) => {
-    const i = t - 2;
-    return { tier: t, label: TIER_NAMES[t], reqs: [
-      `B\xE4nk \u2265 ${BENCH_THRESHOLDS[i]}x BW (${fmtKg(BENCH_THRESHOLDS[i] * bw)})`,
-      `Kn\xE4b\xF6j \u2265 ${SQUAT_THRESHOLDS[i]}x BW (${fmtKg(SQUAT_THRESHOLDS[i] * bw)})`,
-      `Marklyft \u2265 ${DEADLIFT_THRESHOLDS[i]}x BW (${fmtKg(DEADLIFT_THRESHOLDS[i] * bw)})`,
-      ...t >= 6 ? [`Milit\xE4rpress \u2265 ${OHP_THRESHOLDS[i]}x BW (${fmtKg(OHP_THRESHOLDS[i] * bw)})`] : []
-    ] };
-  }) : null;
+  ], skTop?.tier || 1, 6, { notes: ["Varje spr\xE5k = svagaste av kort, CI-timmar och aktiva dagar. Kategorin = svagaste av alla fyra f\xE4rdigheterna."] }) : { levelUp: null, tierGuide: null };
   const r1Evidence = runEvidence(r1Show, "1 km PR");
   const r5Evidence = runEvidence(r5Show, "5 km PR");
   const r10Evidence = runEvidence(r10Show, "10 km PR");
@@ -3854,7 +3960,8 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
       details: [{ label: "1km PR", value: fmtPR(r1ShowD, r1Show), sourceEvidence: r1Evidence, tierInfo: r1T }, { label: "5km PR", value: fmtPR(r5ShowD, r5Show), sourceEvidence: r5Evidence, tierInfo: r5T }, { label: "10km PR", value: fmtPR(r10ShowD, r10Show), sourceEvidence: r10Evidence, tierInfo: r10T }, { label: "Halvmara", value: fmtPR(rHShowD, rHShow), sourceEvidence: rHEvidence, tierInfo: rHT }, { label: "Mara", value: rMD ? formatRunTime(Math.round(rMD.value)) : "\u2014", tierInfo: rMT }],
       chartData: (runData || []).filter((r) => r.distance_km >= 4.5 && r.distance_km <= 11).slice(0, 20).reverse().map((r) => ({ date: r.date.slice(5), Pace: r.pace_per_km ? Math.round(r.pace_per_km / 60 * 10) / 10 : null })),
       chartLines: [{ key: "Pace", label: "Pace (min/km)", color: "#4f8ef7" }],
-      levelUp: kondLevelUp,
+      levelUp: kondLadder.levelUp,
+      tierGuide: kondLadder.tierGuide,
       navTarget: "/traning",
       navLabel: "Tr\xE4ning"
     },
@@ -3864,7 +3971,7 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
       icon: "styrka",
       tier: stTop,
       hasData: hasStrengthData,
-      pct: strengthLevelUp?.progressPct ?? (stTop ? Math.round(stTop.tier / 8 * 100) : 0),
+      pct: strengthLadder.levelUp?.progressPct ?? (stTop ? Math.round(stTop.tier / 8 * 100) : 0),
       decayWarning: false,
       trend: "neutral",
       perExercise: [
@@ -3883,8 +3990,8 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
       details: [{ label: "B\xE4nkpress e1RM", value: bE1RM ? Math.round(bE1RM) + " kg (" + Math.round(bE1RM / bw * 100) / 100 + "x BW)" : "\u2014", sourceEvidence: bEvidence, tierInfo: bT }, { label: "Kn\xE4b\xF6j e1RM", value: sE1RM ? Math.round(sE1RM) + " kg (" + Math.round(sE1RM / bw * 100) / 100 + "x BW)" : "\u2014", sourceEvidence: sEvidence, tierInfo: sT }, { label: "Marklyft e1RM", value: dlE1RM ? Math.round(dlE1RM) + " kg (" + Math.round(dlE1RM / bw * 100) / 100 + "x BW)" : "\u2014", sourceEvidence: dlEvidence, tierInfo: dlT }, { label: "Milit\xE4rpress e1RM", value: oE1RM ? Math.round(oE1RM) + " kg" : "\u2014", tierInfo: oT }, { label: "Weighted pull-up e1RM", value: puE1RM ? "+" + Math.round(puE1RM) + " kg" : "\u2014", tierInfo: puT }],
       chartData: [],
       chartLines: [],
-      levelUp: strengthLevelUp,
-      tierGuide: strengthTierGuide,
+      levelUp: strengthLadder.levelUp,
+      tierGuide: strengthLadder.tierGuide,
       navTarget: "/traning",
       navLabel: "Tr\xE4ning"
     },
@@ -3907,7 +4014,8 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
       ],
       chartData: [],
       chartLines: [],
-      levelUp: studyLevelUp,
+      levelUp: studyLadder.levelUp,
+      tierGuide: studyLadder.tierGuide,
       navTarget: "/plugg",
       navLabel: "Studier"
     },
@@ -3937,7 +4045,8 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
       ],
       chartData: [],
       chartLines: [],
-      levelUp: skillLevelUp,
+      levelUp: skillLadder.levelUp,
+      tierGuide: skillLadder.tierGuide,
       navTarget: "/plugg",
       navLabel: "Plugg"
     },
@@ -3954,7 +4063,8 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
       details: [{ label: totPrev > 0 ? "Netto f\xF6rra perioden" : "Netto denna period", value: totPA ? Math.round(totPA).toLocaleString("sv-SE") + " kr" : "\u2014", tierInfo: incT }, ...totPrev > 0 ? [{ label: "Netto denna period (hittills)", value: Math.round(totCurrent).toLocaleString("sv-SE") + " kr" }] : [], { label: "Sparkapital", value: sav != null ? sav.toLocaleString("sv-SE") + " kr" : "\u2014", tierInfo: savT }],
       chartData: [],
       chartLines: [],
-      levelUp: econLevelUp,
+      levelUp: econLadder.levelUp,
+      tierGuide: econLadder.tierGuide,
       navTarget: "/ekonomi",
       navLabel: "Ekonomi"
     },
@@ -3992,7 +4102,8 @@ function computeTierCategories(inputs, todayDate = /* @__PURE__ */ new Date()) {
       ],
       chartData: (healthData || []).filter((h) => h.sleep_hours || h.steps != null || h.alcohol_units != null).slice(0, 14).reverse().map((h) => ({ date: h.date.slice(5), S\u00F6mn: h.sleep_hours, Steg: h.steps, Alkohol: h.alcohol_units })),
       chartLines: [{ key: "S\xF6mn", label: "S\xF6mn (h)", color: "#8b5cf6" }, { key: "Steg", label: "Steg", color: "#10b981" }, { key: "Alkohol", label: "Alkohol", color: "#f87171" }],
-      levelUp: wellLevelUp,
+      levelUp: wellLadder.levelUp,
+      tierGuide: wellLadder.tierGuide,
       navTarget: "/halsa",
       navLabel: "H\xE4lsa"
     }
