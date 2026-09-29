@@ -129,7 +129,9 @@ export default function Jarvis() {
           const { data: recentReport } = await supabase.from('jarvis_reports').select('id').eq('user_id', user.id).gte('created_at', since).limit(1)
           if (recentReport?.length) isMonday = false
         }
-        sendToJarvis(isMonday ? WEEKLY_BRIEF_PROMPT : DAILY_BRIEF_PROMPT, false, { skipUserSave: true })
+        // Daily brief runs tool-free from the NU context; the Monday fallback
+        // needs last week's data, so it keeps the tools.
+        sendToJarvis(isMonday ? WEEKLY_BRIEF_PROMPT : DAILY_BRIEF_PROMPT, false, { skipUserSave: true, brief: !isMonday })
       }
     })()
   }, [user])
@@ -217,7 +219,7 @@ export default function Jarvis() {
     setInsights(prev => prev.filter(i => i.id !== id))
   }
 
-  async function sendToJarvis(promptText, visible = true, { baseMessages = null, skipUserSave = false } = {}) {
+  async function sendToJarvis(promptText, visible = true, { baseMessages = null, skipUserSave = false, brief = false } = {}) {
     if (!promptText.trim() || loading) return
     const userMsg = { role: 'user', content: promptText.trim() }
     setLoading(true)
@@ -247,7 +249,8 @@ export default function Jarvis() {
         ? { role: m.role, content: `[${day}] ${m.content}` }
         : { role: m.role, content: m.content }
     })
-    const reqBody = { messages: taggedMessages, context: freshCtx || contextRef.current }
+    // brief: answer from the NU context, no tool loop (jarvis-chat tool_choice none).
+    const reqBody = { messages: taggedMessages, context: freshCtx || contextRef.current, ...(brief && { brief: true }) }
     const saveAssistant = async (raw) => {
       const clean = stripAccidentalActionJson(raw || '') || 'Jag fick inget svar från modellen.'
       const { error: saveErr } = await supabase.from('jarvis_conversations').insert({ user_id: user.id, role: 'assistant', content: clean })

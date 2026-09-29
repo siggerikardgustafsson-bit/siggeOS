@@ -366,15 +366,29 @@ export default function InsightsPage() {
   }
 
   async function generateObservations(freshData, force = false) {
-    const OBS_TTL = 30 * 60 * 1000
-    // Key the cache on user + period — a fixed key showed 90-day observations
-    // under a 365-day heading, and leaked one user's observations to the next
-    // login in the same tab. See AUDIT.md P1-5.
-    const obsKey = `insights_obs:${user?.id || 'anon'}:${period}`
+    const lines = []
+    if (freshData.weightData?.length) lines.push('Vikt senaste veckor: ' + freshData.weightData.slice(-6).map(d => `${d.week}:${d.vikt}kg`).join(', '))
+    if (freshData.sleepData?.length) lines.push('Sömn timmar/vecka: ' + freshData.sleepData.slice(-6).map(d => `${d.week}:${d.sömn}h`).join(', '))
+    if (freshData.trainingData?.length) lines.push('Träning pass/vecka: ' + freshData.trainingData.slice(-6).map(d => `${d.week}:${d.pass}pass`).join(', '))
+    if (freshData.studyData?.length) lines.push('Studier timmar/vecka: ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
+    const findingsBlock = findingsToPrompt(freshData.findings || [])
+    if (findingsBlock) lines.push(findingsBlock)
+
+    const prompt = 'Analysera denna data och returnera EXAKT en JSON-array, inga backticks, inget annat.\n\nData:\n' + (lines.join('\n') || 'Ingen data.') + '\n\nBygg vidare på KOPPLINGAR om de finns — lyft det icke-uppenbara, inte det som redan står. Format: [{"icon":"emoji","category":"kategori","text":"Kort observation max 20 ord."}]\nKategorier: halsa, traning, plugg, ekonomi, monster, somn. 4-6 observationer.'
+
+    // Cache on the INPUT, not the clock (2026-09-29 cost pass): the same data
+    // gives the same observations, so only call the model when the underlying
+    // numbers changed — at most once per 24h per distinct input. Used to be a
+    // 30-min sessionStorage TTL, i.e. a fresh AI call on nearly every visit.
+    // Keyed on user + period + a hash of the prompt (AUDIT.md P1-5 still holds).
+    let h = 0
+    for (let i = 0; i < prompt.length; i++) h = (Math.imul(31, h) + prompt.charCodeAt(i)) | 0
+    const OBS_TTL = 24 * 60 * 60 * 1000
+    const obsKey = `insights_obs:${user?.id || 'anon'}:${period}:${h >>> 0}`
     const obsTimeKey = `${obsKey}:time`
     try {
-      const cached = sessionStorage.getItem(obsKey)
-      const cachedTime = parseInt(sessionStorage.getItem(obsTimeKey) || '0')
+      const cached = localStorage.getItem(obsKey)
+      const cachedTime = parseInt(localStorage.getItem(obsTimeKey) || '0')
       if (!force && cached && (Date.now() - cachedTime) < OBS_TTL) {
         const parsed = JSON.parse(cached)
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -387,21 +401,12 @@ export default function InsightsPage() {
 
     setLoadingObs(true)
     try {
-      const lines = []
-      if (freshData.weightData?.length) lines.push('Vikt senaste veckor: ' + freshData.weightData.slice(-6).map(d => `${d.week}:${d.vikt}kg`).join(', '))
-      if (freshData.sleepData?.length) lines.push('Sömn timmar/vecka: ' + freshData.sleepData.slice(-6).map(d => `${d.week}:${d.sömn}h`).join(', '))
-      if (freshData.trainingData?.length) lines.push('Träning pass/vecka: ' + freshData.trainingData.slice(-6).map(d => `${d.week}:${d.pass}pass`).join(', '))
-      if (freshData.studyData?.length) lines.push('Studier timmar/vecka: ' + freshData.studyData.slice(-6).map(d => `${d.week}:${d.timmar}h`).join(', '))
-      const findingsBlock = findingsToPrompt(freshData.findings || [])
-      if (findingsBlock) lines.push(findingsBlock)
-
-      const prompt = 'Analysera denna data och returnera EXAKT en JSON-array, inga backticks, inget annat.\n\nData:\n' + (lines.join('\n') || 'Ingen data.') + '\n\nBygg vidare på KOPPLINGAR om de finns — lyft det icke-uppenbara, inte det som redan står. Format: [{"icon":"emoji","category":"kategori","text":"Kort observation max 20 ord."}]\nKategorier: halsa, traning, plugg, ekonomi, monster, somn. 4-6 observationer.'
-
       const { data: rd, error } = await supabase.functions.invoke('jarvis-chat', {
         body: {
           messages: [{ role: 'user', content: prompt }],
           context: '',
           systemPrompt: 'Du returnerar ENBART en giltig JSON-array. Ingen annan text, inga backticks.',
+          feature: 'insights_observations',
         },
       })
       if (error) throw new Error(error.message)
@@ -414,8 +419,8 @@ export default function InsightsPage() {
         setAiObservations(arr)
         const now = Date.now()
         try {
-          sessionStorage.setItem(obsKey, JSON.stringify(arr))
-          sessionStorage.setItem(obsTimeKey, String(now))
+          localStorage.setItem(obsKey, JSON.stringify(arr))
+          localStorage.setItem(obsTimeKey, String(now))
         } catch (_) {}
         setObsLastUpdated(new Date(now))
       }

@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { corsHeaders, getAuthedUser, unauthorized } from '../_shared/auth.ts'
+import { newUsage, addUsage, logUsage } from '../_shared/aiUsage.ts'
 
 // Anthropic config — one place, so the stream and non-stream branches can't
 // drift apart (AUDIT.md P3-11).
@@ -1308,6 +1309,10 @@ function buildSystemPrompt(context: string, settings: any, contentBlock: string,
   // a neutral noun when no display_name is set yet.
   const userName = (typeof s.display_name === 'string' && s.display_name.trim()) ? s.display_name.trim() : 'användaren'
 
+  // PROFIL (incl. about_me, which can be ~40k chars) is stable for weeks, so
+  // it lives in the 1h-cached `instructions` block — not in `dynamic`, which is
+  // rewritten every time MINNE/NU changes (2026-09-29 cost pass: it made every
+  // context refresh re-bill ~14k tokens at the cache-write rate).
   const profileLines = [
     s.display_name && `Namn: ${s.display_name}`,
     s.about_me && `Profil: ${s.about_me}`,
@@ -1350,17 +1355,36 @@ Du kan läsa, lägga till, ändra och ta bort data i HELA appen när användaren
 
 LÄNKAR: När du hänvisar till en sida, länka med markdown så användaren kan klicka dit direkt: [Träning](/traning), [Hälsa](/halsa), [Ekonomi](/ekonomi), [Plugg](/plugg), [Jobb](/jobb), [Kalender](/kalender), [Insights](/insights), [Upplevelser](/upplevelser), [Journal](/journal), [Mål](/mal), [Dashboard](/). Max 1–2 länkar/svar, bara när det tillför.
 
-Svar på användarens språk. Kort.`
+Svar på användarens språk. Kort.
 
-  const dynamic = `PROFIL: ${profileLines || '–'}
+PROFIL: ${profileLines || '–'}`
 
-MINNE (senaste 20): ${insightLines || '–'}
+  const dynamic = `MINNE (senaste 20): ${insightLines || '–'}
 
 VÄNNER: ${friendLines || '–'}
 
 NU: ${context || '–'}${contentBlock ? '\n'+contentBlock : ''}`
 
   return { instructions, dynamic }
+}
+
+// Cache breakpoint on the LAST message block (2026-09-29, cost pass). Inside
+// the tool loop every iteration resends the whole conversation plus all tool
+// results so far; with this marker iteration N reads iterations 1..N-1 from
+// cache (0.1x) instead of re-billing them. Returns a copy — the stored message
+// array never carries markers, so exactly one message breakpoint exists per
+// request (tools + instructions + dynamic + this = the 4-breakpoint max).
+function withMessageBreakpoint(msgs: any[]): any[] {
+  if (!msgs.length) return msgs
+  const out = msgs.slice(0, -1)
+  const last = msgs[msgs.length - 1]
+  const blocks = typeof last.content === 'string'
+    ? [{ type: 'text', text: last.content || ' ' }]
+    : [...last.content]
+  const i = blocks.length - 1
+  blocks[i] = { ...blocks[i], cache_control: { type: 'ephemeral' } }
+  out.push({ ...last, content: blocks })
+  return out
 }
 
 // ─────────────────────────────────────────────
@@ -1371,7 +1395,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { messages = [], context = '', examFileId, materialIds, stream = false, systemPrompt } = await req.json()
+    const { messages = [], context = '', examFileId, materialIds, stream = false, systemPrompt, brief = false, feature = null } = await req.json()
     // A caller-supplied systemPrompt marks a one-shot STRUCTURED-EXTRACTION call
     // (journal analysis, weekly report, side-quests, trip budget) rather than a
     // chat turn. In that mode we use the caller's prompt verbatim and disable the
@@ -1451,8 +1475,13 @@ serve(async (req) => {
     // Render order is tools -> system -> messages, so iterations 2-8 (and repeat
     // requests within the 5-min TTL) read this prefix from cache (~0.1x cost)
     // instead of re-billing the full system+tools tokens every time.
+    // 1-hour TTL on the static prefix (tools + instructions, ~8k tokens):
+    // chat turns are minutes apart while the user reads/types, so the default
+    // 5-min entry kept expiring and the whole prefix was re-written at 1.25x.
+    // A 1h write costs 2x once and every return within the hour reads at 0.1x.
+    // (Longer TTLs must precede shorter ones — dynamic/messages stay 5 min.)
     const cachedTools = TOOLS.map((t: any, i: number) =>
-      i === TOOLS.length - 1 ? { ...t, cache_control: { type: 'ephemeral' } } : t
+      i === TOOLS.length - 1 ? { ...t, cache_control: { type: 'ephemeral', ttl: '1h' } } : t
     )
     // Two cache breakpoints for normal chat instead of one (2026-09-15):
     //   1. `instructions` — persona/coaching/tool-routing rules. Identical
@@ -1470,12 +1499,20 @@ serve(async (req) => {
     // In extraction/structured-output mode (overrideSystem) none of this
     // applies — that's a one-shot call, not iterative chat, so one plain
     // cached block is fine as before.
+    // Extraction mode: course material / old exam (StudyModal) goes FIRST as
+    // its own cached block — it is large and identical for a whole study
+    // session, while the caller's prompt after it changes (mastery updates).
+    // Before 2026-09-29 contentResult was fetched but never sent in this mode,
+    // so the study tutor never actually saw the uploaded material.
     const cachedSystem = overrideSystem
-      ? [{ type: 'text', text: overrideSystem, cache_control: { type: 'ephemeral' } }]
+      ? [
+          ...(contentResult ? [{ type: 'text', text: contentResult.trim(), cache_control: { type: 'ephemeral' } }] : []),
+          { type: 'text', text: overrideSystem, cache_control: { type: 'ephemeral' } },
+        ]
       : (() => {
           const { instructions, dynamic } = buildSystemPrompt(contextWithoutTid, mergedSettings, contentResult, insightsResult.data || [], friendsResult.data || [])
           return [
-            { type: 'text', text: instructions, cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: instructions, cache_control: { type: 'ephemeral', ttl: '1h' } },
             { type: 'text', text: dynamic, cache_control: { type: 'ephemeral' } },
             ...(tidLine ? [{ type: 'text', text: tidLine }] : []),
           ]
@@ -1483,6 +1520,17 @@ serve(async (req) => {
     // In extraction mode, omit tools entirely so the model can't enter the tool
     // loop and just answers (JSON). Normal chat keeps the full tool set.
     const effectiveTools = overrideSystem ? undefined : cachedTools
+    // Proactive daily brief: answer from the NU context (MÖNSTER, SIGNALER,
+    // MAXX INTELLIGENS, goals are already in it) instead of a 3-5 iteration
+    // fetch loop every morning. Done as an uncached tail instruction, NOT
+    // tool_choice none (with Sonnet 4.6 that returned an empty content array),
+    // and tools stay in the prefix so the brief warms the 1h cache for the chat.
+    const briefLine = brief && !overrideSystem
+      ? 'BRIEF-LÄGE: svara direkt utifrån NU-kontexten ovan i ett enda svar – anropa inga verktyg.'
+      : null
+    if (briefLine) cachedSystem.push({ type: 'text', text: briefLine })
+    const usage = newUsage()
+    const usageFeature = brief ? 'brief' : overrideSystem ? `extract:${String(feature || overrideSystem.slice(0, 40))}` : 'chat'
 
     const ANTHROPIC_KEY = ANTHROPIC_API_KEY
     const MODEL = ANTHROPIC_MODEL
@@ -1510,7 +1558,7 @@ serve(async (req) => {
                   'anthropic-version': '2023-06-01',
                   'anthropic-beta': 'pdfs-2024-09-25',
                 },
-                body: JSON.stringify({ model: MODEL, max_tokens: 2500, system: cachedSystem, tools: effectiveTools, messages: streamMessages, stream: true }),
+                body: JSON.stringify({ model: MODEL, max_tokens: 2500, system: cachedSystem, tools: effectiveTools, messages: withMessageBreakpoint(streamMessages), stream: true }),
               })
               if (!resp.ok || !resp.body) {
                 const errJson = await resp.json().catch(() => ({}))
@@ -1535,7 +1583,10 @@ serve(async (req) => {
                   if (!payload) continue
                   let ev: any
                   try { ev = JSON.parse(payload) } catch { continue }
-                  if (ev.type === 'content_block_start') {
+                  if (ev.type === 'message_start') {
+                    // input + cache meters arrive here; output comes in message_delta
+                    addUsage(usage, { ...(ev.message?.usage || {}), output_tokens: 0 })
+                  } else if (ev.type === 'content_block_start') {
                     cur = ev.content_block?.type === 'tool_use'
                       ? { type: 'tool_use', id: ev.content_block.id, name: ev.content_block.name, input: '' }
                       : { type: 'text', text: '' }
@@ -1548,6 +1599,7 @@ serve(async (req) => {
                     cur = null
                   } else if (ev.type === 'message_delta') {
                     if (ev.delta?.stop_reason) stopReason = ev.delta.stop_reason
+                    usage.output += Number(ev.usage?.output_tokens) || 0
                   }
                 }
               }
@@ -1576,6 +1628,7 @@ serve(async (req) => {
           } catch (err) {
             send({ type: 'error', error: err instanceof Error ? err.message : String(err) })
           } finally {
+            await logUsage(supabase, user.id, usageFeature, MODEL, usage)
             try { controller.close() } catch (_) { /* already closed */ }
           }
         },
@@ -1597,12 +1650,14 @@ serve(async (req) => {
           max_tokens: 2500,
           system: cachedSystem,
           tools: effectiveTools,
-          messages: currentMessages,
+          messages: withMessageBreakpoint(currentMessages),
         }),
       })
 
       const data = await response.json()
+      addUsage(usage, data.usage)
       if (!response.ok) {
+        await logUsage(supabase, user.id, usageFeature, ANTHROPIC_MODEL, usage)
         return new Response(JSON.stringify({ error: data.error?.message || 'Anthropic API error', detail: data }), {
           status: 500, headers: { ...cors, 'Content-Type': 'application/json' },
         })
@@ -1634,6 +1689,8 @@ serve(async (req) => {
       finalText = textBlock?.text || ''
       break
     }
+
+    await logUsage(supabase, user.id, usageFeature, ANTHROPIC_MODEL, usage)
 
     // Strip any accidental jarvis_actions tags (legacy safety net)
     const cleaned = finalText

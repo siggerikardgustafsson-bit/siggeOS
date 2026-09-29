@@ -15,6 +15,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import Anthropic from 'npm:@anthropic-ai/sdk'
 import { corsHeaders, unauthorized, serviceClient } from '../_shared/auth.ts'
+import { newUsage, addUsage, logUsage } from '../_shared/aiUsage.ts'
 // @ts-ignore — generated plain-JS bundle
 import { buildJarvisNowContext } from '../_shared/serverLib.bundle.js'
 
@@ -139,6 +140,9 @@ serve(async (req) => {
         system: SYSTEM,
         messages: [{ role: 'user', content: userMsg }],
       } as any)
+      const usage = newUsage()
+      addUsage(usage, response.usage)
+      await logUsage(supabase, userId, dry ? 'weekly:dry' : 'weekly', response.model || MODEL, usage)
       if (response.stop_reason === 'refusal') { results.push({ userId, error: 'refusal', details: (response as any).stop_details }); continue }
       const content = response.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n').trim()
       if (!content) { results.push({ userId, error: `empty response (${response.stop_reason})` }); continue }
