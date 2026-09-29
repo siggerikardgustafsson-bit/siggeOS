@@ -19,6 +19,7 @@ import { buildJarvisContextBlock } from './reason'
 import { crossDomainFindings, findingsToPrompt } from '../correlate'
 import { detectSignals, signalsToPrompt } from '../signals'
 import { resolveTargetWeight } from '../personalization'
+import { fetchExperimentDays, experimentsFetchStart, experimentsToPrompt } from '../experiments'
 
 const getProfileWith = (supabase) => async (uid) => {
   try {
@@ -140,6 +141,20 @@ export async function buildJarvisNowContext(supabase, userId, now = new Date()) 
     })
     const sblock = signalsToPrompt(signals)
     if (sblock) fullCtx += '\n\n' + sblock
+  } catch { /* best-effort */ }
+
+  // Best-effort EXPERIMENT block — the user's own n-of-1 tests (active, or
+  // ended in the last 14 days) with the live evaluation, so Jarvis can push
+  // adherence and read results honestly.
+  try {
+    const { data: exps } = await supabase.from('experiments').select('*').eq('user_id', userId)
+      .order('start_date', { ascending: false }).limit(10)
+    const from = experimentsFetchStart(exps || [])
+    if (from) {
+      const days = await fetchExperimentDays(supabase, userId, from, today)
+      const eblock = experimentsToPrompt(exps, days, now)
+      if (eblock) fullCtx += '\n\n' + eblock
+    }
   } catch { /* best-effort */ }
 
   return fullCtx

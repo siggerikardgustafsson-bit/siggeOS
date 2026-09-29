@@ -8,6 +8,7 @@ import { sv } from 'date-fns/locale'
 import { Loader, TrendingUp, TrendingDown, Minus, Zap, Flame, Award, Activity, Link2 } from 'lucide-react'
 import PageSkeleton from '../components/Skeleton'
 import SectionHeader from '../components/ui/SectionHeader'
+import ExperimentsPanel from '../components/ExperimentsPanel'
 import { resolveTargetWeight } from '../lib/personalization'
 import { listGoals } from '../lib/goals'
 import { crossDomainFindings, findingsToPrompt } from '../lib/correlate'
@@ -573,6 +574,9 @@ export default function InsightsPage() {
           })}
         </div>
       )}
+
+      {/* Personal n-of-1 experiments — change one thing, measure the effect. */}
+      <ExperimentsPanel userId={user?.id} />
 
       {/* Jarvis weekly report */}
       {weeklyReport && (
