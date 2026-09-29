@@ -1,6 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { corsHeaders, getAuthedUser, unauthorized } from '../_shared/auth.ts'
 import { newUsage, addUsage, logUsage } from '../_shared/aiUsage.ts'
+// @ts-ignore — generated plain-JS bundle (src/lib/pay.js)
+import { priceShift } from '../_shared/serverLib.bundle.js'
 
 // Anthropic config — one place, so the stream and non-stream branches can't
 // drift apart (AUDIT.md P3-11).
@@ -120,6 +122,7 @@ course_materials(id:uuid,exam_id:uuid,course_id:uuid,file_name:text,content:text
 courses(id:uuid,name:text,term:text,exam_date:date,active:bool,grade:text,goal_hours:num,ai_time_estimate:text,ai_time_hours:num)
 erik_contact_log(id:uuid,date:date,channel:text,summary:text)
 erik_payments(id:uuid,date:date,amount:num,description:text,task_id:uuid)
+employments(id:uuid,name:text,employer:text,kind:text,hourly_rate:num,monthly_salary:num,ob_rules:json,ob_mode:text,jour_rate:num,jour_from:text,jour_to:text,jour_ob:bool,holiday_pay_pct:num,tax_rate:num,match_keywords:arr,is_default:bool,active:bool,notes:text)
 erik_tasks(id:uuid,title:text,description:text,deadline:date,status:text,priority:text,tag:text,notes:text)
 experiments(id:uuid,title:text,hypothesis:text,outcome_metric:text,direction:text,lever_metric:text,lever_op:text,lever_target:num,start_date:date,duration_days:int,baseline_days:int,status:text,ended_at:ts)
 expense_logs(id:uuid,date:date,amount:num,category:text,description:text,source:text,external_id:text,sync_origin:text)
@@ -135,7 +138,7 @@ mandatory_sessions(id:uuid,course_id:uuid,google_event_id:text,title:text,date:d
 meal_logs(id:uuid,date:date,meal_time:text,description:text,calories_estimate:int,protein_estimate_g:int,photo_url:text,ai_analysis:text,source:text)
 net_worth_history(id:uuid,date:date,total_sek:num)
 nutrition_logs(id:uuid,date:date,total_calories:int,protein_g:int,water_liters:num)
-pa_shifts(id:uuid,date:date,client_name:text,start_time:ts,end_time:ts,hours_worked:num,hourly_rate:num,total_pay:num,is_night_shift:bool,notes:text,google_event_id:text,synced_from_google:bool,shift_type:text,estimated_pay:num)
+pa_shifts(id:uuid,date:date,client_name:text,start_time:ts,end_time:ts,hours_worked:num,hourly_rate:num,total_pay:num,is_night_shift:bool,notes:text,google_event_id:text,synced_from_google:bool,shift_type:text,estimated_pay:num,employment_id:uuid)
 personal_records(id:uuid,exercise_name:text,weight_kg:num,reps:int,date:date,time_seconds:int,distance_km:num,pace_per_km:int,exercise_id:uuid)
 project_tasks(id:uuid,project_id:uuid,title:text,description:text,deadline:date,priority:text,status:text,notes:text)
 projects(id:uuid,name:text,type:text,client:text,color:text,description:text,status:text,notes:text)
@@ -159,12 +162,32 @@ const RECORD_TABLES: Record<string, Set<string>> = Object.fromEntries(
   }).filter(Boolean) as [string, Set<string>][],
 )
 const PROTECTED_COLUMNS = new Set(['id', 'user_id', 'created_at', 'updated_at'])
+const RECORD_JSON_COLS = new Set(
+  RECORD_SCHEMA.split('\n').flatMap((line) => {
+    const m = /^(\w+)\((.*)\)$/.exec(line.trim())
+    return m ? m[2].split(',').filter((c) => c.endsWith(':json')).map((c) => `${m[1]}.${c.split(':')[0]}`) : []
+  }),
+)
 
 function recordTable(table: any): Set<string> {
   const cols = RECORD_TABLES[String(table || '')]
   if (!cols) throw new Error(`Okänd eller otillåten tabell "${table}". Tillåtna: ${Object.keys(RECORD_TABLES).join(', ')}`)
   return cols
 }
+// After Jarvis edits a job's pay rules: re-price its shifts (estimated_pay is
+// the Export cache; everything else prices live) and return a worked example
+// so the model can sanity-check the rules against the document it read.
+async function repriceEmployment(supabase: any, userId: string, id: string): Promise<string> {
+  const { data: emp } = await supabase.from('employments').select('*').eq('id', id).eq('user_id', userId).maybeSingle()
+  if (!emp) return ''
+  if (emp.is_default) await supabase.from('employments').update({ is_default: false }).eq('user_id', userId).neq('id', id)
+  const { data: shifts } = await supabase.from('pa_shifts').select('id,start_time,end_time,shift_type').eq('user_id', userId).eq('employment_id', id)
+  await Promise.all((shifts || []).map((sh: any) => supabase.from('pa_shifts').update({ estimated_pay: priceShift(sh, emp)?.gross ?? null }).eq('id', sh.id).eq('user_id', userId)))
+  const ex = (type: string) => priceShift({ start_time: '2026-09-29T20:00:00Z', end_time: '2026-09-30T05:00:00Z', shift_type: type }, emp)
+  const v = ex('vaken'), sv = ex('sov')
+  return ` ${shifts?.length || 0} pass omräknade.${v ? ` Kontroll – vardagsnatt 22–07: vaken ${v.gross} kr brutto (bas ${v.breakdown.base}, OB ${v.breakdown.ob}, sem ${v.breakdown.holiday}), netto ${v.net} kr` : ''}${sv ? `; sovpass ${sv.gross} kr (jour ${sv.breakdown.jour})` : ''}.`
+}
+
 function recordValues(table: string, values: any): Record<string, unknown> {
   const cols = recordTable(table)
   if (!values || typeof values !== 'object' || Array.isArray(values)) throw new Error('values/fields måste vara ett objekt.')
@@ -173,6 +196,10 @@ function recordValues(table: string, values: any): Record<string, unknown> {
   for (const [k, v] of Object.entries(values)) {
     if (PROTECTED_COLUMNS.has(k)) continue
     if (!cols.has(k)) { unknown.push(k); continue }
+    // A json column sent as a JSON string would be stored as a jsonb string.
+    if (typeof v === 'string' && RECORD_JSON_COLS.has(`${table}.${k}`)) {
+      try { out[k] = JSON.parse(v); continue } catch { throw new Error(`${k} måste vara giltig JSON.`) }
+    }
     out[k] = v === '' ? null : v
   }
   if (unknown.length) throw new Error(`Okända kolumner i ${table}: ${unknown.join(', ')}. Giltiga: ${[...cols].filter((c) => !PROTECTED_COLUMNS.has(c)).join(', ')}`)
@@ -1284,6 +1311,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           const { data: row, error } = await supabase.from(d.table).insert({ ...values, user_id: userId }).select('id').single()
           if (error) throw error
           result = `Skapade rad i ${d.table} (id ${row?.id}).`
+          if (d.table === 'employments' && row?.id) result += await repriceEmployment(supabase, userId, row.id)
           break
         }
         case 'update_record': {
@@ -1293,6 +1321,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           if (error) throw error
           if (!rows?.length) throw new Error(`Ingen rad med id ${d.id} i ${d.table}.`)
           result = `Uppdaterade ${d.table} (id ${d.id}): ${Object.keys(fields).join(', ')}.`
+          if (d.table === 'employments') result += await repriceEmployment(supabase, userId, d.id)
           break
         }
         case 'delete_record': {
@@ -1377,6 +1406,7 @@ VEM DU ÄR – din självbild:
 - Dina mål (så mäter du dig själv): att tiers och mål faktiskt rör sig, att loggningen blir komplett nog att lita på, att experiment slutförs, att veckans FOKUS blir gjort. Råd som inte leder till handling räknas inte.
 - Förmågor: du läser all data i appen (fetch_*-verktygen, fetch_records) och kan lägga till, ändra och ta bort data överallt (execute_action). Du har ett långtidsminne (insikter) som du själv underhåller. Du ser tier-systemet (MAXX INTELLIGENS), förräknade mönster, veckans signaler, pågående experiment och veckans fokus i NU. Du kan starta och avsluta n-of-1-experiment och skapa mål med automatisk progress. Du skriver en veckorapport varje söndag och en kort brief när hen öppnar appen första gången för dagen.
 - Gränser: du ser bara det som loggats – saknas data, säg det istället för att gissa. Ingen internetåtkomst, du kan inte skicka meddelanden eller notiser, och du räknar aldrig själv om score/tiers. Du är inte läkare eller licensierad rådgivare: ge ärlig information och flagga risker (mediciner, substanser, sömnbrist), men hänvisa till vården när något är akut eller kräver en medicinsk bedömning.
+- Bilagor: användaren kan bifoga PDF eller bild i chatten (avtal, lönespec, kvitto, schema, provsvar, kursmaterial, skärmdump). Bilagan finns bara i meddelandet den skickas med – nästa tur ser du bara texten – så läs ut allt relevant och spara det med rätt verktyg i samma svar. Redovisa sedan kort vad du sparade/ändrade (gammalt → nytt) och vad som var otydligt i dokumentet. Gissa aldrig belopp eller datum som inte står där.
 - Sanningskällor: AKTIVA MÅL (Mål-sidan) är användarens aktuella mål – målvikt, deadlines och målvärden därifrån gäller alltid före siffror i profiltexten, som kan vara inaktuella. Ändra ett mål med update_goal, inte i profilen.
 - Skyldigheter: sanning före bekvämlighet; siffror före åsikter; fakta, hypotes och gissning hålls isär. Följ upp det ni kommit överens om (FOKUS, experiment, mål med deadline) utan att tjata. Påpeka loggningsluckor som gör analysen osäker, kort. Bekräfta innan du raderar. Hitta aldrig på siffror. Håll ${userName}s data privat. Rätta dig själv när du haft fel.
 
@@ -1388,6 +1418,8 @@ COACHNING – tänk som en vass personlig coach som känner ${userName}, inte en
 - Skilj tydligt på vad datan visar (fakta), vad den antyder (hypotes) och vad du gissar.
 - Avsluta coachning med EN konkret, mätbar nästa åtgärd för idag eller denna vecka.
 - Lyft framsteg, inte bara brister – resan ska vara värd att gå, inte bara mätas.
+
+LÖN & TJÄNSTER: Varje jobb är en rad i employments (Jobb → Tjänster); PA-pass (pa_shifts) kopplas via employment_id och lönen räknas automatiskt ur tjänstens regler – ändra reglerna, aldrig estimated_pay. Fält: hourly_rate (kr/h), ob_rules = hela listan [{label, kr, days:[0-6] där 0=sön, from:"HH:MM", to:"HH:MM" (to ≤ from = över midnatt, "00:00"–"24:00" = hela dygnet), holiday:true för storhelg, exclusive:true om regeln ersätter alla andra OB när den gäller}], ob_mode "sum" (tilläggen läggs ihop) eller "highest" (bara det högsta), jour_rate/jour_from/jour_to (ersätter timlönen på sovpass), jour_ob (OB även under jour), holiday_pay_pct (semesterersättning i %), tax_rate (decimal, t.ex. 0.27), match_keywords (ord i kalendertiteln som gör ett event till ett pass). Avtal/lönespec bifogat → hämta tjänsten med fetch_records(employments), skicka sedan update_record med hela nya ob_rules-listan (eller create_record om jobbet saknas). Ur en lönespec: tax_rate = dragen skatt / bruttolön; jämför postrader (timlön, OB-typer, jour, semesterersättning) med reglerna och rätta skillnader.
 
 DATUM: Ett "TID:"-block sist i denna systemprompt (efter NU) är exakt nu. Meddelanden i historiken som börjar med [ÅÅÅÅ-MM-DD] skrevs det datumet, inte idag – räkna "imorgon", "nästa vecka", "om 3 dagar" osv från när meddelandet skrevs, inte från idag, om inget annat sägs. Utan datumtagg = idag.
 

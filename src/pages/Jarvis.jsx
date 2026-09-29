@@ -4,11 +4,39 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { format } from 'date-fns'
 import { sv } from 'date-fns/locale'
-import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp, Plus, Trash2, Sparkles, Copy, RefreshCw, Check } from 'lucide-react'
+import { Send, Zap, Sun, Moon, Brain, ChevronDown, ChevronUp, Plus, Trash2, Sparkles, Copy, RefreshCw, Check, Paperclip, X, FileText } from 'lucide-react'
 import MarkdownMessage from '../components/MarkdownMessage'
 import { buildJarvisNowContext } from '../lib/jarvis/nowContext'
 
 const todayISO = () => format(new Date(), 'yyyy-MM-dd')
+
+// Attachments (PDF / image) travel only with the message they are sent with —
+// Jarvis reads them and saves what matters in that same turn; the chat
+// history keeps a "📎 name" line. Images are downscaled to ≤1600px JPEG so a
+// phone photo costs ~1.5k tokens instead of ~6k.
+const MAX_PDF_BYTES = 10 * 1024 * 1024
+const readAsBase64 = (file) => new Promise((resolve, reject) => {
+  const r = new FileReader()
+  r.onload = () => resolve(String(r.result).split(',')[1])
+  r.onerror = () => reject(r.error)
+  r.readAsDataURL(file)
+})
+async function fileToAttachment(file) {
+  if (file.type === 'application/pdf') {
+    if (file.size > MAX_PDF_BYTES) throw new Error('PDF:en är större än 10 MB.')
+    return { name: file.name, kind: 'document', media_type: 'application/pdf', data: await readAsBase64(file) }
+  }
+  if (!file.type.startsWith('image/')) throw new Error('Bara PDF eller bild stöds.')
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => reject(new Error('Kunde inte läsa bilden.')); i.src = url })
+    const scale = Math.min(1, 1600 / Math.max(img.width, img.height))
+    const c = document.createElement('canvas')
+    c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale)
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+    return { name: file.name, kind: 'image', media_type: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.85).split(',')[1] }
+  } finally { URL.revokeObjectURL(url) }
+}
 
 function stripAccidentalActionJson(content = '') {
   return content
@@ -71,6 +99,9 @@ export default function Jarvis() {
   const dailyBriefRef = useRef(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
+  const [attachment, setAttachment] = useState(null)
+  const [attachError, setAttachError] = useState(null)
+  const fileRef = useRef(null)
   const [loading, setLoading] = useState(false)
   const [context, setContext] = useState('')
   const [insights, setInsights] = useState([])
@@ -152,6 +183,25 @@ export default function Jarvis() {
     sendToJarvis(prompt, true)
   }, [user, location.state, location.pathname, navigate])
 
+  // state.prefill: put a draft in the input (e.g. Jobb → "Låt Jarvis läsa
+  // avtal/lönespec") so the user can attach a file before sending.
+  useEffect(() => {
+    const prefill = location.state?.prefill
+    if (!prefill) return
+    navigate(location.pathname, { replace: true, state: null })
+    setInput(prefill)
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }, [location.state, location.pathname, navigate])
+
+  async function pickFile(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setAttachError(null)
+    try { setAttachment(await fileToAttachment(file)) }
+    catch (err) { setAttachError(err.message || 'Kunde inte läsa filen.') }
+  }
+
   // Keep pinned to bottom while the reply reveals.
   useEffect(() => { if (reveal) messagesEndRef.current?.scrollIntoView({ block: 'end' }) }, [reveal])
 
@@ -219,11 +269,13 @@ export default function Jarvis() {
     setInsights(prev => prev.filter(i => i.id !== id))
   }
 
-  async function sendToJarvis(promptText, visible = true, { baseMessages = null, skipUserSave = false, brief = false } = {}) {
-    if (!promptText.trim() || loading) return
-    const userMsg = { role: 'user', content: promptText.trim() }
+  async function sendToJarvis(promptText, visible = true, { baseMessages = null, skipUserSave = false, brief = false, file = null } = {}) {
+    if ((!promptText.trim() && !file) || loading) return
+    const text = promptText.trim() || 'Läs bilagan och spara det som är relevant.'
+    const userMsg = { role: 'user', content: file ? `📎 ${file.name}\n\n${text}` : text }
     setLoading(true)
     setInput('')
+    setAttachment(null)
 
     const baseCtx = await refreshContext()
     // Prepend a per-request timestamp so a 5-min-cached context is never off by
@@ -249,6 +301,12 @@ export default function Jarvis() {
         ? { role: m.role, content: `[${day}] ${m.content}` }
         : { role: m.role, content: m.content }
     })
+    if (file) {
+      taggedMessages[taggedMessages.length - 1] = { role: 'user', content: [
+        { type: file.kind, source: { type: 'base64', media_type: file.media_type, data: file.data }, ...(file.kind === 'document' && { title: file.name }) },
+        { type: 'text', text: `[Bifogad fil: ${file.name}]\n${text}` },
+      ] }
+    }
     // brief: answer from the NU context, no tool loop (jarvis-chat tool_choice none).
     const reqBody = { messages: taggedMessages, context: freshCtx || contextRef.current, ...(brief && { brief: true }) }
     const saveAssistant = async (raw) => {
@@ -352,7 +410,7 @@ export default function Jarvis() {
   }
 
   async function sendMessage() {
-    await sendToJarvis(input, true)
+    await sendToJarvis(input, true, { file: attachment })
   }
 
   // Re-run the most recent user prompt — drops any trailing assistant/error
@@ -512,9 +570,22 @@ export default function Jarvis() {
             </div>
           )
         })()}
+        {(attachment || attachError) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 12.5, color: attachError ? '#ef4444' : 'var(--muted2)' }}>
+            {attachment && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface)', maxWidth: '100%', minWidth: 0 }}>
+              <FileText size={13} style={{ flexShrink: 0 }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attachment.name}</span>
+              <button onClick={() => setAttachment(null)} aria-label="Ta bort bilaga" style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={13} /></button>
+            </span>}
+            {attachError}
+          </div>
+        )}
+        <input ref={fileRef} type="file" accept="application/pdf,image/*" onChange={pickFile} style={{ display: 'none' }} />
         <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', background: 'var(--surface)', backdropFilter: 'var(--glass-blur)', WebkitBackdropFilter: 'var(--glass-blur)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '8px 8px 8px 16px', boxShadow: 'var(--glass-shadow)', transition: 'border-color 0.15s' }}>
+          <button onClick={() => fileRef.current?.click()} disabled={loading} aria-label="Bifoga PDF eller bild" title="Bifoga PDF eller bild" style={{ width: 32, height: 36, border: 'none', background: 'transparent', color: attachment ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginLeft: -8 }}><Paperclip size={16} /></button>
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey} placeholder="Skriv till Jarvis..." disabled={loading} rows={1} style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text)', fontSize: '14px', lineHeight: '1.5', resize: 'none', maxHeight: '120px', overflow: 'auto', padding: '4px 0', fontFamily: 'Inter, sans-serif' }} />
-          <button onClick={sendMessage} disabled={loading || !input.trim()} style={{ width: 36, height: 36, borderRadius: '10px', border: 'none', flexShrink: 0, background: input.trim() ? 'var(--accent)' : 'transparent', color: input.trim() ? 'white' : 'var(--muted)', cursor: input.trim() ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', boxShadow: input.trim() ? '0 2px 10px var(--accent-glow)' : 'none' }}><Send size={15} /></button>
+          {(() => { const can = !!(input.trim() || attachment); return (
+          <button onClick={sendMessage} disabled={loading || !can} style={{ width: 36, height: 36, borderRadius: '10px', border: 'none', flexShrink: 0, background: can ? 'var(--accent)' : 'transparent', color: can ? 'white' : 'var(--muted)', cursor: can ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', boxShadow: can ? '0 2px 10px var(--accent-glow)' : 'none' }}><Send size={15} /></button>
+          ) })()}
         </div>
       </div>
 

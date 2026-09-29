@@ -25,8 +25,9 @@ Stack: React + Vite (Vercel, deploys on push to `main`) · Supabase (Postgres + 
 - `tierCompute.js`: all tier/category math and ladders. Dashboard and the nightly snapshot both use it.
 - `jarvis/nowContext.js`: the Jarvis "NU" context.
 - `experiments.js` and `goalMetrics.js` (the resolvers take a `db` param).
+- `pay.js`: the shift pay engine (Stockholm time).
 
-**If you change anything that ends up in the bundle, commit the regenerated bundle and redeploy `tier-snapshot`, `jarvis-weekly` and `push-notify`.** Modules in the bundle must never import `./supabase` for anything they actually call. Pass the client in as a parameter.
+**If you change anything that ends up in the bundle, commit the regenerated bundle and redeploy every function that imports it: `tier-snapshot`, `jarvis-weekly`, `push-notify` (all `--no-verify-jwt`), `jarvis-chat` and `google-calendar-sync`.** Modules in the bundle must never import `./supabase` for anything they actually call. Pass the client in as a parameter.
 
 ## Scheduled jobs (pg_cron, secrets in Vault)
 
@@ -53,6 +54,8 @@ Stack: React + Vite (Vercel, deploys on push to `main`) · Supabase (Postgres + 
 
 **Generic data access:** `fetch_records`, `create_record`, `update_record` and `delete_record` run over `RECORD_SCHEMA`, a whitelist of tables and columns. **Update `RECORD_SCHEMA` when you add user-owned tables or columns.**
 
+**Attachments:** a PDF or image travels only with the chat message it is sent with (`Jarvis.jsx` `fileToAttachment`); history keeps a "📎 name" line. Jarvis must read and save everything in that same turn.
+
 **Extraction mode** (`systemPrompt` set): messages pass through untouched. Never stringify or truncate them; a bug doing that broke PDF extraction for months.
 
 **Cost:** every request is logged to `ai_usage`, and Settings → Jarvis AI shows it. If you change model pricing, update `supabase/functions/_shared/aiUsage.ts` PRICES.
@@ -68,6 +71,7 @@ Stack: React + Vite (Vercel, deploys on push to `main`) · Supabase (Postgres + 
   - Lön, CSN or hyra booked within 7 days before payday counts toward the next period (`effectivePeriodDate`).
   - Bank credits are classified by `classifyIncome` in `ekonomi-sync`, **mirrored in `src/lib/csn.js`. Keep the two in sync.**
   - CSN fribelopp counts only salary. Net `Lön` is grossed up at 30%.
+  - **Pay is never hardcoded.** Each job is an `employments` row (Jobb → Tjänster) with its own rules: hourly rate, OB rules, jour, semesterersättning, tax rate and calendar keywords. `pa_shifts.employment_id` links a shift to its job. `src/lib/pay.js` `priceShift`/`shiftPay` prices shifts live everywhere. `estimated_pay` is only a cache for Export and is refreshed when a job is saved.
 - **Journal and Hälsa ratings** start as null. Never default a rating to a made-up value.
 - **Do not re-add** the idea trips the user deleted (Kilimanjaro, Skottland). The Dashboard is a score cockpit, not a life-briefing page.
 
