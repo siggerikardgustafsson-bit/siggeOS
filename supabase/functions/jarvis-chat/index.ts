@@ -6,8 +6,11 @@ import { corsHeaders, getAuthedUser, unauthorized } from '../_shared/auth.ts'
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
 const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-6'
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
-const daysAgoISO = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
+// Calendar dates in the user's time zone, not UTC: toISOString() is UTC, so
+// anything logged 00:00–02:00 Swedish time (night shifts) landed on yesterday.
+const STOCKHOLM_DATE = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' })
+const todayISO = () => STOCKHOLM_DATE.format(new Date())
+const daysAgoISO = (days: number) => STOCKHOLM_DATE.format(new Date(Date.now() - days * 86400000))
 const asLimit = (value: any, fallback = 50, max = 200) => Math.min(Math.max(Number(value || fallback), 1), max)
 const clean = (value: any) => value == null || value === '' ? null : value
 
