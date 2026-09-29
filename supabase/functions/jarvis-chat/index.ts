@@ -13,7 +13,10 @@ const HAIKU_MODEL = 'claude-haiku-4-5'
 const HAIKU_FEATURES = new Set(['journal_analysis', 'insights_observations', 'time_estimate', 'pdf_goals', 'pdf_extract', 'side_quests'])
 // Output headroom per feature. PDF-to-text used to be cut off at 2500 tokens
 // (~8k chars), so the study tutor only ever saw the start of a document.
-const MAX_TOKENS: Record<string, number> = { pdf_extract: 16000, chat: 8000 }
+const MAX_TOKENS: Record<string, number> = { pdf_extract: 16000, chat: 8000, profile_summary: 6000 }
+// Effort per feature (Sonnet 5.5); default low. The profile summary runs
+// rarely and everything downstream reads it, so it gets more thought.
+const EFFORT: Record<string, string> = { profile_summary: 'medium' }
 // For side-by-side quality checks from the app itself (the authenticated user
 // only; whitelist so nothing else can be requested).
 const MODEL_OVERRIDES = new Set(['claude-sonnet-4-6', 'claude-sonnet-5-5', 'claude-haiku-4-5'])
@@ -25,15 +28,15 @@ const CHAT_THINKING = Deno.env.get('JARVIS_THINKING') || 'adaptive'
 // `thinking` omitted) at effort low, the recommended starting point for chat
 // and extraction; server-side refusal fallback (Claude API). Haiku 4.5 takes
 // neither effort nor adaptive thinking — send nothing extra.
-function modelParams(model: string, thinking = CHAT_THINKING): { body: Record<string, unknown>; betas: string[] } {
+function modelParams(model: string, thinking = CHAT_THINKING, effort = 'low'): { body: Record<string, unknown>; betas: string[] } {
   if (model.startsWith('claude-haiku')) return { body: {}, betas: [] }
   if (model === 'claude-sonnet-5-5') {
     return {
-      body: { output_config: { effort: 'low' }, ...(thinking === 'between_tools' && { thinking: { type: 'between_tools' } }), fallbacks: 'default' },
+      body: { output_config: { effort }, ...(thinking === 'between_tools' && { thinking: { type: 'between_tools' } }), fallbacks: 'default' },
       betas: ['server-side-fallback-2026-07-01'],
     }
   }
-  return { body: { output_config: { effort: 'low' } }, betas: [] }
+  return { body: { output_config: { effort } }, betas: [] }
 }
 const REFUSAL_TEXT = 'Det där kan jag tyvärr inte svara på i den formen. Formulera gärna om frågan, så försöker jag igen.'
 
@@ -1345,7 +1348,11 @@ function buildSystemPrompt(context: string, settings: any, contentBlock: string,
   // context refresh re-bill ~14k tokens at the cache-write rate).
   const profileLines = [
     s.display_name && `Namn: ${s.display_name}`,
-    s.about_me && `Profil: ${s.about_me}`,
+    // Condensed profile when one exists (post_deploy_26) — the full text is
+    // one fetch_memory_goals call away.
+    s.about_me_summary
+      ? `Profil (komprimerad ur användarens egen ${String(s.about_me || '').length} tecken långa text – hela texten via fetch_memory_goals när du behöver nyans eller ett exakt citat):\n${s.about_me_summary}`
+      : (s.about_me && `Profil: ${s.about_me}`),
     g.one_year && `1år: ${g.one_year}`,
     g.three_year && `3år: ${g.three_year}`,
     g.ten_year && `10år: ${g.ten_year}`,
@@ -1362,6 +1369,14 @@ function buildSystemPrompt(context: string, settings: any, contentBlock: string,
   const friendLines = friends.map((f: any) => `${f.name}${f.relationship ? ' ('+f.relationship+')' : ''}`).join(', ')
 
   const instructions = `Du är Jarvis – ${userName}s personliga AI-coach/assistent i MaxxIt. Stil: ${style}. Datadriven, konkret, aldrig generisk. Anta inget om användarens yrke, studier eller livssituation som inte framgår av PROFIL/MINNE/NU nedan.${s.jarvis_lang && s.jarvis_lang !== 'auto' ? ' Språk: '+s.jarvis_lang+'.' : ''}
+
+VEM DU ÄR – din självbild:
+- Roll: ${userName} driver sitt liv som ett företag; du är hens stabschef och coach. Inte ett uppslagsverk, inte en ja-sägare – en långsiktig partner som känner hen, minns och följer upp.
+- Uppdrag: hjälpa ${userName} bli en bättre version av sig själv över alla domäner – hälsa, sömn, träning, studier, jobb, ekonomi, relationer, resor, mål och sidoprojekt – genom att se mönster hen inte ser själv och göra nästa steg konkret.
+- Dina mål (så mäter du dig själv): att tiers och mål faktiskt rör sig, att loggningen blir komplett nog att lita på, att experiment slutförs, att veckans FOKUS blir gjort. Råd som inte leder till handling räknas inte.
+- Förmågor: du läser all data i appen (fetch_*-verktygen, fetch_records) och kan lägga till, ändra och ta bort data överallt (execute_action). Du har ett långtidsminne (insikter) som du själv underhåller. Du ser tier-systemet (MAXX INTELLIGENS), förräknade mönster, veckans signaler, pågående experiment och veckans fokus i NU. Du kan starta och avsluta n-of-1-experiment och skapa mål med automatisk progress. Du skriver en veckorapport varje söndag och en kort brief när hen öppnar appen första gången för dagen.
+- Gränser: du ser bara det som loggats – saknas data, säg det istället för att gissa. Ingen internetåtkomst, du kan inte skicka meddelanden eller notiser, och du räknar aldrig själv om score/tiers. Du är inte läkare eller licensierad rådgivare: ge ärlig information och flagga risker (mediciner, substanser, sömnbrist), men hänvisa till vården när något är akut eller kräver en medicinsk bedömning.
+- Skyldigheter: sanning före bekvämlighet; siffror före åsikter; fakta, hypotes och gissning hålls isär. Följ upp det ni kommit överens om (FOKUS, experiment, mål med deadline) utan att tjata. Påpeka loggningsluckor som gör analysen osäker, kort. Bekräfta innan du raderar. Hitta aldrig på siffror. Håll ${userName}s data privat. Rätta dig själv när du haft fel.
 
 COACHNING – tänk som en vass personlig coach som känner ${userName}, inte en generisk life-tracker:
 - Utgå från hens egna siffror och trender och citera dem. Inga generella råd som gäller vem som helst.
@@ -1448,7 +1463,7 @@ serve(async (req) => {
     // Fetch settings, insights, friends, and optional content in parallel.
     // display_name is canonical on `profiles` (Phase 16) — not user_settings.
     const [settingsResult, profileResult, insightsResult, friendsResult, contentResult] = await Promise.all([
-      user ? supabase.from('user_settings').select('about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+      user ? supabase.from('user_settings').select('about_me,about_me_summary,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
       user ? supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
       user ? supabase.from('jarvis_insights').select('insight,category').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(20) : Promise.resolve({ data: [] }),
       user ? supabase.from('friends').select('name,relationship').eq('user_id', user.id).order('created_at', { ascending: false }).limit(15) : Promise.resolve({ data: [] }),
@@ -1483,14 +1498,21 @@ serve(async (req) => {
     const tidLine = tidMatch ? tidMatch[1] : null
     const contextWithoutTid = tidMatch ? context.slice(tidMatch[0].length) : context
 
-    // Tiered history: recent 6 messages at 2000 chars, older 8 at 600 chars
+    // Tiered history for CHAT: recent 6 messages at 2000 chars, older 8 at
+    // 600. Extraction calls (overrideSystem) pass their messages through
+    // untouched — they carry whole documents: this used to cut a 40k-char
+    // profile / long journal entry at 2000 chars, and String() turned PDF
+    // content arrays into "[object Object]", so every PDF extraction since
+    // 2026-06-09 returned nothing (2026-09-29 fix). Block arrays are never
+    // stringified, in either mode.
     const allMsgs = (messages || []).filter((m: any) => m && (m.role === 'user' || m.role === 'assistant'))
-    const recent = allMsgs.slice(-6)
-    const older = allMsgs.slice(-14, -6)
-    const formattedMessages = [
-      ...older.map((m: any) => ({ role: m.role, content: String(m.content || '').slice(0, 600) })),
-      ...recent.map((m: any) => ({ role: m.role, content: String(m.content || '').slice(0, 2000) })),
-    ]
+    const cap = (m: any, n: number) => ({ role: m.role, content: typeof m.content === 'string' ? m.content.slice(0, n) : (m.content || '') })
+    const formattedMessages = overrideSystem
+      ? allMsgs.map((m: any) => ({ role: m.role, content: m.content }))
+      : [
+          ...allMsgs.slice(-14, -6).map((m: any) => cap(m, 600)),
+          ...allMsgs.slice(-6).map((m: any) => cap(m, 2000)),
+        ]
 
     let currentMessages = [...formattedMessages]
     let finalText = ''
@@ -1567,7 +1589,7 @@ serve(async (req) => {
     const MODEL = (model_override && MODEL_OVERRIDES.has(model_override)) ? model_override
       : (overrideSystem && HAIKU_FEATURES.has(featureKey)) ? HAIKU_MODEL
       : ANTHROPIC_MODEL
-    const { body: extraBody, betas } = modelParams(MODEL, thinking_override === 'between_tools' || thinking_override === 'adaptive' ? thinking_override : CHAT_THINKING)
+    const { body: extraBody, betas } = modelParams(MODEL, thinking_override === 'between_tools' || thinking_override === 'adaptive' ? thinking_override : CHAT_THINKING, EFFORT[featureKey] || 'low')
     const maxTokens = MAX_TOKENS[featureKey] || 4000
     const apiHeaders: Record<string, string> = {
       'Content-Type': 'application/json',

@@ -12,6 +12,7 @@ import { usePwaInstall } from '../hooks/usePwaInstall'
 import { getIngestStatus, getOrCreateIngestToken, rotateIngestToken, disableIngest, ingestSetup } from '../lib/healthIngest'
 import SectionHeader from '../components/ui/SectionHeader'
 import AiUsageCard from '../components/AiUsageCard'
+import { generateProfileSummary, SUMMARY_THRESHOLD } from '../lib/profileSummary'
 import { resolveTargetWeight } from '../lib/personalization'
 import { listGoals } from '../lib/goals'
 
@@ -314,6 +315,12 @@ export default function SettingsPage() {
   // Profile & goals
   const [displayName, setDisplayName] = useState('')
   const [aboutMe, setAboutMe] = useState('')
+  // Jarvis's condensed copy of about_me (post_deploy_26) + what was last saved,
+  // so a save only regenerates the summary when the text actually changed.
+  const [aboutMeSummary, setAboutMeSummary] = useState('')
+  const [aboutMeSummaryAt, setAboutMeSummaryAt] = useState(null)
+  const [savedAboutMe, setSavedAboutMe] = useState('')
+  const [summaryBusy, setSummaryBusy] = useState(false)
   const [goals, setGoals] = useState(DEFAULT_GOALS)
   const [jarvisStyle, setJarvisStyle] = useState(70) // 0=diplomatic, 100=brutal
   const [jarvisLang, setJarvisLang] = useState('svenska')
@@ -345,6 +352,9 @@ export default function SettingsPage() {
     setTargetWeightSource(goalRow ? 'goal' : prof?.target_weight_kg ? 'profile' : (data?.goals?.body_weight_goal ? 'settings' : null))
     if (data) {
       setAboutMe(data.about_me || '')
+      setSavedAboutMe(data.about_me || '')
+      setAboutMeSummary(data.about_me_summary || '')
+      setAboutMeSummaryAt(data.about_me_summary_at || null)
       setGoals(mergeGoals(data.goals))
       setJarvisStyle(data.jarvis_style ?? 70)
       setJarvisLang(data.jarvis_lang || 'svenska')
@@ -383,6 +393,42 @@ export default function SettingsPage() {
     }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    if (aboutMe !== savedAboutMe) {
+      setSavedAboutMe(aboutMe)
+      refreshProfileSummary(aboutMe)
+    }
+  }
+
+  // Rebuild the condensed profile Jarvis carries in every request. Short texts
+  // are sent as-is (summary cleared); failures keep the previous summary.
+  async function refreshProfileSummary(text = aboutMe) {
+    if ((text || '').length < SUMMARY_THRESHOLD) {
+      await supabase.from('user_settings').update({ about_me_summary: null, about_me_summary_at: null }).eq('user_id', user.id)
+      setAboutMeSummary(''); setAboutMeSummaryAt(null)
+      return
+    }
+    setSummaryBusy(true)
+    try {
+      const summary = await generateProfileSummary(supabase, text)
+      if (!summary) throw new Error('tom sammanfattning')
+      const at = new Date().toISOString()
+      const { error } = await supabase.from('user_settings').update({ about_me_summary: summary, about_me_summary_at: at }).eq('user_id', user.id)
+      if (error) throw error
+      setAboutMeSummary(summary); setAboutMeSummaryAt(at)
+      toast({ message: 'Jarvis har uppdaterat sin bild av dig.', type: 'success' })
+    } catch (e) {
+      console.error('profile summary failed:', e)
+      toast({ message: 'Kunde inte uppdatera Jarvis sammanfattning — den gamla används.', type: 'error' })
+    }
+    setSummaryBusy(false)
+  }
+
+  async function saveSummaryEdit() {
+    const at = new Date().toISOString()
+    const { error } = await supabase.from('user_settings').update({ about_me_summary: aboutMeSummary || null, about_me_summary_at: at }).eq('user_id', user.id)
+    if (error) { toast({ message: 'Kunde inte spara sammanfattningen.', type: 'error' }); return }
+    setAboutMeSummaryAt(at)
+    toast({ message: 'Sparat — Jarvis använder din version.', type: 'success' })
   }
 
 
@@ -638,10 +684,32 @@ export default function SettingsPage() {
                 </div>
                 <textarea className="input" rows={5} placeholder="Berätta om dig själv — vem du är, vad du jobbar med, vad som driver dig..." value={aboutMe} onChange={e => setAboutMe(e.target.value)} style={{ resize: 'vertical', lineHeight: '1.6' }} />
                 {/* Sent with EVERY Jarvis request (cached, but still billed at 10% per call) — show the size. */}
-                <div style={{ fontSize: '11px', color: aboutMe.length > 8000 ? '#f59e0b' : 'var(--muted)', marginTop: '4px' }}>
-                  {aboutMe.length.toLocaleString('sv-SE')} tecken ≈ {Math.round(aboutMe.length / 3).toLocaleString('sv-SE')} tokens som skickas med i varje Jarvis-anrop
-                  {aboutMe.length > 8000 ? ' — en kortare profil gör Jarvis billigare.' : '.'}
+                <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '4px' }}>
+                  {aboutMe.length.toLocaleString('sv-SE')} tecken
+                  {aboutMe.length >= SUMMARY_THRESHOLD
+                    ? ' — Jarvis läser hela texten när han behöver den, men bär med sig en komprimerad version i varje samtal (nedan).'
+                    : ' — skickas som den är med i varje Jarvis-samtal.'}
                 </div>
+                {aboutMe.length >= SUMMARY_THRESHOLD && (
+                  <div style={{ marginTop: '14px', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--muted)', fontWeight: 600, flex: 1 }}>
+                        JARVIS VERSION AV DIG · {aboutMeSummary ? `${aboutMeSummary.length.toLocaleString('sv-SE')} tecken` : 'saknas'}
+                        {aboutMeSummaryAt ? ` · ${new Date(aboutMeSummaryAt).toLocaleDateString('sv-SE')}` : ''}
+                      </span>
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: '11.5px', padding: '4px 9px' }} disabled={summaryBusy} onClick={() => refreshProfileSummary()}>
+                        {summaryBusy ? 'Genererar…' : aboutMeSummary ? 'Generera om' : 'Generera'}
+                      </button>
+                    </div>
+                    <textarea className="input" rows={8} value={aboutMeSummary} onChange={e => setAboutMeSummary(e.target.value)}
+                      placeholder="Jarvis komprimerade bild av dig genereras när du sparar."
+                      style={{ resize: 'vertical', lineHeight: '1.55', fontSize: '12.5px' }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Du kan redigera den – ändringar i texten ovan genererar en ny när du sparar.</span>
+                      <button type="button" className="btn btn-ghost" style={{ fontSize: '11.5px', padding: '4px 9px' }} onClick={saveSummaryEdit}>Spara version</button>
+                    </div>
+                  </div>
+                )}
                 <ContextFileUpload field="about_me" files={getContextFiles('about_me')} onUpload={handleContextFileUpload} onRemove={removeContextFile} />
               </div>
 
