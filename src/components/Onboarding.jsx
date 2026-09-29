@@ -119,7 +119,6 @@ export default function Onboarding({ onComplete }) {
         one_year: oneYear,
         three_year: threeYear,
         monthly_income_goal: incomeGoal,
-        body_weight_goal: weightGoal,
         csn_fribelopp: fresh?.goals?.csn_fribelopp ?? 114500,
       },
       jarvis_style: jarvisStyle,
@@ -127,6 +126,20 @@ export default function Onboarding({ onComplete }) {
       onboarding_done: true,
     }, { onConflict: 'user_id' })
     if (settingsError) console.warn('[onboarding] settings save failed:', settingsError.message)
+
+    // The weight goal is a real Mål-page goal (metric body_weight) — the one
+    // source every screen and Jarvis read (user call 2026-09-29) — not a
+    // user_settings.goals key that silently goes stale.
+    const wTarget = Number(String(weightGoal || '').replace(',', '.'))
+    if (Number.isFinite(wTarget) && wTarget > 0) {
+      const wNow = Number(String(weightKg || '').replace(',', '.'))
+      const { error: goalErr } = await supabase.from('goals').insert({
+        user_id: user.id, title: 'Målvikt', category: 'halsa', metric: 'body_weight', unit: 'kg',
+        target_value: wTarget, direction: Number.isFinite(wNow) && wNow > 0 && wNow < wTarget ? 'up' : 'down',
+        ...(Number.isFinite(wNow) && wNow > 0 && { start_value: wNow }), status: 'active',
+      })
+      if (goalErr) console.warn('[onboarding] weight goal save failed:', goalErr.message)
+    }
 
     // Phase 8 — persist the personalization profile so Tier Engine v2 / Maxx
     // Score v2 activate immediately. Wrapped + non-blocking: if the Phase-5

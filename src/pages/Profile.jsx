@@ -71,6 +71,16 @@ export default function ProfilePage() {
     life_roles: (f.life_roles || []).map((r, idx) => idx === i ? { ...r, [key]: val } : r),
   })) }
 
+  // Active Mål-page weight goal — when one exists it IS the målvikt (user call
+  // 2026-09-29) and the profile field below becomes a read-only mirror.
+  const [weightGoalRow, setWeightGoalRow] = useState(null)
+  useEffect(() => {
+    if (!user) return
+    supabase.from('goals').select('id,title,target_value,deadline').eq('user_id', user.id).eq('status', 'active').eq('metric', 'body_weight')
+      .order('created_at', { ascending: true }).limit(1)
+      .then(({ data }) => setWeightGoalRow(data?.[0] || null), () => {})
+  }, [user])
+
   useEffect(() => {
     if (!user) return
     let active = true
@@ -252,7 +262,15 @@ export default function ProfilePage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
             <Field label="LÄNGD (cm)"><input className="input" type="number" value={form.height_cm} onChange={e => set('height_cm')(e.target.value)} placeholder="180" /></Field>
             <Field label="VIKT (kg)"><input className="input" type="number" step="0.1" value={form.weight_kg} onChange={e => set('weight_kg')(e.target.value)} placeholder="80" /></Field>
-            <Field label="MÅLVIKT (kg)"><input className="input" type="number" step="0.1" value={form.target_weight_kg} onChange={e => set('target_weight_kg')(e.target.value)} placeholder="78" /></Field>
+            <Field label="MÅLVIKT (kg)">
+              {weightGoalRow ? (
+                <a href="/mal" className="input" style={{ display: 'block', textDecoration: 'none', color: 'var(--text)' }} title="Målvikten styrs av ditt mål på Mål-sidan">
+                  {Number(weightGoalRow.target_value).toLocaleString('sv-SE')} kg <span style={{ fontSize: '11px', color: 'var(--muted)' }}>· från Mål ↗</span>
+                </a>
+              ) : (
+                <input className="input" type="number" step="0.1" value={form.target_weight_kg} onChange={e => set('target_weight_kg')(e.target.value)} placeholder="78" />
+              )}
+            </Field>
           </div>
           <div style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '8px' }}>Daglig vikt loggas fortsatt under Hälsa — detta är en valfri profil-baslinje.</div>
         </div>
