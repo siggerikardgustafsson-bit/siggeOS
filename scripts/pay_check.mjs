@@ -1,6 +1,6 @@
 // Pay engine verification — run: npx esbuild scripts/pay_check.mjs --bundle --platform=node --format=esm --outfile=/tmp/p.mjs && TZ=UTC node /tmp/p.mjs
 // TZ=UTC on purpose: the engine must price in Stockholm time even on a UTC server.
-import { priceShift, isStorhelg, matchEmployment, employmentFor } from '../src/lib/pay.js'
+import { priceShift, isStorhelg, matchEmployment, employmentFor, isNightShift, nightHours } from '../src/lib/pay.js'
 
 let pass = 0, fail = 0
 const ok = (n, c, x = '') => { (c ? pass++ : fail++); console.log(`  ${c ? 'PASS' : 'FAIL'}  ${n}${x ? ' — ' + x : ''}`) }
@@ -78,6 +78,12 @@ ok('keyword match', matchEmployment('Assistanstid hos HW', [other, HUMANA])?.id 
 ok('no match → null', matchEmployment('Tandläkare', [other, HUMANA]) === null)
 ok('employmentFor falls back to default', employmentFor({ employment_id: null }, [other, HUMANA])?.id === 'h')
 ok('employmentFor honours link', employmentFor({ employment_id: 'o' }, [other, HUMANA])?.id === 'o')
+
+// Night shifts
+ok('19:30→08:00 is a night shift', isNightShift({ start_time: '2026-09-28T17:30:00Z', end_time: '2026-09-29T06:00:00Z' }))
+ok('night hours 8', nightHours({ start_time: '2026-09-28T17:30:00Z', end_time: '2026-09-29T06:00:00Z' }) === 8)
+ok('10:00→15:00 is not', !isNightShift({ start_time: '2026-09-26T08:00:00Z', end_time: '2026-09-26T13:00:00Z' }))
+ok('18:00→23:00 (1 h night) is not', !isNightShift({ start_time: '2026-09-26T16:00:00Z', end_time: '2026-09-26T21:00:00Z' }))
 
 console.log(`\n${pass}/${pass + fail} pass`)
 if (fail) process.exit(1)

@@ -70,6 +70,7 @@ async function weekStats(supabase: any, userId: string, from: string, to: string
     sleepNightsLogged: sleeps.length,
     sleepAvgH: sleeps.length ? r1(mean(sleeps)!) : null,
     stepsAvg: steps.length ? Math.round(mean(steps)!) : null,
+    weighIns: weights.length,
     weightStartEnd: weights.length ? [weights[0].weight_kg, weights[weights.length - 1].weight_kg] : null,
     moodAvg: moods.length ? r1(mean(moods)!) : null,
     energyAvg: energies.length ? r1(mean(energies)!) : null,
@@ -123,6 +124,7 @@ serve(async (req) => {
         `sömn loggad ${thisWeek.sleepNightsLogged}/7 nätter`,
         `journal ${thisWeek.journalEntries}/7 dagar`,
         thisWeek.stepsAvg == null ? 'inga steg loggade' : null,
+        thisWeek.weighIns ? null : 'ingen vägning denna vecka',
       ].filter(Boolean).join(', ')
 
       const userMsg = [

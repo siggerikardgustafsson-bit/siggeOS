@@ -4,4 +4,4 @@
 export { fetchTierInputs, computeTierCategories, tierSnapshotRow } from './tierCompute'
 export { buildJarvisNowContext } from './jarvis/nowContext'
 export { evaluateExperiment, fetchExperimentDays, experimentsFetchStart } from './experiments'
-export { priceShift, shiftPay, employmentFor, matchEmployment, isStorhelg } from './pay'
+export { priceShift, shiftPay, employmentFor, matchEmployment, isStorhelg, isNightShift } from './pay'

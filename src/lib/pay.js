@@ -134,3 +134,19 @@ export function shiftPay(shift, employments) {
   const est = Number(shift?.estimated_pay) || 0
   return est ? { gross: est, net: Math.round(est * 0.7), taxRate: 0.3, breakdown: null, hours: Number(shift?.hours_worked) || 0, jourHours: 0 } : null
 }
+
+// Night shift = at least 3 h between 22:00 and 06:00 Stockholm time
+// (the old "starts at 20:00 or later" test missed every 19:15/19:30 overnight).
+export const NIGHT_MIN_HOURS = 3
+export function nightHours(shift) {
+  if (!shift?.start_time || !shift?.end_time) return 0
+  const start = new Date(shift.start_time).getTime(), end = new Date(shift.end_time).getTime()
+  let h = 0
+  for (let t = start; t < end; ) {
+    const next = Math.min(end, (Math.floor(t / SLICE_MS) + 1) * SLICE_MS)
+    if (inWindow(stockholm(new Date(t)).minute, '22:00', '06:00')) h += (next - t) / 3600000
+    t = next
+  }
+  return Math.round(h * 100) / 100
+}
+export const isNightShift = (shift) => nightHours(shift) >= NIGHT_MIN_HOURS

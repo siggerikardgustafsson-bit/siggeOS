@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
-import { format, parseISO, startOfMonth, endOfMonth, subMonths } from 'date-fns'
-import { priceShift, shiftPay, employmentFor } from '../lib/pay'
+import { format, parseISO, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
+import { priceShift, shiftPay, employmentFor, isNightShift } from '../lib/pay'
 import EmploymentsCard from '../components/EmploymentsCard'
 import { sv } from 'date-fns/locale'
 import {
@@ -335,7 +335,7 @@ export default function JobbPage() {
       shift_type: shiftForm.shift_type,
       estimated_pay: estimatedPay,
       employment_id: emp?.id || null,
-      is_night_shift: shiftForm.start_time >= '20:00' || shiftForm.start_time <= '06:00',
+      is_night_shift: isNightShift({ start_time: startDt.toISOString(), end_time: endDt.toISOString() }),
     })
 
     await fetchAll()
@@ -597,7 +597,7 @@ export default function JobbPage() {
             {[
               { label: 'Pass', value: paShifts.length, color: '#3b82f6' },
               { label: 'Timmar', value: `${totalHours.toFixed(1)}h`, color: '#10b981' },
-              { label: 'Nattpass', value: paShifts.filter(s => s.is_night_shift).length, color: '#8b5cf6' },
+              { label: 'Nattpass', value: paShifts.filter(isNightShift).length, color: '#8b5cf6' },
               { label: 'Est. bruttolön', value: (() => {
                 const total = paShifts.reduce((sum, s) => sum + (shiftPay(s, employments)?.gross || 0), 0)
                 return total > 0 ? `~${Math.round(total).toLocaleString('sv-SE')} kr` : '—'
@@ -735,7 +735,10 @@ export default function JobbPage() {
                 const totalNet = priced.reduce((sum, p) => sum + p.net, 0)
                 return totalPay > 0 ? (
                   <div style={{ padding: '12px 16px', background: 'rgba(245,158,11,0.08)', borderRadius: '8px', border: '1px solid rgba(245,158,11,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                    <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Estimerad lön denna månad</div>
+                    <div>
+                      <div style={{ fontSize: '13px', color: 'var(--muted)' }}>Estimerad lön för {format(selectedMonth, 'MMMM', { locale: sv })}</div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: 2 }}>Betalas ut i efterskott, runt 25 {format(addMonths(selectedMonth, 1), 'MMMM', { locale: sv })}</div>
+                    </div>
                     <div style={{ textAlign: 'right' }}>
                       <div className="mono" style={{ fontSize: '16px', fontWeight: '700', color: '#f59e0b' }}>~{Math.round(totalPay).toLocaleString('sv-SE')} kr</div>
                       <div className="mono" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>netto ~{Math.round(totalNet).toLocaleString('sv-SE')} kr</div>

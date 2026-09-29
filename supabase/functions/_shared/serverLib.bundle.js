@@ -1847,6 +1847,19 @@ function shiftPay(shift, employments) {
   const est = Number(shift?.estimated_pay) || 0;
   return est ? { gross: est, net: Math.round(est * 0.7), taxRate: 0.3, breakdown: null, hours: Number(shift?.hours_worked) || 0, jourHours: 0 } : null;
 }
+var NIGHT_MIN_HOURS = 3;
+function nightHours(shift) {
+  if (!shift?.start_time || !shift?.end_time) return 0;
+  const start = new Date(shift.start_time).getTime(), end = new Date(shift.end_time).getTime();
+  let h = 0;
+  for (let t = start; t < end; ) {
+    const next = Math.min(end, (Math.floor(t / SLICE_MS) + 1) * SLICE_MS);
+    if (inWindow(stockholm(new Date(t)).minute, "22:00", "06:00")) h += (next - t) / 36e5;
+    t = next;
+  }
+  return Math.round(h * 100) / 100;
+}
+var isNightShift = (shift) => nightHours(shift) >= NIGHT_MIN_HOURS;
 
 // src/components/dashboard/tierUtils.js
 function getDecayedValue(value, date, decayDays) {
@@ -5804,6 +5817,7 @@ export {
   experimentsFetchStart,
   fetchExperimentDays,
   fetchTierInputs,
+  isNightShift,
   isStorhelg,
   matchEmployment,
   priceShift,

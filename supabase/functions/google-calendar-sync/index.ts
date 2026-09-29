@@ -2,7 +2,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { corsHeaders, unauthorized, getAuthedUser, serviceClient } from '../_shared/auth.ts'
 // @ts-ignore — generated plain-JS bundle (src/lib/pay.js)
-import { matchEmployment, priceShift } from '../_shared/serverLib.bundle.js'
+import { matchEmployment, priceShift, isNightShift } from '../_shared/serverLib.bundle.js'
 
 const STOCKHOLM_DATE = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' })
 
@@ -70,8 +70,7 @@ function parseShiftHours(event: any): { start: string; end: string; hours: numbe
   const start = new Date(startStr)
   const end = new Date(endStr)
   const hours = (end.getTime() - start.getTime()) / 3600000
-  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm', hour: '2-digit', hourCycle: 'h23' }).format(start))
-  const isNight = hour >= 20 || hour <= 6
+  const isNight = isNightShift({ start_time: startStr, end_time: endStr })
 
   return {
     start: start.toISOString(),
