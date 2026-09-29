@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/bundle-tier-compute.mjs",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "bundle:tiers": "node scripts/bundle-tier-compute.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
