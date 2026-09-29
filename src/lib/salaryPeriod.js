@@ -36,3 +36,33 @@ export function getSalaryPeriod(referenceDate, day) {
     label: `${format(periodStart, 'd MMM', { locale: sv })} – ${format(periodEnd, 'd MMM yyyy', { locale: sv })}`,
   }
 }
+
+// ── Early-booked recurring money ─────────────────────────────────────────────
+// Lön and CSN are routinely paid a few days BEFORE payday (weekend/holiday
+// rules: 23/7, 24/8, 23/9, 24/9 on real bank data), and rent for next month
+// is sometimes paid just before the period flips. Booked by date, that money
+// lands in the period that is ending — one period looks hugely positive, the
+// next hugely negative. So a recurring item booked in the last
+// EARLY_BOOKING_DAYS of a period counts toward the NEXT period instead.
+export const EARLY_BOOKING_DAYS = 7
+
+const RECURRING_TEXT = /(^|[\s/])(lön|csn)($|[\s/])/i
+
+export function isRecurringPeriodItem(item, kind) {
+  if (!item) return false
+  if (kind === 'income') return item.source === 'PA-jobb' || item.source === 'CSN' || RECURRING_TEXT.test(item.description || '')
+  return item.category === 'hyra'
+}
+
+// ISO date the item counts on for period purposes (its own date, or the next
+// period's first day when it was booked early).
+export function effectivePeriodDate(item, kind, salaryDay) {
+  const date = item?.date
+  if (!date || !isRecurringPeriodItem(item, kind)) return date
+  const { end } = getSalaryPeriod(new Date(date + 'T00:00:00'), salaryDay)
+  const daysToEnd = Math.round((new Date(end + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000)
+  if (daysToEnd >= EARLY_BOOKING_DAYS) return date
+  const next = new Date(end + 'T00:00:00')
+  next.setDate(next.getDate() + 1)
+  return format(next, 'yyyy-MM-dd')
+}

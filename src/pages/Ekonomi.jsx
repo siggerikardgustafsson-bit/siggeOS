@@ -10,7 +10,7 @@ import EmptyState from '../components/EmptyState'
 import GoalsSection from '../components/GoalsSection'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Plus, X, Save, Loader, AlertTriangle, Target, RefreshCw, Edit2, Trash2, Search, Zap } from 'lucide-react'
-import { getSalaryPeriod } from '../lib/salaryPeriod'
+import { getSalaryPeriod, effectivePeriodDate, EARLY_BOOKING_DAYS } from '../lib/salaryPeriod'
 
 const EXPENSE_CATEGORIES = [
   { id: 'mat',             label: 'Matvaror',        color: '#f97316', emoji: '' },
@@ -807,6 +807,11 @@ export default function EkonomiPage() {
 
   async function fetchAll() {
     const { start, end } = getSalaryPeriod(selectedMonth, salaryDay)
+    // Also fetch the previous period's tail: lön/CSN/hyra booked there early
+    // count toward THIS period (see effectivePeriodDate in salaryPeriod.js).
+    const tail = new Date(start + 'T00:00:00')
+    tail.setDate(tail.getDate() - EARLY_BOOKING_DAYS)
+    const fetchStart = format(tail, 'yyyy-MM-dd')
 
     // Half-year start for CSN
     const now = new Date()
@@ -816,8 +821,8 @@ export default function EkonomiPage() {
     const halfEnd = format(now, 'yyyy-MM-dd')
 
     const [incomesRes, expensesRes, fixedRes, csnRes, settingsRes] = await Promise.all([
-      supabase.from('income_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date', { ascending: false }),
-      supabase.from('expense_logs').select('*').eq('user_id', user.id).gte('date', start).lte('date', end).order('date', { ascending: false }),
+      supabase.from('income_logs').select('*').eq('user_id', user.id).gte('date', fetchStart).lte('date', end).order('date', { ascending: false }),
+      supabase.from('expense_logs').select('*').eq('user_id', user.id).gte('date', fetchStart).lte('date', end).order('date', { ascending: false }),
       supabase.from('fixed_costs').select('*').eq('user_id', user.id).eq('active', true),
       supabase.from('income_logs').select('amount').eq('user_id', user.id).eq('counts_toward_csn', true).gte('date', halfStart).lte('date', halfEnd),
       supabase.from('user_settings').select('goals').eq('user_id', user.id).maybeSingle(),
@@ -827,8 +832,14 @@ export default function EkonomiPage() {
     const limit = settingsRes.data?.goals?.csn_fribelopp || 114500
     // salary_day is loaded in its own effect above — not re-read here.
 
-    setIncomes(incomesRes.data || [])
-    setExpenses(expensesRes.data || [])
+    // Keep the rows whose EFFECTIVE date is in this period; tag the ones that
+    // moved so the list can say why an item booked on the 23rd shows here.
+    const inPeriod = (rows, kind) => (rows || []).flatMap((r) => {
+      const eff = effectivePeriodDate(r, kind, salaryDay)
+      return eff >= start && eff <= end ? [{ ...r, periodShifted: eff !== r.date }] : []
+    })
+    setIncomes(inPeriod(incomesRes.data, 'income'))
+    setExpenses(inPeriod(expensesRes.data, 'expense'))
     setFixedCosts(fixedRes.data || [])
     setCsnUsage(totalCsn)
     setCsnLimit(limit)
@@ -1201,7 +1212,10 @@ export default function EkonomiPage() {
                       <div className="ek-tx-ico" style={{ fontSize: '15px' }}>{isInc ? '＋' : (cat?.emoji || '−')}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="ek-tx-name">{tx.description || tx.source || cat?.label || 'Utgift'}</div>
-                        <div className="ek-tx-date">{format(new Date(tx.date), 'd MMM', { locale: sv })}</div>
+                        <div className="ek-tx-date">
+                          {format(new Date(tx.date), 'd MMM', { locale: sv })}
+                          {tx.periodShifted && <span title={`Bokförd före lönedagen – räknas till perioden den gäller`}> · räknas till denna period</span>}
+                        </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div className="ek-tx-amt" style={{ color: isInc ? '#10b981' : '#ef4444' }}>
