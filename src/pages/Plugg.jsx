@@ -406,7 +406,7 @@ export default function PluggPage() {
     const courseExams = exams[courseId] || []
     const allGoals = courseExams.flatMap(e => goals[e.id] || [])
     const { data } = await supabase.functions.invoke('jarvis-chat', {
-      body: { messages: [{ role: 'user', content: `Estimera studietid för "${course?.name}" med ${courseExams.length} examinationer och ${allGoals.length} lärandemål. Ge ett konkret svar i timmar.` }], context: '', systemPrompt: 'Du är studierådgivare. Ge konkret tidsestimering på svenska.' }
+      body: { messages: [{ role: 'user', content: `Estimera studietid för "${course?.name}" med ${courseExams.length} examinationer och ${allGoals.length} lärandemål. Ge ett konkret svar i timmar.` }], context: '', systemPrompt: 'Du är studierådgivare. Ge konkret tidsestimering på svenska.', feature: 'time_estimate' }
     })
     if (data?.content) { await supabase.from('courses').update({ ai_time_estimate: data.content }).eq('id', courseId).eq('user_id', user.id); await fetchCourses() }
     setEstimatingTime(null)
@@ -419,7 +419,7 @@ export default function PluggPage() {
     reader.onload = async (ev) => {
       const base64 = ev.target.result.split(',')[1]
       const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }, { type: 'text', text: 'Extrahera alla lärandemål. Returnera JSON: {"goals": ["mål 1", ...]}. Bara JSON.' }] }], context: '', systemPrompt: 'Extrahera lärandemål. Returnera bara JSON.' }
+        body: { messages: [{ role: 'user', content: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }, { type: 'text', text: 'Extrahera alla lärandemål. Returnera JSON: {"goals": ["mål 1", ...]}. Bara JSON.' }] }], context: '', systemPrompt: 'Extrahera lärandemål. Returnera bara JSON.', feature: 'pdf_goals' }
       })
       if (data?.content) {
         const parsed = extractJsonFromText(data.content)
@@ -461,6 +461,7 @@ export default function PluggPage() {
             }],
             context: '',
             systemPrompt: 'Du extraherar text från PDF-tentor. Returnera bara texten exakt som den är.',
+            feature: 'pdf_extract',
           },
         })
         extractedText = data?.content || ''
@@ -501,6 +502,7 @@ export default function PluggPage() {
             }],
             context: '',
             systemPrompt: 'Du extraherar text från PDF-kursmaterial. Returnera bara texten.',
+            feature: 'pdf_extract',
           },
         })
         extractedText = data?.content || ''

@@ -347,7 +347,7 @@ export default function JournalPage() {
     if (!content || content.length < 20) return 'skip'
     try {
       const { data } = await supabase.functions.invoke('jarvis-chat', {
-        body: { messages: [{ role: 'user', content: `Analysera denna journal-entry:\n\n"${content}"` }], context: '', systemPrompt: JARVIS_JOURNAL_SYSTEM },
+        body: { messages: [{ role: 'user', content: `Analysera denna journal-entry:\n\n"${content}"` }], context: '', systemPrompt: JARVIS_JOURNAL_SYSTEM, feature: 'journal_analysis' },
       })
       if (!data?.content) return 'fail'
       let analysis

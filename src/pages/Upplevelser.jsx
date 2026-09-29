@@ -413,6 +413,7 @@ Svara ENBART med JSON (inga backticks):
           messages: [{ role: 'user', content: prompt }],
           context: '',
           systemPrompt: 'Du är Jarvis, användarens AI-assistent. Svara bara med JSON utan backticks.',
+          feature: 'trip_budget',
         },
       })
 
@@ -870,7 +871,7 @@ Anpassa questsen efter användarens faktiska mål, intressen och livssituation o
 
 Returnera ENBART JSON utan backticks:
 {"quests": [{"title": "...", "description": "...", "category": "...", "difficulty": "lätt|medel|galen"}]}` }],
-          context: '', systemPrompt: 'Du genererar side quests. Returnera bara JSON.',
+          context: '', systemPrompt: 'Du genererar side quests. Returnera bara JSON.', feature: 'side_quests',
         },
       })
       if (data?.content) {

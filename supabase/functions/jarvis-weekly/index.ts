@@ -19,7 +19,9 @@ import { newUsage, addUsage, logUsage } from '../_shared/aiUsage.ts'
 // @ts-ignore — generated plain-JS bundle
 import { buildJarvisNowContext } from '../_shared/serverLib.bundle.js'
 
-const MODEL = 'claude-opus-5-5'
+// Sonnet 5.5 at medium effort (2026-09-29 cost pass, was Opus 5.5): a weekly
+// synthesis over pre-computed numbers — half the per-token price.
+const MODEL = 'claude-sonnet-5-5'
 const STOCKHOLM_DATE = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit' })
 const isoDaysAgo = (n: number) => STOCKHOLM_DATE.format(new Date(Date.now() - n * 86400000))
 const r1 = (x: number) => Math.round(x * 10) / 10

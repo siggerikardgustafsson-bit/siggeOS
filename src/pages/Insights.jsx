@@ -488,6 +488,7 @@ export default function InsightsPage() {
             `Analysera min senaste tid och ge en veckorapport. Fokusera på områden där jag faktiskt loggat data och mönster du ser. Var konkret och direkt. Max 300 ord.\n\nData (sammanfattning per vecka/månad):\n${summary || 'Ingen data loggad.'}` }],
           context: '',
           systemPrompt: 'Du är Jarvis, användarens personliga AI. Ge en ärlig, direkt veckoanalys på svenska. Inga floskler.',
+          feature: 'insights_weekly',
         },
       })
       if (error) throw new Error(error.message)

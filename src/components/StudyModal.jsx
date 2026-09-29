@@ -131,6 +131,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
           ]}],
           context: '',
           systemPrompt: 'Extrahera text från PDF. Returnera bara texten.',
+          feature: 'pdf_extract',
         },
       })
       await supabase.from('course_materials').insert({
@@ -155,6 +156,7 @@ export default function StudyModal({ exam, courseId, goals, onClose, onMasteryUp
         messages,
         context: '',
         systemPrompt,
+        feature: 'study_tutor',
         examFileId: examFileId || null,
         materialIds: materialIds || [],
       },

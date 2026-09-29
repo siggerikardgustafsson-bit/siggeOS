@@ -5,7 +5,37 @@ import { newUsage, addUsage, logUsage } from '../_shared/aiUsage.ts'
 // Anthropic config — one place, so the stream and non-stream branches can't
 // drift apart (AUDIT.md P3-11).
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
-const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-6'
+// Model routing (2026-09-29): Sonnet 5.5 for chat and anything that needs
+// judgment; Haiku 4.5 for mechanical extraction features (JSON / PDF-to-text)
+// tagged by the caller in body.feature. ANTHROPIC_MODEL overrides the chat model.
+const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-5-5'
+const HAIKU_MODEL = 'claude-haiku-4-5'
+const HAIKU_FEATURES = new Set(['journal_analysis', 'insights_observations', 'time_estimate', 'pdf_goals', 'pdf_extract', 'side_quests'])
+// Output headroom per feature. PDF-to-text used to be cut off at 2500 tokens
+// (~8k chars), so the study tutor only ever saw the start of a document.
+const MAX_TOKENS: Record<string, number> = { pdf_extract: 16000, chat: 8000 }
+// For side-by-side quality checks from the app itself (the authenticated user
+// only; whitelist so nothing else can be requested).
+const MODEL_OVERRIDES = new Set(['claude-sonnet-4-6', 'claude-sonnet-5-5', 'claude-haiku-4-5'])
+// Thinking mode for Sonnet 5.5 chat: 'between_tools' = no extended thinking
+// (cheapest), 'adaptive' = thinks at effort low. Overridable per request for A/B.
+const CHAT_THINKING = Deno.env.get('JARVIS_THINKING') || 'adaptive'
+
+// Per-model request parameters. Sonnet 5.5: adaptive thinking (the default —
+// `thinking` omitted) at effort low, the recommended starting point for chat
+// and extraction; server-side refusal fallback (Claude API). Haiku 4.5 takes
+// neither effort nor adaptive thinking — send nothing extra.
+function modelParams(model: string, thinking = CHAT_THINKING): { body: Record<string, unknown>; betas: string[] } {
+  if (model.startsWith('claude-haiku')) return { body: {}, betas: [] }
+  if (model === 'claude-sonnet-5-5') {
+    return {
+      body: { output_config: { effort: 'low' }, ...(thinking === 'between_tools' && { thinking: { type: 'between_tools' } }), fallbacks: 'default' },
+      betas: ['server-side-fallback-2026-07-01'],
+    }
+  }
+  return { body: { output_config: { effort: 'low' } }, betas: [] }
+}
+const REFUSAL_TEXT = 'Det där kan jag tyvärr inte svara på i den formen. Formulera gärna om frågan, så försöker jag igen.'
 
 // Calendar dates in the user's time zone, not UTC: toISOString() is UTC, so
 // anything logged 00:00–02:00 Swedish time (night shifts) landed on yesterday.
@@ -1395,7 +1425,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { messages = [], context = '', examFileId, materialIds, stream = false, systemPrompt, brief = false, feature = null } = await req.json()
+    const { messages = [], context = '', examFileId, materialIds, stream = false, systemPrompt, brief = false, feature = null, model_override = null, thinking_override = null } = await req.json()
     // A caller-supplied systemPrompt marks a one-shot STRUCTURED-EXTRACTION call
     // (journal analysis, weekly report, side-quests, trip budget) rather than a
     // chat turn. In that mode we use the caller's prompt verbatim and disable the
@@ -1533,7 +1563,18 @@ serve(async (req) => {
     const usageFeature = brief ? 'brief' : overrideSystem ? `extract:${String(feature || overrideSystem.slice(0, 40))}` : 'chat'
 
     const ANTHROPIC_KEY = ANTHROPIC_API_KEY
-    const MODEL = ANTHROPIC_MODEL
+    const featureKey = overrideSystem ? String(feature || '') : 'chat'
+    const MODEL = (model_override && MODEL_OVERRIDES.has(model_override)) ? model_override
+      : (overrideSystem && HAIKU_FEATURES.has(featureKey)) ? HAIKU_MODEL
+      : ANTHROPIC_MODEL
+    const { body: extraBody, betas } = modelParams(MODEL, thinking_override === 'between_tools' || thinking_override === 'adaptive' ? thinking_override : CHAT_THINKING)
+    const maxTokens = MAX_TOKENS[featureKey] || 4000
+    const apiHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+      ...(betas.length && { 'anthropic-beta': betas.join(',') }),
+    }
     const MEMORY_ACTIONS = ['save_insight', 'update_insight', 'delete_insight', 'save_preference', 'update_memory_context', 'update_friend']
 
     // ── STREAMING PATH (opt-in via body.stream) ──────────────────────────────
@@ -1552,13 +1593,8 @@ serve(async (req) => {
             for (let it = 0; it < 8; it++) {
               const resp = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-api-key': ANTHROPIC_KEY,
-                  'anthropic-version': '2023-06-01',
-                  'anthropic-beta': 'pdfs-2024-09-25',
-                },
-                body: JSON.stringify({ model: MODEL, max_tokens: 2500, system: cachedSystem, tools: effectiveTools, messages: withMessageBreakpoint(streamMessages), stream: true }),
+                headers: apiHeaders,
+                body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, ...extraBody, system: cachedSystem, tools: effectiveTools, messages: withMessageBreakpoint(streamMessages), stream: true }),
               })
               if (!resp.ok || !resp.body) {
                 const errJson = await resp.json().catch(() => ({}))
@@ -1587,21 +1623,36 @@ serve(async (req) => {
                     // input + cache meters arrive here; output comes in message_delta
                     addUsage(usage, { ...(ev.message?.usage || {}), output_tokens: 0 })
                   } else if (ev.type === 'content_block_start') {
-                    cur = ev.content_block?.type === 'tool_use'
-                      ? { type: 'tool_use', id: ev.content_block.id, name: ev.content_block.name, input: '' }
-                      : { type: 'text', text: '' }
-                  } else if (ev.type === 'content_block_delta') {
-                    if (ev.delta?.type === 'text_delta' && cur?.type === 'text') { cur.text += ev.delta.text; send({ type: 'text', text: ev.delta.text }) }
-                    else if (ev.delta?.type === 'input_json_delta' && cur?.type === 'tool_use') { cur.input += ev.delta.partial_json || '' }
+                    // Keep EVERY block type (thinking + signature, redacted_thinking,
+                    // fallback, …) as the API sent it: the tool loop must pass the
+                    // assistant turn back unchanged (Sonnet 5.5 thinking blocks).
+                    cur = { ...(ev.content_block || {}) }
+                    if (cur.type === 'tool_use') cur._json = ''
+                    if (cur.type === 'text') cur.text = cur.text || ''
+                  } else if (ev.type === 'content_block_delta' && cur) {
+                    const d = ev.delta || {}
+                    if (d.type === 'text_delta') { cur.text = (cur.text || '') + d.text; send({ type: 'text', text: d.text }) }
+                    else if (d.type === 'input_json_delta') { cur._json += d.partial_json || '' }
+                    else if (d.type === 'thinking_delta') { cur.thinking = (cur.thinking || '') + (d.thinking || '') }
+                    else if (d.type === 'signature_delta') { cur.signature = (cur.signature || '') + (d.signature || '') }
                   } else if (ev.type === 'content_block_stop') {
-                    if (cur?.type === 'tool_use') { let inp: any = {}; try { inp = cur.input ? JSON.parse(cur.input) : {} } catch { /* keep {} */ } blocks.push({ type: 'tool_use', id: cur.id, name: cur.name, input: inp }) }
-                    else if (cur?.type === 'text') { blocks.push({ type: 'text', text: cur.text }) }
+                    if (cur?.type === 'tool_use') {
+                      let inp: any = {}; try { inp = cur._json ? JSON.parse(cur._json) : {} } catch { /* keep {} */ }
+                      delete cur._json
+                      blocks.push({ ...cur, input: inp })
+                    } else if (cur && !(cur.type === 'text' && !cur.text)) {
+                      blocks.push(cur) // empty text blocks are rejected if sent back
+                    }
                     cur = null
                   } else if (ev.type === 'message_delta') {
                     if (ev.delta?.stop_reason) stopReason = ev.delta.stop_reason
                     usage.output += Number(ev.usage?.output_tokens) || 0
                   }
                 }
+              }
+              if (stopReason === 'refusal' && !blocks.some((b) => b.type === 'text' && b.text)) {
+                send({ type: 'text', text: REFUSAL_TEXT })
+                break
               }
               if (stopReason === 'tool_use') {
                 streamMessages.push({ role: 'assistant', content: blocks })
@@ -1639,15 +1690,11 @@ serve(async (req) => {
     for (let iterations = 0; iterations < 8; iterations++) {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'pdfs-2024-09-25',
-        },
+        headers: apiHeaders,
         body: JSON.stringify({
-          model: ANTHROPIC_MODEL,
-          max_tokens: 2500,
+          model: MODEL,
+          max_tokens: maxTokens,
+          ...extraBody,
           system: cachedSystem,
           tools: effectiveTools,
           messages: withMessageBreakpoint(currentMessages),
@@ -1657,7 +1704,7 @@ serve(async (req) => {
       const data = await response.json()
       addUsage(usage, data.usage)
       if (!response.ok) {
-        await logUsage(supabase, user.id, usageFeature, ANTHROPIC_MODEL, usage)
+        await logUsage(supabase, user.id, usageFeature, MODEL, usage)
         return new Response(JSON.stringify({ error: data.error?.message || 'Anthropic API error', detail: data }), {
           status: 500, headers: { ...cors, 'Content-Type': 'application/json' },
         })
@@ -1685,12 +1732,14 @@ serve(async (req) => {
         continue
       }
 
-      const textBlock = data.content?.find((b: any) => b.type === 'text')
-      finalText = textBlock?.text || ''
+      // Read by block type — a Sonnet 5.5 response can start with thinking
+      // blocks, and with a fallback there can be several text blocks.
+      finalText = (data.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n').trim()
+      if (!finalText && data.stop_reason === 'refusal') finalText = REFUSAL_TEXT
       break
     }
 
-    await logUsage(supabase, user.id, usageFeature, ANTHROPIC_MODEL, usage)
+    await logUsage(supabase, user.id, usageFeature, MODEL, usage)
 
     // Strip any accidental jarvis_actions tags (legacy safety net)
     const cleaned = finalText
