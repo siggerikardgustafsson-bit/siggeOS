@@ -1798,6 +1798,9 @@ var TIER_COLORS = {
   8: "#fbbf24"
 };
 
+// stub:./supabase
+var supabase = null;
+
 // src/lib/profileCompleteness.js
 var round = (x) => Math.round(x);
 var FIELD_LABELS = {
@@ -4374,8 +4377,13 @@ function goalLine(g) {
   const dom = g.category || g.domain;
   if (dom) bits.push(GOAL_DOMAIN_LABEL[dom] || dom);
   if (g.target_value != null) {
-    const cur = g.current_value != null ? `${g.current_value}` : "?";
-    bits.push(`${cur}/${g.target_value}${g.unit ? " " + g.unit : ""}`);
+    const t = (v) => {
+      if (g.unit !== "s" || v == null || !Number.isFinite(Number(v))) return v;
+      const x = Math.round(Number(v)), h = Math.floor(x / 3600), m = Math.floor(x % 3600 / 60), sec = String(x % 60).padStart(2, "0");
+      return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+    };
+    const cur = g.current_value != null ? `${t(g.current_value)}` : "?";
+    bits.push(`${cur}/${t(g.target_value)}${g.unit && g.unit !== "s" ? " " + g.unit : ""}`);
     const p = goalProgress(g);
     if (p != null) bits.push(`${Math.round(p * 100)}%`);
   }
@@ -4383,6 +4391,137 @@ function goalLine(g) {
   if (dl != null) bits.push(dl < 0 ? `f\xF6rsenat ${-dl}d` : `${dl}d kvar`);
   if (g.status && g.status !== "active") bits.push(g.status);
   return bits.join(" \xB7 ");
+}
+
+// src/lib/csn.js
+var CSN_TAX_RATE = 0.3;
+var NET_SALARY_SOURCES = ["L\xF6n"];
+function fribeloppAmount(row) {
+  if (!row?.counts_toward_csn) return 0;
+  const amt = Number(row.amount) || 0;
+  return NET_SALARY_SOURCES.includes(row.source) ? amt / (1 - CSN_TAX_RATE) : amt;
+}
+
+// src/lib/goalMetrics.js
+var daysAgoISO2 = (n) => {
+  const d = /* @__PURE__ */ new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+};
+var monthStartISO = () => {
+  const d = /* @__PURE__ */ new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+};
+var round1 = (x) => Math.round(x * 10) / 10;
+async function latestHealth(db, userId, field) {
+  const { data } = await db.from("health_logs").select(`date,${field}`).eq("user_id", userId).gt(field, 0).order("date", { ascending: false }).limit(1);
+  const row = data?.[0];
+  return row ? { value: Number(row[field]), asOf: row.date } : null;
+}
+async function avgHealth(db, userId, field, days) {
+  const { data } = await db.from("health_logs").select(field).eq("user_id", userId).gte("date", daysAgoISO2(days)).gt(field, 0);
+  const vals = (data || []).map((r) => Number(r[field])).filter(Number.isFinite);
+  if (!vals.length) return null;
+  return { value: round1(vals.reduce((a, b) => a + b, 0) / vals.length), asOf: `snitt ${days}d` };
+}
+var RECENT_STRENGTH_DAYS = 120;
+var RECENT_RUN_DAYS = 180;
+async function strengthPR(db, userId, matchers) {
+  const since = daysAgoISO2(RECENT_STRENGTH_DAYS);
+  const { data: sessions } = await db.from("training_sessions").select("id,date").eq("user_id", userId).gte("date", since);
+  if (!sessions?.length) return null;
+  const dateById = Object.fromEntries(sessions.map((s) => [s.id, s.date]));
+  const { data: ex } = await db.from("training_exercises").select("exercise_name,weight_kg,session_id").eq("user_id", userId).gt("weight_kg", 0).in("session_id", sessions.map((s) => s.id));
+  const hits = (ex || []).filter((r) => {
+    const n = String(r.exercise_name || "").toLowerCase();
+    return matchers.some((m) => n.includes(m));
+  });
+  if (!hits.length) return null;
+  const best = hits.reduce((a, b) => Number(b.weight_kg) > Number(a.weight_kg) ? b : a);
+  return { value: Number(best.weight_kg), asOf: dateById[best.session_id] || `senaste ${RECENT_STRENGTH_DAYS}d` };
+}
+async function runPR(db, userId, distanceKey) {
+  const since = daysAgoISO2(RECENT_RUN_DAYS);
+  const { data } = await db.from("run_personal_records").select("time_seconds,date").eq("user_id", userId).eq("distance_key", distanceKey).not("time_seconds", "is", null).gte("date", since).order("time_seconds", { ascending: true }).limit(1);
+  const row = data?.[0];
+  return row ? { value: Number(row.time_seconds), asOf: row.date } : null;
+}
+async function sessionCount(db, userId, days) {
+  const { data } = await db.from("training_sessions").select("date").eq("user_id", userId).gte("date", daysAgoISO2(days));
+  return { value: (data || []).length, asOf: `senaste ${days}d` };
+}
+async function studyHours(db, userId, days) {
+  const { data } = await db.from("study_sessions").select("hours").eq("user_id", userId).gte("date", daysAgoISO2(days));
+  return { value: round1((data || []).reduce((s, r) => s + Number(r.hours || 0), 0)), asOf: `senaste ${days}d` };
+}
+async function netWorth(db, userId) {
+  const { data } = await db.from("net_worth_history").select("total_sek,date").eq("user_id", userId).order("date", { ascending: false }).limit(1);
+  if (data?.[0]?.total_sek != null) return { value: Number(data[0].total_sek), asOf: data[0].date };
+  const { data: a } = await db.from("assets").select("quantity,manual_price_sek").eq("user_id", userId);
+  const sum = (a || []).reduce((s, r) => s + Number(r.quantity || 1) * Number(r.manual_price_sek || 0), 0);
+  return sum > 0 ? { value: Math.round(sum), asOf: "tillg\xE5ngar" } : null;
+}
+async function monthAggregate(db, userId, kind) {
+  const start = monthStartISO();
+  const [inc, exp, fix] = await Promise.all([
+    db.from("income_logs").select("amount").eq("user_id", userId).gte("date", start),
+    kind !== "income" ? db.from("expense_logs").select("amount").eq("user_id", userId).gte("date", start) : Promise.resolve({ data: [] }),
+    kind !== "income" ? db.from("fixed_costs").select("amount").eq("user_id", userId).eq("active", true) : Promise.resolve({ data: [] })
+  ]);
+  const s = (r) => (r.data || []).reduce((a, x) => a + Number(x.amount || 0), 0);
+  const income = s(inc);
+  if (kind === "income") return { value: Math.round(income), asOf: "denna m\xE5nad" };
+  const net = income - s(exp) - s(fix);
+  if (kind === "net") return { value: Math.round(net), asOf: "denna m\xE5nad" };
+  if (income <= 0) return null;
+  return { value: round1(net / income * 100), asOf: "denna m\xE5nad" };
+}
+async function csnHalfYearUsed(db, userId) {
+  const now = /* @__PURE__ */ new Date();
+  const halfStart = now.getMonth() < 6 ? `${now.getFullYear()}-01-01` : `${now.getFullYear()}-07-01`;
+  const { data } = await db.from("income_logs").select("amount,source,counts_toward_csn").eq("user_id", userId).eq("counts_toward_csn", true).gte("date", halfStart);
+  if (!data) return null;
+  const used = data.reduce((a, r) => a + fribeloppAmount(r), 0);
+  return { value: Math.round(used), asOf: now.getMonth() < 6 ? "v\xE5rterminen" : "h\xF6stterminen" };
+}
+var GOAL_METRICS = {
+  body_weight: { label: "Vikt (senaste)", unit: "kg", direction: "down", domains: ["halsa", "traning", "livet"], resolve: (u, db) => latestHealth(db, u, "weight_kg") },
+  body_fat: { label: "Fettprocent", unit: "%", direction: "down", domains: ["halsa", "traning", "livet"], resolve: (u, db) => latestHealth(db, u, "body_fat_pct") },
+  sleep_avg_7d: { label: "Snitts\xF6mn (7d)", unit: "h", direction: "up", domains: ["halsa", "livet"], resolve: (u, db) => avgHealth(db, u, "sleep_hours", 7) },
+  steps_avg_7d: { label: "Snittsteg (7d)", unit: "steg", direction: "up", domains: ["halsa", "livet"], resolve: (u, db) => avgHealth(db, u, "steps", 7) },
+  bench_pr: { label: "B\xE4nkpress PR", unit: "kg", direction: "up", domains: ["traning"], resolve: (u, db) => strengthPR(db, u, ["b\xE4nk", "bench"]) },
+  squat_pr: { label: "Kn\xE4b\xF6j PR", unit: "kg", direction: "up", domains: ["traning"], resolve: (u, db) => strengthPR(db, u, ["kn\xE4b\xF6j", "knab\xF6j", "squat"]) },
+  deadlift_pr: { label: "Marklyft PR", unit: "kg", direction: "up", domains: ["traning"], resolve: (u, db) => strengthPR(db, u, ["marklyft", "deadlift"]) },
+  run_1k: { label: "1 km-tid", unit: "s", direction: "down", domains: ["traning"], resolve: (u, db) => runPR(db, u, "1k") },
+  run_5k: { label: "5 km-tid", unit: "s", direction: "down", domains: ["traning"], resolve: (u, db) => runPR(db, u, "5k") },
+  run_10k: { label: "10 km-tid", unit: "s", direction: "down", domains: ["traning"], resolve: (u, db) => runPR(db, u, "10k") },
+  run_half: { label: "Halvmaraton-tid", unit: "s", direction: "down", domains: ["traning"], resolve: (u, db) => runPR(db, u, "half_marathon") },
+  sessions_7d: { label: "Pass senaste 7d", unit: "pass", direction: "up", domains: ["traning"], resolve: (u, db) => sessionCount(db, u, 7) },
+  sessions_28d: { label: "Pass senaste 28d", unit: "pass", direction: "up", domains: ["traning"], resolve: (u, db) => sessionCount(db, u, 28) },
+  study_hours_7d: { label: "Studietimmar (7d)", unit: "h", direction: "up", domains: ["plugg"], resolve: (u, db) => studyHours(db, u, 7) },
+  study_hours_28d: { label: "Studietimmar (28d)", unit: "h", direction: "up", domains: ["plugg"], resolve: (u, db) => studyHours(db, u, 28) },
+  net_worth: { label: "Nettof\xF6rm\xF6genhet", unit: "kr", direction: "up", domains: ["ekonomi", "livet"], resolve: (u, db) => netWorth(db, u) },
+  month_net: { label: "Netto denna m\xE5nad", unit: "kr", direction: "up", domains: ["ekonomi"], resolve: (u, db) => monthAggregate(db, u, "net") },
+  month_income: { label: "Inkomst denna m\xE5nad", unit: "kr", direction: "up", domains: ["ekonomi"], resolve: (u, db) => monthAggregate(db, u, "income") },
+  savings_rate: { label: "Sparkvot denna m\xE5nad", unit: "%", direction: "up", domains: ["ekonomi"], resolve: (u, db) => monthAggregate(db, u, "rate") },
+  csn_fribelopp: { label: "CSN-fribelopp anv\xE4nt (termin)", unit: "kr", direction: "down", domains: ["ekonomi", "plugg"], resolve: (u, db) => csnHalfYearUsed(db, u) }
+};
+async function resolveGoalCurrent(userId, metricKey, db = supabase) {
+  const m = GOAL_METRICS[metricKey];
+  if (!m || !userId || !db) return null;
+  try {
+    return await m.resolve(userId, db);
+  } catch {
+    return null;
+  }
+}
+async function resolveGoalsProgress(userId, goals, db = supabase) {
+  const linked = (goals || []).filter((g) => g.metric && GOAL_METRICS[g.metric]);
+  const entries = await Promise.all(linked.map(async (g) => {
+    const r = await resolveGoalCurrent(userId, g.metric, db);
+    return [g.id, r];
+  }));
+  return Object.fromEntries(entries.filter(([, r]) => r != null));
 }
 
 // src/lib/rankUp.js
@@ -4971,7 +5110,7 @@ async function loadJarvisContext({ supabase: supabase2, userId, getProfile = nul
 }
 
 // src/lib/correlate.js
-var round1 = (x) => Math.round(x * 10) / 10;
+var round12 = (x) => Math.round(x * 10) / 10;
 var mean2 = (a) => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
 var parseUTC = (dateStr) => /* @__PURE__ */ new Date(dateStr + "T00:00:00Z");
 var fmtUTC = (d) => d.toISOString().slice(0, 10);
@@ -5008,10 +5147,10 @@ function toWeeks(days) {
     energy: mean2(w._energy),
     mood: mean2(w._mood),
     train: w.train,
-    study: round1(w.study),
+    study: round12(w.study),
     steps: w._steps.length ? Math.round(mean2(w._steps)) : null,
     weight: mean2(w._weight),
-    paHours: round1(w.paHours)
+    paHours: round12(w.paHours)
   }));
 }
 function tercileContrast(rows, valueKey, metricKey, { minPerGroup = 4 } = {}) {
@@ -5023,11 +5162,11 @@ function tercileContrast(rows, valueKey, metricKey, { minPerGroup = 4 } = {}) {
   const lm = mean2(low.map((r) => r[metricKey]));
   const hm = mean2(high.map((r) => r[metricKey]));
   return {
-    lowVal: round1(mean2(low.map((r) => r[valueKey]))),
-    highVal: round1(mean2(high.map((r) => r[valueKey]))),
-    lowMetric: round1(lm),
-    highMetric: round1(hm),
-    delta: round1(hm - lm),
+    lowVal: round12(mean2(low.map((r) => r[valueKey]))),
+    highVal: round12(mean2(high.map((r) => r[valueKey]))),
+    lowMetric: round12(lm),
+    highMetric: round12(hm),
+    delta: round12(hm - lm),
     n: clean.length
   };
 }
@@ -5039,7 +5178,7 @@ function boolContrast(days, matchFn, metricKey, { minPerGroup = 4 } = {}) {
   }
   if (on.length < minPerGroup || off.length < minPerGroup) return null;
   const om = mean2(on), fm = mean2(off);
-  return { onMetric: round1(om), offMetric: round1(fm), delta: round1(om - fm), nOn: on.length, nOff: off.length };
+  return { onMetric: round12(om), offMetric: round12(fm), delta: round12(om - fm), nOn: on.length, nOff: off.length };
 }
 function strengthFromDelta(delta, scale2) {
   return Math.max(0, Math.min(1, Math.abs(delta) / scale2));
@@ -5065,7 +5204,7 @@ function crossDomainFindings(days) {
         id: "sleep-next-energy",
         domain: "somn",
         headline: `Kort s\xF6mn kostar dig energi dagen efter`,
-        detail: `Efter n\xE4tter under 6h: energi ${round1(lowE)}/10. Efter 7h+: ${round1(hiE)}/10 (n=${nLow}+${nHi}).`,
+        detail: `Efter n\xE4tter under 6h: energi ${round12(lowE)}/10. Efter 7h+: ${round12(hiE)}/10 (n=${nLow}+${nHi}).`,
         direction: "negative",
         strength: strengthFromDelta(hiE - lowE, 3),
         n: nLow + nHi,
@@ -5150,7 +5289,7 @@ function crossDomainFindings(days) {
           id: "nightshift-energy",
           domain: "jobb",
           headline: "Nattpass s\xE4tter sig i energin dagen efter",
-          detail: `Dagen efter ett nattpass: energi ${round1(am)}/10. Vanlig dag: ${round1(bm)}/10 (n=${afterNight.length}).`,
+          detail: `Dagen efter ett nattpass: energi ${round12(am)}/10. Vanlig dag: ${round12(bm)}/10 (n=${afterNight.length}).`,
           direction: am < bm ? "negative" : "positive",
           strength: strengthFromDelta(am - bm, 3),
           n: afterNight.length + baseline.length,
@@ -5176,7 +5315,7 @@ function crossDomainFindings(days) {
           id: "train-weight",
           domain: "halsa",
           headline: hm < lm ? "Vikten r\xF6r sig mest i dina tr\xE4nade veckor" : "Fler pass, men vikten st\xE5r still \u2014 kolla intaget",
-          detail: `Veckor med 3+ pass: ${hm > 0 ? "+" : ""}${round1(hm)} kg. Veckor med f\xE4rre: ${lm > 0 ? "+" : ""}${round1(lm)} kg (${deltas.length} veckor).`,
+          detail: `Veckor med 3+ pass: ${hm > 0 ? "+" : ""}${round12(hm)} kg. Veckor med f\xE4rre: ${lm > 0 ? "+" : ""}${round12(lm)} kg (${deltas.length} veckor).`,
           direction: hm < lm ? "positive" : "neutral",
           strength: strengthFromDelta(hm - lm, 0.8),
           n: deltas.length,
@@ -5197,7 +5336,7 @@ function crossDomainFindings(days) {
           id: "bestweeks-sleep",
           domain: "somn",
           headline: ts > rs ? "Dina b\xE4sta tr\xE4ningsveckor byggde p\xE5 bra s\xF6mn" : "Dina b\xE4sta tr\xE4ningsveckor kom trots kort s\xF6mn",
-          detail: `Topp 3 tr\xE4ningsveckor (${top.map((w) => w.train).join("/")} pass): ${round1(ts)}h snitts\xF6mn vs ${round1(rs)}h \xF6vriga.`,
+          detail: `Topp 3 tr\xE4ningsveckor (${top.map((w) => w.train).join("/")} pass): ${round12(ts)}h snitts\xF6mn vs ${round12(rs)}h \xF6vriga.`,
           direction: ts > rs ? "positive" : "neutral",
           strength: strengthFromDelta(ts - rs, 1),
           n: wr.length,
@@ -5413,7 +5552,13 @@ async function buildJarvisNowContext(supabase2, userId, now = /* @__PURE__ */ ne
     // set, carried every day so the chat can follow up on it.
     supabase2.from("jarvis_reports").select("period_start,focus").eq("user_id", userId).eq("kind", "weekly").order("period_start", { ascending: false }).limit(1).maybeSingle()
   ]);
-  const goalsList = goalsRes.error ? [] : goalsRes.data || [];
+  const goalsRaw = goalsRes.error ? [] : goalsRes.data || [];
+  let progress = {};
+  try {
+    progress = await resolveGoalsProgress(userId, goalsRaw, supabase2);
+  } catch {
+  }
+  const goalsList = goalsRaw.map((g) => progress[g.id] ? { ...g, current_value: progress[g.id].value } : g);
   const score = scoreRes.data;
   const scoreDomains = score ? [score.score_training, score.score_health, score.score_study, score.score_economy, score.score_social, score.score_journal].filter((v) => v != null && v > 0) : [];
   const scoreTotal = scoreDomains.length ? Math.round(scoreDomains.reduce((s, v) => s + v, 0) / scoreDomains.length) : null;

@@ -184,8 +184,14 @@ export function goalLine(g) {
   const dom = g.category || g.domain
   if (dom) bits.push(GOAL_DOMAIN_LABEL[dom] || dom)
   if (g.target_value != null) {
-    const cur = g.current_value != null ? `${g.current_value}` : '?'
-    bits.push(`${cur}/${g.target_value}${g.unit ? ' ' + g.unit : ''}`)
+    // Times (unit 's') read as h:mm:ss / m:ss — "3946/2700 s" meant nothing to Jarvis.
+    const t = (v) => {
+      if (g.unit !== 's' || v == null || !Number.isFinite(Number(v))) return v
+      const x = Math.round(Number(v)), h = Math.floor(x / 3600), m = Math.floor((x % 3600) / 60), sec = String(x % 60).padStart(2, '0')
+      return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
+    }
+    const cur = g.current_value != null ? `${t(g.current_value)}` : '?'
+    bits.push(`${cur}/${t(g.target_value)}${g.unit && g.unit !== 's' ? ' ' + g.unit : ''}`)
     const p = goalProgress(g)
     if (p != null) bits.push(`${Math.round(p * 100)}%`)
   }

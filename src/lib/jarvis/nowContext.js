@@ -13,6 +13,7 @@
 // ============================================================================
 import { format, subDays } from 'date-fns'
 import { goalLine } from '../goals'
+import { resolveGoalsProgress } from '../goalMetrics'
 import { TRIP_STATUSES_UPCOMING } from '../constants'
 import { loadJarvisContext } from './index'
 import { buildJarvisContextBlock } from './reason'
@@ -47,7 +48,13 @@ export async function buildJarvisNowContext(supabase, userId, now = new Date()) 
     supabase.from('jarvis_reports').select('period_start,focus').eq('user_id', userId).eq('kind', 'weekly')
       .order('period_start', { ascending: false }).limit(1).maybeSingle(),
   ])
-  const goalsList = goalsRes.error ? [] : (goalsRes.data || [])
+  const goalsRaw = goalsRes.error ? [] : (goalsRes.data || [])
+  // Live current value for metric-linked goals (latest weight, recent bench,
+  // …) — the stored current_value is only what was last typed by hand, so
+  // Jarvis used to see "?/110 kg" (2026-09-29). Same resolvers as the Mål page.
+  let progress = {}
+  try { progress = await resolveGoalsProgress(userId, goalsRaw, supabase) } catch { /* keep stored values */ }
+  const goalsList = goalsRaw.map((g) => (progress[g.id] ? { ...g, current_value: progress[g.id].value } : g))
 
   const score = scoreRes.data
   // daily_scores.total_score is never populated (only per-domain scores are
