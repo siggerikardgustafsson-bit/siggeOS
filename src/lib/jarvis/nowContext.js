@@ -18,6 +18,7 @@ import { loadJarvisContext } from './index'
 import { buildJarvisContextBlock } from './reason'
 import { crossDomainFindings, findingsToPrompt } from '../correlate'
 import { detectSignals, signalsToPrompt } from '../signals'
+import { resolveTargetWeight } from '../personalization'
 
 const getProfileWith = (supabase) => async (uid) => {
   try {
@@ -102,7 +103,7 @@ export async function buildJarvisNowContext(supabase, userId, now = new Date()) 
   // and this-week risks, not just today's snapshot.
   try {
     const since = format(subDays(now, 90), 'yyyy-MM-dd')
-    const [h, j, st, tr, pa, ex, co, us] = await Promise.all([
+    const [h, j, st, tr, pa, ex, co, us, prof] = await Promise.all([
       supabase.from('health_logs').select('date,weight_kg,steps,sleep_hours,energy,energy_level,nicotine').eq('user_id', userId).gte('date', since),
       supabase.from('journal_entries').select('date,energy,mood,sleep_hours').eq('user_id', userId).gte('date', since),
       supabase.from('study_sessions').select('date,hours,course_id').eq('user_id', userId).gte('date', since),
@@ -111,6 +112,7 @@ export async function buildJarvisNowContext(supabase, userId, now = new Date()) 
       supabase.from('course_exams').select('exam_date,name,course_id').eq('user_id', userId).gte('exam_date', today),
       supabase.from('courses').select('id,name').eq('user_id', userId),
       supabase.from('user_settings').select('goals').eq('user_id', userId).maybeSingle(),
+      getProfileWith(supabase)(userId),
     ])
     const daily = {}
     const touch = (d) => (daily[d] || (daily[d] = {}))
@@ -125,7 +127,11 @@ export async function buildJarvisNowContext(supabase, userId, now = new Date()) 
 
     const signals = detectSignals({
       health: h.data || [], training: tr.data || [], exams: ex.data || [],
-      courses: co.data || [], studySessions: st.data || [], goals: us.data?.goals || {}, today: now,
+      courses: co.data || [], studySessions: st.data || [], goals: us.data?.goals || {},
+      // Same målvikt as Dashboard/Insights (Mål-page goal > profile > settings).
+      targetWeight: resolveTargetWeight(prof, us.data, goalsList),
+      targetWeightDeadline: goalsList.find(g => g.metric === 'body_weight' && g.target_value != null)?.deadline || null,
+      today: now,
     })
     const sblock = signalsToPrompt(signals)
     if (sblock) fullCtx += '\n\n' + sblock

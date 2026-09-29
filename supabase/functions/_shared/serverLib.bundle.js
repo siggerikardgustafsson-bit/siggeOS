@@ -5040,6 +5040,11 @@ function detectSignals({
   courses = [],
   studySessions = [],
   goals = {},
+  // Resolved målvikt (personalization.resolveTargetWeight — Mål-page goal >
+  // profile > settings) + that goal's deadline. Callers should pass these so
+  // the signal agrees with Dashboard/Hälsa; the goals blob is only a fallback.
+  targetWeight = null,
+  targetWeightDeadline = null,
   today = /* @__PURE__ */ new Date()
 } = {}) {
   const out = [];
@@ -5152,7 +5157,7 @@ function detectSignals({
       action: "S\xE4tt ett konkret tak f\xF6r veckan och logga varje dag \u2013 synligheten hj\xE4lper."
     });
   }
-  const goalW = parseFloat(goals?.body_weight_goal ?? goals?.target_weight ?? goals?.body_weight ?? "");
+  const goalW = targetWeight != null ? Number(targetWeight) : parseFloat(goals?.body_weight_goal ?? goals?.target_weight ?? goals?.body_weight ?? "");
   const wRows = health.filter((h) => h.weight_kg > 0).sort((a, b) => a.date.localeCompare(b.date));
   if (Number.isFinite(goalW) && wRows.length >= 4) {
     const latest = wRows[wRows.length - 1].weight_kg;
@@ -5160,7 +5165,7 @@ function detectSignals({
     const past = monthAgo.length ? monthAgo[monthAgo.length - 1].weight_kg : wRows[0].weight_kg;
     const slope = latest - past;
     const wantDown = goalW < latest - 0.3;
-    const dl = goals?.body_weight_deadline;
+    const dl = targetWeight != null ? targetWeightDeadline : goals?.body_weight_deadline;
     const dlPast = dl && new Date(dl) < t0;
     if (wantDown && slope >= -0.2) {
       out.push({
@@ -5237,7 +5242,7 @@ async function buildJarvisNowContext(supabase2, userId, now = /* @__PURE__ */ ne
   }
   try {
     const since = format(subDays(now, 90), "yyyy-MM-dd");
-    const [h, j, st, tr, pa, ex, co, us] = await Promise.all([
+    const [h, j, st, tr, pa, ex, co, us, prof] = await Promise.all([
       supabase2.from("health_logs").select("date,weight_kg,steps,sleep_hours,energy,energy_level,nicotine").eq("user_id", userId).gte("date", since),
       supabase2.from("journal_entries").select("date,energy,mood,sleep_hours").eq("user_id", userId).gte("date", since),
       supabase2.from("study_sessions").select("date,hours,course_id").eq("user_id", userId).gte("date", since),
@@ -5245,7 +5250,8 @@ async function buildJarvisNowContext(supabase2, userId, now = /* @__PURE__ */ ne
       supabase2.from("pa_shifts").select("date,hours_worked,is_night_shift").eq("user_id", userId).gte("date", since),
       supabase2.from("course_exams").select("exam_date,name,course_id").eq("user_id", userId).gte("exam_date", today),
       supabase2.from("courses").select("id,name").eq("user_id", userId),
-      supabase2.from("user_settings").select("goals").eq("user_id", userId).maybeSingle()
+      supabase2.from("user_settings").select("goals").eq("user_id", userId).maybeSingle(),
+      getProfileWith(supabase2)(userId)
     ]);
     const daily = {};
     const touch = (d) => daily[d] || (daily[d] = {});
@@ -5286,6 +5292,9 @@ async function buildJarvisNowContext(supabase2, userId, now = /* @__PURE__ */ ne
       courses: co.data || [],
       studySessions: st.data || [],
       goals: us.data?.goals || {},
+      // Same målvikt as Dashboard/Insights (Mål-page goal > profile > settings).
+      targetWeight: resolveTargetWeight(prof, us.data, goalsList),
+      targetWeightDeadline: goalsList.find((g) => g.metric === "body_weight" && g.target_value != null)?.deadline || null,
       today: now
     });
     const sblock = signalsToPrompt(signals);

@@ -28,6 +28,11 @@ export function detectSignals({
   courses = [],
   studySessions = [],
   goals = {},
+  // Resolved målvikt (personalization.resolveTargetWeight — Mål-page goal >
+  // profile > settings) + that goal's deadline. Callers should pass these so
+  // the signal agrees with Dashboard/Hälsa; the goals blob is only a fallback.
+  targetWeight = null,
+  targetWeightDeadline = null,
   today = new Date(),
 } = {}) {
   const out = []
@@ -139,7 +144,7 @@ export function detectSignals({
   }
 
   // ── WEIGHT vs GOAL ────────────────────────────────────────────────────────
-  const goalW = parseFloat(goals?.body_weight_goal ?? goals?.target_weight ?? goals?.body_weight ?? '')
+  const goalW = targetWeight != null ? Number(targetWeight) : parseFloat(goals?.body_weight_goal ?? goals?.target_weight ?? goals?.body_weight ?? '')
   const wRows = health.filter((h) => h.weight_kg > 0).sort((a, b) => a.date.localeCompare(b.date))
   if (Number.isFinite(goalW) && wRows.length >= 4) {
     const latest = wRows[wRows.length - 1].weight_kg
@@ -147,7 +152,7 @@ export function detectSignals({
     const past = monthAgo.length ? monthAgo[monthAgo.length - 1].weight_kg : wRows[0].weight_kg
     const slope = latest - past
     const wantDown = goalW < latest - 0.3
-    const dl = goals?.body_weight_deadline
+    const dl = targetWeight != null ? targetWeightDeadline : goals?.body_weight_deadline
     const dlPast = dl && new Date(dl) < t0
     if (wantDown && slope >= -0.2) {
       out.push({

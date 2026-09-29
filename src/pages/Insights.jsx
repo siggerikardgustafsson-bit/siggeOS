@@ -354,6 +354,8 @@ export default function InsightsPage() {
       courses: courseRes.data || [],
       studySessions: studyRes.data || [],
       goals: settingsRes.data?.goals || {},
+      targetWeight,
+      targetWeightDeadline: (activeGoals || []).find(g => g.metric === 'body_weight' && g.target_value != null)?.deadline || null,
       today: new Date(),
     })
 
