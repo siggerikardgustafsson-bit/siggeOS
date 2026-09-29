@@ -120,7 +120,15 @@ export default function Jarvis() {
       // day it's most useful to look back/forward.
       if (!hasMessageToday && !location.state?.prompt && !dailyBriefRef.current) {
         dailyBriefRef.current = true
-        const isMonday = new Date().getDay() === 1
+        // The server-side weekly report (jarvis-weekly, Sunday evening) is
+        // already in the chat — only fall back to the client weekly brief on
+        // Mondays when that report didn't run.
+        let isMonday = new Date().getDay() === 1
+        if (isMonday) {
+          const since = new Date(Date.now() - 2 * 86400000).toISOString()
+          const { data: recentReport } = await supabase.from('jarvis_reports').select('id').eq('user_id', user.id).gte('created_at', since).limit(1)
+          if (recentReport?.length) isMonday = false
+        }
         sendToJarvis(isMonday ? WEEKLY_BRIEF_PROMPT : DAILY_BRIEF_PROMPT, false, { skipUserSave: true })
       }
     })()

@@ -5198,14 +5198,17 @@ var getProfileWith = (supabase2) => async (uid) => {
 async function buildJarvisNowContext(supabase2, userId, now = /* @__PURE__ */ new Date()) {
   if (!supabase2 || !userId) return "";
   const today = format(now, "yyyy-MM-dd");
-  const [scoreRes, examsRes, projectsRes, tripsRes, todayHealthRes, goalsRes] = await Promise.all([
+  const [scoreRes, examsRes, projectsRes, tripsRes, todayHealthRes, goalsRes, reportRes] = await Promise.all([
     supabase2.from("daily_scores").select("total_score,score_training,score_health,score_study,score_economy,score_social,score_journal,peak_mode").eq("user_id", userId).eq("date", today).maybeSingle(),
     supabase2.from("course_exams").select("exam_date,name").eq("user_id", userId).gte("exam_date", today).order("exam_date", { ascending: true }).limit(3),
     supabase2.from("projects").select("id,name,type,client").eq("user_id", userId).order("created_at"),
     supabase2.from("trips").select("id,title,countries,start_date,end_date,status,budget_sek").eq("user_id", userId).in("status", TRIP_STATUSES_UPCOMING).order("start_date", { ascending: true }).limit(5),
     supabase2.from("health_logs").select("weight_kg,sleep_hours,energy,energy_level,mood,steps").eq("user_id", userId).eq("date", today).maybeSingle(),
     // Same ordering as goals.listGoals (created_at, then pinned/sort_order).
-    supabase2.from("goals").select("*").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: true }).order("pinned", { ascending: false }).order("sort_order", { ascending: true })
+    supabase2.from("goals").select("*").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: true }).order("pinned", { ascending: false }).order("sort_order", { ascending: true }),
+    // Latest weekly report's focus (jarvis-weekly) — the one priority Jarvis
+    // set, carried every day so the chat can follow up on it.
+    supabase2.from("jarvis_reports").select("period_start,focus").eq("user_id", userId).eq("kind", "weekly").order("period_start", { ascending: false }).limit(1).maybeSingle()
   ]);
   const goalsList = goalsRes.error ? [] : goalsRes.data || [];
   const score = scoreRes.data;
@@ -5229,6 +5232,7 @@ async function buildJarvisNowContext(supabase2, userId, now = /* @__PURE__ */ ne
     score ? "SCORE IDAG (0-100, dagsaktivitet):" + (scoreTotal != null ? " snitt:" + scoreTotal : "") + " tr:" + (score.score_training || 0) + " h\xE4:" + (score.score_health || 0) + " pl:" + (score.score_study || 0) + " ek:" + (score.score_economy || 0) + " soc:" + (score.score_social || 0) + (score.peak_mode ? " PEAK" : "") : "SCORE: saknas idag",
     "H\xC4LSA IDAG: " + healthLine,
     "AKTIVA M\xC5L:\n" + goalsBlock,
+    ...reportRes?.data?.focus ? [`VECKANS FOKUS (satt i veckorapporten ${reportRes.data.period_start}, f\xF6lj upp): ${reportRes.data.focus}`] : [],
     "N\xC4STA TENTOR: " + upcomingExams,
     "PROJEKT: " + projectsBlock,
     "PLANERADE RESOR: " + tripsBlock

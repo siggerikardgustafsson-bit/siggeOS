@@ -32,7 +32,7 @@ export async function buildJarvisNowContext(supabase, userId, now = new Date()) 
   const today = format(now, 'yyyy-MM-dd')
 
   // Lean context — only immediate snapshot. Everything else fetched via tools on demand.
-  const [scoreRes, examsRes, projectsRes, tripsRes, todayHealthRes, goalsRes] = await Promise.all([
+  const [scoreRes, examsRes, projectsRes, tripsRes, todayHealthRes, goalsRes, reportRes] = await Promise.all([
     supabase.from('daily_scores').select('total_score,score_training,score_health,score_study,score_economy,score_social,score_journal,peak_mode').eq('user_id', userId).eq('date', today).maybeSingle(),
     supabase.from('course_exams').select('exam_date,name').eq('user_id', userId).gte('exam_date', today).order('exam_date', { ascending: true }).limit(3),
     supabase.from('projects').select('id,name,type,client').eq('user_id', userId).order('created_at'),
@@ -41,6 +41,10 @@ export async function buildJarvisNowContext(supabase, userId, now = new Date()) 
     // Same ordering as goals.listGoals (created_at, then pinned/sort_order).
     supabase.from('goals').select('*').eq('user_id', userId).eq('status', 'active')
       .order('created_at', { ascending: true }).order('pinned', { ascending: false }).order('sort_order', { ascending: true }),
+    // Latest weekly report's focus (jarvis-weekly) — the one priority Jarvis
+    // set, carried every day so the chat can follow up on it.
+    supabase.from('jarvis_reports').select('period_start,focus').eq('user_id', userId).eq('kind', 'weekly')
+      .order('period_start', { ascending: false }).limit(1).maybeSingle(),
   ])
   const goalsList = goalsRes.error ? [] : (goalsRes.data || [])
 
@@ -82,6 +86,7 @@ export async function buildJarvisNowContext(supabase, userId, now = new Date()) 
     score ? 'SCORE IDAG (0-100, dagsaktivitet):' + (scoreTotal != null ? ' snitt:' + scoreTotal : '') + ' tr:' + (score.score_training || 0) + ' hä:' + (score.score_health || 0) + ' pl:' + (score.score_study || 0) + ' ek:' + (score.score_economy || 0) + ' soc:' + (score.score_social || 0) + (score.peak_mode ? ' PEAK' : '') : 'SCORE: saknas idag',
     'HÄLSA IDAG: ' + healthLine,
     'AKTIVA MÅL:\n' + goalsBlock,
+    ...(reportRes?.data?.focus ? [`VECKANS FOKUS (satt i veckorapporten ${reportRes.data.period_start}, följ upp): ${reportRes.data.focus}`] : []),
     'NÄSTA TENTOR: ' + upcomingExams,
     'PROJEKT: ' + projectsBlock,
     'PLANERADE RESOR: ' + tripsBlock,
