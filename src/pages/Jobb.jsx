@@ -644,7 +644,7 @@ export default function JobbPage() {
                 {(() => {
                   const kws = [...new Set(employments.flatMap(e => e.match_keywords || []))]
                   return kws.length
-                    ? <>Pass vars titel innehåller {kws.map(k => `"${k}"`).join(' eller ')} importeras automatiskt (ändras under Tjänster). Synka varannan vecka för att hålla listan uppdaterad.</>
+                    ? <>Pass vars titel innehåller {kws.map(k => `"${k}"`).join(' eller ')} importeras automatiskt (ändras under Tjänster). Synkas automatiskt 06:30 och 18:30 – "Synka nu" behövs bara om du vill se ändringar direkt.</>
                     : <>Lägg till kalenderord på en tjänst nedan för att importera pass.</>
                 })()}
               </div>

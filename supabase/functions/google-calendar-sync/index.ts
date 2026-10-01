@@ -87,17 +87,51 @@ serve(async (req) => {
   }
 
   try {
-    // Resolve the authenticated user (rejects anon-key-only / anonymous calls).
-    const { user } = await getAuthedUser(req)
-    if (!user) return unauthorized(req)
     // Service-role client required for the locked-down google_tokens table and
     // cross-table upserts — every query below is scoped by user.id.
     const supabase = serviceClient()
-
     const url = new URL(req.url)
-    const actionParam = url.searchParams.get('action')
     const bodyData = await req.json().catch(() => ({}))
-    const action = actionParam || bodyData.action
+    const action = url.searchParams.get('action') || bodyData.action
+
+    // ===== NIGHTLY CRON (post_deploy_30) =====
+    // pg_cron → x-cron-secret (Vault 'nightly_cron_secret'): runs 'sync' (PA
+    // shifts) and 'mandatory' (obligatoriska moment) for every connected user,
+    // so shifts and pay are current without pressing "Synka nu".
+    if (action === 'cron') {
+      const provided = req.headers.get('x-cron-secret') || ''
+      const { data: expected, error: secretErr } = await supabase.rpc('get_nightly_cron_secret')
+      if (secretErr || !expected || provided !== expected) return unauthorized(req)
+      const { data: rows } = await supabase.from('google_tokens').select('user_id').not('refresh_token', 'is', null)
+      const results: Record<string, unknown>[] = []
+      for (const { user_id } of rows || []) {
+        const r: Record<string, unknown> = { user_id }
+        for (const a of ['sync', 'mandatory']) {
+          try {
+            const res = await handleAction(a, { id: user_id }, {}, supabase, cors)
+            const j = await res.json().catch(() => ({}))
+            r[a] = res.ok ? (j.synced ?? 'ok') : (j.error || res.status)
+          } catch (e) { r[a] = e instanceof Error ? e.message : String(e) }
+        }
+        results.push(r)
+      }
+      console.log('calendar cron:', JSON.stringify(results.map((r) => ({ sync: r.sync, mandatory: r.mandatory }))))
+      return new Response(JSON.stringify({ ok: true, results }), { headers: { ...cors, 'Content-Type': 'application/json' } })
+    }
+
+    // Resolve the authenticated user (rejects anon-key-only / anonymous calls).
+    const { user } = await getAuthedUser(req)
+    if (!user) return unauthorized(req)
+    return await handleAction(action, user, bodyData, supabase, cors)
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
+      status: 500, headers: { ...cors, 'Content-Type': 'application/json' }
+    })
+  }
+})
+
+// One action for one user. Called by the app (user JWT) and by the cron loop.
+async function handleAction(action: string, user: { id: string }, bodyData: any, supabase: any, cors: Record<string, string>): Promise<Response> {
     const { code, redirect_uri } = bodyData
 
     // ===== EXCHANGE CODE FOR TOKENS =====
@@ -334,10 +368,4 @@ serve(async (req) => {
     }
 
     throw new Error('Unknown action')
-
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500, headers: { ...cors, 'Content-Type': 'application/json' }
-    })
-  }
-})
+}

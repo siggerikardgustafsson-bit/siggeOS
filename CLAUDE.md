@@ -16,7 +16,7 @@ Stack: React + Vite (Vercel, deploys on push to `main`) · Supabase (Postgres + 
 
 - **Frontend:** push to `main` and Vercel deploys.
 - **Migrations:** `supabase/migrations/2026MMDDHHMMSS_post_deploy_NN_<what>.sql`, applied with `supabase db push --linked --yes`. Check `supabase migration list --linked` first.
-- **Edge functions:** `supabase functions deploy <name>`. These **must** be deployed with `--no-verify-jwt`, because they authenticate themselves: `strava-sync`, `tier-snapshot`, `jarvis-weekly`, `push-notify`, `health-ingest`, `skill-ingest`, `ekonomi-bank-link`. `jarvis-chat` and `ekonomi-sync` keep verify_jwt.
+- **Edge functions:** `supabase functions deploy <name>`. These **must** be deployed with `--no-verify-jwt`, because they authenticate themselves: `strava-sync`, `tier-snapshot`, `jarvis-weekly`, `push-notify`, `google-calendar-sync`, `health-ingest`, `skill-ingest`, `ekonomi-bank-link`. `jarvis-chat` and `ekonomi-sync` keep verify_jwt.
 - **Ad-hoc SQL:** `supabase db query --linked "<sql>"` (use `-o json`). Show a dry-run count before any data backfill.
 
 ## Shared code: browser + server bundle
@@ -27,7 +27,7 @@ Stack: React + Vite (Vercel, deploys on push to `main`) · Supabase (Postgres + 
 - `experiments.js` and `goalMetrics.js` (the resolvers take a `db` param).
 - `pay.js`: the shift pay engine (Stockholm time).
 
-**If you change anything that ends up in the bundle, commit the regenerated bundle and redeploy every function that imports it: `tier-snapshot`, `jarvis-weekly`, `push-notify` (all `--no-verify-jwt`), `jarvis-chat` and `google-calendar-sync`.** Modules in the bundle must never import `./supabase` for anything they actually call. Pass the client in as a parameter.
+**If you change anything that ends up in the bundle, commit the regenerated bundle and redeploy every function that imports it: `tier-snapshot`, `jarvis-weekly`, `push-notify` (all `--no-verify-jwt`), `jarvis-chat` and `google-calendar-sync` (`--no-verify-jwt`).** Modules in the bundle must never import `./supabase` for anything they actually call. Pass the client in as a parameter.
 
 ## Scheduled jobs (pg_cron, secrets in Vault)
 
@@ -37,6 +37,7 @@ Stack: React + Vite (Vercel, deploys on push to `main`) · Supabase (Postgres + 
 | `tier-snapshot-nightly` | `45 21 * * *` | tier-snapshot (UTC and Stockholm share the date then) |
 | `jarvis-weekly` | `0 18 * * 0` | weekly report → `jarvis_reports` + chat |
 | `push-notify-hourly` | `2 * * * *` | reminders, decided in Stockholm time |
+| `calendar-sync-2x` | `30 4,16 * * *` | google-calendar-sync `?action=cron`: PA shifts and obligatoriska moment for every connected user |
 
 `tier-snapshot` supports `?dry=1` and returns per-category bottlenecks. To run a job by hand, use `net.http_post` with the Vault secret, then read `net._http_response`.
 
