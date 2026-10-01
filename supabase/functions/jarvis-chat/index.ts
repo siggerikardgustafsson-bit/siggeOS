@@ -133,7 +133,7 @@ friends(id:uuid,name:text,nickname:text,relationship:text,location:text,notes:te
 goals(id:uuid,title:text,description:text,category:text,target_value:num,current_value:num,unit:text,deadline:date,status:text,metric:text,direction:text,pinned:bool,linked_trip_id:uuid,sort_order:int,completed_at:ts,start_value:num,baseline_date:date)
 health_logs(id:uuid,date:date,weight_kg:num,body_fat_pct:num,steps:int,sleep_hours:num,sleep_quality:int,resting_hr:int,screen_time_minutes:int,alcohol_units:num,nicotine:bool,caffeine_mg:int,retatrutide_dose_mg:num,energy:int,source:text,sleep_type:text,sleep_note:text,energy_level:int,stress_level:int,mood:int,sleep_time:text,nicotine_type:text,marijuana:bool)
 income_logs(id:uuid,date:date,amount:num,source:text,counts_toward_csn:bool,notes:text,description:text,external_id:text,sync_origin:text)
-jarvis_insights(id:uuid,insight:text,category:text,confidence:int)
+jarvis_insights(id:uuid,insight:text,category:text,confidence:int,archived_at:ts,source:text)
 journal_entries(id:uuid,date:date,content:text,mood:int,sleep_hours:num,energy:int,social_score:int,is_travel_entry:bool,ai_extracted_people:arr,ai_extracted_activities:arr,ai_extracted_keywords:arr,ai_summary:text,sleep_type:text,sleep_note:text)
 learning_goals(id:uuid,course_id:uuid,description:text,completed:bool,completed_at:ts,source:text,source_file:text,exam_id:uuid,mastery:int,last_studied:ts,study_count:int)
 mandatory_sessions(id:uuid,course_id:uuid,google_event_id:text,title:text,date:date,start_time:ts,end_time:ts,attended:bool,course_hint:text,custom_title:text)
@@ -785,8 +785,10 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
       const [settingsRes, insightsRes, friendsRes, structuredGoalsRes] = await Promise.all([
         supabase.from('user_settings').select('about_me,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', userId).maybeSingle(),
         (() => {
-          let q = supabase.from('jarvis_insights').select('id,insight,category,confidence,updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit)
+          // Search also covers the archive (old/superseded memories, marked).
+          let q = supabase.from('jarvis_insights').select('id,insight,category,confidence,updated_at,archived_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(limit)
           if (input.search_keyword) q = q.ilike('insight', `%${input.search_keyword}%`)
+          else q = q.is('archived_at', null)
           return q
         })(),
         input.include_friends ? supabase.from('friends').select('id,name,nickname,relationship,location,notes,last_contact_date').eq('user_id', userId).order('created_at', { ascending: false }).limit(100) : Promise.resolve({ data: [], error: null }),
@@ -796,7 +798,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
       ])
       const s = settingsRes.data || {}
       const goals = s.goals ? JSON.stringify(s.goals, null, 2) : '{}'
-      const insights = (insightsRes.data || []).map((i: any) => `[${i.category} ${i.confidence}%] ${i.insight} [id:${i.id}]`).join('\n')
+      const insights = (insightsRes.data || []).map((i: any) => `[${i.category} ${i.confidence}%${i.archived_at ? ' ARKIV' : ''}] ${i.insight} [id:${i.id}]`).join('\n')
       const friends = (friendsRes.data || []).map((f: any) => `${f.name}${f.nickname ? '/'+f.nickname : ''} | ${f.relationship || ''}${f.location ? ' | '+f.location : ''}${f.last_contact_date ? ' | senast:'+f.last_contact_date : ''}${f.notes ? ' | '+f.notes.slice(0,120) : ''} [id:${f.id}]`).join('\n')
       const gRows = (structuredGoalsRes.data || [])
       const structuredGoals = gRows.length
@@ -1010,7 +1012,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           // Check for near-duplicate (exact text match) before inserting
           const { data: existing } = await supabase.from('jarvis_insights').select('id').eq('user_id', userId).ilike('insight', insightText).limit(1)
           if (existing?.length) { result = 'Insikt finns redan (dubblett undviken).'; break }
-          const { error } = await supabase.from('jarvis_insights').insert({ user_id: userId, insight: insightText, category: d.category || 'pattern', confidence: d.confidence || 80 })
+          const { error } = await supabase.from('jarvis_insights').insert({ user_id: userId, insight: insightText, category: d.category || 'mönster', confidence: d.confidence || 80, source: 'chat' })
           if (error) throw error
           result = 'Insikt sparad.'
           break
@@ -1021,6 +1023,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
           if (d.insight_text) fields.insight = d.insight_text
           if (d.category) fields.category = d.category
           if (d.confidence != null) fields.confidence = d.confidence
+          fields.updated_at = new Date().toISOString()
           const { error } = await supabase.from('jarvis_insights').update(fields).eq('id', d.id).eq('user_id', userId)
           if (error) throw error
           result = 'Insikt uppdaterad.'
@@ -1028,9 +1031,10 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         }
         case 'delete_insight': {
           if (!d.id) throw new Error('Saknar id')
-          const { error } = await supabase.from('jarvis_insights').delete().eq('id', d.id).eq('user_id', userId)
+          // Archived, not deleted — still findable via fetch_memory_goals search.
+          const { error } = await supabase.from('jarvis_insights').update({ archived_at: new Date().toISOString() }).eq('id', d.id).eq('user_id', userId)
           if (error) throw error
-          result = 'Insikt raderad.'
+          result = 'Insikt arkiverad.'
           break
         }
         case 'update_friend': {
@@ -1051,7 +1055,7 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         }
         case 'save_preference': {
           if (!d.preference_text) throw new Error('Saknar preference_text')
-          const { error } = await supabase.from('jarvis_insights').insert({ user_id: userId, insight: d.preference_text, category: `preferens${d.category ? ':' + d.category : ''}`, confidence: 90 })
+          const { error } = await supabase.from('jarvis_insights').insert({ user_id: userId, insight: d.preference_text, category: `preferens${d.category ? ':' + d.category : ''}`, confidence: 90, source: 'chat' })
           if (error) throw error
           result = 'Preferens sparad.'
           break
@@ -1059,13 +1063,13 @@ async function executeTool(toolName: string, input: any, supabase: any, userId: 
         case 'update_memory_context': {
           if (!d.context_area || !d.update_text) throw new Error('Saknar context_area/update_text')
           // Find existing insight in same context area and overwrite it
-          const { data: existing } = await supabase.from('jarvis_insights').select('id').eq('user_id', userId).ilike('category', `kontext:${d.context_area}`).limit(1).maybeSingle()
+          const { data: existing } = await supabase.from('jarvis_insights').select('id').eq('user_id', userId).ilike('category', `kontext:${d.context_area}`).is('archived_at', null).limit(1).maybeSingle()
           if (existing?.id) {
             const { error } = await supabase.from('jarvis_insights').update({ insight: d.update_text, confidence: 95, updated_at: new Date().toISOString() }).eq('id', existing.id)
             if (error) throw error
             result = `Kontext för "${d.context_area}" uppdaterad (ersatte gammal).`
           } else {
-            const { error } = await supabase.from('jarvis_insights').insert({ user_id: userId, insight: d.update_text, category: `kontext:${d.context_area}`, confidence: 95 })
+            const { error } = await supabase.from('jarvis_insights').insert({ user_id: userId, insight: d.update_text, category: `kontext:${d.context_area}`, confidence: 95, source: 'chat' })
             if (error) throw error
             result = `Kontext för "${d.context_area}" sparad (ny).`
           }
@@ -1397,7 +1401,14 @@ function buildSystemPrompt(context: string, settings: any, contentBlock: string,
     ? (s.jarvis_style < 30 ? 'diplomatisk' : s.jarvis_style < 60 ? 'balanserad' : s.jarvis_style < 85 ? 'direkt' : 'brutalt ärlig')
     : 'direkt'
 
-  const insightLines = insights.map((i: any) => `${i.category}: ${i.insight.slice(0, 80)}`).join('\n')
+  // Active memory, grouped by category, full text (was: 20 newest cut at 80
+  // chars). ids let Jarvis correct a memory with update_insight.
+  const byCat: Record<string, string[]> = {}
+  for (const i of insights) {
+    const cat = String(i.category || 'övrigt').split(':')[0]
+    ;(byCat[cat] ||= []).push(`- ${String(i.insight).slice(0, 220)} [${i.id}]`)
+  }
+  const insightLines = Object.entries(byCat).map(([c, lines]) => `${c.toUpperCase()}\n${lines.join('\n')}`).join('\n')
   const friendLines = friends.map((f: any) => `${f.name}${f.relationship ? ' ('+f.relationship+')' : ''}`).join(', ')
 
   const instructions = `Du är Jarvis – ${userName}s personliga AI-coach/assistent i MaxxIt. Stil: ${style}. Datadriven, konkret, aldrig generisk. Anta inget om användarens yrke, studier eller livssituation som inte framgår av PROFIL/MINNE/NU nedan.${s.jarvis_lang && s.jarvis_lang !== 'auto' ? ' Språk: '+s.jarvis_lang+'.' : ''}
@@ -1428,7 +1439,7 @@ DATUM: Ett "TID:"-block sist i denna systemprompt (efter NU) är exakt nu. Medde
 VERKTYG – hämta NÄR data saknas, INTE om svaret ryms ovan. Hämta parallellt vid flera domäner. Ej samma data 2x.
 Brief/kväll/vecka → journal+health+workouts+scores. Mående → fetch_journal(summaries_only=true för trend, full för djup). Pass/styrka/löp → fetch_workouts. PR/rekord → fetch_workouts(include_prs=true). Kosttillskott/medicin/retatrutide → fetch_health. Schema → fetch_calendar. Ekonomi/sparande/nettoförmögenhet/tillgångar → fetch_economy. Resor → fetch_experiences. Tasks → fetch_tasks. Djupare minne/sök minne → fetch_memory_goals(search_keyword). Gammal chatt/"vad sa vi om X" → fetch_chat_history(search_keyword). Journal-sök → fetch_journal(search_keyword).
 
-SPARA TYST (execute_action, nämn ej): faktum om användaren → save_insight | uppdatera fel insikt → update_insight(id,insight_text) | ta bort inaktuell insikt → delete_insight(id) | väninfo → update_friend | korrigering/ny sanning → update_memory_context(context_area,update_text) | preferens → save_preference. Spara 1-2 insikter/konversation om något viktigt framkommit. Kolla MINNE nedan innan du sparar – spara inte om det redan framgår. Rätta aktivt felaktiga minnen när användaren korrigerar dig.
+SPARA TYST (execute_action, nämn ej): faktum om användaren → save_insight | uppdatera fel insikt → update_insight(id,insight_text) | ta bort inaktuell insikt → delete_insight(id) | väninfo → update_friend | korrigering/ny sanning → update_memory_context(context_area,update_text) | preferens → save_preference. Spara direkt när användaren berättar något varaktigt om sig själv (preferens, plan, mönster, livsläge) – vänta inte. Kolla MINNE nedan först: finns det redan, skärp det med update_insight i stället för en dubblett. Ett nattjobb städar också minnet utifrån dagens samtal, men det du sparar själv gäller direkt. Rätta aktivt felaktiga minnen när användaren korrigerar dig.
 PR/rekord (styrka+löp) → fetch_workouts(include_prs=true) ger all-time PR-tavla.
 
 ÅTGÄRDER: execute_action direkt utan bekräftelse. Saknas ID → hämta först. delete → bekräfta vad raderas.
@@ -1440,7 +1451,8 @@ Svar på användarens språk. Kort.
 
 PROFIL: ${profileLines || '–'}`
 
-  const dynamic = `MINNE (senaste 20): ${insightLines || '–'}
+  const dynamic = `MINNE (ditt långtidsminne om användaren; underhålls också automatiskt varje natt):
+${insightLines || '–'}
 
 VÄNNER: ${friendLines || '–'}
 
@@ -1501,7 +1513,7 @@ serve(async (req) => {
     const [settingsResult, profileResult, insightsResult, friendsResult, contentResult] = await Promise.all([
       user ? supabase.from('user_settings').select('about_me,about_me_summary,goals,jarvis_style,jarvis_lang,jarvis_personality').eq('user_id', user.id).maybeSingle() : Promise.resolve({ data: null }),
       user ? supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
-      user ? supabase.from('jarvis_insights').select('insight,category').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(20) : Promise.resolve({ data: [] }),
+      user ? supabase.from('jarvis_insights').select('id,insight,category').eq('user_id', user.id).is('archived_at', null).order('category').order('updated_at', { ascending: false }).limit(120) : Promise.resolve({ data: [] }),
       user ? supabase.from('friends').select('name,relationship').eq('user_id', user.id).order('created_at', { ascending: false }).limit(15) : Promise.resolve({ data: [] }),
       (async () => {
         let block = ''

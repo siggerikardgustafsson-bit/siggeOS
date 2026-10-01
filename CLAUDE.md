@@ -16,7 +16,7 @@ Stack: React + Vite (Vercel, deploys on push to `main`) · Supabase (Postgres + 
 
 - **Frontend:** push to `main` and Vercel deploys.
 - **Migrations:** `supabase/migrations/2026MMDDHHMMSS_post_deploy_NN_<what>.sql`, applied with `supabase db push --linked --yes`. Check `supabase migration list --linked` first.
-- **Edge functions:** `supabase functions deploy <name>`. These **must** be deployed with `--no-verify-jwt`, because they authenticate themselves: `strava-sync`, `tier-snapshot`, `jarvis-weekly`, `push-notify`, `google-calendar-sync`, `health-ingest`, `skill-ingest`, `ekonomi-bank-link`. `jarvis-chat` and `ekonomi-sync` keep verify_jwt.
+- **Edge functions:** `supabase functions deploy <name>`. These **must** be deployed with `--no-verify-jwt`, because they authenticate themselves: `strava-sync`, `tier-snapshot`, `jarvis-weekly`, `push-notify`, `google-calendar-sync`, `jarvis-memory`, `health-ingest`, `skill-ingest`, `ekonomi-bank-link`. `jarvis-chat` and `ekonomi-sync` keep verify_jwt.
 - **Ad-hoc SQL:** `supabase db query --linked "<sql>"` (use `-o json`). Show a dry-run count before any data backfill.
 
 ## Shared code: browser + server bundle
@@ -37,6 +37,7 @@ Stack: React + Vite (Vercel, deploys on push to `main`) · Supabase (Postgres + 
 | `tier-snapshot-nightly` | `45 21 * * *` | tier-snapshot (UTC and Stockholm share the date then) |
 | `jarvis-weekly` | `0 18 * * 0` | weekly report → `jarvis_reports` + chat |
 | `push-notify-hourly` | `2 * * * *` | reminders, decided in Stockholm time |
+| `jarvis-memory-nightly` | `30 1 * * *` | jarvis-memory: the day's chat and journal → add/update/archive insights (`?mode=curate` condenses everything, `?dry=1`) |
 | `calendar-sync-2x` | `30 4,16 * * *` | google-calendar-sync `?action=cron`: PA shifts and obligatoriska moment for every connected user |
 
 `tier-snapshot` supports `?dry=1` and returns per-category bottlenecks. To run a job by hand, use `net.http_post` with the Vault secret, then read `net._http_response`.
@@ -50,6 +51,8 @@ Stack: React + Vite (Vercel, deploys on push to `main`) · Supabase (Postgres + 
 - `between_tools` was tested and rejected (runaway output).
 
 **Prompt caching:** tools and the static instructions (persona, self-image "VEM DU ÄR", PROFIL) are cached for 1 h. MINNE and NU are cached for 5 min. There is a breakpoint on the last message. **Never put timestamps or per-request data above a breakpoint.** The `TID:` line is extracted and sent as an uncached tail.
+
+**Memory:** `jarvis_insights` rows with `archived_at` null are the active memory. All of them (max 120, grouped by category) go into MINNE. They are never hard-deleted, only archived, and the archive stays searchable via `fetch_memory_goals`. `jarvis-memory` maintains the memory nightly. Structured JSON from Sonnet 5.5 uses `output_config.format`, because forced `tool_choice` returns 400 on that model.
 
 **Profile:** Jarvis gets `user_settings.about_me_summary`, not the full `about_me` (~40k chars, reachable via `fetch_memory_goals`). The summary is regenerated from Settings when `about_me` changes.
 

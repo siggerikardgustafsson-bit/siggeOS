@@ -251,21 +251,22 @@ export default function Jarvis() {
 
   async function loadInsights() {
     const { data } = await supabase.from('jarvis_insights')
-      .select('*').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(150)
+      .select('*').eq('user_id', user.id).is('archived_at', null).order('updated_at', { ascending: false }).limit(150)
     setInsights(data || [])
   }
 
   async function addManualInsight() {
     if (!newInsight.trim()) return
     setAddingInsight(true)
-    await supabase.from('jarvis_insights').insert({ user_id: user.id, insight: newInsight.trim(), category: 'mönster', confidence: 100 })
+    await supabase.from('jarvis_insights').insert({ user_id: user.id, insight: newInsight.trim(), category: 'mönster', confidence: 100, source: 'manual' })
     setNewInsight('')
     await loadInsights()
     setAddingInsight(false)
   }
 
   async function deleteInsight(id) {
-    await supabase.from('jarvis_insights').delete().eq('id', id).eq('user_id', user.id)
+    // Archive, never hard-delete (same as Jarvis's delete_insight).
+    await supabase.from('jarvis_insights').update({ archived_at: new Date().toISOString() }).eq('id', id).eq('user_id', user.id)
     setInsights(prev => prev.filter(i => i.id !== id))
   }
 
