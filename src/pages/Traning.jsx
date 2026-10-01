@@ -11,6 +11,7 @@ import RunModal from '../components/RunModal'
 import Modal from '../components/Modal'
 import EmptyState from '../components/EmptyState'
 import GoalsSection from '../components/GoalsSection'
+import WorkoutTemplates from '../components/WorkoutTemplates'
 import { BW_EXERCISES, updatePersonalRecord, findExerciseMatch, quickAddExercise } from '../lib/exercises'
 
 // BW_EXERCISES, updatePersonalRecord, findExerciseMatch and quickAddExercise
@@ -182,6 +183,7 @@ export default function TraningPage() {
   const [allPrSort, setAllPrSort] = useState('date') // date | name | value
   const [runEfforts, setRunEfforts] = useState([])
   const [selectedSessionDetail, setSelectedSessionDetail] = useState(null)
+  const [templatesKey, setTemplatesKey] = useState(0)
 
   useEffect(() => {
     if (user) { fetchSessions(); fetchPRs(); fetchRunPRs(); checkStravaStatus(); fetchExerciseLibrary(); loadOrphanExerciseNames() }
@@ -1075,6 +1077,24 @@ export default function TraningPage() {
       .sort((a, b) => (order[a.distance_key] || 99) - (order[b.distance_key] || 99))
   }
 
+  // A logged gym session → a reusable template (same exercises, same number
+  // of sets, the reps of the first set as target).
+  async function saveSessionAsTemplate(session, groups) {
+    const name = window.prompt('Namn på mallen', getSessionTitle(session) || 'Gympass')
+    if (!name?.trim()) return
+    const { error } = await supabase.from('workout_templates').insert({
+      user_id: user.id, name: name.trim(),
+      exercises: groups.map(g => ({
+        exercise_id: g.exerciseId || findLibraryExerciseByName(g.name)?.id || null,
+        name: g.name, sets: g.sets.length, reps: g.sets[0]?.reps ? String(g.sets[0].reps) : '',
+      })),
+    })
+    if (error) { toast({ message: 'Kunde inte spara mallen: ' + error.message, type: 'error' }); return }
+    setTemplatesKey(k => k + 1)
+    setSelectedSessionDetail(null)
+    toast({ message: `Mallen "${name.trim()}" sparad. Starta den under Passmallar.`, type: 'success' })
+  }
+
   function groupSessionExercises(session) {
     const rows = session?.training_exercises || []
     return Object.entries(rows.reduce((acc, ex) => {
@@ -1393,6 +1413,10 @@ export default function TraningPage() {
           </span>
           <button onClick={() => setStravaResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', flexShrink: 0 }}><X size={14} /></button>
         </div>
+      )}
+
+      {view === 'overview' && user && (
+        <WorkoutTemplates userId={user.id} refreshKey={templatesKey} onSessionSaved={() => { fetchSessions(); fetchPRs() }} />
       )}
 
       {view === 'overview' && (
@@ -2511,6 +2535,11 @@ export default function TraningPage() {
                   </div>
 
                   <div className="mx-modal-scroll" style={{ padding: '20px 22px 22px' }}>
+                  {session.session_type === 'gym' && exerciseGroups.length > 0 && (
+                    <button className="btn btn-ghost" style={{ marginBottom: '14px' }} onClick={() => saveSessionAsTemplate(session, exerciseGroups)}>
+                      <Save size={13} /> Spara som mall
+                    </button>
+                  )}
                   {session.notes && (
                     <div className="card-sm" style={{ marginBottom: '16px' }}>
                       <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>Anteckningar</div>
