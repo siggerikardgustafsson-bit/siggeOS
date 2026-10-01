@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { updateJournalScore } from '../lib/journalScore'
 import { useToast } from '../context/ToastContext'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, subMonths, addMonths, parseISO } from 'date-fns'
 import { sv } from 'date-fns/locale'
@@ -268,7 +269,7 @@ export default function JournalPage() {
           const rows = form.skills.filter(s => s.minutes > 0).map(s => ({ user_id: user.id, date: dateStr, skill: s.id, minutes: s.minutes, activity_type: s.activity_type || null }))
           await insertSkillRows(rows)
         }
-        await updateJournalScore(dateStr, form)
+        await updateJournalScore(supabase, user.id, dateStr, form)
 
         // A brand-new entry has no analysis by definition — always run it.
         // (The old guard compared against a *different* entry from the same
@@ -324,20 +325,6 @@ export default function JournalPage() {
       }
     }, 5000)
     pendingDeletes.current.set(entryId, handle)
-  }
-
-  async function updateJournalScore(dateStr, formData) {
-    const contentScore = Math.min(formData.content.length / 5, 25)
-    const journalScore = Math.min(75 + contentScore, 100)
-    const { data: existing } = await supabase.from('daily_scores').select('*').eq('user_id', user.id).eq('date', dateStr).maybeSingle()
-    const energyScore = formData.energy != null ? (formData.energy / 10) * 100 : null
-    if (existing) {
-      const patch = { score_journal: journalScore }
-      if (energyScore != null) patch.score_health = Math.max(existing.score_health || 0, energyScore)
-      await supabase.from('daily_scores').update(patch).eq('id', existing.id).eq('user_id', user.id)
-    } else {
-      await supabase.from('daily_scores').insert({ user_id: user.id, date: dateStr, score_journal: journalScore, ...(energyScore != null && { score_health: energyScore }) })
-    }
   }
 
   // Core analyzer — shared by the live save path and the retroactive batch.

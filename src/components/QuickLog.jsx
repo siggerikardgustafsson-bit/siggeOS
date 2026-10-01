@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
+import { updateJournalScore } from '../lib/journalScore'
 import { isBodyweightName, updatePersonalRecord, fetchExerciseCatalogue, findExerciseMatch, quickAddExercise } from '../lib/exercises'
 import { format } from 'date-fns'
 import { Plus, X, Heart, Dumbbell, DollarSign, TrendingUp, BookOpen, Check, Loader, Trash2 } from 'lucide-react'
@@ -77,6 +78,12 @@ function HealthForm({ onSave, saving }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
         <Field label="Vikt (kg)" type="number" step="0.1" placeholder="77.0" inputMode="decimal" value={form.weight_kg} onChange={v => f('weight_kg', v)} />
         <Field label="Sömn (h)" type="number" step="0.5" placeholder="7.5" inputMode="decimal" value={form.sleep_hours} onChange={v => f('sleep_hours', v)} />
+      </div>
+      {/* One tap for last night — the morning push opens straight here. */}
+      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '-4px' }}>
+        {[5, 6, 6.5, 7, 7.5, 8, 8.5, 9].map(h => (
+          <button key={h} type="button" onClick={() => f('sleep_hours', String(h))} style={chipStyle(String(form.sleep_hours) === String(h), '#10b981')}>{String(h).replace('.', ',')} h</button>
+        ))}
       </div>
       <div>
         <div style={labelStyle}>Energi</div>
@@ -452,6 +459,7 @@ export default function QuickLog() {
   const { user } = useAuth()
   const { toast } = useToast()
   const location = useLocation()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('training')
   const [saving, setSaving] = useState(false)
@@ -463,6 +471,19 @@ export default function QuickLog() {
   function handleOverlay(e) {
     if (e.target === overlayRef.current) setOpen(false)
   }
+
+  // Deep link: any route + ?log=<tab> opens the sheet on that tab (used by the
+  // push reminders, so "Hur sov du?" lands on the sleep field, not a page).
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const tab = params.get('log')
+    if (!tab || !TABS.some(t => t.id === tab)) return
+    setActiveTab(tab)
+    setOpen(true)
+    params.delete('log')
+    const rest = params.toString()
+    navigate(location.pathname + (rest ? '?' + rest : ''), { replace: true })
+  }, [location.search, location.pathname, navigate])
 
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape') setOpen(false) }
@@ -625,6 +646,7 @@ export default function QuickLog() {
         if (form.energy) payload.energy = form.energy
         const { error } = await supabase.from('journal_entries').insert(payload)
         if (error) throw error
+        await updateJournalScore(supabase, user.id, today, { content: payload.content, energy: form.energy || null })
       }
 
       setSaved(true)

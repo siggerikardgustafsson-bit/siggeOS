@@ -64,11 +64,11 @@ async function dueNotes(svc: any, userId: string, prefs: any, now: Date): Promis
       svc.from('health_logs').select('id').eq('user_id', userId).eq('date', today).gt('sleep_hours', 0).limit(1),
       svc.from('journal_entries').select('id').eq('user_id', userId).eq('date', today).gt('sleep_hours', 0).limit(1),
     ])
-    if (!h.data?.length && !j.data?.length) out.push({ kind: 'sleep_morning', title: 'Hur sov du?', body: 'Logga natten – tio sekunder, och sömnsnittet blir att lita på.', url: '/halsa' })
+    if (!h.data?.length && !j.data?.length) out.push({ kind: 'sleep_morning', title: 'Hur sov du?', body: 'Ett tryck: logga natten, så blir sömnsnittet att lita på.', url: '/halsa?log=health' })
   }
   if (prefs.notif_journal && hour === 21) {
     const { data } = await svc.from('journal_entries').select('id').eq('user_id', userId).eq('date', today).limit(1)
-    if (!data?.length) out.push({ kind: 'evening_log', title: 'Kvällslogg', body: 'Humör, energi och en rad om dagen – 20 sekunder.', url: '/journal' })
+    if (!data?.length) out.push({ kind: 'evening_log', title: 'Kvällslogg', body: 'Humör, energi och en rad om dagen – 20 sekunder.', url: '/journal?log=journal' })
   }
   if (prefs.notif_training && hour === 18) {
     const { data } = await svc.from('course_exams').select('name').eq('user_id', userId).eq('exam_date', tomorrow).limit(3)
